@@ -1,9 +1,8 @@
 name: Build and Push Docker Image
 
 on:
-  push:
-    tags:
-      - 'v*'
+  # Disabled tag trigger for Phase 1 (binary-only smoke build)
+  # Re-enable when Docker smoke test is ready
   workflow_dispatch:
     inputs:
       enable_upx:

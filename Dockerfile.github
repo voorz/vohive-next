@@ -43,11 +43,11 @@ RUN --mount=type=cache,target=/go/pkg/mod,id=gomod-${TARGETOS}-${TARGETARCH},sha
     GH_TOKEN="$(cat /run/secrets/gh_pat 2>/dev/null || true)" && \
     if [ -z "${GH_TOKEN}" ]; then GH_TOKEN="${GH_PAT}"; fi && \
     if [ -n "${GH_TOKEN}" ]; then \
-      git config --global url."https://x-access-token:${GH_TOKEN}@github.com/iniwex5/".insteadOf "https://github.com/iniwex5/"; \
+      git config --global url."https://x-access-token:${GH_TOKEN}@github.com/voorz/".insteadOf "https://github.com/iniwex5/"; \
     fi && \
     go mod download && \
     if [ -n "${GH_TOKEN}" ]; then \
-      git config --global --unset-all url."https://x-access-token:${GH_TOKEN}@github.com/iniwex5/".insteadOf || true; \
+      git config --global --unset-all url."https://x-access-token:${GH_TOKEN}@github.com/voorz/".insteadOf || true; \
     fi
 
 # 复制源代码
@@ -67,7 +67,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build,id=gobuild-${TARGETOS}-${TAR
     GH_TOKEN="$(cat /run/secrets/gh_pat 2>/dev/null || true)" && \
     if [ -z "${GH_TOKEN}" ]; then GH_TOKEN="${GH_PAT}"; fi && \
     if [ -n "${GH_TOKEN}" ]; then \
-      git config --global url."https://x-access-token:${GH_TOKEN}@github.com/iniwex5/".insteadOf "https://github.com/iniwex5/"; \
+      git config --global url."https://x-access-token:${GH_TOKEN}@github.com/voorz/".insteadOf "https://github.com/iniwex5/"; \
     fi && \
     go mod tidy && \
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
@@ -84,7 +84,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build,id=gobuild-${TARGETOS}-${TAR
       echo "UPX disabled."; \
     fi && \
     if [ -n "${GH_TOKEN}" ]; then \
-      git config --global --unset-all url."https://x-access-token:${GH_TOKEN}@github.com/iniwex5/".insteadOf || true; \
+      git config --global --unset-all url."https://x-access-token:${GH_TOKEN}@github.com/voorz/".insteadOf || true; \
     fi && \
     ls -lh /app/vo-hive
 
