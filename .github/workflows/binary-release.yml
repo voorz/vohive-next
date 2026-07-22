@@ -231,14 +231,14 @@ jobs:
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           if [[ -z "${GH_PAT}" ]]; then
-            echo "GH_PAT is required to publish assets to iniwex5/vohive-release"
+            echo "GH_PAT is required to publish assets to voorz/vohive-release"
             exit 1
           fi
 
       - name: Publish to vohive-release repository
         uses: softprops/action-gh-release@v2
         with:
-          repository: iniwex5/vohive-release
+          repository: voorz/vohive-release
           token: ${{ secrets.GH_PAT }}
           tag_name: ${{ steps.release_vars.outputs.release_version }}
           name: ${{ steps.source_release.outputs.release_name }}
