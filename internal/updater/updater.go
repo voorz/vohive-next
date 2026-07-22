@@ -2,6 +2,7 @@ package updater
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -15,6 +16,11 @@ import (
 	"github.com/minio/selfupdate"
 	"golang.org/x/mod/semver"
 )
+
+// ErrDisabled is returned when in-app binary updates are disabled.
+// The original vohive-next build keeps update functionality enabled;
+// this var exists for API compatibility with the synchronous error-handling path.
+var ErrDisabled = errors.New("in-app binary updates are disabled for this source-integrated build")
 
 const (
 	repoOwner = "iniwex5"

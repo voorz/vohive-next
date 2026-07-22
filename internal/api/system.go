@@ -56,11 +56,19 @@ func (s *Server) handleCheckUpdate(c *gin.Context) {
 
 // handleApplyUpdate 应用系统更新
 func (s *Server) handleApplyUpdate(c *gin.Context) {
-	go func() {
-		if err := updater.ApplyUpdate(); err != nil {
+	if err := updater.ApplyUpdate(); err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, updater.ErrDisabled) {
+			status = http.StatusConflict
+		} else {
 			logger.Error("应用更新失败", "err", err)
 		}
-	}()
+		c.JSON(status, gin.H{
+			"status":  "error",
+			"message": err.Error(),
+		})
+		return
+	}
 	c.JSON(http.StatusOK, gin.H{"message": "正在后台下载更新，系统稍后将自动重启..."})
 }
 

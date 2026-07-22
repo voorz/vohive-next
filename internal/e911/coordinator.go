@@ -8,6 +8,7 @@ import (
 	"github.com/iniwex5/vohive/internal/device"
 	"github.com/iniwex5/vohive/internal/modem"
 	"github.com/iniwex5/vohive/internal/websheet"
+	"github.com/iniwex5/vohive/pkg/logger"
 	"github.com/iniwex5/vowifi-go/runtimehost/carrier"
 	runtimee911 "github.com/iniwex5/vowifi-go/runtimehost/e911"
 )
@@ -36,16 +37,34 @@ func NewCoordinator(deviceID string, pool *device.Pool, websheets *websheet.Brok
 
 func (c *Coordinator) StartWebsheet(ctx context.Context, deviceID string) (websheet.Info, error) {
 	if c == nil || c.Pool == nil || c.Websheets == nil {
+		logger.RunWarn("E911 coordinator nil check failed",
+			"device", deviceID,
+			"coordinator_nil", c == nil,
+			"pool_nil", c == nil || c.Pool == nil,
+			"websheets_nil", c == nil || c.Websheets == nil)
 		return websheet.Info{}, ErrProviderUnavailable
 	}
 
 	w := c.Pool.GetWorker(deviceID)
 	if w == nil {
+		logger.RunWarn("E911 coordinator worker not found", "device", deviceID)
 		return websheet.Info{}, ErrIdentityUnavailable
 	}
 
 	status := w.ProjectDeviceStatus()
+	logger.RunDebug("E911 coordinator device status",
+		"device", deviceID,
+		"imsi", status.IMSI,
+		"imei", status.IMEI,
+		"native_mcc", status.NativeMCC,
+		"native_mnc", status.NativeMNC)
+
 	if !SetupAvailable(status) {
+		logger.RunWarn("E911 coordinator SetupAvailable returned false",
+			"device", deviceID,
+			"native_mcc", status.NativeMCC,
+			"native_mnc", status.NativeMNC,
+			"imsi", status.IMSI)
 		return websheet.Info{}, ErrNotSupported
 	}
 
@@ -54,7 +73,19 @@ func (c *Coordinator) StartWebsheet(ctx context.Context, deviceID string) (websh
 		MCC: mcc,
 		MNC: mnc,
 	})
+	logger.RunDebug("E911 coordinator carrier config",
+		"device", deviceID,
+		"mcc", mcc, "mnc", mnc,
+		"e911_enabled", cfg.E911.Enabled,
+		"e911_provider", cfg.E911.Provider,
+		"e911_websheet", cfg.E911.Websheet,
+		"e911_endpoint", cfg.E911.EntitlementEndpoint)
+
 	if !cfg.E911.Enabled || strings.TrimSpace(cfg.E911.Provider) == "" {
+		logger.RunWarn("E911 coordinator provider unavailable",
+			"device", deviceID,
+			"e911_enabled", cfg.E911.Enabled,
+			"e911_provider", cfg.E911.Provider)
 		return websheet.Info{}, ErrProviderUnavailable
 	}
 
@@ -67,6 +98,10 @@ func (c *Coordinator) StartWebsheet(ctx context.Context, deviceID string) (websh
 		client:   runtimee911.NewDefaultHTTPClient(),
 	}
 
+	logger.RunDebug("E911 coordinator calling StartEmergencyAddressUpdate",
+		"device", deviceID,
+		"endpoint", cfg.E911.EntitlementEndpoint)
+
 	websheetReq, err := runtimee911.StartEmergencyAddressUpdate(ctx, runtimee911.Request{
 		Carrier:     cfg,
 		Identity:    buildRuntimeE911Identity(status, mcc, mnc, displayName(w)),
@@ -75,6 +110,9 @@ func (c *Coordinator) StartWebsheet(ctx context.Context, deviceID string) (websh
 		Trace:       entitlementTraceSink{deviceID: deviceID},
 	})
 	if err != nil {
+		logger.RunWarn("E911 StartEmergencyAddressUpdate failed",
+			"device", deviceID,
+			"err", err)
 		switch {
 		case errors.Is(err, runtimee911.ErrUnsupportedProvider):
 			return websheet.Info{}, ErrProviderUnavailable
@@ -87,10 +125,20 @@ func (c *Coordinator) StartWebsheet(ctx context.Context, deviceID string) (websh
 		}
 	}
 
+	logger.RunDebug("E911 StartEmergencyAddressUpdate success",
+		"device", deviceID,
+		"websheet_url", websheetReq.URL)
+
 	req.URL = websheetReq.URL
 	req.UserData = websheetReq.UserData
 	req.ContentType = websheetReq.ContentType
 	req.Title = websheetReq.Title
+
+	// ATT 的 e911 页面是静态 HTML 页面，只支持 GET 方法；websheet 系统
+	// 只要有 ContentType 就会用 POST form 提交，导致 405。
+	if strings.Contains(req.URL, "att.com/acctmgmt/wireless/e911") {
+		req.ContentType = ""
+	}
 
 	session, err := c.Websheets.Create(ctx, req)
 	if err != nil {

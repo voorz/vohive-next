@@ -2,6 +2,13 @@ module github.com/iniwex5/vohive
 
 go 1.26.3
 
+replace (
+	github.com/iniwex5/netlink => ../voorz-forks/netlink
+	github.com/iniwex5/qqbot => ../voorz-forks/qqbot
+	github.com/iniwex5/quectel-qmi-go => ../voorz-forks/quectel-qmi-go
+	github.com/iniwex5/vowifi-go => ../voorz-forks/vowifi-go
+)
+
 require (
 	github.com/damonto/euicc-go v1.1.3-0.20260628013808-8d873a2dfc98
 	github.com/gin-gonic/gin v1.11.0
@@ -96,6 +103,7 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.0 // indirect
 	github.com/vishvananda/netlink v1.3.1 // indirect
+	// replaced by github.com/iniwex5/netlink (local fork)
 	github.com/vishvananda/netns v0.0.5 // indirect
 	go.uber.org/mock v0.5.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
