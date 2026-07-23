@@ -6,10 +6,6 @@ on:
       - 'v*'
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Version string (used when manually triggered)'
-        required: false
-        default: 'dev'
       enable_upx:
         description: 'Enable UPX compression (true/false)'
         required: false
@@ -94,11 +90,7 @@ jobs:
         id: vars
         shell: bash
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            VERSION="${GITHUB_REF_NAME}"
-          else
-            VERSION="${{ github.event.inputs.version || 'dev' }}"
-          fi
+          VERSION="$(cat VERSION | tr -d '[:space:]')"
           BUILDTIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           REVISION="${GITHUB_SHA}"
 
@@ -176,16 +168,66 @@ jobs:
       TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
       - name: Prepare release vars
         id: release_vars
         shell: bash
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            RELEASE_VERSION="${GITHUB_REF_NAME}"
-          else
-            RELEASE_VERSION="${{ github.event.inputs.version || 'dev' }}"
-          fi
+          RELEASE_VERSION="$(cat VERSION | tr -d '[:space:]')"
           echo "release_version=${RELEASE_VERSION}" >> "${GITHUB_OUTPUT}"
+
+      - name: Generate release notes
+        id: release_notes
+        shell: bash
+        run: |
+          VERSION="$(cat VERSION | tr -d '[:space:]')"
+          REPO_URL="https://github.com/${GITHUB_REPOSITORY}"
+
+          # Get previous tag for changelog range
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "${PREV_TAG}" ]; then
+            RANGE="${PREV_TAG}..HEAD"
+          else
+            RANGE="HEAD"
+          fi
+
+          # Build commit list
+          COMMITS=""
+          while IFS= read -r line; do
+            HASH="$(echo "${line}" | awk '{print $1}')"
+            MSG="$(echo "${line}" | cut -d' ' -f2-)"
+            COMMITS+="- ${MSG} ([${HASH}](${REPO_URL}/commit/${HASH}))"$'\n'
+          done < <(git log ${RANGE} --format="%h %s")
+
+          # Assemble release body
+          {
+            echo "body<<EOF"
+            echo "# VoHive v${VERSION}"
+            echo ""
+            echo "${COMMITS}"
+            echo "---"
+            echo ""
+            echo "## Downloads"
+            echo ""
+            echo "| Architecture | Platform | File |"
+            echo "|------|---------|------|"
+            echo "| amd64 | WSL / x86_64 Linux | \`vohive_${VERSION}_linux_amd64\` |"
+            echo "| arm64 | OpenWrt aarch64 / ARM64 Linux | \`vohive_${VERSION}_linux_arm64\` |"
+            echo "| armv7 | OpenWrt armv7 / Embedded devices | \`vohive_${VERSION}_linux_armv7\` |"
+            echo ""
+            echo "## Docker"
+            echo ""
+            echo '```bash'
+            echo "docker pull voorz/vohive:${VERSION}"
+            echo "docker pull ghcr.io/voorz/vohive-next/vohive:${VERSION}"
+            echo '```'
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -198,51 +240,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.release_vars.outputs.release_version }}
-
-      - name: Load source release metadata
-        id: source_release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          RELEASE_API="https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/tags/${{ steps.release_vars.outputs.release_version }}"
-
-          release_json="$(curl -fsSL \
-            -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-            -H "Accept: application/vnd.github+json" \
-            "${RELEASE_API}")"
-
-          release_name="$(printf '%s' "${release_json}" | jq -r '.name // ""')"
-          release_body="$(printf '%s' "${release_json}" | jq -r '.body // ""')"
-
-          {
-            echo "release_name<<EOF"
-            printf '%s\n' "${release_name}"
-            echo "EOF"
-            echo "release_body<<EOF"
-            printf '%s\n' "${release_body}"
-            echo "EOF"
-          } >> "${GITHUB_OUTPUT}"
-
-      - name: Validate token for cross-repo publish
-        shell: bash
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
-        run: |
-          if [[ -z "${GH_PAT}" ]]; then
-            echo "GH_PAT is required to publish assets to voorz/vohive-release"
-            exit 1
-          fi
-
-      - name: Publish to vohive-release repository
-        uses: softprops/action-gh-release@v2
-        with:
-          repository: voorz/vohive-release
-          token: ${{ secrets.GH_PAT }}
-          tag_name: ${{ steps.release_vars.outputs.release_version }}
-          name: ${{ steps.source_release.outputs.release_name }}
-          body: ${{ steps.source_release.outputs.release_body }}
+          body: ${{ steps.release_notes.outputs.body }}
           files: dist/*
           fail_on_unmatched_files: true
           overwrite_files: true
@@ -251,24 +249,18 @@ jobs:
         if: ${{ env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHANNEL_ID != '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_BODY: ${{ steps.source_release.outputs.release_body }}
         shell: bash
         run: |
           set -euo pipefail
           API="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}"
 
           MESSAGE_HEADER="vohive release ${{ steps.release_vars.outputs.release_version }} assets"
-          if [[ -n "${RELEASE_BODY}" ]]; then
-            FULL_MESSAGE="${MESSAGE_HEADER}"$'\n\n'"Release notes:"$'\n'"${RELEASE_BODY}"
-          else
-            FULL_MESSAGE="${MESSAGE_HEADER}"
-          fi
 
           shopt -s nullglob
           FILES=(dist/*)
 
           if [[ ${#FILES[@]} -eq 0 ]]; then
-            MESSAGE="${FULL_MESSAGE:0:3800}"
+            MESSAGE="${MESSAGE_HEADER:0:3800}"
             curl -fsSL -X POST "${API}/sendMessage" \
               -d "chat_id=${TELEGRAM_CHANNEL_ID}" \
               --data-urlencode "text=${MESSAGE}"
@@ -276,7 +268,7 @@ jobs:
           fi
 
           # sendMediaGroup 里首个文档携带说明；caption 上限 1024。
-          CAPTION="${FULL_MESSAGE:0:1000}"
+          CAPTION="${MESSAGE_HEADER:0:1000}"
           CAPTION_JSON="$(jq -Rn --arg s "${CAPTION}" '$s')"
 
           MEDIA_ITEMS=()

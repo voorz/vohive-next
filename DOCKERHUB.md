@@ -1,17 +1,17 @@
 # VoHive
 
-4G/5G 模组管理平台 - 支持移远 EC20/EC25/RM500Q 等移远模组的统一管理与代理服务。
+A unified management & proxy platform for Qualcomm 4G/LTE/5G modems — modem hot-plug management, SOCKS5/HTTP proxy, SMS messaging, VoWiFi/IMS voice, and eSIM lifecycle control in a single Docker image.
 
-## 🚀 快速开始
+## Quick Start
 
-### 1. 创建配置目录
+### 1. Create directories
 
 ```bash
 mkdir -p vohive/{config,data,logs}
 cd vohive
 ```
 
-### 2. 创建配置文件
+### 2. Create a minimal config
 
 ```bash
 cat > config/config.yaml << 'EOF'
@@ -21,118 +21,112 @@ server:
 
 web:
   username: admin
-  # 首次登录后请在 Web 界面修改密码
-  password: admin123
-
+  password: admin
 EOF
 ```
 
-### 3. 使用 Docker Compose 启动
+> Change the default password after first login.
 
-创建 `docker-compose.yml`:
+### 3. Start with Docker Compose
+
+Create `docker-compose.yml`:
 
 ```yaml
 services:
   vohive:
-    image: iniwex/vohive:latest
+    image: voorz/vohive:latest
     container_name: vohive
     restart: unless-stopped
-    ports:
-      - "7575:7575"
+    network_mode: host
+    privileged: true
     volumes:
-      # 配置文件 (首次运行需创建)
       - ./config:/app/config
       - ./data:/app/data
-      # 日志目录
       - ./logs:/app/logs
+      - /dev:/dev
     environment:
       - TZ=Asia/Shanghai
       - CONFIG_PATH=/app/config/config.yaml
-      # 代理服务器,可选
-      - HTTPS_PROXY=http://proxy-ip:port
-    # 需要访问宿主机设备时启用以下配置
-    privileged: true
-    devices:
-      # USB 设备透传
-      - /dev/:/dev/
-    network_mode: host
 ```
-
-启动服务：
 
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 
-### 4. 访问 Web 界面
+### 4. Access the web UI
 
-打开浏览器访问: `http://YOUR_IP:7575`
+Open `http://YOUR_IP:7575` in a browser.
 
-默认账号: `admin` / `admin123`
+Default credentials: `admin` / `admin`
 
-## 📦 镜像标签
+## Image Tags
 
-| 标签 | 说明 |
-|------|------|
-| `latest` | 最新稳定版 |
-| `vX.X.X` | 指定版本号 |
-| `main` | 开发版 (可能不稳定) |
+| Tag | Description |
+| :--- | :--- |
+| `latest` | Latest stable release |
+| `vX.Y.Z` | Pinned semantic version |
 
-## 🔧 环境变量
+## Supported Architectures
 
-| 变量 | 默认值 | 说明 |
-|------|--------|------|
-| `TZ` | `UTC` | 时区 |
-| `CONFIG_PATH` | `/app/config/config.yaml` | 配置文件路径 |
+| Architecture | Tag suffix |
+| :--- | :--- |
+| linux/amd64 | — |
+| linux/arm64 | — |
+| linux/arm/v7 | — |
 
-## 📁 数据卷
+Multi-arch manifests are published automatically. Simply `docker pull voorz/vohive:latest` and Docker selects the correct variant.
 
-| 路径 | 说明 |
-|------|------|
-| `/app/config` | 配置文件目录 |
-| `/app/data` | 数据库存储 |
-| `/app/logs` | 日志文件 |
+## Environment Variables
 
-## 🤖 Telegram Bot
+| Variable | Default | Description |
+| :--- | :--- | :--- |
+| `TZ` | `UTC` | Timezone (`Asia/Shanghai`, `America/New_York`, …) |
+| `CONFIG_PATH` | `/app/config/config.yaml` | Path to the YAML config file |
+| `HTTPS_PROXY` | — | Outbound proxy for Telegram API (optional) |
 
-支持通过 Telegram Bot 远程管理设备。在 Web 界面 **设置 → 通知** 中配置。
+## Volumes
 
-### 配置步骤
+| Path | Description |
+| :--- | :--- |
+| `/app/config` | Configuration files (`config.yaml`) |
+| `/app/data` | SQLite database & persistent state |
+| `/app/logs` | Log files |
 
-1. 通过 [@BotFather](https://t.me/BotFather) 创建 Bot，获取 Token
-2. 获取你的 Chat ID（可通过 [@userinfobot](https://t.me/userinfobot) 查询）
-3. 在 VoHive 设置页面填入 Bot Token 和 Chat ID
-4. 如服务器无法直连 Telegram，填写 TG API 代理地址
+## Ports
 
-### 支持的命令
+| Port | Protocol | Description |
+| :--- | :--- | :--- |
+| 7575 | TCP | Web UI & REST API |
 
-| 命令 | 说明 |
-|------|------|
-| `/list` | 列出设备列表 |
-| `/rotate <设备>` | 重置设备 IP |
-| `/sms <设备>` | 查看最近短信 |
-| `/send <设备> <号码> <内容>` | 发送短信 |
+> When using `network_mode: host` (recommended), the port is exposed directly on the host. Otherwise map it with `-p 7575:7575`.
 
-### 代理配置
+## Device Access
 
-中国大陆服务器需要配置代理才能访问 Telegram API：
+VoHive requires direct access to USB modems and network interfaces. The container must run with:
 
-```yaml
-environment:
-  - HTTPS_PROXY=http://your-proxy:port
-```
+- `privileged: true` — for USB device, network management, and `/dev/net/tun` access
+- `/dev:/dev` volume mount — for USB modem passthrough (ttyUSB, etc.)
+- `network_mode: host` — for per-device outbound binding (`SO_BINDTODEVICE`) and interface management
 
-或在 Web 界面的 **TG API 代理** 字段填写 Cloudflare Worker 地址。
+## Configuration
 
-## 🖥️ 支持架构
+The minimal config above is enough to get started. VoHive auto-detects connected modems on startup. Advanced features (proxy instances, VoWiFi, notifications, eSIM) can be configured through the web UI or by extending `config.yaml`.
 
-- `linux/amd64` (x86_64)
-- `linux/arm64` (ARM64/aarch64)
+## Telegram Bot (Optional)
 
-## 📖 文档
+VoHive supports remote management via Telegram Bot. Configure the Bot Token and Chat ID in the web UI under **Settings → Notifications**.
 
-完整文档请访问: [GitHub](https://github.com/iniwex5/vohive)
+If the server cannot reach Telegram API directly (e.g. in mainland China), set the `HTTPS_PROXY` environment variable or use a Cloudflare Worker URL in the TG API Proxy field.
 
-## 📝 License
+| Command | Description |
+| :--- | :--- |
+| `/list` | List devices |
+| `/rotate <device>` | Rotate device IP |
+| `/sms <device>` | Show recent SMS |
+| `/send <device> <number> <content>` | Send SMS |
 
-MIT License
+## Links
+
+- **Source**: [github.com/voorz/vohive-next](https://github.com/voorz/vohive-next)
+- **Releases**: [github.com/voorz/vohive-next/releases](https://github.com/voorz/vohive-next/releases)
+- **License**: PolyForm Noncommercial 1.0.0 — non-commercial use only

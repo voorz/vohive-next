@@ -39,20 +39,14 @@ jobs:
         with:
           images: ${{ env.DOCKER_IMAGE }}
           tags: |
-            # 总是打上 latest 标签
             type=raw,value=latest,enable=true
-            # 语义化精确版本标签 (例如 v1.0.0 会被转换为 1.0.0)
-            type=semver,pattern={{version}}
+            type=raw,value=${{ steps.vars.outputs.version }}
 
       - name: Prepare build args
         id: vars
         shell: bash
         run: |
-          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-            VERSION="${GITHUB_REF_NAME}"
-          else
-            VERSION="sha-${GITHUB_SHA::7}"
-          fi
+          VERSION="$(cat VERSION | tr -d '[:space:]')"
           BUILDTIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           REVISION="${GITHUB_SHA}"
           if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
