@@ -67,7 +67,7 @@ func (a *modemAdapter) TransmitAPDU(channel int, hexAPDU string) (string, error)
 	return resp, normalizeVoWiFiAPDUError(err)
 }
 func (a *modemAdapter) GetISIMIdentity() (identity.Identity, error) {
-	return identity.ReadISIMIdentity(a)
+	return identity.Identity{}, fmt.Errorf("ISIM not available, using USIM fallback")
 }
 func (a *modemAdapter) GetNetworkMode() string {
 	mode := a.m.GetFullStatus().NetworkMode
