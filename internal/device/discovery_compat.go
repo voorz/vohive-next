@@ -189,7 +189,8 @@ func discoverFallbackOne(usbPath string) (CompatibleModem, bool) {
 		}, true
 	}
 
-	if vid != 0x2c7c && vid != 0x05c6 {
+	// DJI/Baiwang (0x2ca3) 本质是 EG25/EC25 高通平台，AT 端口布局与 Quectel 一致。
+	if vid != 0x2c7c && vid != 0x05c6 && vid != 0x2ca3 {
 		return CompatibleModem{}, false
 	}
 
