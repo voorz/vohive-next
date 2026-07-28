@@ -16,6 +16,8 @@
 # 前端构建产物 (由 npm run build 生成)
 /web/dist/
 /web/node_modules/
+/web/src/auto-imports.d.ts
+/web/src/components.d.ts
 /web-reader/dist/
 /web-reader/node_modules/
 /internal/web/dist/
@@ -52,7 +54,6 @@ coverage.out
 /reader
 vohive.code-workspace
 PushNotification.pdf
-.gitignore
 Quectel_LTE_Standard_UAC_应用指导_V1.0.pdf
 go.work
 go.work.sum
