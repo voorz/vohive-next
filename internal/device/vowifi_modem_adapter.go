@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/iniwex5/vohive/internal/apduarbiter"
-	"github.com/iniwex5/vohive/internal/backend"
-	"github.com/iniwex5/vohive/internal/modem"
-	"github.com/iniwex5/vowifi-go/runtimehost"
-	"github.com/iniwex5/vowifi-go/runtimehost/identity"
+	"github.com/voorz/vohive/internal/apduarbiter"
+	"github.com/voorz/vohive/internal/backend"
+	"github.com/voorz/vohive/internal/modem"
+	"github.com/voorz/vowifi-core/runtimehost"
+	"github.com/voorz/vowifi-core/runtimehost/identity"
 )
 
 func newVoWiFiModemInterface(w *Worker, deviceID string) (runtimehost.Modem, error) {

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/iniwex5/vohive/internal/backend"
-	"github.com/iniwex5/vohive/internal/config"
+	"github.com/voorz/vohive/internal/backend"
+	"github.com/voorz/vohive/internal/config"
 )
 
 type mbimRegistrationTestController struct {

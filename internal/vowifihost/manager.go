@@ -3,10 +3,10 @@ package vowifihost
 import (
 	"context"
 
-	"github.com/iniwex5/vowifi-go/runtimehost"
-	"github.com/iniwex5/vowifi-go/runtimehost/eventhost"
-	"github.com/iniwex5/vowifi-go/runtimehost/messaging"
-	"github.com/iniwex5/vowifi-go/runtimehost/voicehost"
+	"github.com/voorz/vowifi-core/runtimehost"
+	"github.com/voorz/vowifi-core/runtimehost/eventhost"
+	"github.com/voorz/vowifi-core/runtimehost/messaging"
+	"github.com/voorz/vowifi-core/runtimehost/voicehost"
 )
 
 type Manager struct {

@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/iniwex5/vohive/pkg/logger"
+	"github.com/voorz/vohive/pkg/logger"
 	socks5 "github.com/things-go/go-socks5"
 )
 

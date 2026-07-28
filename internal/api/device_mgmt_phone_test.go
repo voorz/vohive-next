@@ -13,12 +13,12 @@ import (
 
 	sgp22 "github.com/damonto/euicc-go/v2"
 	"github.com/gin-gonic/gin"
-	"github.com/iniwex5/vohive/internal/apduarbiter"
-	"github.com/iniwex5/vohive/internal/config"
-	"github.com/iniwex5/vohive/internal/db"
-	"github.com/iniwex5/vohive/internal/device"
-	"github.com/iniwex5/vohive/internal/esim"
-	"github.com/iniwex5/vohive/internal/modem"
+	"github.com/voorz/vohive/internal/apduarbiter"
+	"github.com/voorz/vohive/internal/config"
+	"github.com/voorz/vohive/internal/db"
+	"github.com/voorz/vohive/internal/device"
+	"github.com/voorz/vohive/internal/esim"
+	"github.com/voorz/vohive/internal/modem"
 	"golang.org/x/sync/singleflight"
 )
 

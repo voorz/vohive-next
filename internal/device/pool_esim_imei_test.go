@@ -6,9 +6,9 @@ import (
 	"testing"
 	"unsafe"
 
-	"github.com/iniwex5/vohive/internal/backend"
-	"github.com/iniwex5/vohive/internal/config"
-	"github.com/iniwex5/vohive/internal/modem"
+	"github.com/voorz/vohive/internal/backend"
+	"github.com/voorz/vohive/internal/config"
+	"github.com/voorz/vohive/internal/modem"
 )
 
 type esimIMEIBackendStub struct {

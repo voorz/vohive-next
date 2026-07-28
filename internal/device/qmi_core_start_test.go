@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/iniwex5/vohive/internal/config"
+	"github.com/voorz/vohive/internal/config"
 )
 
 func TestRunQMIStartCoreAttemptReturnsAfterStartupBudget(t *testing.T) {

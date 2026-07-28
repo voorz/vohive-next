@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/iniwex5/vohive/internal/apduarbiter"
-	"github.com/iniwex5/vohive/internal/backend"
-	"github.com/iniwex5/vohive/internal/config"
-	"github.com/iniwex5/vohive/internal/esim"
+	"github.com/voorz/vohive/internal/apduarbiter"
+	"github.com/voorz/vohive/internal/backend"
+	"github.com/voorz/vohive/internal/config"
+	"github.com/voorz/vohive/internal/esim"
 )
 
 type esimManagerQMITransportStub struct {

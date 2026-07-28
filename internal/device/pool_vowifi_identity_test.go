@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/iniwex5/vowifi-go/runtimehost"
-	"github.com/iniwex5/vowifi-go/runtimehost/identity"
+	"github.com/voorz/vowifi-core/runtimehost"
+	"github.com/voorz/vowifi-core/runtimehost/identity"
 )
 
 type vowifiIdentityTestModem struct {

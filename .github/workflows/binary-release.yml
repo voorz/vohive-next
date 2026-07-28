@@ -80,10 +80,10 @@ jobs:
           GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           if [ -n "${GH_PAT}" ]; then
-            # Redirect iniwex5/* module paths to voorz/* fork repos
-            git config --global url."https://x-access-token:${GH_PAT}@github.com/voorz/".insteadOf "https://github.com/iniwex5/"
-            go env -w GOPRIVATE=github.com/iniwex5/*
-            go env -w GONOSUMDB=github.com/iniwex5/*
+# Configure auth for voorz private modules
+          git config --global url."https://x-access-token:${GH_PAT}@github.com/voorz/".insteadOf "https://github.com/voorz/"
+          go env -w GOPRIVATE=github.com/voorz/*
+          go env -w GONOSUMDB=github.com/voorz/*
           fi
 
       - name: Prepare build vars
@@ -128,7 +128,7 @@ jobs:
           mkdir -p dist
           CGO_ENABLED=0 GOOS=linux GOARCH=${{ matrix.goarch }} GOARM=${{ matrix.goarm }} \
             go build -trimpath -buildvcs=false -tags "with_utls" \
-            -ldflags "-s -w -X 'github.com/iniwex5/vohive/internal/global.Version=${{ steps.vars.outputs.version }}' -X 'github.com/iniwex5/vohive/internal/global.BuildTime=${{ steps.vars.outputs.buildtime }}'" \
+            -ldflags "-s -w -X 'github.com/voorz/vohive/internal/global.Version=${{ steps.vars.outputs.version }}' -X 'github.com/voorz/vohive/internal/global.BuildTime=${{ steps.vars.outputs.buildtime }}'" \
             -o dist/vo-hive ./cmd/vohive
 
       - name: Install UPX

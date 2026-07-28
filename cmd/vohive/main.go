@@ -13,22 +13,22 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/iniwex5/vohive/internal/api"
-	"github.com/iniwex5/vohive/internal/config"
-	"github.com/iniwex5/vohive/internal/db"
-	"github.com/iniwex5/vohive/internal/device"
-	"github.com/iniwex5/vohive/internal/notify"
-	proxyserver "github.com/iniwex5/vohive/internal/proxy/server"
-	"github.com/iniwex5/vohive/internal/proxy/traffic"
-	"github.com/iniwex5/vohive/internal/sipgw"
-	"github.com/iniwex5/vohive/internal/upstreamproxy"
-	"github.com/iniwex5/vowifi-go/runtimehost/carrier"
-	"github.com/iniwex5/vowifi-go/runtimehost/voicehost"
+	"github.com/voorz/vohive/internal/api"
+	"github.com/voorz/vohive/internal/config"
+	"github.com/voorz/vohive/internal/db"
+	"github.com/voorz/vohive/internal/device"
+	"github.com/voorz/vohive/internal/notify"
+	proxyserver "github.com/voorz/vohive/internal/proxy/server"
+	"github.com/voorz/vohive/internal/proxy/traffic"
+	"github.com/voorz/vohive/internal/sipgw"
+	"github.com/voorz/vohive/internal/upstreamproxy"
+	"github.com/voorz/vowifi-core/runtimehost/carrier"
+	"github.com/voorz/vowifi-core/runtimehost/voicehost"
 
-	"github.com/iniwex5/vohive/internal/web"
-	"github.com/iniwex5/vohive/pkg/logger"
+	"github.com/voorz/vohive/internal/web"
+	"github.com/voorz/vohive/pkg/logger"
 
-	"github.com/emiago/sipgo/sip"
+	"github.com/voorz/sipgo/sip"
 )
 
 func main() {

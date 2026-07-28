@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/iniwex5/vohive/internal/backend"
-	"github.com/iniwex5/vohive/pkg/smscodec"
+	"github.com/voorz/vohive/internal/backend"
+	"github.com/voorz/vohive/pkg/smscodec"
 )
 
 func TestSMSModeMBIMString(t *testing.T) {

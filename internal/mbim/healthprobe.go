@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/iniwex5/vohive/pkg/mbim"
+	"github.com/voorz/vohive/pkg/mbim"
 )
 
 type HealthEventState string

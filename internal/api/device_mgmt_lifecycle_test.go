@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/iniwex5/vohive/internal/config"
-	"github.com/iniwex5/vohive/internal/device"
-	"github.com/iniwex5/vohive/internal/modem"
-	"github.com/iniwex5/vowifi-go/runtimehost"
+	"github.com/voorz/vohive/internal/config"
+	"github.com/voorz/vohive/internal/device"
+	"github.com/voorz/vohive/internal/modem"
+	"github.com/voorz/vowifi-core/runtimehost"
 )
 
 func TestApplyLifecycleToOfflineOverviewItemKeepsRecoveryVisible(t *testing.T) {

@@ -26,8 +26,8 @@ WORKDIR /app
 # 启用 Go 工具链自动下载
 ENV GOTOOLCHAIN=auto
 ENV GOWORK=off
-ENV GOPRIVATE=github.com/iniwex5/*
-ENV GONOSUMDB=github.com/iniwex5/*
+ENV GOPRIVATE=github.com/voorz/*
+ENV GONOSUMDB=github.com/voorz/*
 
 # 安装构建依赖
 RUN apk add --no-cache git
@@ -43,7 +43,7 @@ RUN --mount=type=cache,target=/go/pkg/mod,id=gomod-${TARGETOS}-${TARGETARCH},sha
     GH_TOKEN="$(cat /run/secrets/gh_pat 2>/dev/null || true)" && \
     if [ -z "${GH_TOKEN}" ]; then GH_TOKEN="${GH_PAT}"; fi && \
     if [ -n "${GH_TOKEN}" ]; then \
-      git config --global url."https://x-access-token:${GH_TOKEN}@github.com/voorz/".insteadOf "https://github.com/iniwex5/"; \
+      git config --global url."https://x-access-token:${GH_TOKEN}@github.com/voorz/".insteadOf "https://github.com/voorz/"; \
     fi && \
     go mod download && \
     if [ -n "${GH_TOKEN}" ]; then \
@@ -67,11 +67,11 @@ RUN --mount=type=cache,target=/root/.cache/go-build,id=gobuild-${TARGETOS}-${TAR
     GH_TOKEN="$(cat /run/secrets/gh_pat 2>/dev/null || true)" && \
     if [ -z "${GH_TOKEN}" ]; then GH_TOKEN="${GH_PAT}"; fi && \
     if [ -n "${GH_TOKEN}" ]; then \
-      git config --global url."https://x-access-token:${GH_TOKEN}@github.com/voorz/".insteadOf "https://github.com/iniwex5/"; \
+      git config --global url."https://x-access-token:${GH_TOKEN}@github.com/voorz/".insteadOf "https://github.com/voorz/"; \
     fi && \
     go mod tidy && \
     CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
-    go build -trimpath -buildvcs=false -tags "with_utls nomsgpack" -ldflags "-s -w -X 'github.com/iniwex5/vohive/internal/global.Version=${VERSION}' -X 'github.com/iniwex5/vohive/internal/global.BuildTime=${BUILDTIME}'" -o vo-hive ./cmd/vohive && \
+    go build -trimpath -buildvcs=false -tags "with_utls nomsgpack" -ldflags "-s -w -X 'github.com/voorz/vohive/internal/global.Version=${VERSION}' -X 'github.com/voorz/vohive/internal/global.BuildTime=${BUILDTIME}'" -o vo-hive ./cmd/vohive && \
     if [ "${ENABLE_UPX}" = "1" ] || [ "${ENABLE_UPX}" = "true" ]; then \
       echo "UPX enabled, compressing binary..."; \
       (apk add --no-cache upx >/dev/null 2>&1 || apk add --no-cache upx-ucl >/dev/null 2>&1 || true); \

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/iniwex5/vohive/internal/config"
+	"github.com/voorz/vohive/internal/config"
 )
 
 // TestWebhookSignature 验证 HMAC-SHA256 签名的正确性

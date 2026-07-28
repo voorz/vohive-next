@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/iniwex5/vohive/pkg/logger"
+	"github.com/voorz/vohive/pkg/logger"
 )
 
 // alsaBinCache 缓存 arecord/aplay 的绝对路径。

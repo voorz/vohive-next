@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/iniwex5/vohive/internal/config"
+	"github.com/voorz/vohive/internal/config"
 )
 
 // 登录限流必须按真实客户端 IP 计数，而不是按客户端可随意伪造的

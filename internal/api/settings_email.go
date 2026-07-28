@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/iniwex5/vohive/internal/config"
-	"github.com/iniwex5/vohive/internal/notify"
+	"github.com/voorz/vohive/internal/config"
+	"github.com/voorz/vohive/internal/notify"
 )
 
 type testEmailRequest struct {

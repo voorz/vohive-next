@@ -14,8 +14,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/iniwex5/vohive/pkg/logger"
-	runtimee911 "github.com/iniwex5/vowifi-go/runtimehost/e911"
+	"github.com/voorz/vohive/pkg/logger"
+	runtimee911 "github.com/voorz/vowifi-core/runtimehost/e911"
 )
 
 const maxEntitlementTraceBody = 64 * 1024

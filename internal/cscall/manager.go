@@ -8,13 +8,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/emiago/sipgo"
-	"github.com/emiago/sipgo/sip"
+	"github.com/voorz/sipgo"
+	"github.com/voorz/sipgo/sip"
 	"github.com/google/uuid"
-	"github.com/iniwex5/vohive/internal/modem"
-	"github.com/iniwex5/vohive/internal/sipgw"
-	"github.com/iniwex5/vohive/pkg/logger"
-	"github.com/iniwex5/vowifi-go/runtimehost/voicehost"
+	"github.com/voorz/vohive/internal/modem"
+	"github.com/voorz/vohive/internal/sipgw"
+	"github.com/voorz/vohive/pkg/logger"
+	"github.com/voorz/vowifi-core/runtimehost/voicehost"
 )
 
 // CallState 定义 CS 呼叫状态

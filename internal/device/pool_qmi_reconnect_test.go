@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/iniwex5/vohive/internal/config"
+	"github.com/voorz/vohive/internal/config"
 )
 
 func TestQMIManagedAttachmentChanged(t *testing.T) {

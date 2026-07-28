@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/iniwex5/vohive/internal/config"
-	"github.com/iniwex5/vohive/internal/proxy/server"
-	"github.com/iniwex5/vohive/pkg/logger"
+	"github.com/voorz/vohive/internal/config"
+	"github.com/voorz/vohive/internal/proxy/server"
+	"github.com/voorz/vohive/pkg/logger"
 
 	"github.com/gin-gonic/gin"
 )

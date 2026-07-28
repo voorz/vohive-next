@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/iniwex5/vowifi-go/runtimehost"
+	"github.com/voorz/vowifi-core/runtimehost"
 )
 
 func TestManagerStopInstanceForTeardownDeletesAndBroadcasts(t *testing.T) {

@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/iniwex5/vohive/internal/config"
-	"github.com/iniwex5/vohive/internal/device"
-	"github.com/iniwex5/vohive/internal/modem"
+	"github.com/voorz/vohive/internal/config"
+	"github.com/voorz/vohive/internal/device"
+	"github.com/voorz/vohive/internal/modem"
 )
 
 func TestFlightModeSuccessMessageUsesRequestedState(t *testing.T) {

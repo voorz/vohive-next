@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/iniwex5/vohive/internal/db"
+	"github.com/voorz/vohive/internal/db"
 )
 
 type enabledPatchRequest struct {

@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/iniwex5/netlink/nl"
-	"github.com/iniwex5/vohive/pkg/logger"
+	"github.com/voorz/netlink/nl"
+	"github.com/voorz/vohive/pkg/logger"
 	"golang.org/x/sys/unix"
 )
 

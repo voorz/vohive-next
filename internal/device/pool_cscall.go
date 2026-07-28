@@ -3,10 +3,10 @@ package device
 import (
 	"fmt"
 
-	"github.com/iniwex5/vohive/internal/backend"
-	"github.com/iniwex5/vohive/internal/cscall"
-	"github.com/iniwex5/vohive/internal/sipgw"
-	"github.com/iniwex5/vohive/pkg/logger"
+	"github.com/voorz/vohive/internal/backend"
+	"github.com/voorz/vohive/internal/cscall"
+	"github.com/voorz/vohive/internal/sipgw"
+	"github.com/voorz/vohive/pkg/logger"
 )
 
 func newCSCallManagerForWorker(w *Worker, r *sipgw.Registrar) *cscall.Manager {

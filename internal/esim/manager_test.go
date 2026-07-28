@@ -20,8 +20,8 @@ import (
 	euicchttp "github.com/damonto/euicc-go/http"
 	"github.com/damonto/euicc-go/lpa"
 	sgp22 "github.com/damonto/euicc-go/v2"
-	qmiq "github.com/iniwex5/quectel-qmi-go/pkg/qmi"
-	"github.com/iniwex5/vohive/internal/backend"
+	qmiq "github.com/voorz/quectel-qmi-go/pkg/qmi"
+	"github.com/voorz/vohive/internal/backend"
 	"golang.org/x/sync/singleflight"
 )
 

@@ -7,9 +7,9 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/iniwex5/vohive/internal/config"
-	"github.com/iniwex5/vohive/internal/db"
-	"github.com/iniwex5/vohive/internal/device"
+	"github.com/voorz/vohive/internal/config"
+	"github.com/voorz/vohive/internal/db"
+	"github.com/voorz/vohive/internal/device"
 )
 
 func TestCardPolicyFromDeviceConfigMapping(t *testing.T) {

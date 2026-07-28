@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/iniwex5/quectel-qmi-go/pkg/qmi"
-	"github.com/iniwex5/vohive/internal/backend"
-	"github.com/iniwex5/vohive/internal/config"
+	"github.com/voorz/quectel-qmi-go/pkg/qmi"
+	"github.com/voorz/vohive/internal/backend"
+	"github.com/voorz/vohive/internal/config"
 )
 
 func TestOperatorScanRetryableForMBIMVisibleProvidersTimeout(t *testing.T) {

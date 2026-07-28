@@ -18,10 +18,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/iniwex5/vohive/pkg/logger"
+	"github.com/voorz/vohive/pkg/logger"
 
-	"github.com/emiago/sipgo"
-	"github.com/emiago/sipgo/sip"
+	"github.com/voorz/sipgo"
+	"github.com/voorz/sipgo/sip"
 )
 
 // 预编译 Push 通知参数解析用正则表达式

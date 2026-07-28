@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/iniwex5/quectel-qmi-go/pkg/qmi"
-	qmimanager "github.com/iniwex5/quectel-qmi-go/pkg/manager"
-	qmipkg "github.com/iniwex5/vohive/internal/qmi"
-	"github.com/iniwex5/vohive/internal/backend"
-	"github.com/iniwex5/vohive/internal/config"
-	"github.com/iniwex5/vohive/pkg/logger"
+	"github.com/voorz/quectel-qmi-go/pkg/qmi"
+	qmimanager "github.com/voorz/quectel-qmi-go/pkg/manager"
+	qmipkg "github.com/voorz/vohive/internal/qmi"
+	"github.com/voorz/vohive/internal/backend"
+	"github.com/voorz/vohive/internal/config"
+	"github.com/voorz/vohive/pkg/logger"
 )
 
 var (

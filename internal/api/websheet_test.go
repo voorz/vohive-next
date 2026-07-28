@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/iniwex5/vohive/internal/config"
-	"github.com/iniwex5/vohive/internal/websheet"
+	"github.com/voorz/vohive/internal/config"
+	"github.com/voorz/vohive/internal/websheet"
 )
 
 func TestRespondWebsheetErrorMapsStatuses(t *testing.T) {

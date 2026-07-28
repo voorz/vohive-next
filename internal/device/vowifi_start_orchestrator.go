@@ -6,17 +6,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/iniwex5/vohive/internal/backend"
-	"github.com/iniwex5/vohive/internal/db"
-	innersim "github.com/iniwex5/vohive/internal/sim"
-	"github.com/iniwex5/vohive/internal/upstreamproxy"
-	"github.com/iniwex5/vohive/internal/vowifihost"
-	"github.com/iniwex5/vohive/pkg/logger"
-	"github.com/iniwex5/vohive/pkg/mbim"
-	"github.com/iniwex5/vowifi-go/engine/swu"
-	"github.com/iniwex5/vowifi-go/runtimehost"
-	"github.com/iniwex5/vowifi-go/runtimehost/carrier"
-	"github.com/iniwex5/vowifi-go/runtimehost/identity"
+	"github.com/voorz/vohive/internal/backend"
+	"github.com/voorz/vohive/internal/db"
+	innersim "github.com/voorz/vohive/internal/sim"
+	"github.com/voorz/vohive/internal/upstreamproxy"
+	"github.com/voorz/vohive/internal/vowifihost"
+	"github.com/voorz/vohive/pkg/logger"
+	"github.com/voorz/vohive/pkg/mbim"
+	"github.com/voorz/vowifi-core/engine/swu"
+	"github.com/voorz/vowifi-core/runtimehost"
+	"github.com/voorz/vowifi-core/runtimehost/carrier"
+	"github.com/voorz/vowifi-core/runtimehost/identity"
 )
 
 type voWiFiStartContext struct {

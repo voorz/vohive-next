@@ -6,9 +6,9 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/iniwex5/vohive/internal/backend"
-	"github.com/iniwex5/vohive/pkg/mbim"
-	swusim "github.com/iniwex5/vowifi-go/engine/sim"
+	"github.com/voorz/vohive/internal/backend"
+	"github.com/voorz/vohive/pkg/mbim"
+	swusim "github.com/voorz/vowifi-core/engine/sim"
 )
 
 type factoryWorkerStub struct {

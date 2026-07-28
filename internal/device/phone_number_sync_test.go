@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/iniwex5/vohive/internal/backend"
-	"github.com/iniwex5/vohive/internal/db"
-	"github.com/iniwex5/vowifi-go/runtimehost/eventhost"
+	"github.com/voorz/vohive/internal/backend"
+	"github.com/voorz/vohive/internal/db"
+	"github.com/voorz/vowifi-core/runtimehost/eventhost"
 )
 
 type workerPhoneBackendStub struct {

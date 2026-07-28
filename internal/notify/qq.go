@@ -5,9 +5,9 @@ import (
 	"strings"
 	"sync"
 
-	qqbot "github.com/iniwex5/qqbot"
-	"github.com/iniwex5/vohive/internal/config"
-	"github.com/iniwex5/vohive/pkg/logger"
+	qqbot "github.com/voorz/qqbot"
+	"github.com/voorz/vohive/internal/config"
+	"github.com/voorz/vohive/pkg/logger"
 )
 
 type qqApp interface {
