@@ -32,14 +32,7 @@ import (
 )
 
 func main() {
-	// 开启 SIP_DEBUG 以排查问题（针对旧系统或备用系统）
-	os.Setenv("SIP_DEBUG", "false")
-
-	sipLogger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
-	sip.SetDefaultLogger(sipLogger)
-	sip.SIPDebug = false
+	// sipgo 日志将在主日志系统初始化后接入（见下方 logger.Setup 之后）
 	// 绕过 sipgo 底层硬编码的 UDP MTU 限制（默认 1500），
 	// 防止由于包含 APNs/FCM 推送 Token 的超长 Contact URI 导致 UDP 发送直接报错。
 	// 大包会自动在 IP 层被切片(IP Fragmentation)。
@@ -64,6 +57,9 @@ func main() {
 	})
 	// 将内置 slog 重定向到已就绪的系统日志框架
 	slog.SetDefault(slog.New(logger.NewSlogHandler(logger.ZapLogger())))
+	// 将 sipgo 日志接入主日志系统（zap），开启 SIP 传输层/事务层调试日志
+	sip.SetDefaultLogger(slog.New(logger.NewSlogHandler(logger.ZapLogger())))
+	sip.SIPDebug = true
 	logger.Info("VoHive 模组管理器启动中...")
 
 	go func() {
