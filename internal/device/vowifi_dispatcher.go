@@ -50,10 +50,6 @@ func (d poolVoWiFiRuntimeDispatcher) Dispatch(ctx context.Context, e eventhost.E
 			logger.Info("VoWiFi 短信已过滤（运营商 OTA/无法解码二进制包），不进行通知推送", "device", sms.DevID, "sender", sms.Sender)
 			return
 		}
-		if recordResult.Duplicate {
-			logger.Info("VoWiFi 短信重复（通过数据库去重兜底），不进行重复通知推送", "device", sms.DevID, "sender", sms.Sender)
-			return
-		}
 		if withSource, ok := notifier.(SMSSourceNotifier); ok {
 			withSource.NotifySMSWithSource(sms.DevID, sms.Sender, sms.Content, "VoWiFi", sms.Time)
 		} else {

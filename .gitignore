@@ -74,3 +74,4 @@ Quectel_EC2xEG2xEG9xEM05_Series_QCFG_AT_Commands_Manual_V1.6.pdf
 docs/
 bin/
 dist/
+build.ps1

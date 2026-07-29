@@ -77,15 +77,9 @@ func (r vowifiSMSHistoryRecorder) RecordReceived(e eventhost.SMSReceived) (vowif
 	localPhone := r.localPhone(imsi)
 	ts := r.eventTime(e.Time)
 
-	dup, err := db.HasDuplicateReceivedSMS(imsi, localPhone, e.Sender, localPhone, e.Content, ts, vowifiReceivedSMSDuplicateWindow)
-	if err != nil {
-		return vowifiSMSRecordResult{}, err
-	}
-	if dup {
-		return vowifiSMSRecordResult{Duplicate: true}, nil
-	}
-
-	err = db.SaveSMSWithLocalPhone(imsi, localPhone, strings.TrimSpace(e.Sender), localPhone, e.Content, 1, 0, ts)
+	// VoWiFi 入站 SMS 不做去重：每条解析正确的 SMS 都入库并推送通知。
+	// 去重兜底逻辑已移除，避免运营商短时间内重复下发不同验证码被误杀。
+	err := db.SaveSMSWithLocalPhone(imsi, localPhone, strings.TrimSpace(e.Sender), localPhone, e.Content, 1, 0, ts)
 	if err != nil {
 		return vowifiSMSRecordResult{}, err
 	}
