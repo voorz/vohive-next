@@ -4,7 +4,6 @@ import (
 	"context"
 	"sync"
 
-	"github.com/voorz/sipgo/sip"
 	"github.com/voorz/vohive/internal/sipgw"
 	"github.com/voorz/vowifi-core/runtimehost"
 	"github.com/voorz/vowifi-core/runtimehost/eventhost"
