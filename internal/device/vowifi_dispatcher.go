@@ -22,14 +22,12 @@ func (d poolVoWiFiRuntimeDispatcher) Dispatch(ctx context.Context, e eventhost.E
 		return
 	}
 	recorder := vowifiSMSHistoryRecorder{pool: d.pool}
-	var recordResult vowifiSMSRecordResult
 	switch v := e.(type) {
 	case eventhost.SMSReceived:
-		res, err := recorder.RecordReceived(v)
+		_, err := recorder.RecordReceived(v)
 		if err != nil {
 			logger.Warn("VoWiFi 上层入库入站短信失败", "device", v.DevID, "sender", v.Sender, "err", err)
 		}
-		recordResult = res
 	case eventhost.SMSSent:
 		if err := recorder.RecordSent(v); err != nil {
 			logger.Warn("VoWiFi 上层入库出站短信失败", "device", v.DevID, "to", v.TargetURI, "err", err)

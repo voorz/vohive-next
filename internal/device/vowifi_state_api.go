@@ -3,7 +3,6 @@ package device
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/voorz/vohive/pkg/smscodec"
 	"github.com/voorz/vowifi-core/runtimehost"
@@ -49,35 +48,9 @@ func (p *Pool) SendVoWiFiSMSWithOptions(ctx context.Context, deviceID, to, text 
 		return messaging.SendOutcome{}, fmt.Errorf("设备 %s 的 VoWiFi IMS 服务未就绪", deviceID)
 	}
 
-	// 编码 TPDU（支持长短信自动分段）
-	tpdus, _, err := smscodec.BuildSubmitTPDUsWithOptions(to, text, opts)
-	if err != nil {
-		return messaging.SendOutcome{}, fmt.Errorf("VoWiFi SMS TPDU 编码失败: %w", err)
-	}
-	if len(tpdus) == 0 {
-		return messaging.SendOutcome{}, fmt.Errorf("VoWiFi SMS TPDU 编码结果为空")
-	}
-
-	// 获取 SMSC（从 worker 侧读取，与 VoWiFi 启动时一致）
-	smsc := ""
-	if w := p.GetWorker(deviceID); w != nil {
-		smscCtx, smscCancel := context.WithTimeout(ctx, 5*time.Second)
-		smsc, _ = w.getSMSCWithContext(smscCtx)
-		smscCancel()
-	}
-
-	// 每个 TPDU 包装为 RP-DATA(SUBMIT)，构造 SMSPart
-	parts := make([]messaging.SMSPart, 0, len(tpdus))
-	for i, tpdu := range tpdus {
-		rpMr := byte(i + 1) // RP-Message-Reference 从 1 开始递增
-		rpData := smscodec.BuildRPData(rpMr, tpdu, smsc)
-		parts = append(parts, messaging.SMSPart{
-			RPMR: rpMr,
-			Body: rpData,
-		})
-	}
-
-	return svc.SendSMS(ctx, to, text, parts)
+	// 标准化路径：委托 messaging.Service.SendSMSWithOptions 处理 TPDU 编码 + RP-DATA 包装 + 事件分发
+	msgOpts := messaging.SendOptions{Encoding: string(opts.Encoding)}
+	return svc.SendSMSWithOptions(ctx, to, text, msgOpts)
 }
 
 func (p *Pool) IsVoWiFiActive(deviceID string) bool {
