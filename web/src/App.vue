@@ -81,7 +81,7 @@ const shell = computed(() =>
 </script>
 
 <template>
-  <div class="h-screen w-screen overflow-hidden bg-gray-50 dark:bg-[#101014] text-gray-900 dark:text-gray-100 font-sans selection:bg-indigo-500 selection:text-white transition-colors duration-300">
+  <div class="h-screen w-screen overflow-hidden bg-[#F8F8F8] dark:bg-[#111111] text-gray-900 dark:text-gray-100 font-sans selection:bg-indigo-500 selection:text-white transition-colors duration-300">
     <Suspense>
       <template #default>
         <component :is="shell" :is-dark="isDark" @toggle-theme="toggleTheme" />

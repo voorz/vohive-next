@@ -227,7 +227,7 @@ const activePath = computed(() => route.path)
         </div>
       </el-header>
 
-      <el-main class="p-4 sm:p-6 overflow-auto bg-gray-50/50 dark:bg-transparent">
+      <el-main class="p-3 sm:p-4 overflow-auto bg-transparent">
         <div class="main-inner mx-auto w-full">
           <router-view v-slot="{ Component, route: r }">
             <ErrorBoundary v-if="Component" title="页面渲染失败">
