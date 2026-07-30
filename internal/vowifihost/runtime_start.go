@@ -11,6 +11,8 @@ import (
 	"github.com/voorz/vowifi-core/runtimehost/eventhost"
 	"github.com/voorz/vowifi-core/runtimehost/messaging"
 	"github.com/voorz/vowifi-core/runtimehost/voicehost"
+
+	"github.com/voorz/vohive/pkg/logger"
 )
 
 type runtimeStartFunc func(context.Context, runtimehost.StartRequest) (*runtimehost.Instance, error)
@@ -107,6 +109,36 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 		BeforeStart:   req.BeforeStart,
 		ShouldRun: func() bool {
 			return ctx.Err() == nil && m.ShouldRun(deviceID, req.Epoch)
+		},
+		OnTunnelDown: func(downDeviceID string) {
+			go func() {
+				// Wait for the pipeline goroutine to exit and RuntimeStore
+				// to transition out of Active/Starting before attempting
+				// recovery. Exponential backoff avoids tight retry loops.
+				backoff := 3 * time.Second
+				maxBackoff := 30 * time.Second
+				for attempt := 0; attempt < 10; attempt++ {
+					select {
+					case <-time.After(backoff):
+					case <-ctx.Done():
+						return
+					}
+					if m.DesiredRecoverable(downDeviceID) {
+						m.ScheduleDesiredRecover(context.Background(), DesiredRecoverRequest{
+							DeviceID: downDeviceID,
+							Reason:   "tunnel_down_auto_recover",
+						})
+						return
+					}
+					backoff *= 2
+					if backoff > maxBackoff {
+						backoff = maxBackoff
+					}
+				}
+				logger.Warn("VoWiFi 隧道自动重连放弃：RuntimeStore 状态未变为可恢复",
+					"event", "VOWIFI_AUTO_RECOVER_GIVEUP",
+					"device", downDeviceID)
+			}()
 		},
 	})
 	if err != nil {
