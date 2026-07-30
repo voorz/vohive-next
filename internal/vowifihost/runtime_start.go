@@ -166,6 +166,12 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 		OnInboundCall: func(ctx context.Context, callReq runtimehost.InboundCallRequest) (runtimehost.InboundCallResponse, error) {
 			return m.handleInboundCall(ctx, callReq)
 		},
+		OnInboundBye: func(ctx context.Context, deviceID, callID string) error {
+			return m.handleInboundBye(ctx, deviceID, callID)
+		},
+		OnInboundCancel: func(ctx context.Context, deviceID, callID string) error {
+			return m.handleInboundCancel(ctx, deviceID, callID)
+		},
 	})
 	if err != nil {
 		return RuntimeStartResult{}, err

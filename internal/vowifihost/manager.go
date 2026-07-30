@@ -2,13 +2,28 @@ package vowifihost
 
 import (
 	"context"
+	"sync"
 
+	"github.com/voorz/sipgo/sip"
 	"github.com/voorz/vohive/internal/sipgw"
 	"github.com/voorz/vowifi-core/runtimehost"
 	"github.com/voorz/vowifi-core/runtimehost/eventhost"
 	"github.com/voorz/vowifi-core/runtimehost/messaging"
 	"github.com/voorz/vowifi-core/runtimehost/voicehost"
 )
+
+// inboundDialogInfo stores the Linphone-side dialog parameters for an
+// active inbound VoWiFi call, used to forward BYE/CANCEL from IMS to
+// Linphone when the remote party hangs up or cancels.
+type inboundDialogInfo struct {
+	CallID     string
+	DeviceID   string
+	RemoteTag  string // Linphone's tag from 200 OK To header
+	LocalTag   string // our tag from From header
+	ContactURI string // Linphone's Contact from 200 OK
+	RouteSet   []string
+	CSeq       int
+}
 
 type Manager struct {
 	runtimeStore RuntimeStore
@@ -21,6 +36,12 @@ type Manager struct {
 	sipRegistrar  *sipgw.Registrar
 	deliveryStore messaging.DeliveryStore
 	dispatcher    eventhost.Dispatcher
+
+	inboundDialogsMu sync.Mutex
+	inboundDialogs   map[string]*inboundDialogInfo
+
+	inboundRelaysMu sync.Mutex
+	inboundRelays   map[string]*voicehost.RTPRelaySession
 }
 
 func NewManager() *Manager {
@@ -90,6 +111,70 @@ func (m *Manager) SetSIPRegistrar(r *sipgw.Registrar) {
 		return
 	}
 	m.sipRegistrar = r
+}
+
+// storeInboundDialog stores the Linphone-side dialog info for an active
+// inbound call, keyed by Call-ID. Used to forward BYE/CANCEL from IMS.
+func (m *Manager) storeInboundDialog(callID string, info *inboundDialogInfo) {
+	if m == nil || callID == "" || info == nil {
+		return
+	}
+	m.inboundDialogsMu.Lock()
+	defer m.inboundDialogsMu.Unlock()
+	if m.inboundDialogs == nil {
+		m.inboundDialogs = make(map[string]*inboundDialogInfo)
+	}
+	m.inboundDialogs[callID] = info
+}
+
+func (m *Manager) loadInboundDialog(callID string) (*inboundDialogInfo, bool) {
+	if m == nil {
+		return nil, false
+	}
+	m.inboundDialogsMu.Lock()
+	defer m.inboundDialogsMu.Unlock()
+	info, ok := m.inboundDialogs[callID]
+	return info, ok
+}
+
+func (m *Manager) deleteInboundDialog(callID string) {
+	if m == nil {
+		return
+	}
+	m.inboundDialogsMu.Lock()
+	defer m.inboundDialogsMu.Unlock()
+	delete(m.inboundDialogs, callID)
+}
+
+// storeInboundRelay stores the RTP relay for an active inbound call,
+// keyed by Call-ID. Used to close the relay when the call ends.
+func (m *Manager) storeInboundRelay(callID string, relay *voicehost.RTPRelaySession) {
+	if m == nil || callID == "" || relay == nil {
+		return
+	}
+	m.inboundRelaysMu.Lock()
+	defer m.inboundRelaysMu.Unlock()
+	if m.inboundRelays == nil {
+		m.inboundRelays = make(map[string]*voicehost.RTPRelaySession)
+	}
+	m.inboundRelays[callID] = relay
+}
+
+// closeInboundRelay closes and removes the RTP relay for the given
+// Call-ID. Safe to call when no relay exists (e.g. call rejected).
+func (m *Manager) closeInboundRelay(callID string) {
+	if m == nil {
+		return
+	}
+	m.inboundRelaysMu.Lock()
+	relay, ok := m.inboundRelays[callID]
+	if ok {
+		delete(m.inboundRelays, callID)
+	}
+	m.inboundRelaysMu.Unlock()
+	if relay != nil {
+		_ = relay.Close()
+	}
 }
 
 func (m *Manager) ClearStartupStateAndBroadcast(deviceID string) {
