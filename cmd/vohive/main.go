@@ -204,6 +204,7 @@ func main() {
 				logger.Error("Registrar 初始化失败", "err", err)
 			} else {
 				voiceGW.SetClientAdapter(sipRegistrar)
+			pool.SetVoWiFiSIPRegistrar(sipRegistrar)
 
 				sipRegistrar.SetOnInvite(voiceGW.HandleClientInvite)
 				sipRegistrar.SetOnCancel(func(deviceID string, req *sip.Request, tx sip.ServerTransaction) {

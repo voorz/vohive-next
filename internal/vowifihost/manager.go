@@ -3,6 +3,7 @@ package vowifihost
 import (
 	"context"
 
+	"github.com/voorz/vohive/internal/sipgw"
 	"github.com/voorz/vowifi-core/runtimehost"
 	"github.com/voorz/vowifi-core/runtimehost/eventhost"
 	"github.com/voorz/vowifi-core/runtimehost/messaging"
@@ -17,6 +18,7 @@ type Manager struct {
 	runtimeStart  runtimeStartFunc
 	adapter       Adapter
 	voiceGateway  *voicehost.Gateway
+	sipRegistrar  *sipgw.Registrar
 	deliveryStore messaging.DeliveryStore
 	dispatcher    eventhost.Dispatcher
 }
@@ -79,6 +81,15 @@ func (m *Manager) ConfigureRuntimeDependencies(vg *voicehost.Gateway, ds messagi
 	m.voiceGateway = vg
 	m.deliveryStore = ds
 	m.dispatcher = ed
+}
+
+// SetSIPRegistrar injects the sipgw.Registrar so the OnInboundCall
+// callback can forward incoming VoWiFi calls to Linphone.
+func (m *Manager) SetSIPRegistrar(r *sipgw.Registrar) {
+	if m == nil {
+		return
+	}
+	m.sipRegistrar = r
 }
 
 func (m *Manager) ClearStartupStateAndBroadcast(deviceID string) {

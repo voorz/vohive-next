@@ -17,6 +17,17 @@ func (p *Pool) SetVoiceGateway(g *voicehost.Gateway) {
 	p.voWiFiHost().ConfigureRuntimeDependencies(g, vowifiDeliveryStore{}, poolVoWiFiRuntimeDispatcher{pool: p})
 }
 
+// SetVoWiFiSIPRegistrar 注入 sipgw.Registrar，用于 VoWiFi 来电转发到 Linphone。
+func (p *Pool) SetVoWiFiSIPRegistrar(r *sipgw.Registrar) {
+	if p == nil {
+		return
+	}
+	p.mu.Lock()
+	p.sipRegistrar = r
+	p.mu.Unlock()
+	p.voWiFiHost().SetSIPRegistrar(r)
+}
+
 // GetVoiceGateway 返回绑定的 VoiceGateway 实例
 func (p *Pool) GetVoiceGateway() *voicehost.Gateway {
 	p.mu.RLock()
