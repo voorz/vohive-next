@@ -123,8 +123,11 @@ func summarizeVoWiFiReady(st runtimehost.State) string {
 	if !st.SMSReady {
 		notReady = append(notReady, "SMS")
 	}
+	if !st.CallReady {
+		notReady = append(notReady, "Call")
+	}
 	if len(notReady) == 0 {
-		return "SIM / Access / Tunnel / IMS / SMS 全部就绪"
+		return "SIM / Access / Tunnel / IMS / SMS / Call 全部就绪"
 	}
 	return strings.Join(notReady, " / ") + " 未就绪"
 }

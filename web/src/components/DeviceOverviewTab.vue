@@ -52,11 +52,12 @@ const showVowifiDetail = ref(false)
 const readinessItems = computed(() => {
   const rt = props.device?.vowifi_runtime
   return [
-    { key: 'SIM',    ready: rt?.sim_ready },
-    { key: 'Access', ready: rt?.access_ready },
-    { key: 'Tunnel', ready: rt?.tunnel_ready },
-    { key: 'IMS',    ready: rt?.ims_ready },
-    { key: 'SMS',    ready: rt?.sms_ready },
+{ key: 'SIM',    ready: rt?.sim_ready },
+{ key: 'Access', ready: rt?.access_ready },
+{ key: 'Tunnel', ready: rt?.tunnel_ready },
+{ key: 'IMS',    ready: rt?.ims_ready },
+{ key: 'SMS',    ready: rt?.sms_ready },
+{ key: 'Call',   ready: rt?.call_ready },
   ]
 })
 
@@ -64,7 +65,7 @@ const readinessItems = computed(() => {
 const vowifiStatus = computed<'ok' | 'partial' | 'off'>(() => {
   const rt = props.device?.vowifi_runtime
   if (!rt) return 'off'
-  const all = [rt.sim_ready, rt.access_ready, rt.tunnel_ready, rt.ims_ready, rt.sms_ready]
+  const all = [rt.sim_ready, rt.access_ready, rt.tunnel_ready, rt.ims_ready, rt.sms_ready, rt.call_ready]
   if (all.every(Boolean)) return 'ok'
   if (all.some(Boolean)) return 'partial'
   return 'off'

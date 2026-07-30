@@ -1870,6 +1870,8 @@ components:
           type: boolean
         sms_ready:
           type: boolean
+        call_ready:
+          type: boolean
         reg_status:
           type: integer
         reg_status_text:
