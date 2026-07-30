@@ -48,7 +48,40 @@ const modelSortDir = computed({
   set: (value: 'asc' | 'desc') => emit('update:sortDir', value)
 })
 
-const primaryStatus = primaryLifecycleStatus
+const primaryStatus = (d: DeviceMgmtListItem) => {
+  const status = primaryLifecycleStatus(d)
+  if (status.label === '在线') {
+    const mode = String(d?.modem?.network_mode || '').toUpperCase()
+    let prefix = ''
+    if (mode.includes('5G') || mode.includes('NR')) prefix = '5G'
+    else if (mode.includes('4G') || mode.includes('LTE')) prefix = '4G'
+    else if (mode.includes('3G') || mode.includes('WCDMA') || mode.includes('HSPA') || mode.includes('UMTS')) prefix = '3G'
+    else if (mode.includes('2G') || mode.includes('GSM')) prefix = '2G'
+    status.label = prefix ? `${prefix}在线` : '在线'
+  }
+  return status
+}
+
+function hasValidSignalDbm(dbm: number | null | undefined): dbm is number {
+  return typeof dbm === 'number' && Number.isFinite(dbm) && dbm !== 0 && dbm !== -999
+}
+
+function getSignalBars(dbm: number | null | undefined) {
+  if (!hasValidSignalDbm(dbm)) return 0
+  if (dbm > -70) return 4
+  if (dbm > -85) return 3
+  if (dbm > -100) return 2
+  return 1
+}
+
+function getSignalColor(dbm: number | null | undefined) {
+  if (!hasValidSignalDbm(dbm)) return 'bg-gray-300 dark:bg-gray-600'
+  if (dbm > -70) return 'bg-green-500'
+  if (dbm > -90) return 'bg-yellow-500'
+  return 'bg-red-500'
+}
+
+const isOnlineStatus = (d: DeviceMgmtListItem) => primaryStatus(d).tone === 'success'
 
 const registrationText = (d: DeviceMgmtListItem) => {
   const phaseText = lifecycleStatusLabel(d.lifecycle_phase)
@@ -133,7 +166,16 @@ const secondaryStatus = (d: DeviceMgmtListItem) => {
                 </div>
               </div>
               <div class="flex items-center gap-2">
-                <StatusLight :tone="primaryStatus(d).tone" size="sm" :animated="primaryStatus(d).animated" />
+                <div v-if="isOnlineStatus(d)" class="flex items-end gap-[2px] h-3" title="信号强度">
+                  <div
+                    v-for="i in 4"
+                    :key="i"
+                    class="w-1 rounded-sm transition-all duration-500"
+                    :class="getSignalBars(d?.modem?.signal_dbm) >= i ? getSignalColor(d?.modem?.signal_dbm) : 'bg-gray-200 dark:bg-gray-700'"
+                    :style="{ height: `${i * 25}%` }"
+                  />
+                </div>
+                <StatusLight v-else :tone="primaryStatus(d).tone" size="sm" :animated="primaryStatus(d).animated" />
                 <el-tag size="small" :type="primaryStatus(d).tag">{{ primaryStatus(d).label }}</el-tag>
               </div>
             </div>
