@@ -260,7 +260,12 @@ func (p *Pool) prepareVoWiFiStartContext(deviceID, traceID, runtimeEPDGOverride 
 			logger.Warn("进入飞行模式失败，继续尝试建立隧道",
 				"trace_id", traceID, "device", deviceID, "err", err)
 		} else {
-			time.Sleep(500 * time.Millisecond)
+			// Wait for network stack to settle after RF-off.
+			// Without this delay, mihomo may not have rebuilt its
+			// routing table yet, causing the first IKE_SA_INIT
+			// packet to be silently dropped (manifests as a ~95s
+			// hang before reconnection succeeds).
+			time.Sleep(3 * time.Second)
 		}
 	}
 
