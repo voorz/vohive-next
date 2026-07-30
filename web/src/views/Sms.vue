@@ -647,6 +647,14 @@ async function sendToCurrentThread() {
   }
 }
 
+function resendFailedMessage(m: SMSMessage) {
+  composer.value = m.content || ''
+  nextTick(() => {
+    const el = composerInput.value as { focus?: () => void } | null
+    el?.focus?.()
+  })
+}
+
 async function confirmDeleteMessage(message: SMSMessage) {
   if (!message.id || deletingMessageId.value === message.id) return
   try {
@@ -929,7 +937,10 @@ async function confirmDeleteThread(thread: SmsThread) {
                       </span>
                       <span class="text-[11px] text-gray-400 font-mono">{{ new Date(m.timestamp).toLocaleString() }}</span>
                       <span v-if="m.type === 2 && m.status === 2" class="text-green-500 text-xs" title="发送成功">✓</span>
-                      <span v-else-if="m.type === 2 && m.status === 3" class="text-red-500 text-xs" title="发送失败">✗</span>
+                      <span v-else-if="m.type === 2 && m.status === 3" class="text-red-500 text-xs flex items-center gap-1.5">
+                        <span title="发送失败">✗ 发送失败</span>
+                        <button class="text-blue-500 hover:text-blue-600 text-xs font-medium" @click="resendFailedMessage(m)">重发</button>
+                      </span>
                       <el-button
                         v-if="!isNarrowLayout && (m.type !== 2 || !m.device_name)"
                         text
