@@ -8,6 +8,7 @@ import (
 
 	swusim "github.com/voorz/vowifi-core/engine/sim"
 	"github.com/voorz/vowifi-core/runtimehost"
+	"github.com/voorz/vowifi-core/runtimehost/carrier"
 	"github.com/voorz/vowifi-core/runtimehost/eventhost"
 	"github.com/voorz/vowifi-core/runtimehost/messaging"
 	"github.com/voorz/vowifi-core/runtimehost/voiceclient"
@@ -93,11 +94,24 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 		networkMode = strings.TrimSpace(req.Prepared.NetworkMode)
 	}
 
+	// Carrier preset TAC/CellID fallback: when live QMI cell readings
+	// are unavailable (flight mode), use the carrier preset's configured
+	// TAC/CellID to avoid all-zero utran-cell-id-3gpp (causes 403 Forbidden).
+	cellID := ""
+	if mcc := strings.TrimSpace(profile.MCC); mcc != "" {
+		mnc := strings.TrimSpace(profile.MNC)
+		mode := carrier.IMSCellIDMode(mcc, mnc)
+		if mode != "none" {
+			cellID = carrier.DefaultUTRANCellIDSuffix(mcc, mnc)
+		}
+	}
+
 	inst, err := m.runtimeStarter()(ctx, runtimehost.StartRequest{
 		Mode:          runtimehost.StartModeMain,
 		DeviceID:      deviceID,
 		TraceID:       strings.TrimSpace(req.TraceID),
 		Profile:       profile,
+		CellID:        cellID,
 		Prepared:      &prepared,
 		NetworkMode:   networkMode,
 		VoiceGateway:  req.VoiceGateway,
