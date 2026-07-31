@@ -2,7 +2,6 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import PageHeader from '../components/PageHeader.vue'
 import EmptyState from '../components/EmptyState.vue'
 import ListSkeleton from '../components/ListSkeleton.vue'
 import ErrorState from '../components/ErrorState.vue'
@@ -497,8 +496,7 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
 </script>
 
 <template>
-  <div class="max-w-7xl mx-auto">
-    <PageHeader title="代理管理" subtitle="管理本地出站代理和 VoWiFi 漫游前置代理" />
+  <div>
 
     <!-- Tab 切换 -->
     <el-tabs v-model="activeTab" class="proxy-tabs mb-4">
@@ -507,7 +505,7 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
           <div class="flex items-center gap-1.5">
             <el-icon size="16"><Earth24Regular /></el-icon>
             <span class="font-medium">漫游前置代理</span>
-            <span v-if="upstreamStore.proxies.length > 0" class="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold leading-none text-white bg-indigo-500 rounded-full shadow-sm ml-0.5">
+            <span v-if="upstreamStore.proxies.length > 0" class="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold leading-none text-white rounded-full shadow-sm ml-0.5" style="background: var(--brand);">
               {{ upstreamStore.proxies.length }}
             </span>
           </div>
@@ -518,7 +516,7 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
           <div class="flex items-center gap-1.5">
             <el-icon size="16"><Router24Regular /></el-icon>
             <span class="font-medium">本地出站代理</span>
-            <span v-if="instances.length > 0" class="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold leading-none text-white bg-indigo-500 rounded-full shadow-sm ml-0.5">
+            <span v-if="instances.length > 0" class="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold leading-none text-white rounded-full shadow-sm ml-0.5" style="background: var(--brand);">
               {{ instances.length }}
             </span>
           </div>
@@ -538,15 +536,15 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
         @retry="fetchUpstream"
       />
 
-      <div class="ui-card p-6">
+      <div class="detail-panel">
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#5b5bd6] to-[#4a4ac2] text-white flex items-center justify-center shadow-lg shadow-indigo-500/25">
+            <div class="proxy-icon-box">
               <el-icon size="20"><Earth24Regular /></el-icon>
             </div>
             <div>
-              <div class="text-lg font-bold text-gray-900 dark:text-white">VoWiFi 漫游前置代理</div>
-              <div class="text-xs text-gray-500">VoWiFi 通过 Socks5 代理穿透连接海外运营商。注意 Socks5 端必须支持 UDP Associate</div>
+              <div class="proxy-section-title">VoWiFi 漫游前置代理</div>
+              <div class="proxy-section-desc">VoWiFi 通过 Socks5 代理穿透连接海外运营商。注意 Socks5 端必须支持 UDP Associate</div>
             </div>
           </div>
           <el-button type="primary" @click="openUpstreamDrawer()" class="!border-0">
@@ -567,13 +565,13 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
           <div
             v-for="proxy in upstreamProxiesWithRuleCount"
             :key="proxy.id"
-            class="ui-panel-muted p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"
+            class="proxy-list-item"
           >
             <div class="flex items-center gap-3 min-w-0">
-              <span class="w-2.5 h-2.5 rounded-full shrink-0" :class="proxy.enabled ? 'bg-green-500' : 'bg-gray-300'" />
+              <span class="proxy-status-dot" :style="{ background: proxy.enabled ? 'var(--success)' : 'var(--muted-foreground)' }" />
               <div class="min-w-0">
-                <div class="font-bold text-gray-900 dark:text-white truncate">{{ proxy.name || proxy.id }}</div>
-                <div class="text-xs text-gray-500 mt-0.5 truncate">
+                <div class="proxy-item-name">{{ proxy.name || proxy.id }}</div>
+                <div class="proxy-item-desc">
                   Socks5 · <span class="font-mono">{{ proxy.addr }}</span>
                   <span v-if="proxy.username"> · 鉴权: {{ proxy.username }}</span>
                 </div>
@@ -585,12 +583,12 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
                 {{ proxy.enabled ? '已启用' : '已禁用' }}
               </el-tag>
               
-              <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-indigo-50 text-indigo-600 border border-indigo-200/60 dark:bg-indigo-900/20 dark:text-indigo-400 dark:border-indigo-800/40">
+              <div class="proxy-rule-badge">
                 <el-icon size="14"><Link24Regular /></el-icon>
                 <span>{{ proxy.ruleCount }} 个国家规则</span>
               </div>
 
-              <div class="w-px h-3.5 bg-gray-200 dark:bg-gray-700 mx-0.5 hidden sm:block"></div>
+              <div class="proxy-divider hidden sm:block"></div>
 
               <el-button size="small" @click="openCountryRuleDrawer(proxy)">
                 <div class="flex items-center gap-1 -my-0.5">
@@ -625,15 +623,15 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
         @retry="fetchOverview"
       />
 
-      <div class="ui-card p-6">
+      <div class="detail-panel">
         <div class="flex items-center justify-between mb-4">
           <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-[#5b5bd6] to-[#4a4ac2] text-white flex items-center justify-center shadow-lg shadow-indigo-500/25">
+            <div class="proxy-icon-box">
               <el-icon size="20"><Router24Regular /></el-icon>
             </div>
             <div>
-              <div class="text-lg font-bold text-gray-900 dark:text-white">本地出站实例</div>
-              <div class="text-xs text-gray-500">每个实例必须绑定一个物理网络接口提供出口通道，通常用于特定分流和IP池场景</div>
+              <div class="proxy-section-title">本地出站实例</div>
+              <div class="proxy-section-desc">每个实例必须绑定一个物理网络接口提供出口通道，通常用于特定分流和IP池场景</div>
             </div>
           </div>
           <el-button type="primary" @click="openDrawer()" class="!border-0">
@@ -650,16 +648,16 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
           <div
             v-for="inst in instancesWithStatus"
             :key="inst.id"
-            class="ui-panel-muted p-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3"
+            class="proxy-list-item"
           >
             <div class="flex items-center gap-3 min-w-0">
-              <span class="w-2.5 h-2.5 rounded-full shrink-0" :class="inst.status.running ? 'bg-green-500' : 'bg-gray-300'" />
+              <span class="proxy-status-dot" :style="{ background: inst.status.running ? 'var(--success)' : 'var(--muted-foreground)' }" />
               <div class="min-w-0">
-                <div class="font-bold text-gray-900 dark:text-white truncate">{{ inst.name || inst.id }}</div>
-                <div class="text-xs text-gray-500 mt-0.5 truncate">
+                <div class="proxy-item-name">{{ inst.name || inst.id }}</div>
+                <div class="proxy-item-desc">
                   {{ formatModeLabel(inst.mode) }} · {{ inst.listen_addr }}:{{ inst.listen_port }} · 绑定: {{ devices.find(d => d.id === inst.device_id)?.name || inst.device_id }}
                 </div>
-                <div v-if="inst.status.last_error" class="text-xs text-red-500 mt-1 truncate">
+                <div v-if="inst.status.last_error" class="proxy-item-error">
                   {{ inst.status.last_error }}
                 </div>
               </div>
@@ -707,31 +705,31 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
     <el-drawer v-model="drawerOpen" :title="editingInstance ? '编辑代理实例' : '新增代理实例'" size="560px">
       <div class="space-y-6 pb-6">
         <div class="space-y-4">
-          <div class="flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-gray-800">
-            <div class="w-1 h-4 bg-indigo-500 rounded-full"></div>
-            <h3 class="text-sm font-bold text-gray-900 dark:text-gray-100">基础设置</h3>
+          <div class="proxy-drawer-section-header">
+            <div class="proxy-drawer-section-bar" style="background: var(--brand);"></div>
+            <h3 class="proxy-drawer-section-title">基础设置</h3>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
             <div class="space-y-1">
-              <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">实例 ID</label>
+              <label class="proxy-form-label">实例 ID</label>
               <el-input v-model="instanceForm.id" :disabled="!!editingInstance" placeholder="唯一标识" />
             </div>
             <div class="space-y-1">
-              <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">名称</label>
+              <label class="proxy-form-label">名称</label>
               <el-input v-model="instanceForm.name" placeholder="显示名称" />
             </div>
           </div>
 
           <div class="space-y-1">
-            <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">绑定设备（必填）</label>
+            <label class="proxy-form-label">绑定设备（必填）</label>
             <el-select v-model="instanceForm.device_id" placeholder="选择设备" class="w-full">
               <el-option v-for="d in devices" :key="d.id" :label="`${d.name} (${d.interface})`" :value="d.id" />
             </el-select>
           </div>
 
           <div class="space-y-1">
-            <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">代理模式</label>
+            <label class="proxy-form-label">代理模式</label>
             <el-select v-model="instanceForm.mode" placeholder="选择代理模式" class="w-full">
               <el-option
                 v-for="opt in modeOptions"
@@ -744,45 +742,45 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
 
           <div class="grid grid-cols-2 gap-4">
             <div class="space-y-1">
-              <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">监听地址</label>
+              <label class="proxy-form-label">监听地址</label>
               <el-input v-model="instanceForm.listen_addr" placeholder="0.0.0.0" />
             </div>
             <div class="space-y-1">
-              <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">监听端口</label>
+              <label class="proxy-form-label">监听端口</label>
               <el-input-number v-model="instanceForm.listen_port" :min="1" :max="65535" class="!w-full" />
             </div>
           </div>
 
-          <div class="ui-panel-muted p-3 flex items-center justify-between rounded-lg">
+          <div class="proxy-form-row">
             <div>
-              <div class="text-sm font-bold text-gray-800 dark:text-gray-100">启用实例</div>
-              <div class="text-xs text-gray-500">禁用后实例不会自动启动</div>
+              <div class="proxy-form-row-title">启用实例</div>
+              <div class="proxy-form-row-desc">禁用后实例不会自动启动</div>
             </div>
             <el-switch v-model="instanceForm.enabled" />
           </div>
         </div>
 
         <div class="space-y-4">
-          <div class="flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-gray-800">
-            <div class="w-1 h-4 bg-amber-500 rounded-full"></div>
-            <h3 class="text-sm font-bold text-gray-900 dark:text-gray-100">认证设置</h3>
+          <div class="proxy-drawer-section-header">
+            <div class="proxy-drawer-section-bar" style="background: var(--warning);"></div>
+            <h3 class="proxy-drawer-section-title">认证设置</h3>
           </div>
 
-          <div class="ui-panel-muted p-3 flex items-center justify-between rounded-lg">
+          <div class="proxy-form-row">
             <div>
-              <div class="text-sm font-bold text-gray-800 dark:text-gray-100">启用账号认证</div>
-              <div class="text-xs text-gray-500">关闭后将允许免认证连接</div>
+              <div class="proxy-form-row-title">启用账号认证</div>
+              <div class="proxy-form-row-desc">关闭后将允许免认证连接</div>
             </div>
             <el-switch v-model="instanceForm.auth_enabled" />
           </div>
 
           <div v-if="instanceForm.auth_enabled" class="grid grid-cols-2 gap-4">
             <div class="space-y-1">
-              <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">用户名</label>
+              <label class="proxy-form-label">用户名</label>
               <el-input v-model="instanceForm.username" placeholder="例如 user01" />
             </div>
             <div class="space-y-1">
-              <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">密码</label>
+              <label class="proxy-form-label">密码</label>
               <el-input v-model="instanceForm.password" type="password" show-password placeholder="请输入密码" />
             </div>
           </div>
@@ -801,52 +799,52 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
     <el-drawer v-model="upstreamDrawerOpen" :title="editingUpstream ? '编辑前置代理' : '新增前置代理'" size="520px">
       <div class="space-y-6 pb-6">
         <div class="space-y-4">
-          <div class="flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-gray-800">
-            <div class="w-1 h-4 bg-indigo-500 rounded-full"></div>
-            <h3 class="text-sm font-bold text-gray-900 dark:text-gray-100">代理信息</h3>
+          <div class="proxy-drawer-section-header">
+            <div class="proxy-drawer-section-bar" style="background: var(--brand);"></div>
+            <h3 class="proxy-drawer-section-title">代理信息</h3>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
             <div class="space-y-1">
-              <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">代理 ID</label>
+              <label class="proxy-form-label">代理 ID</label>
               <el-input v-model="upstreamForm.id" :disabled="!!editingUpstream" placeholder="唯一标识，如 jp-proxy-01" />
             </div>
             <div class="space-y-1">
-              <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">名称</label>
+              <label class="proxy-form-label">名称</label>
               <el-input v-model="upstreamForm.name" placeholder="例如：日本代理" />
             </div>
           </div>
 
           <div class="space-y-1">
-            <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">Socks5 地址</label>
+            <label class="proxy-form-label">Socks5 地址</label>
             <el-input v-model="upstreamForm.addr" placeholder="host:port，例如 1.2.3.4:1080 或 [2001:db8::1]:1080" />
-            <div class="text-xs text-gray-400 mt-1">VoWiFi 通过此 Socks5 代理连接运营商，实现跨区域本地 VoWiFi。{{ upstreamProxyIPv6AddressHint }}。保存时会自动探测 Socks5 握手与 UDP Associate。</div>
+            <div class="proxy-form-hint">VoWiFi 通过此 Socks5 代理连接运营商，实现跨区域本地 VoWiFi。{{ upstreamProxyIPv6AddressHint }}。保存时会自动探测 Socks5 握手与 UDP Associate。</div>
           </div>
 
-          <div class="ui-panel-muted p-3 flex items-center justify-between rounded-lg">
+          <div class="proxy-form-row">
             <div>
-              <div class="text-sm font-bold text-gray-800 dark:text-gray-100">启用代理</div>
-              <div class="text-xs text-gray-500">禁用后绑定到该代理的国家规则会回退为直连</div>
+              <div class="proxy-form-row-title">启用代理</div>
+              <div class="proxy-form-row-desc">禁用后绑定到该代理的国家规则会回退为直连</div>
             </div>
             <el-switch v-model="upstreamForm.enabled" />
           </div>
         </div>
 
         <div class="space-y-4">
-          <div class="flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-gray-800">
-            <div class="w-1 h-4 bg-amber-500 rounded-full"></div>
-            <h3 class="text-sm font-bold text-gray-900 dark:text-gray-100">鉴权设置（可选）</h3>
+          <div class="proxy-drawer-section-header">
+            <div class="proxy-drawer-section-bar" style="background: var(--warning);"></div>
+            <h3 class="proxy-drawer-section-title">鉴权设置（可选）</h3>
           </div>
 
           <div class="grid grid-cols-2 gap-4">
             <div class="space-y-1">
-              <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">用户名</label>
+              <label class="proxy-form-label">用户名</label>
               <el-input v-model="upstreamForm.username" placeholder="留空则免鉴权" />
             </div>
             <div class="space-y-1">
-              <label class="text-xs font-bold text-gray-500 uppercase tracking-wider">密码</label>
+              <label class="proxy-form-label">密码</label>
               <el-input v-model="upstreamForm.password" type="password" show-password placeholder="留空则免鉴权" />
-              <div class="text-xs text-gray-400 mt-1">编辑已有代理时留空会保持原密码不变。</div>
+              <div class="proxy-form-hint">编辑已有代理时留空会保持原密码不变。</div>
             </div>
           </div>
         </div>
@@ -867,9 +865,9 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
       <div class="space-y-6 pb-6">
         <!-- 已配置国家规则 -->
         <div class="space-y-4">
-          <div class="flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-gray-800">
-            <div class="w-1 h-4 bg-green-500 rounded-full"></div>
-            <h3 class="text-sm font-bold text-gray-900 dark:text-gray-100">已路由到该代理的国家</h3>
+          <div class="proxy-drawer-section-header">
+            <div class="proxy-drawer-section-bar" style="background: var(--success);"></div>
+            <h3 class="proxy-drawer-section-title">已路由到该代理的国家</h3>
           </div>
 
           <EmptyState
@@ -882,15 +880,13 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
             <div
               v-for="rule in currentProxyCountryRules"
               :key="rule.country_code"
-              class="ui-panel-muted p-3 flex items-center justify-between rounded-lg"
+              class="proxy-form-row"
             >
               <div class="flex items-center gap-2 min-w-0">
-                <span class="w-2 h-2 rounded-full bg-green-500 shrink-0"></span>
+                <span class="w-2 h-2 rounded-full shrink-0" style="background: var(--success);"></span>
                 <div class="min-w-0">
-                  <div class="text-sm font-medium text-gray-900 dark:text-white truncate">
-                    {{ rule.country_code }} · {{ rule.country_name || rule.country_code }}
-                  </div>
-                  <div class="text-xs text-gray-400 font-mono truncate">MCC {{ rule.mccs.join('/') || '-' }}</div>
+              <div class="proxy-item-name">{{ rule.country_code }} · {{ rule.country_name || rule.country_code }}</div>
+                  <div class="proxy-item-desc font-mono">MCC {{ rule.mccs.join('/') || '-' }}</div>
                 </div>
               </div>
               <el-button size="small" type="danger" text @click="doDeleteCountryRule(rule.country_code)">
@@ -902,9 +898,9 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
 
         <!-- 添加国家规则 -->
         <div class="space-y-4">
-          <div class="flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-gray-800">
-            <div class="w-1 h-4 bg-indigo-500 rounded-full"></div>
-            <h3 class="text-sm font-bold text-gray-900 dark:text-gray-100">添加国家规则</h3>
+          <div class="proxy-drawer-section-header">
+            <div class="proxy-drawer-section-bar" style="background: var(--brand);"></div>
+            <h3 class="proxy-drawer-section-title">添加国家规则</h3>
           </div>
 
           <div class="flex items-center gap-2">
@@ -925,7 +921,7 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
                   >
                     已配置
                   </el-tag>
-                  <span class="text-xs text-gray-400 font-mono ml-2">MCC {{ country.mccs.join('/') }}</span>
+                  <span class="text-xs font-mono ml-2" style="color: var(--muted-foreground);">MCC {{ country.mccs.join('/') }}</span>
                 </div>
               </el-option>
             </el-select>
@@ -952,5 +948,156 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
 }
 .proxy-tabs :deep(.el-tabs__nav-wrap::after) {
   height: 1px;
+}
+
+/* ── Proxy page design system classes ── */
+
+.proxy-icon-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--brand) 15%, var(--card));
+  color: var(--brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.proxy-section-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.proxy-section-desc {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.proxy-list-item {
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+@media (min-width: 1024px) {
+  .proxy-list-item {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.proxy-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.proxy-item-name {
+  font-weight: 700;
+  color: var(--foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proxy-item-desc {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proxy-item-error {
+  font-size: 12px;
+  color: var(--destructive);
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.proxy-rule-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  background: color-mix(in oklab, var(--brand) 10%, transparent);
+  color: var(--brand);
+  border: 1px solid color-mix(in oklab, var(--brand) 25%, var(--border));
+}
+
+.proxy-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+  margin: 0 2px;
+}
+
+.proxy-form-row {
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.proxy-form-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.proxy-form-hint {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin-top: 4px;
+}
+
+.proxy-form-row-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.proxy-form-row-desc {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.proxy-drawer-section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.proxy-drawer-section-bar {
+  width: 4px;
+  height: 16px;
+  border-radius: 999px;
+}
+
+.proxy-drawer-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
 }
 </style>

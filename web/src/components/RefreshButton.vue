@@ -12,7 +12,7 @@ defineEmits<{
 </script>
 
 <template>
-  <el-button :loading="loading" :disabled="disabled" class="!border-0 !bg-white/70 dark:!bg-white/5 ui-action-btn" @click="$emit('click')">
+  <el-button :loading="loading" :disabled="disabled" @click="$emit('click')">
     <el-icon><ArrowSync24Regular /></el-icon>
     刷新
   </el-button>

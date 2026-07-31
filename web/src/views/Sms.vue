@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, h, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElButton, ElIcon, ElMessage, ElMessageBox } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 import { useSMSStore } from '../stores/sms'
+import { useHeaderActionsStore } from '../stores/headerActions'
 import { usePollingScheduler } from '../composables/usePollingScheduler'
 import { toAppError } from '../services/http'
 import type { SmsThreadQueryParams } from '../services/sms'
-import PageHeader from '../components/PageHeader.vue'
 import EmptyState from '../components/EmptyState.vue'
 import ErrorState from '../components/ErrorState.vue'
 import ListSkeleton from '../components/ListSkeleton.vue'
@@ -33,6 +33,7 @@ type SmsThread = {
 
 const route = useRoute()
 const router = useRouter()
+const headerActions = useHeaderActionsStore()
 const smsStore = useSMSStore()
 
 const devices = ref<DeviceMgmtListItem[]>([])
@@ -574,11 +575,22 @@ onMounted(async () => {
   await ensureThreadSelection({ syncRoute: false, silent: false, scrollToBottom: false })
 })
 
+watch(loading, () => {
+  headerActions.setActions(h('div', { class: 'flex items-center gap-2' }, [
+    h(RefreshButton, { loading: loading.value, onClick: refreshAll }),
+    h(ElButton, { type: 'primary', onClick: openSendModal, class: 'font-bold !border-0' }, () => [
+      h(ElIcon, null, () => h(Send24Regular)),
+      '新建短信'
+    ])
+  ]))
+}, { immediate: true })
+
 onUnmounted(() => {
   clearLongPress()
   smsPageResizeObserver?.disconnect()
   smsPageResizeObserver = null
   window.removeEventListener('resize', syncSmsPageWidth)
+  headerActions.clear()
 })
 
 function openSendModal() {
@@ -727,18 +739,6 @@ async function confirmDeleteThread(thread: SmsThread) {
 
 <template>
   <div ref="smsPageRef" class="sms-page h-[calc(100vh-140px)] flex flex-col">
-    <PageHeader title="短信中心" subtitle="按联系人聚合，点击进入会话明细">
-      <template #actions>
-        <div class="flex items-center gap-2">
-          <RefreshButton :loading="loading" @click="refreshAll" />
-          <el-button type="primary" @click="openSendModal" class="font-bold !border-0">
-            <el-icon><Send24Regular /></el-icon>
-            新建短信
-          </el-button>
-        </div>
-      </template>
-    </PageHeader>
-
     <ErrorState
       v-if="devicesError"
       class="mb-4"
@@ -765,38 +765,38 @@ async function confirmDeleteThread(thread: SmsThread) {
       @retry="refreshAll"
     />
 
-    <div class="flex-1 ui-card overflow-hidden relative">
-      <div v-if="loading && threads.length === 0" class="absolute inset-0 z-20 flex items-center justify-center bg-white/50 dark:bg-black/20 backdrop-blur-sm">
+    <div class="sms-card overflow-hidden relative">
+      <div v-if="loading && threads.length === 0" class="sms-loading-overlay">
         <el-icon class="is-loading" size="28"><Loading /></el-icon>
       </div>
 
       <div class="sms-main-layout">
-        <div v-if="showDeviceSidebar" class="flex flex-col border-r border-gray-100 dark:border-white/10">
-          <div class="p-4 border-b border-gray-100 dark:border-white/10">
-            <div class="text-xs font-bold text-gray-500 uppercase tracking-wider">设备</div>
+        <div v-if="showDeviceSidebar" class="sms-sidebar">
+          <div class="sms-sidebar-header">
+            <div class="sms-sidebar-label">设备</div>
           </div>
           <div class="p-3 space-y-1 overflow-auto">
             <button
               v-for="d in deviceSidebarItems"
               :key="d.id"
               type="button"
-              class="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-xl border text-left transition-all"
+              class="sms-device-btn"
               :class="selectedDevice === d.id
-                ? 'border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/70 dark:bg-indigo-500/10'
-                : 'border-transparent hover:bg-gray-50/60 dark:hover:bg-white/5'"
+                ? 'sms-device-btn-active'
+                : 'sms-device-btn-idle'"
               @click="void handleSelectDevice(d.id)"
             >
               <div class="min-w-0">
-                <div class="text-sm font-bold text-gray-800 dark:text-gray-100 truncate">{{ d.label }}</div>
-                <div class="text-xs text-gray-400 truncate">{{ d.id === 'all' ? '汇总所有设备短信' : d.id }}</div>
+                <div class="sms-device-name">{{ d.label }}</div>
+                <div class="sms-device-desc">{{ d.id === 'all' ? '汇总所有设备短信' : d.id }}</div>
               </div>
-              <span v-if="d.id !== 'all'" class="w-2 h-2 rounded-full" :class="d.healthy ? 'bg-green-500' : 'bg-red-500'" />
+              <span v-if="d.id !== 'all'" class="w-2 h-2 rounded-full" :style="{ background: d.healthy ? 'var(--success)' : 'var(--destructive)' }" />
             </button>
           </div>
         </div>
 
-        <div v-if="showListPane" class="flex flex-col min-h-0 min-w-0" :class="showDeviceSidebar ? 'border-r border-gray-100 dark:border-white/10' : ''">
-          <div class="p-4 border-b border-gray-100 dark:border-white/10">
+        <div v-if="showListPane" class="sms-list-pane">
+          <div class="sms-list-header">
             <div class="space-y-3">
               <el-select v-if="isNarrowLayout" :model-value="selectedDevice" placeholder="选择设备" filterable @change="handleNarrowDeviceChange">
                 <el-option v-for="d in deviceSidebarItems" :key="d.id" :label="d.label" :value="d.id" />
@@ -818,12 +818,12 @@ async function confirmDeleteThread(thread: SmsThread) {
           <RecycleScroller v-else :items="filteredThreads" :item-size="78" key-field="key" class="flex-1 min-h-0 overflow-auto">
             <template #default="{ item: t }">
               <div
-                class="border-b border-gray-100 dark:border-white/10 sms-thread-item-shell"
-                :class="{ 'sms-thread-item-shell-active': selectedThreadKey === t.key }"
+                class="sms-thread-shell"
+                :class="{ 'sms-thread-shell-active': selectedThreadKey === t.key }"
               >
                 <div
                   class="sms-thread-row group flex items-start gap-2 px-4 py-3 transition-all"
-                  :class="selectedThreadKey === t.key ? 'sms-thread-row-active' : 'hover:bg-gray-50/60 dark:hover:bg-white/5'"
+                  :class="selectedThreadKey === t.key ? 'sms-thread-row-active' : 'sms-thread-row-hover'"
                   @pointerdown="(e) => openThreadActionSheet(t, e)"
                   @pointermove="moveLongPress"
                   @pointerup="clearLongPress"
@@ -837,14 +837,14 @@ async function confirmDeleteThread(thread: SmsThread) {
                     <div class="flex items-start justify-between gap-3">
                       <div class="min-w-0">
                         <div class="flex items-center gap-2">
-                          <div class="font-extrabold text-gray-900 dark:text-white truncate">{{ t.peer }}</div>
-                          <span v-if="isUnread(t)" class="w-2 h-2 rounded-full bg-indigo-500" />
+                          <div class="sms-thread-peer">{{ t.peer }}</div>
+                          <span v-if="isUnread(t)" class="w-2 h-2 rounded-full" style="background: var(--brand);" />
                         </div>
-                        <div class="text-xs text-gray-500 dark:text-gray-400 truncate mt-1">{{ t.lastMessage }}</div>
+                        <div class="sms-thread-preview">{{ t.lastMessage }}</div>
                       </div>
                       <div class="text-right sms-thread-meta">
-                        <div class="text-[11px] text-gray-400 font-mono">{{ formatClock(t.lastTs) }}</div>
-                        <div v-if="t.localPhone || t.lastDeviceName" class="text-[10px] text-gray-400 mt-1 truncate">
+                        <div class="text-[11px] font-mono" style="color: var(--muted-foreground);">{{ formatClock(t.lastTs) }}</div>
+                        <div v-if="t.localPhone || t.lastDeviceName" class="text-[10px] mt-1 truncate" style="color: var(--muted-foreground);">
                           {{ t.localPhone || t.lastDeviceName }}
                         </div>
                       </div>
@@ -869,16 +869,16 @@ async function confirmDeleteThread(thread: SmsThread) {
           </RecycleScroller>
         </div>
 
-        <div v-if="showDetailPane" class="flex flex-col min-w-0 min-h-0">
-          <div class="p-4 border-b border-gray-100 dark:border-white/10 flex items-center justify-between gap-3">
+        <div v-if="showDetailPane" class="sms-detail-pane">
+          <div class="sms-detail-header">
             <div class="min-w-0">
               <div class="flex items-center gap-2">
                 <el-button v-if="isNarrowLayout && selectedThreadKey" text @click="backToList">返回</el-button>
-                <div class="text-sm font-extrabold text-gray-900 dark:text-white truncate">
+                <div class="sms-detail-peer">
                   {{ selectedThread?.peer || '请选择会话' }}
                 </div>
               </div>
-              <div class="text-xs text-gray-400 mt-1">
+              <div class="text-xs mt-1" style="color: var(--muted-foreground);">
                 {{
                   selectedDevice === 'all'
                     ? (selectedThread?.localPhone || selectedThread?.lastDeviceName
@@ -905,7 +905,7 @@ async function confirmDeleteThread(thread: SmsThread) {
               </div>
               <div v-for="g in selectedThreadGroups" :key="g.date" class="space-y-4">
                 <div class="flex justify-center">
-                  <div class="text-[11px] font-bold text-gray-500 dark:text-gray-300 bg-gray-100/80 dark:bg-white/5 border border-gray-200/60 dark:border-white/10 px-3 py-1 rounded-full">
+                  <div class="sms-date-chip">
                     {{ g.date }}
                   </div>
                 </div>
@@ -918,7 +918,7 @@ async function confirmDeleteThread(thread: SmsThread) {
                     @pointercancel="clearLongPress"
                   >
                     <div class="flex items-center gap-2 mb-1" :class="m.type === 1 ? '' : 'justify-end'">
-                      <span v-if="m.type === 1" class="text-xs font-bold text-gray-700 dark:text-gray-200">{{ m.sender }}</span>
+                      <span v-if="m.type === 1" class="text-xs font-bold" style="color: var(--foreground);">{{ m.sender }}</span>
                       <el-button
                         v-if="!isNarrowLayout && m.type === 2 && m.device_name"
                         text
@@ -932,14 +932,14 @@ async function confirmDeleteThread(thread: SmsThread) {
                       >
                         <el-icon><Delete24Regular /></el-icon>
                       </el-button>
-                      <span v-if="m.device_name" class="text-[10px] font-bold text-gray-400 bg-gray-100 dark:bg-white/5 px-1.5 py-0.5 rounded">
+                      <span v-if="m.device_name" class="text-[10px] font-bold px-1.5 py-0.5 rounded" style="color: var(--muted-foreground); background: var(--muted);">
                         {{ m.device_name }}
                       </span>
-                      <span class="text-[11px] text-gray-400 font-mono">{{ new Date(m.timestamp).toLocaleString() }}</span>
-                      <span v-if="m.type === 2 && m.status === 2" class="text-green-500 text-xs" title="发送成功">✓</span>
-                      <span v-else-if="m.type === 2 && m.status === 3" class="text-red-500 text-xs flex items-center gap-1.5">
+                      <span class="text-[11px] font-mono" style="color: var(--muted-foreground);">{{ new Date(m.timestamp).toLocaleString() }}</span>
+                      <span v-if="m.type === 2 && m.status === 2" class="text-xs" style="color: var(--success);" title="发送成功">✓</span>
+                      <span v-else-if="m.type === 2 && m.status === 3" class="text-xs flex items-center gap-1.5" style="color: var(--destructive);">
                         <span title="发送失败">✗ 发送失败</span>
-                        <button class="text-blue-500 hover:text-blue-600 text-xs font-medium" @click="resendFailedMessage(m)">重发</button>
+                        <button class="text-xs font-medium" style="color: var(--brand);" @click="resendFailedMessage(m)">重发</button>
                       </span>
                       <el-button
                         v-if="!isNarrowLayout && (m.type !== 2 || !m.device_name)"
@@ -956,10 +956,8 @@ async function confirmDeleteThread(thread: SmsThread) {
                       </el-button>
                     </div>
                     <div
-                      class="px-5 py-4 rounded-2xl text-sm leading-[1.75] shadow-sm border"
-                      :class="m.type === 1
-                        ? 'bg-white/90 dark:bg-white/5 text-gray-700 dark:text-gray-200 border-gray-100 dark:border-white/10'
-                        : 'bg-indigo-50 dark:bg-indigo-500/10 text-gray-800 dark:text-gray-100 border-indigo-100 dark:border-indigo-500/20'"
+                      class="sms-msg-bubble"
+                      :class="m.type === 1 ? 'sms-msg-in' : 'sms-msg-out'"
                     >
                       {{ m.content }}
                     </div>
@@ -970,8 +968,8 @@ async function confirmDeleteThread(thread: SmsThread) {
             </div>
           </div>
 
-          <div v-if="selectedThread" class="p-4 border-t border-gray-100 dark:border-white/10">
-            <div class="text-[11px] text-gray-400 text-left mb-2">
+          <div v-if="selectedThread" class="sms-composer-bar">
+            <div class="text-[11px] text-left mb-2" style="color: var(--muted-foreground);">
               {{ composerEstimate.encoding }} · 预计 {{ composerEstimate.parts }} 段 · {{ composerLen }} 字
             </div>
             <div class="flex items-end gap-3">
@@ -1026,7 +1024,7 @@ async function confirmDeleteThread(thread: SmsThread) {
             :autosize="{ minRows: 4, maxRows: 10 }"
             resize="none"
           />
-          <div class="mt-2 text-xs flex justify-end text-gray-400">
+          <div class="mt-2 text-xs flex justify-end" style="color: var(--muted-foreground);">
             {{ sendEstimate.encoding }} · 预计 {{ sendEstimate.parts }} 段 · {{ Array.from(String(sendForm.message || '')).length }} 字
           </div>
         </el-form-item>
@@ -1071,28 +1069,33 @@ async function confirmDeleteThread(thread: SmsThread) {
   position: relative;
 }
 
-.sms-thread-item-shell {
+.sms-thread-shell {
   transition: background-color 0.16s ease, border-color 0.16s ease;
+  border-bottom: 1px solid var(--border);
 }
 
-.sms-thread-item-shell-active {
-  background: color-mix(in srgb, var(--color-primary, #6366f1) 10%, transparent);
+.sms-thread-shell-active {
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
   position: relative;
   z-index: 1;
 }
 
-.sms-thread-item-shell-active::before {
+.sms-thread-shell-active::before {
   content: '';
   position: absolute;
   left: 0;
   right: 0;
   top: -1px;
   height: 1px;
-  background: color-mix(in srgb, var(--color-primary, #6366f1) 10%, transparent);
+  background: color-mix(in srgb, var(--brand) 10%, transparent);
 }
 
 .sms-thread-row-active {
   background: transparent;
+}
+
+.sms-thread-row-hover {
+  background: var(--accent);
 }
 
 .sms-thread-delete-btn {
@@ -1128,10 +1131,10 @@ async function confirmDeleteThread(thread: SmsThread) {
 
 .sms-action-sheet {
   width: min(520px, 100%);
-  background: color-mix(in srgb, var(--color-surface, #fff) 92%, transparent);
+  background: color-mix(in srgb, var(--card) 92%, transparent);
   border-top-left-radius: 16px;
   border-top-right-radius: 16px;
-  border: 1px solid color-mix(in srgb, var(--color-border, #e5e7eb) 90%, transparent);
+  border: 1px solid var(--border);
   border-bottom: none;
   backdrop-filter: blur(14px);
   padding: 12px;
@@ -1143,7 +1146,7 @@ async function confirmDeleteThread(thread: SmsThread) {
 .sms-action-sheet-title {
   font-size: 12px;
   font-weight: 700;
-  color: rgb(107 114 128);
+  color: var(--muted-foreground);
   text-align: center;
   letter-spacing: 0.03em;
 }
@@ -1159,19 +1162,19 @@ async function confirmDeleteThread(thread: SmsThread) {
 }
 
 :deep(.sms-danger-ghost-btn.el-button) {
-  color: rgb(185 28 28);
-  border-color: rgba(239, 68, 68, 0.24);
-  background: rgba(239, 68, 68, 0.09);
+  color: var(--destructive);
+  border-color: color-mix(in oklab, var(--destructive) 24%, transparent);
+  background: color-mix(in oklab, var(--destructive) 9%, transparent);
 }
 
 :deep(.sms-danger-ghost-btn.el-button:hover) {
-  color: rgb(153 27 27);
-  border-color: rgba(239, 68, 68, 0.38);
-  background: rgba(239, 68, 68, 0.15);
+  color: var(--destructive);
+  border-color: color-mix(in oklab, var(--destructive) 38%, transparent);
+  background: color-mix(in oklab, var(--destructive) 15%, transparent);
 }
 
 :deep(.sms-danger-ghost-btn.el-button:focus-visible) {
-  outline: 2px solid rgba(239, 68, 68, 0.25);
+  outline: 2px solid color-mix(in oklab, var(--destructive) 25%, transparent);
   outline-offset: 2px;
 }
 
@@ -1217,15 +1220,186 @@ async function confirmDeleteThread(thread: SmsThread) {
   background: transparent;
 }
 .sms-detail-scroll::-webkit-scrollbar-thumb {
-  background: rgba(144, 147, 153, 0.3);
-  border-radius: 3px;
+  background: color-mix(in oklch, var(--muted-foreground) 28%, transparent);
+  border-radius: 999px;
 }
 .sms-detail-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(144, 147, 153, 0.5);
+  background: color-mix(in oklch, var(--muted-foreground) 45%, transparent);
 }
 /* Firefox */
 .sms-detail-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(144, 147, 153, 0.3) transparent;
+  scrollbar-color: color-mix(in oklch, var(--muted-foreground) 28%, transparent) transparent;
+}
+
+/* ── SMS page design system classes ── */
+
+.sms-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: var(--console-shadow-sm);
+}
+
+.sms-loading-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklab, var(--card) 60%, transparent);
+  backdrop-filter: blur(4px);
+}
+
+.sms-sidebar {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+}
+
+.sms-sidebar-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sms-sidebar-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sms-device-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  text-align: left;
+  transition: all 0.16s ease;
+}
+
+.sms-device-btn-active {
+  border-color: color-mix(in oklab, var(--brand) 30%, var(--border));
+  background: color-mix(in oklab, var(--brand) 8%, transparent);
+}
+
+.sms-device-btn-idle {
+  border-color: transparent;
+}
+
+.sms-device-btn-idle:hover {
+  background: var(--accent);
+}
+
+.sms-device-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sms-device-desc {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sms-list-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.sms-list-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sms-thread-peer {
+  font-weight: 800;
+  color: var(--foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sms-thread-preview {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 4px;
+}
+
+.sms-detail-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+.sms-detail-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sms-detail-peer {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sms-date-chip {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  border: 1px solid var(--border);
+  padding: 4px 12px;
+  border-radius: 999px;
+}
+
+.sms-msg-bubble {
+  padding: 16px 20px;
+  border-radius: 16px;
+  font-size: 14px;
+  line-height: 1.75;
+  box-shadow: var(--console-shadow-sm);
+  border: 1px solid var(--border);
+}
+
+.sms-msg-in {
+  background: var(--card);
+  color: var(--foreground);
+}
+
+.sms-msg-out {
+  background: color-mix(in oklab, var(--brand) 8%, var(--card));
+  color: var(--foreground);
+  border-color: color-mix(in oklab, var(--brand) 20%, var(--border));
+}
+
+.sms-composer-bar {
+  padding: 16px;
+  border-top: 1px solid var(--border);
 }
 </style>

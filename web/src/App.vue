@@ -1,32 +1,42 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, ref, onMounted, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from './stores/auth'
 import LoadingScreen from './components/LoadingScreen.vue'
 import { ElMessage } from 'element-plus'
 import { shouldRequireDisclaimerConfirmationText, shouldShowDisclaimer } from './disclaimer'
 
+type ThemeMode = 'auto' | 'light' | 'dark'
+
 const DISCLAIMER_AGREED_AT_KEY = 'vohive_disclaimer_agreed_at'
+const THEME_KEY = 'theme'
 
 const route = useRoute()
 const auth = useAuthStore()
 
-const isDark = ref(localStorage.getItem('theme') === 'dark')
+const themeMode = ref<ThemeMode>(
+  ['auto', 'light', 'dark'].includes(localStorage.getItem(THEME_KEY) || '')
+    ? (localStorage.getItem(THEME_KEY) as ThemeMode)
+    : 'auto'
+)
+const systemPrefersDark = ref(false)
+const isDark = computed(() =>
+  themeMode.value === 'auto' ? systemPrefersDark.value : themeMode.value === 'dark'
+)
+
 const showDisclaimer = ref(false)
 const confirmText = ref('')
 const expectedConfirmText = '我同意并确认'
 const manualConfirmRequired = ref(true)
 const canAccept = computed(() => !manualConfirmRequired.value || confirmText.value === expectedConfirmText)
 
-function toggleTheme() {
-  isDark.value = !isDark.value
-  const mode = isDark.value ? 'dark' : 'light'
-  localStorage.setItem('theme', mode)
-  updateHtmlClass(mode)
+function setTheme(mode: ThemeMode) {
+  themeMode.value = mode
+  localStorage.setItem(THEME_KEY, mode)
 }
 
-function updateHtmlClass(mode: 'dark' | 'light') {
-  if (mode === 'dark') {
+function updateHtmlClass() {
+  if (isDark.value) {
     document.documentElement.classList.add('dark')
   } else {
     document.documentElement.classList.remove('dark')
@@ -34,10 +44,27 @@ function updateHtmlClass(mode: 'dark' | 'light') {
 }
 
 onMounted(() => {
-  if (isDark.value) {
-    updateHtmlClass('dark')
+  if (typeof window !== 'undefined') {
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    systemPrefersDark.value = mq.matches
+    mq.addEventListener('change', (e) => {
+      systemPrefersDark.value = e.matches
+    })
+
+    // 跨标签页主题同步
+    window.addEventListener('storage', (e: StorageEvent) => {
+      if (e.key === THEME_KEY && e.newValue) {
+        const mode = e.newValue as ThemeMode
+        if (['auto', 'light', 'dark'].includes(mode)) {
+          themeMode.value = mode
+        }
+      }
+    })
   }
+  updateHtmlClass()
 })
+
+watch(isDark, () => updateHtmlClass())
 
 // 监听登录状态，每周首次登录弹一次（同意状态持久化在 localStorage，
 // 跨会话/跨标签页生效，距上次同意满一周后再次登录才会重新弹出）
@@ -84,7 +111,7 @@ const shell = computed(() =>
   <div class="h-screen w-screen overflow-hidden bg-[#F8F8F8] dark:bg-[#111111] text-gray-900 dark:text-gray-100 font-sans selection:bg-indigo-500 selection:text-white transition-colors duration-300">
     <Suspense>
       <template #default>
-        <component :is="shell" :is-dark="isDark" @toggle-theme="toggleTheme" />
+        <component :is="shell" :is-dark="isDark" :theme="themeMode" @set-theme="setTheme" />
       </template>
       <template #fallback>
         <LoadingScreen />

@@ -6,13 +6,11 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>VoHive</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet" />
   <script>
     try {
-      const theme = localStorage.getItem('theme')
-      if (theme === 'dark') {
+      const theme = localStorage.getItem('theme') || 'auto'
+      const isDark = theme === 'dark' || (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+      if (isDark) {
         document.documentElement.classList.add('dark')
       } else {
         document.documentElement.classList.remove('dark')
@@ -31,11 +29,11 @@
     }
 
     body {
-      background: #f9fafb;
+      background: rgb(255, 255, 255);
     }
 
     html.dark body {
-      background: #101014;
+      background: rgb(17, 17, 17);
     }
   </style>
 </head>

@@ -1,16 +1,19 @@
 <script setup lang="ts">
-defineProps<{
-  title: string
-  subtitle?: string
-}>()
+// 标题已由顶栏 (shell-header) 统一显示，此处仅保留操作按钮区域
 </script>
 
 <template>
-  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-3 sm:mb-4">
-    <div>
-      <h2 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400">{{ title }}</h2>
-      <p v-if="subtitle" class="text-gray-500 dark:text-gray-400 mt-1">{{ subtitle }}</p>
-    </div>
+  <div class="page-header-actions">
     <slot name="actions" />
   </div>
 </template>
+
+<style scoped>
+.page-header-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+</style>

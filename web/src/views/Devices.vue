@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useRoute, useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import PageHeader from '../components/PageHeader.vue'
+import { ElButton, ElIcon, ElMessage, ElMessageBox } from 'element-plus'
 import ErrorState from '../components/ErrorState.vue'
 import RefreshButton from '../components/RefreshButton.vue'
 import DeviceListPanel from '../components/DeviceListPanel.vue'
@@ -21,6 +20,7 @@ import TrafficAnalysisPanel from '../components/TrafficAnalysisPanel.vue'
 import { usePollingScheduler } from '../composables/usePollingScheduler'
 import { useEventStream } from '../composables/useEventStream'
 import { useDevicesStore } from '../stores/devices'
+import { useHeaderActionsStore } from '../stores/headerActions'
 import { debugCollector } from '../debug/collector'
 import { copyToClipboard } from '../utils/clipboard'
 import { isWwanQmiControlPath } from '../utils/deviceBackend'
@@ -40,6 +40,7 @@ import {
 const router = useRouter()
 const route = useRoute()
 const devicesStore = useDevicesStore()
+const headerActions = useHeaderActionsStore()
 const { list: storeList, detail: storeDetail, discovered: storeDiscovered, config: storeConfig, deviceLimit } = storeToRefs(devicesStore)
 
 let listAbort: AbortController | null = null
@@ -1100,11 +1101,26 @@ onMounted(() => {
   }).catch(() => {})
 })
 
+watch([loading, rescanning], () => {
+  headerActions.setActions(h('div', { class: 'flex items-center gap-2' }, [
+    h(RefreshButton, { loading: loading.value, onClick: fetchAll }),
+    h(ElButton, { onClick: rescanDevices, loading: rescanning.value }, () => [
+      h(ElIcon, null, () => h(ArrowSync24Regular)),
+      '重新扫描'
+    ]),
+    h(ElButton, { type: 'primary', onClick: openAddDialog, class: '!border-0' }, () => [
+      h(ElIcon, null, () => h(Add24Regular)),
+      '添加设备'
+    ])
+  ]))
+}, { immediate: true })
+
 onBeforeUnmount(() => {
   if (listAbort) listAbort.abort()
   if (detailAbort) detailAbort.abort()
   if (trafficAbort) trafficAbort.abort()
   clearLiveRadioFallbackTimer()
+  headerActions.clear()
 })
 
 // 由于 SSE 只订阅当前选中的单设备详情，恢复列表的低频拉取（无 IPC 开销）以同步左右设备增减和状态跳变。
@@ -1195,26 +1211,10 @@ usePollingScheduler(async () => {
 </script>
 
 <template>
-  <div class="devices-page max-w-7xl mx-auto">
-    <PageHeader title="设备管理" subtitle="查看设备信息、编辑配置、执行 AT 指令">
-      <template #actions>
-        <div class="flex items-center gap-2">
-          <RefreshButton :loading="loading" @click="fetchAll" />
-          <el-button @click="rescanDevices" :loading="rescanning" class="ui-glass-border !border-0">
-            <el-icon><ArrowSync24Regular /></el-icon>
-            重新扫描
-          </el-button>
-          <el-button type="primary" @click="openAddDialog" class="!border-0">
-            <el-icon><Add24Regular /></el-icon>
-            添加设备
-          </el-button>
-        </div>
-      </template>
-    </PageHeader>
-
+  <div class="devices-page">
     <ErrorState
       v-if="loadError"
-      class="mb-6"
+      class="mb-4"
       title="设备数据加载失败"
       :message="loadError.message"
       :status-code="loadError.status"
@@ -1256,7 +1256,7 @@ usePollingScheduler(async () => {
           @open-sms="openSms"
         />
 
-        <div class="ui-card p-6">
+        <div class="detail-panel">
           <el-tabs v-model="activeTab" class="device-detail-tabs">
             <el-tab-pane label="概览" name="overview">
               <div class="space-y-6">
@@ -1325,7 +1325,7 @@ usePollingScheduler(async () => {
 
       <div v-else>
         <DeviceDetailLoading v-if="loading" />
-        <div v-else class="ui-card p-8 text-gray-500 dark:text-gray-400">
+        <div v-else class="detail-panel" style="padding: 32px; color: var(--muted-foreground);">
           暂无设备
         </div>
       </div>

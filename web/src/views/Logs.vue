@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, computed, h, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { ElMessage } from 'element-plus'
-import PageHeader from '../components/PageHeader.vue'
+import { ElButton, ElIcon, ElMessage } from 'element-plus'
 import { ArrowDownload24Regular, Delete24Regular, Pause24Regular, Play24Regular } from '@vicons/fluent'
 import { useLogsStore } from '../stores/logs'
+import { useHeaderActionsStore } from '../stores/headerActions'
 import { useEventStream } from '../composables/useEventStream'
 
 // 日志条目类型
@@ -17,6 +17,7 @@ interface LogEntry {
 }
 
 const logsStore = useLogsStore()
+const headerActions = useHeaderActionsStore()
 const { logs } = storeToRefs(logsStore)
 
 const connected = ref(false)
@@ -155,8 +156,26 @@ onMounted(async () => {
   connect()
 })
 
+watch(paused, () => {
+  headerActions.setActions(h('div', { class: 'flex items-center gap-2' }, [
+    h(ElButton, { onClick: togglePause, type: paused.value ? 'success' : 'warning' }, () => [
+      h(ElIcon, null, () => h(paused.value ? Play24Regular : Pause24Regular)),
+      paused.value ? '继续' : '暂停'
+    ]),
+    h(ElButton, { onClick: clearLogs }, () => [
+      h(ElIcon, null, () => h(Delete24Regular)),
+      '清空'
+    ]),
+    h(ElButton, { onClick: exportLogs, type: 'primary' }, () => [
+      h(ElIcon, null, () => h(ArrowDownload24Regular)),
+      '导出'
+    ])
+  ]))
+}, { immediate: true })
+
 onUnmounted(() => {
   disconnect()
+  headerActions.clear()
 })
 
 watch(levelFilter, () => {
@@ -168,79 +187,133 @@ watch(levelFilter, () => {
 </script>
 
 <template>
-  <div class="max-w-7xl mx-auto">
-    <PageHeader title="实时日志" subtitle="查看系统运行日志，支持过滤和搜索">
-      <template #actions>
+  <div>
+    <div class="page-stack">
+      <!-- 连接状态 -->
+      <div class="flex items-center gap-4">
         <div class="flex items-center gap-2">
-          <el-button @click="togglePause" :type="paused ? 'success' : 'warning'" class="!border-0">
-            <el-icon><component :is="paused ? Play24Regular : Pause24Regular" /></el-icon>
-            {{ paused ? '继续' : '暂停' }}
-          </el-button>
-          <el-button @click="clearLogs" class="!border-0">
-            <el-icon><Delete24Regular /></el-icon>
-            清空
-          </el-button>
-          <el-button @click="exportLogs" type="primary" class="!border-0">
-            <el-icon><ArrowDownload24Regular /></el-icon>
-            导出
-          </el-button>
+          <span class="w-2 h-2 rounded-full" :style="{ background: connected ? 'var(--success)' : 'var(--destructive)', animation: connected ? 'pulse 2s ease-in-out infinite' : 'none' }" />
+          <span class="text-sm" style="color: var(--muted-foreground);">{{ connected ? '已连接' : '未连接' }}</span>
         </div>
-      </template>
-    </PageHeader>
-
-    <!-- 连接状态 -->
-    <div class="flex items-center gap-4 mb-4">
-      <div class="flex items-center gap-2">
-        <span class="w-2 h-2 rounded-full" :class="connected ? 'bg-green-500 animate-pulse' : 'bg-red-500'" />
-        <span class="text-sm text-gray-500">{{ connected ? '已连接' : '未连接' }}</span>
+        <span class="text-sm" style="color: var(--muted-foreground);">{{ logs.length }} 条日志</span>
+        <span v-if="!connected && lastConnectError" class="text-sm truncate" style="color: var(--destructive);" :title="lastConnectError">{{ lastConnectError }}</span>
+        <div class="flex-1" />
+        <el-checkbox v-model="autoScroll" label="自动追尾" />
       </div>
-      <span class="text-sm text-gray-400">{{ logs.length }} 条日志</span>
-      <span v-if="!connected && lastConnectError" class="text-sm text-red-500 truncate" :title="lastConnectError">{{ lastConnectError }}</span>
-      <div class="flex-1" />
-      <el-checkbox v-model="autoScroll" label="自动追尾" />
-    </div>
 
-    <!-- 过滤器 -->
-    <div class="ui-card p-4 mb-4">
-      <div class="flex flex-wrap items-center gap-4">
-        <el-select v-model="levelFilter" placeholder="日志级别" class="w-32">
-          <el-option label="全部" value="all" />
-          <el-option label="DEBUG" value="debug" />
-          <el-option label="INFO" value="info" />
-          <el-option label="WARN" value="warn" />
-          <el-option label="ERROR" value="error" />
-        </el-select>
-        <el-input
-          v-model="searchQuery"
-          placeholder="搜索日志内容..."
-          clearable
-          class="w-64"
-        />
-        <span class="text-sm text-gray-400">显示 {{ filteredLogs.length }} / {{ logs.length }} 条</span>
-      </div>
-    </div>
-
-    <!-- 日志列表 -->
-    <div class="ui-card overflow-hidden">
-      <div
-        ref="logContainer"
-        class="h-[60vh] overflow-auto font-mono text-sm bg-gray-900 dark:bg-black text-gray-100 p-4"
-      >
-        <div v-if="filteredLogs.length === 0" class="text-gray-500 text-center py-8">
-          {{ connected ? '等待日志...' : '未连接到日志流' }}
+      <!-- 过滤器 -->
+      <div class="filter-panel">
+        <div class="flex flex-wrap items-center gap-4">
+          <el-select v-model="levelFilter" placeholder="日志级别" class="w-32">
+            <el-option label="全部" value="all" />
+            <el-option label="DEBUG" value="debug" />
+            <el-option label="INFO" value="info" />
+            <el-option label="WARN" value="warn" />
+            <el-option label="ERROR" value="error" />
+          </el-select>
+          <el-input
+            v-model="searchQuery"
+            placeholder="搜索日志内容..."
+            clearable
+            class="w-64"
+          />
+          <span class="text-sm" style="color: var(--muted-foreground);">显示 {{ filteredLogs.length }} / {{ logs.length }} 条</span>
         </div>
+      </div>
+
+      <!-- 日志列表 -->
+      <div class="log-panel-wrapper">
         <div
-          v-for="(log, idx) in filteredLogs"
-          :key="idx"
-          class="py-0.5 hover:bg-white/5 px-2 -mx-2 rounded whitespace-nowrap"
+          ref="logContainer"
+          class="log-console"
         >
-          <span class="text-gray-500">[{{ formatDateTime(log.time) }}]</span>
-          <span class="font-bold ml-1 inline-block w-14" :class="getLevelClass(log.level)">{{ log.level.toUpperCase().padEnd(5) }}</span>
-          <span class="text-indigo-400 inline-block w-48 truncate align-bottom" :title="log.caller">{{ log.caller }}</span>
-          <span class="text-gray-100 ml-1">{{ log.message }}</span>
-          <span v-if="log.fields" class="text-amber-300/70 ml-1">{{ log.fields }}</span>
+          <div v-if="filteredLogs.length === 0" class="text-center py-8" style="color: var(--muted-foreground);">
+            {{ connected ? '等待日志...' : '未连接到日志流' }}
+          </div>
+          <div
+            v-for="(log, idx) in filteredLogs"
+            :key="idx"
+            class="log-line"
+          >
+            <span class="log-time">[{{ formatDateTime(log.time) }}]</span>
+            <span class="log-level" :class="getLevelClass(log.level)">{{ log.level.toUpperCase().padEnd(5) }}</span>
+            <span class="log-caller" :title="log.caller">{{ log.caller }}</span>
+            <span class="log-message">{{ log.message }}</span>
+            <span v-if="log.fields" class="log-fields">{{ log.fields }}</span>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.filter-panel {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: var(--console-shadow-sm);
+  padding: 16px;
+}
+
+.log-panel-wrapper {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: var(--console-shadow-sm);
+  overflow: hidden;
+}
+
+.log-console {
+  height: 60vh;
+  overflow: auto;
+  font-family: var(--oomol-font-sans);
+  font-size: 12px;
+  background: var(--foreground);
+  color: var(--background);
+  padding: 16px;
+  border-radius: 0 0 8px 8px;
+}
+
+.log-line {
+  padding: 1px 8px;
+  margin: 0 -8px;
+  border-radius: 4px;
+  white-space: nowrap;
+  line-height: 1.6;
+}
+
+.log-line:hover {
+  background: color-mix(in oklab, var(--background) 8%, transparent);
+}
+
+.log-time {
+  color: color-mix(in oklab, var(--background) 50%, transparent);
+}
+
+.log-level {
+  display: inline-block;
+  width: 56px;
+  margin-left: 4px;
+  font-weight: 700;
+}
+
+.log-caller {
+  display: inline-block;
+  width: 192px;
+  margin-left: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+  color: var(--brand);
+}
+
+.log-message {
+  margin-left: 4px;
+}
+
+.log-fields {
+  margin-left: 4px;
+  color: color-mix(in oklab, var(--warning) 70%, transparent);
+}
+</style>

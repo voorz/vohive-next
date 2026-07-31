@@ -15,6 +15,7 @@
 
 # 前端构建产物 (由 npm run build 生成)
 /web/dist/
+/web/assets/
 /web/node_modules/
 /web/src/auto-imports.d.ts
 /web/src/components.d.ts

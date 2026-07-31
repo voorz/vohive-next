@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { ErrorCircle24Regular } from '@vicons/fluent'
 
 const props = defineProps<{
   title?: string
@@ -27,19 +28,16 @@ const metaText = computed(() => {
 </script>
 
 <template>
-  <div class="p-6 bg-red-50/70 dark:bg-red-500/10 rounded-2xl border border-red-100 dark:border-red-500/20">
-    <div class="flex items-start justify-between gap-4">
-      <div class="min-w-0">
-        <div class="text-sm font-extrabold text-red-700 dark:text-red-300">{{ title || '加载失败' }}</div>
-        <div class="mt-1 text-xs text-red-700/80 dark:text-red-200/80 break-words">{{ message }}</div>
-        <div v-if="metaText" class="mt-2 text-[11px] text-red-800/60 dark:text-red-100/60 font-mono break-words">
-          {{ metaText }}
-        </div>
-        <div v-if="details" class="mt-2 text-xs font-mono text-red-900/60 dark:text-red-100/60 whitespace-pre-wrap break-words">{{ details }}</div>
-      </div>
-      <el-button v-if="retryText" type="primary" @click="emit('retry')" class="!border-0">
-        {{ retryText }}
-      </el-button>
+  <div class="inline-error">
+    <div class="inline-error-icon">
+      <el-icon :size="16"><ErrorCircle24Regular /></el-icon>
     </div>
+    <div class="inline-error-body">
+      <strong>{{ title || '加载失败' }}</strong>
+      <p>{{ message }}</p>
+      <div v-if="metaText" class="mono" style="margin-top: 4px; opacity: 0.7;">{{ metaText }}</div>
+      <div v-if="details" class="mono" style="margin-top: 4px; opacity: 0.6; white-space: pre-wrap;">{{ details }}</div>
+    </div>
+    <el-button v-if="retryText" size="small" @click="emit('retry')">{{ retryText }}</el-button>
   </div>
 </template>

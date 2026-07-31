@@ -7,7 +7,7 @@ import {
   Cellular4G24Regular,
   Cellular5G24Regular,
   CellularData124Regular,
-  Wifi124Regular, 
+  Wifi124Regular,
   Globe24Regular,
   Sim24Regular
 } from '@vicons/fluent'
@@ -25,7 +25,6 @@ const displayNetworkMode = computed(() => {
 })
 
 const networkIcon = computed(() => {
-  // VoWiFi 模式显示 Wi-Fi 图标
   if (props.device?.vowifi_active) return Wifi124Regular
   const mode = displayNetworkMode.value
   if (!mode) return CellularData124Regular
@@ -37,15 +36,14 @@ const networkIcon = computed(() => {
 })
 
 const networkColor = computed(() => {
-  // VoWiFi 模式显示特殊颜色
-  if (props.device?.vowifi_active) return 'text-emerald-500'
+  if (props.device?.vowifi_active) return 'var(--success)'
   const mode = displayNetworkMode.value
-  if (!mode) return 'text-gray-400'
+  if (!mode) return 'var(--muted-foreground)'
   const m = String(mode).toUpperCase()
-  if (m.includes('5G') || m.includes('NR')) return 'text-purple-500'
-  if (m.includes('4G') || m.includes('LTE')) return 'text-blue-500'
-  if (m.includes('3G')) return 'text-orange-500'
-  return 'text-gray-400'
+  if (m.includes('5G') || m.includes('NR')) return 'var(--brand)'
+  if (m.includes('4G') || m.includes('LTE')) return 'var(--info)'
+  if (m.includes('3G')) return 'var(--warning)'
+  return 'var(--muted-foreground)'
 })
 
 const networkModeText = computed(() => {
@@ -65,10 +63,10 @@ function hasValidSignalDbm(dbm: number | null | undefined): dbm is number {
 }
 
 function getSignalColor(dbm: number | null | undefined) {
-  if (!hasValidSignalDbm(dbm)) return 'bg-gray-300 dark:bg-gray-600'
-  if (dbm > -70) return 'bg-green-500'
-  if (dbm > -90) return 'bg-yellow-500'
-  return 'bg-red-500'
+  if (!hasValidSignalDbm(dbm)) return 'var(--muted-foreground)'
+  if (dbm > -70) return 'var(--success)'
+  if (dbm > -90) return 'var(--warning)'
+  return 'var(--destructive)'
 }
 
 function getSignalBars(dbm: number | null | undefined) {
@@ -83,22 +81,23 @@ function getSignalBars(dbm: number | null | undefined) {
 <template>
   <button
     type="button"
-    class="group relative block w-full overflow-hidden ui-card ui-card-hover text-left transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#5b5bd6] focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-gray-950"
+    class="device-card ui-card ui-card-hover"
     @click="emit('open-device', device.id)"
   >
-    <div class="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-500/10 to-indigo-400/10 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-150" />
-
-    <div class="p-6 relative z-10">
-      <div class="flex justify-between items-start mb-6">
+    <div class="device-card-inner">
+      <div class="flex justify-between items-start mb-4">
         <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-xl bg-gray-50 dark:bg-white/5 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shadow-inner">
+          <div class="device-card-icon">
             <el-icon size="20"><Sim24Regular /></el-icon>
           </div>
           <div>
-            <h3 class="font-bold text-base text-gray-800 dark:text-gray-100">{{ device.name || device.id }}</h3>
+            <h3 class="device-card-title">{{ device.name || device.id }}</h3>
             <div class="flex items-center gap-1.5 mt-0.5">
               <StatusLight :tone="device.healthy ? 'success' : 'danger'" size="md" :animated="device.healthy" />
-              <span class="text-xs font-medium" :class="device.healthy ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
+              <span
+                class="text-xs font-medium"
+                :style="{ color: device.healthy ? 'var(--success)' : 'var(--destructive)' }"
+              >
                 {{ device.healthy ? '在线' : '离线' }}
               </span>
             </div>
@@ -106,11 +105,11 @@ function getSignalBars(dbm: number | null | undefined) {
         </div>
       </div>
 
-      <div class="space-y-4">
-        <div class="flex items-center justify-between p-3 bg-gray-50/50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/5">
+      <div class="space-y-3">
+        <div class="device-card-row">
           <div class="flex items-center gap-2 min-w-0">
-            <div class="flex items-center gap-1.5 opacity-80">
-              <el-icon :class="networkColor" size="18">
+            <div class="flex items-center gap-1.5">
+              <el-icon size="18" :style="{ color: networkColor }">
                 <component :is="networkIcon" />
               </el-icon>
               <span
@@ -121,7 +120,7 @@ function getSignalBars(dbm: number | null | undefined) {
                 {{ networkModeText }}
               </span>
             </div>
-            <span class="flex-1 min-w-0 text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap truncate">
+            <span class="flex-1 min-w-0 text-sm font-medium whitespace-nowrap truncate" style="color: var(--foreground);">
               {{ device.vowifi_active ? 'Wi-Fi Calling' : (device.operator || '检测中...') }}
             </span>
           </div>
@@ -131,21 +130,71 @@ function getSignalBars(dbm: number | null | undefined) {
                 v-for="i in 4"
                 :key="i"
                 class="w-1 rounded-sm transition-all duration-500"
-                :class="getSignalBars(device.signal_dbm) >= i ? getSignalColor(device.signal_dbm) : 'bg-gray-200 dark:bg-gray-700'"
-                :style="{ height: `${i * 25}%` }"
+                :style="{
+                  height: `${i * 25}%`,
+                  background: getSignalBars(device.signal_dbm) >= i ? getSignalColor(device.signal_dbm) : 'var(--border)'
+                }"
               />
             </div>
-            <span class="text-xs font-mono text-gray-400 ml-1 hidden xl:inline">{{ device.signal_dbm }}dBm</span>
+            <span class="text-xs font-mono ml-1 hidden xl:inline" style="color: var(--muted-foreground);">{{ device.signal_dbm }}dBm</span>
           </div>
         </div>
 
-        <div class="space-y-2">
-          <div class="flex justify-between items-center text-sm">
-            <span class="text-gray-400 flex items-center gap-1.5"><el-icon><Globe24Regular /></el-icon> 公网 IP</span>
-            <span class="font-mono font-bold text-indigo-600 dark:text-indigo-400">{{ device.public_ip || '---' }}</span>
-          </div>
+        <div class="flex justify-between items-center text-sm">
+          <span class="flex items-center gap-1.5" style="color: var(--muted-foreground);">
+            <el-icon><Globe24Regular /></el-icon> 公网 IP
+          </span>
+          <span class="font-mono font-bold" style="color: var(--brand);">{{ device.public_ip || '---' }}</span>
         </div>
       </div>
     </div>
   </button>
 </template>
+
+<style scoped>
+.device-card {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 200ms ease, box-shadow 200ms ease;
+}
+
+.device-card:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+.device-card-inner {
+  padding: 20px;
+}
+
+.device-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--muted);
+  color: var(--foreground);
+}
+
+.device-card-title {
+  font-weight: 660;
+  font-size: 15px;
+  line-height: 1.3;
+  color: var(--foreground);
+}
+
+.device-card-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--muted);
+}
+</style>
