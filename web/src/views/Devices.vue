@@ -1243,7 +1243,7 @@ usePollingScheduler(async () => {
         @select-device="selectDevice"
       />
 
-      <div v-if="selectedDevice" class="space-y-6">
+      <div v-if="selectedDevice" class="devices-detail">
         <DeviceDetailHeader
           :device="selectedDevice"
           :rotating="rotating"
@@ -1256,7 +1256,7 @@ usePollingScheduler(async () => {
           @open-sms="openSms"
         />
 
-        <div class="detail-panel">
+        <div class="devices-tabs">
           <el-tabs v-model="activeTab" class="device-detail-tabs">
             <el-tab-pane label="概览" name="overview">
               <div class="space-y-6">
@@ -1323,9 +1323,9 @@ usePollingScheduler(async () => {
         </div>
       </div>
 
-      <div v-else>
+      <div v-else class="devices-empty">
         <DeviceDetailLoading v-if="loading" />
-        <div v-else class="detail-panel" style="padding: 32px; color: var(--muted-foreground);">
+        <div v-else style="padding: 32px; color: var(--muted-foreground);">
           暂无设备
         </div>
       </div>
@@ -1357,13 +1357,42 @@ usePollingScheduler(async () => {
 .devices-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 1.5rem;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--console-shadow-sm);
+  overflow: hidden;
 }
 
 @container (min-width: 980px) {
   .devices-layout {
     grid-template-columns: 270px minmax(0, 1fr);
   }
+  .devices-layout > :first-child {
+    border-right: 1px solid var(--border);
+  }
+}
+
+.devices-detail {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.devices-detail > :first-child {
+  border-bottom: 1px solid var(--border);
+}
+
+.devices-tabs {
+  padding: 16px 24px;
+  min-width: 0;
+}
+
+.devices-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
 }
 
 .device-detail-tabs :deep(.el-tabs__content) {

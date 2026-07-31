@@ -1076,18 +1076,6 @@ async function confirmDeleteThread(thread: SmsThread) {
 
 .sms-thread-shell-active {
   background: color-mix(in srgb, var(--brand) 10%, transparent);
-  position: relative;
-  z-index: 1;
-}
-
-.sms-thread-shell-active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: -1px;
-  height: 1px;
-  background: color-mix(in srgb, var(--brand) 10%, transparent);
 }
 
 .sms-thread-row-active {
@@ -1095,7 +1083,7 @@ async function confirmDeleteThread(thread: SmsThread) {
 }
 
 .sms-thread-row-hover {
-  background: var(--accent);
+  background: transparent;
 }
 
 .sms-thread-delete-btn {

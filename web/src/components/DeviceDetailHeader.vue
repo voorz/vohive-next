@@ -19,7 +19,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="ui-card p-6">
+  <div class="device-header">
     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
       <div class="min-w-0">
         <div class="flex items-center gap-3">
@@ -58,6 +58,10 @@ const emit = defineEmits<{
 </template>
 
 <style scoped>
+.device-header {
+  padding: 24px;
+}
+
 .device-header-brand-icon {
   width: 2.75rem;
   height: 2.75rem;

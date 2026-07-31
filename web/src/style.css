@@ -241,8 +241,9 @@ html,
 body {
   margin: 0;
   padding: 0;
-  height: 100%;
+  min-height: 100%;
   width: 100%;
+  overflow-x: hidden;
 }
 
 html {
@@ -412,9 +413,23 @@ html.dark .el-button--danger:not(.is-plain):not(.is-text):not(.is-link) {
   --el-button-active-text-color: var(--background);
   --el-button-disabled-text-color: color-mix(in oklab, var(--background) 50%, transparent);
 }
+
+/* 暗色模式：checkbox 选中时背景为浅色，✓ 需改为深色 */
+html.dark .el-checkbox.is-checked .el-checkbox__inner,
+html.dark .el-checkbox.is-checked .el-checkbox__input.is-checked .el-checkbox__inner {
+  background-color: var(--primary);
+  border-color: var(--primary);
+}
+html.dark .el-checkbox.is-checked .el-checkbox__inner::after {
+  border-color: var(--background);
+}
+html.dark .el-checkbox.is-checked .el-checkbox__label {
+  color: var(--primary);
+}
 /* 按钮圆角 */
 .el-button {
   border-radius: var(--radius-md);
+  font-family: var(--oomol-font-sans);
 }
 
 /* 按钮阴影 */

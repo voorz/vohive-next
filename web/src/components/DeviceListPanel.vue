@@ -109,7 +109,7 @@ const secondaryStatus = (d: DeviceMgmtListItem) => {
 </script>
 
 <template>
-  <div class="ui-card p-5">
+  <div class="device-list-panel">
     <div class="flex items-center gap-3 mb-4">
       <el-input v-model="modelQuery" placeholder="搜索设备 / ICCID / IMEI / 网卡" />
     </div>
@@ -187,6 +187,10 @@ const secondaryStatus = (d: DeviceMgmtListItem) => {
 </template>
 
 <style scoped>
+.device-list-panel {
+  padding: 20px;
+}
+
 .device-list-scroll {
   container-type: inline-size;
 }

@@ -267,12 +267,14 @@ watch(lang, (v) => {
       </header>
 
       <main class="main">
-        <router-view v-slot="{ Component, route: r }">
-          <ErrorBoundary v-if="Component" title="页面渲染失败">
-            <component :is="Component" :key="r.fullPath" />
-          </ErrorBoundary>
-          <LoadingScreen v-else title="正在加载页面…" subtitle="正在准备页面组件与资源" />
-        </router-view>
+        <div class="main-inner">
+          <router-view v-slot="{ Component, route: r }">
+            <ErrorBoundary v-if="Component" title="页面渲染失败">
+              <component :is="Component" :key="r.fullPath" />
+            </ErrorBoundary>
+            <LoadingScreen v-else title="正在加载页面…" subtitle="正在准备页面组件与资源" />
+          </router-view>
+        </div>
       </main>
     </div>
 
@@ -577,9 +579,9 @@ watch(lang, (v) => {
 
 .main-region {
   min-width: 0;
-  min-height: 100vh;
-  min-height: 100svh;
-  overflow-x: hidden;
+  height: 100vh;
+  height: 100svh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -634,10 +636,15 @@ watch(lang, (v) => {
 .main {
   flex: 1;
   min-width: 0;
-  width: min(1240px, calc(100% - 48px));
-  margin: 0 auto;
-  padding: 24px 0 56px;
+  min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.main-inner {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 24px 24px 24px;
 }
 
 /* ---------- 侧栏收起按钮（仅窄屏可见） ---------- */
@@ -701,9 +708,8 @@ watch(lang, (v) => {
     transform: translateX(-100%);
   }
 
-  .main {
-    width: calc(100% - 32px);
-    padding: 18px 0 40px;
+  .main-inner {
+    padding: 18px 24px 18px;
   }
 
   .shell-header {
@@ -712,9 +718,8 @@ watch(lang, (v) => {
 }
 
 @media (max-width: 640px) {
-  .main {
-    width: calc(100% - 24px);
-    padding: 18px 0 32px;
+  .main-inner {
+    padding: 18px 24px 18px;
   }
 
   .shell-header {

@@ -187,60 +187,51 @@ watch(levelFilter, () => {
 </script>
 
 <template>
-  <div>
-    <div class="page-stack">
-      <!-- 连接状态 -->
-      <div class="flex items-center gap-4">
+  <div class="logs-page">
+    <div class="log-panel-wrapper">
+      <!-- 过滤器栏 -->
+      <div class="log-toolbar">
+        <el-select v-model="levelFilter" placeholder="日志级别" class="w-32">
+          <el-option label="全部" value="all" />
+          <el-option label="DEBUG" value="debug" />
+          <el-option label="INFO" value="info" />
+          <el-option label="WARN" value="warn" />
+          <el-option label="ERROR" value="error" />
+        </el-select>
+        <el-input
+          v-model="searchQuery"
+          placeholder="搜索日志内容..."
+          clearable
+          class="w-64"
+        />
+        <span class="text-sm" style="color: var(--muted-foreground);">显示 {{ filteredLogs.length }} / {{ logs.length }} 条</span>
+        <div class="flex-1" />
         <div class="flex items-center gap-2">
           <span class="w-2 h-2 rounded-full" :style="{ background: connected ? 'var(--success)' : 'var(--destructive)', animation: connected ? 'pulse 2s ease-in-out infinite' : 'none' }" />
           <span class="text-sm" style="color: var(--muted-foreground);">{{ connected ? '已连接' : '未连接' }}</span>
         </div>
-        <span class="text-sm" style="color: var(--muted-foreground);">{{ logs.length }} 条日志</span>
         <span v-if="!connected && lastConnectError" class="text-sm truncate" style="color: var(--destructive);" :title="lastConnectError">{{ lastConnectError }}</span>
-        <div class="flex-1" />
         <el-checkbox v-model="autoScroll" label="自动追尾" />
       </div>
 
-      <!-- 过滤器 -->
-      <div class="filter-panel">
-        <div class="flex flex-wrap items-center gap-4">
-          <el-select v-model="levelFilter" placeholder="日志级别" class="w-32">
-            <el-option label="全部" value="all" />
-            <el-option label="DEBUG" value="debug" />
-            <el-option label="INFO" value="info" />
-            <el-option label="WARN" value="warn" />
-            <el-option label="ERROR" value="error" />
-          </el-select>
-          <el-input
-            v-model="searchQuery"
-            placeholder="搜索日志内容..."
-            clearable
-            class="w-64"
-          />
-          <span class="text-sm" style="color: var(--muted-foreground);">显示 {{ filteredLogs.length }} / {{ logs.length }} 条</span>
+      <!-- 日志控制台 -->
+      <div
+        ref="logContainer"
+        class="log-console"
+      >
+        <div v-if="filteredLogs.length === 0" class="text-center py-8" style="color: var(--muted-foreground);">
+          {{ connected ? '等待日志...' : '未连接到日志流' }}
         </div>
-      </div>
-
-      <!-- 日志列表 -->
-      <div class="log-panel-wrapper">
         <div
-          ref="logContainer"
-          class="log-console"
+          v-for="(log, idx) in filteredLogs"
+          :key="idx"
+          class="log-line"
         >
-          <div v-if="filteredLogs.length === 0" class="text-center py-8" style="color: var(--muted-foreground);">
-            {{ connected ? '等待日志...' : '未连接到日志流' }}
-          </div>
-          <div
-            v-for="(log, idx) in filteredLogs"
-            :key="idx"
-            class="log-line"
-          >
-            <span class="log-time">[{{ formatDateTime(log.time) }}]</span>
-            <span class="log-level" :class="getLevelClass(log.level)">{{ log.level.toUpperCase().padEnd(5) }}</span>
-            <span class="log-caller" :title="log.caller">{{ log.caller }}</span>
-            <span class="log-message">{{ log.message }}</span>
-            <span v-if="log.fields" class="log-fields">{{ log.fields }}</span>
-          </div>
+          <span class="log-time">[{{ formatDateTime(log.time) }}]</span>
+          <span class="log-level" :class="getLevelClass(log.level)">{{ log.level.toUpperCase().padEnd(5) }}</span>
+          <span class="log-caller" :title="log.caller">{{ log.caller }}</span>
+          <span class="log-message">{{ log.message }}</span>
+          <span v-if="log.fields" class="log-fields">{{ log.fields }}</span>
         </div>
       </div>
     </div>
@@ -248,6 +239,23 @@ watch(levelFilter, () => {
 </template>
 
 <style scoped>
+.logs-page {
+  display: flex;
+  flex-direction: column;
+  height: calc(100svh - 56px - 48px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.log-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
 .filter-panel {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -262,15 +270,19 @@ watch(levelFilter, () => {
   background: var(--card);
   box-shadow: var(--console-shadow-sm);
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
 .log-console {
-  height: 60vh;
+  flex: 1;
+  min-height: 0;
   overflow: auto;
   font-family: var(--oomol-font-sans);
   font-size: 12px;
-  background: var(--foreground);
-  color: var(--background);
+  background: #1a1a1a;
+  color: #e0e0e0;
   padding: 16px;
   border-radius: 0 0 8px 8px;
 }
@@ -284,11 +296,11 @@ watch(levelFilter, () => {
 }
 
 .log-line:hover {
-  background: color-mix(in oklab, var(--background) 8%, transparent);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .log-time {
-  color: color-mix(in oklab, var(--background) 50%, transparent);
+  color: rgba(224, 224, 224, 0.5);
 }
 
 .log-level {
