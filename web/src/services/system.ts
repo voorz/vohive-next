@@ -256,5 +256,29 @@ export const systemService = {
       const res = await api.post<{ message: string }>('/system/update/apply', {})
       return res.data
     })
+  },
+  getUpdateRepo() {
+    return callService(async () => {
+      const res = await api.get<{ owner: string; name: string }>('/settings/update-repo')
+      return res.data
+    })
+  },
+  saveUpdateRepo(owner: string, name: string) {
+    return callService(async () => {
+      const res = await api.put<{ status: string; owner: string; name: string }>('/settings/update-repo', { owner, name })
+      return res.data
+    })
+  },
+  getSMSRateLimit() {
+    return callService(async () => {
+      const res = await api.get<{ hourly_limit: number; daily_limit: number }>('/settings/sms-limit')
+      return res.data
+    })
+  },
+  saveSMSRateLimit(hourlyLimit: number, dailyLimit: number) {
+    return callService(async () => {
+      const res = await api.put<{ status: string; hourly_limit: number; daily_limit: number }>('/settings/sms-limit', { hourly_limit: hourlyLimit, daily_limit: dailyLimit })
+      return res.data
+    })
   }
 }

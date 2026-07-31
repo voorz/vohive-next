@@ -18,10 +18,16 @@ const history = ref<Array<{ ts: number; type: 'req' | 'res' | 'err' | 'sys'; con
 const isMultiRound = computed(() => !!sessionId.value)
 const inputPlaceholder = computed(() => isMultiRound.value ? '输入菜单选项数字' : '例如 *100# 或菜单回复数字')
 
+const statusText = computed(() => {
+  if (sending) return '等待响应...'
+  if (isMultiRound.value) return '多轮会话中'
+  return '空闲'
+})
+
 async function sendUSSD() {
   const cmd = String(ussdCmd.value || '').trim()
   if (!cmd) return
-  
+
   history.value.push({ ts: Date.now(), type: 'req', content: cmd })
   sending.value = true
   ussdCmd.value = ''
@@ -30,7 +36,6 @@ async function sendUSSD() {
     let d: { status?: number; text?: string; rawText?: string; dcs?: number; sessionId?: string; channel?: string }
 
     if (isMultiRound.value) {
-      // 多轮模式：通过 continue 接口发送后续输入
       const result = await devicesService.continueUSSD(props.deviceId, {
         session_id: sessionId.value,
         input: cmd,
@@ -39,7 +44,6 @@ async function sendUSSD() {
       if (!result.ok) throw new Error(result.error.message || '请求异常')
       d = result.data
     } else {
-      // 首轮模式：发起新 USSD 请求
       const result = await devicesService.sendUSSD(props.deviceId, {
         command: cmd,
         timeout_ms: ussdTimeoutMs.value || 45000
@@ -48,7 +52,6 @@ async function sendUSSD() {
       d = result.data
     }
 
-    // 更新通道和会话信息
     if (d.channel) sessionChannel.value = d.channel
 
     if (d.status === 5) {
@@ -77,7 +80,6 @@ async function sendUSSD() {
         dcs: d.dcs,
         channel: d.channel
       })
-      // status=1 表示网络期望后续输入（多轮）
       if (d.status === 1 && d.sessionId) {
         sessionId.value = d.sessionId
       } else {
@@ -125,89 +127,310 @@ function clearHistory() {
 <template>
   <div>
     <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-700 dark:text-gray-300">
-        <el-icon size="22"><Phone24Regular /></el-icon>
+      <div class="tab-icon-box">
+        <el-icon size="20"><Phone24Regular /></el-icon>
       </div>
       <div class="flex-1">
-        <div class="text-lg font-bold text-gray-900 dark:text-white">USSD 交互终端</div>
-        <div class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">发送 USSD 代码 (如 *100#) 并等待网络菜单响应</div>
-      </div>
-      <!-- 多轮会话状态指示 -->
-      <div v-if="isMultiRound" class="flex items-center gap-2">
-        <span class="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1 rounded-full">
-          <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></span>
-          多轮会话中
-        </span>
-        <el-button size="small" type="warning" plain @click="cancelSession" :disabled="sending">取消会话</el-button>
+        <div class="tab-title">USSD 交互终端</div>
+        <div class="tab-desc">发送 USSD 代码 (如 *100#) 并等待网络菜单响应</div>
       </div>
     </div>
 
-    <!-- 交互历史面板 -->
-    <div class="ui-panel-muted mt-4 p-4 h-[320px] overflow-auto flex flex-col gap-3 rounded-xl border border-gray-100 dark:border-white/10 relative">
-      <div v-if="history.length === 0 && !sending" class="absolute inset-0 flex items-center justify-center text-sm text-gray-400">
-        暂无 USSD 会话记录
+    <div class="terminal">
+      <!-- 状态栏 -->
+      <div class="terminal-status-bar">
+        <span>USSD 基站短码通道<span v-if="sessionChannel" class="terminal-status-port"> · {{ sessionChannel === 'vowifi' ? 'VoWiFi' : 'CS' }}</span></span>
+        <span class="terminal-status-state" :class="{ 'is-busy': sending, 'is-multi': isMultiRound }">{{ statusText }}</span>
       </div>
-      <div v-for="(msg, i) in history" :key="i" class="flex w-full" :class="msg.type === 'req' ? 'justify-end' : 'justify-start'">
-        <!-- 请求记录（右侧气泡） -->
-        <div v-if="msg.type === 'req'" class="max-w-[80%] bg-indigo-500 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 shadow-sm">
-          <div class="text-sm break-words">{{ msg.content }}</div>
-          <div class="text-[10px] text-indigo-100 mt-1 text-right">{{ new Date(msg.ts).toLocaleTimeString() }}</div>
-        </div>
-        
-        <!-- 系统消息（居中） -->
-        <div v-else-if="msg.type === 'sys'" class="w-full text-center">
-          <span class="inline-block text-xs text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-full">{{ msg.content }}</span>
-        </div>
 
-        <!-- 响应/错误记录（左侧气泡） -->
-        <div v-else class="max-w-[80%] rounded-2xl rounded-tl-sm px-4 py-2.5 shadow-sm" :class="msg.type === 'err' ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-100 dark:border-red-900/50' : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-white/5'">
-          <div class="text-sm whitespace-pre-wrap break-words font-mono">{{ msg.content }}</div>
-          <div class="text-[10px] mt-1 text-gray-400 flex items-center gap-2">
-            <span>{{ new Date(msg.ts).toLocaleTimeString() }}</span>
-            <span v-if="msg.dcs !== undefined" class="bg-gray-100 dark:bg-gray-700 px-1 rounded">DCS: {{ msg.dcs }}</span>
-            <span v-if="msg.channel" class="bg-gray-100 dark:bg-gray-700 px-1 rounded">{{ msg.channel === 'vowifi' ? 'VoWiFi' : 'CS' }}</span>
-          </div>
+      <!-- 快捷工具栏 -->
+      <div class="terminal-toolbar">
+        <div class="terminal-toolbar-left">
+          <el-button v-if="isMultiRound" size="small" type="warning" plain @click="cancelSession" :disabled="sending">取消会话</el-button>
         </div>
+        <el-button size="small" @click="clearHistory" class="terminal-toolbar-btn">清空</el-button>
       </div>
-      <!-- 发送中等待状态（左侧呼吸气泡） -->
-      <div v-if="sending" class="flex w-full justify-start mt-2">
-        <div class="max-w-[80%] bg-white dark:bg-gray-800 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm border border-gray-100 dark:border-white/5 flex items-center gap-2">
-          <div class="flex space-x-1">
-            <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-            <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-            <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce"></div>
-          </div>
-          <span class="text-xs text-gray-400 ml-1">等待网络响应...</span>
-        </div>
-      </div>
-    </div>
 
-    <!-- 输入区 -->
-    <div class="grid grid-cols-1 md:grid-cols-[1fr_110px_auto] gap-3 mt-4">
-      <div class="space-y-1">
-        <div class="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
-          {{ isMultiRound ? '菜单回复' : '命令 / 回复' }}
+      <!-- 会话记录区 -->
+      <div class="terminal-output">
+        <div v-if="history.length === 0 && !sending" class="terminal-output-empty">
+          暂无 USSD 会话记录，在下方输入指令并回车发送
         </div>
+        <template v-for="(msg, i) in history" :key="i">
+          <!-- 请求记录 -->
+          <div v-if="msg.type === 'req'" class="terminal-entry">
+            <div class="terminal-cmd-line">
+              <span class="terminal-prompt">&gt;</span>
+              <span class="terminal-cmd-text">{{ msg.content }}</span>
+              <span class="terminal-ts">{{ new Date(msg.ts).toLocaleTimeString() }}</span>
+            </div>
+          </div>
+          <!-- 系统消息 -->
+          <div v-else-if="msg.type === 'sys'" class="terminal-sys-msg">
+            — {{ msg.content }} —
+          </div>
+          <!-- 响应/错误 -->
+          <div v-else class="terminal-entry">
+            <div class="terminal-response" :class="{ 'is-error': msg.type === 'err' }">{{ msg.content }}</div>
+            <div class="terminal-meta">
+              <span class="terminal-ts">{{ new Date(msg.ts).toLocaleTimeString() }}</span>
+              <span v-if="msg.dcs !== undefined" class="terminal-tag">DCS: {{ msg.dcs }}</span>
+              <span v-if="msg.channel" class="terminal-tag">{{ msg.channel === 'vowifi' ? 'VoWiFi' : 'CS' }}</span>
+            </div>
+          </div>
+        </template>
+        <div v-if="sending" class="terminal-waiting">
+          <span class="terminal-prompt">&gt;</span>
+          <span class="terminal-dots"><span></span><span></span><span></span></span>
+          <span class="terminal-waiting-text">等待网络响应...</span>
+        </div>
+      </div>
+
+      <!-- 命令输入栏 -->
+      <div class="terminal-input-bar">
+        <span class="terminal-input-prompt">&gt;</span>
         <el-input
           v-model="ussdCmd"
           :placeholder="inputPlaceholder"
           @keyup.enter="sendUSSD"
           :disabled="sending"
+          size="small"
+          class="terminal-input-field"
         />
-      </div>
-      <div class="space-y-1">
-        <div class="text-[11px] font-bold text-gray-500 uppercase tracking-wider">超时(ms)</div>
-        <el-input v-model.number="ussdTimeoutMs" type="number" inputmode="numeric" placeholder="45000" />
-      </div>
-      <div class="space-y-1 self-end">
-        <div class="text-[11px] font-bold text-gray-500 uppercase tracking-wider opacity-0 select-none">操作</div>
-        <div class="flex items-center justify-end gap-2">
-          <el-button type="default" @click="clearHistory" class="ui-button-plain">清空</el-button>
-          <el-button type="primary" :loading="sending" :disabled="!ussdCmd" @click="sendUSSD" class="!border-0">
-            {{ isMultiRound ? '回复' : '发送' }}
-          </el-button>
-        </div>
+        <el-input v-model.number="ussdTimeoutMs" type="number" inputmode="numeric" placeholder="超时" title="超时毫秒(ms)" size="small" class="terminal-timeout-field" />
+        <el-button type="primary" :loading="sending" :disabled="!ussdCmd" @click="sendUSSD" size="small" class="terminal-send-btn">
+          {{ isMultiRound ? '回复' : '发送' }}
+        </el-button>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.tab-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 6px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tab-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.tab-desc {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin-top: 2px;
+}
+
+/* ── 终端容器 ── */
+.terminal {
+  margin-top: 16px;
+  border: 1px solid #2A2B2D;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* 状态栏 */
+.terminal-status-bar {
+  background: #131416;
+  color: #9CA3AF;
+  padding: 0 16px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  border-bottom: 1px solid #2A2B2D;
+}
+
+.terminal-status-port {
+  color: #D1D5DB;
+  font-family: monospace;
+}
+
+.terminal-status-state {
+  color: #6B7280;
+}
+
+.terminal-status-state.is-busy {
+  color: #F59E0B;
+}
+
+.terminal-status-state.is-multi {
+  color: #10B981;
+}
+
+/* 快捷工具栏 */
+.terminal-toolbar {
+  background: #0B0C0E;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #2A2B2D;
+}
+
+.terminal-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.terminal-toolbar-btn {
+  flex-shrink: 0;
+}
+
+/* 会话记录区 */
+.terminal-output {
+  background: #111111;
+  height: 320px;
+  overflow-y: auto;
+  padding: 12px 16px;
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 13px;
+  color: #E5E7EB;
+  border-bottom: 1px solid #2A2B2D;
+}
+
+.terminal-output-empty {
+  color: #4B5563;
+  font-size: 13px;
+  text-align: center;
+  padding-top: 120px;
+}
+
+.terminal-entry {
+  margin-bottom: 8px;
+}
+
+.terminal-cmd-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.terminal-prompt {
+  color: #10B981;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.terminal-cmd-text {
+  color: #E5E7EB;
+  word-break: break-all;
+}
+
+.terminal-ts {
+  color: #374151;
+  font-size: 11px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.terminal-response {
+  color: #9CA3AF;
+  white-space: pre-wrap;
+  word-break: break-all;
+  padding-left: 20px;
+  margin-top: 2px;
+}
+
+.terminal-response.is-error {
+  color: #EF4444;
+}
+
+.terminal-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 20px;
+  margin-top: 4px;
+}
+
+.terminal-tag {
+  color: #4B5563;
+  font-size: 11px;
+  background: #1F1F1F;
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+
+.terminal-sys-msg {
+  color: #4B5563;
+  font-size: 12px;
+  text-align: center;
+  padding: 4px 0;
+}
+
+.terminal-waiting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.terminal-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.terminal-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #6B7280;
+  animation: terminal-bounce 1.4s infinite ease-in-out both;
+}
+
+.terminal-dots span:nth-child(1) { animation-delay: -0.32s; }
+.terminal-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+.terminal-waiting-text {
+  color: #6B7280;
+  font-size: 12px;
+}
+
+@keyframes terminal-bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+/* 命令输入栏 */
+.terminal-input-bar {
+  background: #131416;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.terminal-input-prompt {
+  color: #10B981;
+  font-weight: 700;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.terminal-input-field {
+  flex: 1;
+}
+
+.terminal-timeout-field {
+  width: 100px;
+  flex-shrink: 0;
+}
+
+.terminal-send-btn {
+  flex-shrink: 0;
+}
+</style>

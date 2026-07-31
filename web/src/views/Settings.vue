@@ -11,12 +11,50 @@ import {
   Alert24Regular,
   Add20Regular,
   Delete20Regular,
-  DocumentText24Regular
+  Globe24Regular,
+  ChevronDown20Regular
 } from '@vicons/fluent'
 
 const settingsStore = useSettingsStore()
 const { systemInfo, loadingNotifications, savingNotifications, testingWebhook, testingBark, testingEmail, changingPassword, passwordForm, telegramForm, feishuForm, qqForm, webhookSettings, barkSettings, emailForm, pushplusForm } = storeToRefs(settingsStore)
 const activeNotifyTab = ref('telegram')
+
+const activeTab = ref('notify')
+
+// ── 短信发送限制（全局）──
+const smsLimitLoading = ref(false)
+const smsLimitSaving = ref(false)
+const smsHourlyLimit = ref(3)
+const smsDailyLimit = ref(10)
+const smsLimitExpanded = ref(true)
+
+async function loadSMSRateLimit() {
+  smsLimitLoading.value = true
+  try {
+    const res = await systemService.getSMSRateLimit()
+    if (res.ok) {
+      smsHourlyLimit.value = res.data.hourly_limit
+      smsDailyLimit.value = res.data.daily_limit
+    }
+  } catch {
+    // keep defaults
+  } finally {
+    smsLimitLoading.value = false
+  }
+}
+
+async function saveSMSRateLimit() {
+  smsLimitSaving.value = true
+  try {
+    const res = await systemService.saveSMSRateLimit(smsHourlyLimit.value, smsDailyLimit.value)
+    if (!res.ok) throw new Error(res.error.message || '保存失败')
+    ElMessage.success('短信限制已更新')
+  } catch (e: any) {
+    ElMessage.error(e.message || '保存失败')
+  } finally {
+    smsLimitSaving.value = false
+  }
+}
 
 
 
@@ -253,6 +291,10 @@ const checkingUpdate = ref(false)
 const applyingUpdate = ref(false)
 const updateInfo = ref<UpdateInfo | null>(null)
 
+const updateRepoDialogOpen = ref(false)
+const updateRepoForm = ref({ owner: '', name: '' })
+const updateRepoLoading = ref(false)
+
 async function doCheckUpdate() {
   checkingUpdate.value = true
   try {
@@ -269,8 +311,7 @@ async function doCheckUpdate() {
   }
 }
 
-async function doApplyUpdate() {
-  if (!updateInfo.value) return
+async function doApplyUpdate() {  if (!updateInfo.value) return
 
   if (updateInfo.value.is_docker) {
     ElMessageBox.alert(
@@ -306,150 +347,111 @@ async function doApplyUpdate() {
 onMounted(() => {
   loadNotifications()
   loadSystemInfo()
+  loadSMSRateLimit()
 })
+
+async function openUpdateRepoDialog() {
+  updateRepoLoading.value = true
+  updateRepoDialogOpen.value = true
+  try {
+    const res = await systemService.getUpdateRepo()
+    if (res.ok) {
+      updateRepoForm.value.owner = res.data.owner
+      updateRepoForm.value.name = res.data.name
+    }
+  } catch {
+    // keep defaults
+  } finally {
+    updateRepoLoading.value = false
+  }
+}
+
+async function saveUpdateRepo() {
+  const owner = updateRepoForm.value.owner.trim()
+  const name = updateRepoForm.value.name.trim()
+  if (!owner || !name) {
+    ElMessage.warning('owner 和 name 不能为空')
+    return
+  }
+  updateRepoLoading.value = true
+  try {
+    const res = await systemService.saveUpdateRepo(owner, name)
+    if (!res.ok) throw new Error(res.error.message || '保存失败')
+    ElMessage.success('Release 源已更新')
+    updateRepoDialogOpen.value = false
+  } catch (e: any) {
+    ElMessage.error(e.message || '保存失败')
+  } finally {
+    updateRepoLoading.value = false
+  }
+}
 
 onBeforeUnmount(() => {
 })
 </script>
 
 <template>
-  <div>
+  <div class="settings-page h-[calc(100svh-56px-48px)] flex flex-col">
+    <div class="settings-card flex-1 min-h-0 flex flex-col overflow-hidden">
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-      <!-- Security Card -->
-      <div class="settings-card detail-panel relative overflow-hidden group">
-         <div class="absolute top-0 right-0 w-40 h-40 rounded-bl-full -mr-10 -mt-10 transition-transform group-hover:scale-110" style="background: color-mix(in oklab, var(--brand) 5%, transparent);"></div>
-         
-         <div class="flex items-center gap-3 mb-6 relative z-10">
-            <div class="settings-icon-box">
-               <el-icon size="24"><Key24Regular /></el-icon>
+      <el-tabs v-model="activeTab" class="settings-tabs">
+        <el-tab-pane name="notify">
+          <template #label>
+            <div class="flex items-center gap-1.5">
+              <el-icon size="16"><Alert24Regular /></el-icon>
+              <span>通知</span>
             </div>
-            <div>
-               <h3 class="settings-card-title">安全</h3>
-               <p class="settings-card-desc">更新访问凭证</p>
+          </template>
+        </el-tab-pane>
+        <el-tab-pane name="global">
+          <template #label>
+            <div class="flex items-center gap-1.5">
+              <el-icon size="16"><Globe24Regular /></el-icon>
+              <span>全局</span>
             </div>
-         </div>
+          </template>
+        </el-tab-pane>
+        <el-tab-pane name="security">
+          <template #label>
+            <div class="flex items-center gap-1.5">
+              <el-icon size="16"><Key24Regular /></el-icon>
+              <span>安全</span>
+            </div>
+          </template>
+        </el-tab-pane>
+        <el-tab-pane name="about">
+          <template #label>
+            <div class="flex items-center gap-1.5">
+              <el-icon size="16"><Server24Regular /></el-icon>
+              <span>关于</span>
+            </div>
+          </template>
+        </el-tab-pane>
+      </el-tabs>
 
-         <div class="space-y-4 relative z-10">
-             <div class="space-y-1">
-                <label class="settings-form-label">当前密码</label>
-                <el-input v-model="passwordForm.old_password" type="password" show-password placeholder="••••••••" size="large" />
-             </div>
-             <div class="space-y-1">
-                <label class="settings-form-label">新密码</label>
-                <el-input v-model="passwordForm.new_password" type="password" show-password placeholder="••••••••" size="large" />
-             </div>
-             <div class="space-y-1">
-                <label class="settings-form-label">确认新密码</label>
-                <el-input v-model="passwordForm.confirm_password" type="password" show-password placeholder="••••••••" size="large" />
-             </div>
-             
-             <div class="pt-4">
-                 <el-button type="primary" :loading="changingPassword" @click="changePassword" size="large" class="w-full !border-0">
-                   <el-icon><Save24Regular /></el-icon>
-                   更新凭证
-                 </el-button>
-             </div>
-         </div>
-      </div>
-
-      <!-- System Info Card -->
-      <div class="settings-card detail-panel relative overflow-hidden group">
-         <div class="absolute top-0 right-0 w-40 h-40 rounded-bl-full -mr-10 -mt-10 transition-transform group-hover:scale-110" style="background: color-mix(in oklab, var(--brand) 5%, transparent);"></div>
-
-         <div class="flex items-center gap-3 mb-6 relative z-10">
-            <div class="settings-icon-box">
-               <el-icon size="24"><Server24Regular /></el-icon>
-            </div>
-            <div>
-               <h3 class="settings-card-title">系统信息</h3>
-               <p class="settings-card-desc">运行环境</p>
-            </div>
-         </div>
-
-         <div class="space-y-4 text-sm relative z-10">
-            <div class="settings-info-row">
-              <FieldRow label="版本" :value="systemInfo.version" monospace>
-                <div class="flex items-center justify-end gap-3">
-                  <el-button size="small" type="primary" class="!border-0" :loading="checkingUpdate" @click.stop="doCheckUpdate">
-                    检查更新
-                  </el-button>
-                  <span>{{ systemInfo.version || 'Unknown' }}</span>
-                </div>
-              </FieldRow>
-            </div>
-            
-            <div v-if="updateInfo?.has_update" class="settings-update-alert">
-               <div class="settings-update-title">>
-                 <el-icon><Alert24Regular /></el-icon>发现新版本: {{ updateInfo.latest_version }}
-               </div>
-               <div class="text-xs mb-4 whitespace-pre-wrap max-h-32 overflow-y-auto pr-2 custom-scrollbar" style="color: var(--warning);">>
-                 {{ updateInfo.release_note || '暂无更新说明' }}
-               </div>
-               <el-button type="warning" :loading="applyingUpdate" @click="doApplyUpdate" class="w-full !border-0">
-                 立即更新并重启
-               </el-button>
-            </div>
-            <div class="settings-info-row">
-              <FieldRow label="构建时间" :value="systemInfo.build_time" monospace />
-            </div>
-            <div class="settings-info-row">
-              <FieldRow label="配置路径" :value="systemInfo.config" monospace copyable />
-            </div>
-            <div class="settings-info-row">
-              <FieldRow label="交流群" value="https://t.me/vohive" monospace copyable />
-            </div>
-            <div class="settings-api-card">
-              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div class="min-w-0">
-                  <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 rounded-xl flex items-center justify-center" style="color: var(--brand); background: color-mix(in oklab, var(--brand) 10%, var(--muted));">
-                      <el-icon size="18"><DocumentText24Regular /></el-icon>
-                    </div>
-                    <div>
-                      <div class="settings-api-title">API 文档</div>
-                      <div class="settings-card-desc">打开后端直出的 OpenAPI 页面</div>
-                    </div>
-                  </div>
-
-                </div>
-                <el-button
-                  type="primary"
-                  class="self-start sm:self-center shrink-0 !border-0"
-                  :disabled="!systemInfo.docs?.swagger_ui"
-                  @click="openAPIDocs"
-                >
-                  <el-icon><DocumentText24Regular /></el-icon>
-                  打开 API 文档
-                </el-button>
-              </div>
-            </div>
-         </div>
-      </div>
-
-      <div class="settings-card notify-card detail-panel relative overflow-hidden group lg:col-span-2">
-         <div class="absolute top-0 right-0 w-40 h-40 rounded-bl-full -mr-10 -mt-10 transition-transform group-hover:scale-110" style="background: color-mix(in oklab, var(--brand) 5%, transparent);"></div>
-
-         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 relative z-10">
+      <!-- ═══════════ 通知 Tab ═══════════ -->
+      <div v-show="activeTab === 'notify'" class="flex-1 min-h-0 overflow-auto">
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-6">
             <div class="flex items-center gap-3">
-               <div class="settings-icon-box">
-                  <el-icon size="24"><Alert24Regular /></el-icon>
-               </div>
-               <div>
-                  <h3 class="settings-card-title">通知</h3>
-                  <p class="settings-card-desc">Telegram / 飞书 / QQ / Webhook</p>
-               </div>
+              <div class="settings-icon-box">
+                <el-icon size="20"><Alert24Regular /></el-icon>
+              </div>
+              <div>
+                <h3 class="settings-card-title">通知配置</h3>
+                <p class="settings-card-desc">Telegram / 飞书 / QQ / Bark / Email / Pushplus / Webhook</p>
+              </div>
             </div>
             <el-button type="primary" :loading="savingNotifications" :disabled="loadingNotifications" @click="saveNotifications" class="!border-0">
               <el-icon><Save24Regular /></el-icon>
               保存通知配置
             </el-button>
-         </div>
+          </div>
 
-         <div v-if="loadingNotifications" class="text-sm" style="color: var(--muted-foreground);">正在加载通知配置…</div>
+          <div v-if="loadingNotifications" class="text-sm" style="color: var(--muted-foreground);">正在加载通知配置…</div>
 
-         <div v-else class="relative z-10 w-full overflow-hidden">
-            <el-tabs v-model="activeNotifyTab" class="settings-notify-tabs">
+          <div v-else class="settings-inner-card">
+            <el-tabs v-model="activeNotifyTab">
               <!-- Telegram -->
               <el-tab-pane label="Telegram Bot" name="telegram" class="pt-2">
                 <div class="flex items-center justify-between mb-4">
@@ -562,7 +564,7 @@ onBeforeUnmount(() => {
                 </div>
               </el-tab-pane>
 
-                            <!-- Bark -->
+              <!-- Bark -->
               <el-tab-pane label="Bark" name="bark" class="pt-2">
                 <div class="flex items-center justify-between mb-4">
                   <div class="flex items-center gap-2">
@@ -753,8 +755,6 @@ onBeforeUnmount(() => {
                     </div>
 
                     <div v-for="(url, index) in webhookSettings.urls" :key="index" class="flex items-center gap-2">
-                       <!-- 注意：el-input v-model="webhookSettings.urls[index]" 处理基本类型数组在 Vue3 中可能会有失去焦点问题。
-                            但在这里作为简单的响应式数组依然可用，或者用更复杂的方式包裹。 -->
                        <el-input v-model="webhookSettings.urls[index]" :disabled="!webhookSettings.enabled" placeholder="https://..." class="flex-1" />
                        <el-button type="danger" plain @click="removeWebhookUrl(index)" :disabled="!webhookSettings.enabled">
                           <el-icon><Delete20Regular /></el-icon>
@@ -830,54 +830,399 @@ onBeforeUnmount(() => {
                 </div>
               </el-tab-pane>
             </el-tabs>
-         </div>
+          </div>
+        </div>
       </div>
+
+      <!-- ═══════════ 全局 Tab ═══════════ -->
+      <div v-show="activeTab === 'global'" class="flex-1 min-h-0 overflow-auto">
+        <div class="p-6">
+          <div class="flex items-center gap-3 mb-6">
+            <div class="settings-icon-box">
+              <el-icon size="20"><Globe24Regular /></el-icon>
+            </div>
+            <div>
+              <h3 class="settings-card-title">全局配置</h3>
+              <p class="settings-card-desc">所有设备共享的全局设置</p>
+            </div>
+          </div>
+
+          <!-- FAQ 折叠卡片：短信发送限制 -->
+          <div class="faq-card" v-loading="smsLimitLoading">
+            <div class="faq-header" @click="smsLimitExpanded = !smsLimitExpanded">
+              <span class="faq-title">短信发送限制</span>
+              <el-icon class="faq-arrow" :class="{ expanded: smsLimitExpanded }" size="16">
+                <ChevronDown20Regular />
+              </el-icon>
+            </div>
+            <div v-show="smsLimitExpanded" class="faq-body">
+              <div class="flex items-center justify-between mb-4">
+                <div>
+                  <div class="faq-item-title">短信发送限制</div>
+                  <div class="faq-item-desc">所有设备、所有卡共享同一个限速器</div>
+                </div>
+                <el-button size="small" type="primary" :loading="smsLimitSaving" @click="saveSMSRateLimit" class="!border-0">
+                  保存限制
+                </el-button>
+              </div>
+              <div class="flex flex-wrap items-center gap-6">
+                <div class="flex items-center gap-2">
+                  <span class="faq-field-label">每小时最多</span>
+                  <el-input-number v-model="smsHourlyLimit" :min="1" :max="100" size="small" controls-position="right" />
+                  <span class="faq-field-unit">条</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="faq-field-label">每天最多</span>
+                  <el-input-number v-model="smsDailyLimit" :min="1" :max="500" size="small" controls-position="right" />
+                  <span class="faq-field-unit">条</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════ 安全 Tab ═══════════ -->
+      <div v-show="activeTab === 'security'" class="flex-1 min-h-0 overflow-auto">
+        <div class="p-6">
+          <div class="flex items-center gap-3 mb-6">
+            <div class="settings-icon-box">
+              <el-icon size="20"><Key24Regular /></el-icon>
+            </div>
+            <div>
+              <h3 class="settings-card-title">安全</h3>
+              <p class="settings-card-desc">更新访问凭证</p>
+            </div>
+          </div>
+
+          <div class="space-y-4 max-w-md">
+            <div class="space-y-1">
+              <label class="settings-form-label">当前密码</label>
+              <el-input v-model="passwordForm.old_password" type="password" show-password placeholder="••••••••" size="large" />
+            </div>
+            <div class="space-y-1">
+              <label class="settings-form-label">新密码</label>
+              <el-input v-model="passwordForm.new_password" type="password" show-password placeholder="••••••••" size="large" />
+            </div>
+            <div class="space-y-1">
+              <label class="settings-form-label">确认新密码</label>
+              <el-input v-model="passwordForm.confirm_password" type="password" show-password placeholder="••••••••" size="large" />
+            </div>
+            
+            <div class="pt-4">
+              <el-button type="primary" :loading="changingPassword" @click="changePassword" size="large" class="w-full !border-0">
+                <el-icon><Save24Regular /></el-icon>
+                更新凭证
+              </el-button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════ 关于 Tab ═══════════ -->
+      <div v-show="activeTab === 'about'" class="flex-1 min-h-0 overflow-auto">
+        <div class="p-6">
+          <div class="flex items-center gap-3 mb-6">
+            <div class="settings-icon-box">
+              <el-icon size="20"><Server24Regular /></el-icon>
+            </div>
+            <div>
+              <h3 class="settings-card-title">系统信息</h3>
+              <p class="settings-card-desc">运行环境</p>
+            </div>
+          </div>
+
+          <div class="settings-inner-card p-4">
+            <div class="space-y-4 text-sm">
+            <div class="settings-info-row">
+              <FieldRow label="版本" :value="systemInfo.version" monospace>
+                <div class="flex items-center justify-end gap-3">
+                  <el-button size="small" :loading="checkingUpdate" @click.stop="doCheckUpdate">
+                    检查更新
+                  </el-button>
+                  <el-button size="small" @click.stop="openUpdateRepoDialog">
+                    配置 release
+                  </el-button>
+                  <span>{{ systemInfo.version || 'Unknown' }}</span>
+                </div>
+              </FieldRow>
+            </div>
+            
+            <div v-if="updateInfo?.has_update" class="settings-update-alert">
+              <div class="settings-update-title">
+                <el-icon><Alert24Regular /></el-icon>发现新版本: {{ updateInfo.latest_version }}
+              </div>
+              <div class="text-xs mb-4 whitespace-pre-wrap max-h-32 overflow-y-auto pr-2" style="color: var(--warning);">
+                {{ updateInfo.release_note || '暂无更新说明' }}
+              </div>
+              <el-button type="warning" :loading="applyingUpdate" @click="doApplyUpdate" class="w-full !border-0">
+                立即更新并重启
+              </el-button>
+            </div>
+            <div class="settings-info-row">
+              <FieldRow label="构建时间" :value="systemInfo.build_time" monospace />
+            </div>
+            <div class="settings-info-row">
+              <FieldRow label="配置路径" :value="systemInfo.config" monospace copyable />
+            </div>
+            <div class="settings-api-card">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div class="min-w-0">
+                  <div>
+                    <div class="settings-api-title">API 文档</div>
+                    <div class="settings-card-desc">打开后端直出的 OpenAPI 页面</div>
+                  </div>
+                </div>
+                <el-button
+                  type="primary"
+                  class="self-start sm:self-center shrink-0 !border-0"
+                  :disabled="!systemInfo.docs?.swagger_ui"
+                  @click="openAPIDocs"
+                >
+                  打开 API 文档
+                </el-button>
+              </div>
+            </div>
+          </div>
+          </div>
+        </div>
+      </div>
+
     </div>
+
+    <!-- ═══════════ Release 源配置对话框 ═══════════ -->
+    <el-dialog v-model="updateRepoDialogOpen" title="配置 Release 源" width="440px" :close-on-click-modal="false">
+      <div v-loading="updateRepoLoading" class="space-y-4">
+        <div class="space-y-1">
+          <label class="settings-form-label">GitHub Owner</label>
+          <el-input v-model="updateRepoForm.owner" placeholder="例如 iniwex5" />
+        </div>
+        <div class="space-y-1">
+          <label class="settings-form-label">Repo Name</label>
+          <el-input v-model="updateRepoForm.name" placeholder="例如 vohive-release" />
+        </div>
+        <div class="settings-form-hint">
+          检查更新时访问 <code class="font-mono">https://api.github.com/repos/{owner}/{name}/releases/latest</code>。修改后立即生效。
+        </div>
+      </div>
+      <template #footer>
+        <div class="flex items-center justify-end gap-2">
+          <el-button @click="updateRepoDialogOpen = false">取消</el-button>
+          <el-button type="primary" :loading="updateRepoLoading" @click="saveUpdateRepo" class="!border-0">保存</el-button>
+        </div>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <style scoped>
-:deep(.notify-card .el-input-number) {
+.settings-page {
+  container-type: inline-size;
+}
+
+.settings-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: var(--console-shadow-sm);
+}
+
+.settings-tabs {
+  flex-shrink: 0;
+}
+
+.settings-tabs :deep(.el-tabs__header) {
+  margin-bottom: 0;
+  height: 60px;
+  padding: 0 16px;
+}
+
+.settings-tabs :deep(.el-tabs__nav-wrap::after) {
+  height: 1px;
+}
+
+.settings-tabs :deep(.el-tabs__content) {
+  display: none;
+}
+
+.settings-tabs :deep(.el-input-number) {
   width: 100%;
 }
-:deep(.settings-notify-tabs) {
-  border: none;
-  background: transparent;
-}
-:deep(.settings-notify-tabs .el-tabs__header) {
-  margin-bottom: 24px;
-  background-color: var(--el-fill-color-light);
-  border-radius: 12px;
-  border-bottom: none;
-  display: inline-flex;
-  padding: 4px;
-}
-:deep(.settings-notify-tabs .el-tabs__nav-wrap::after) {
-  display: none;
-}
-:deep(.settings-notify-tabs .el-tabs__active-bar) {
-  display: none;
-}
-:deep(.settings-notify-tabs .el-tabs__item) {
+
+.settings-icon-box {
+  width: 38px;
   height: 38px;
-  line-height: 38px;
-  padding: 0 20px !important;
+  border-radius: 6px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.settings-card-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.settings-card-desc {
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.settings-form-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.settings-form-hint {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin-top: 4px;
+}
+
+.settings-toggle-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.settings-info-hint {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  margin-right: 4px;
-  color: var(--el-text-color-regular);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  font-weight: 500;
+  padding: 12px;
+  margin-top: 8px;
 }
-:deep(.settings-notify-tabs .el-tabs__item:last-child) {
-  margin-right: 0;
+
+.settings-empty-hint {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  padding: 8px 0;
 }
-:deep(.settings-notify-tabs .el-tabs__item:hover) {
-  color: var(--el-color-primary);
+
+.settings-info-row {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 12px;
 }
-:deep(.settings-notify-tabs .el-tabs__item.is-active) {
-  background-color: var(--el-bg-color);
-  color: var(--el-color-primary);
-  font-weight: 600;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05), 0 2px 8px rgba(0, 0, 0, 0.03);
+
+.settings-update-alert {
+  border: 1px solid color-mix(in oklab, var(--warning) 30%, var(--border));
+  border-radius: 8px;
+  padding: 16px;
+  background: color-mix(in oklab, var(--warning) 5%, transparent);
+}
+
+.settings-update-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  color: var(--warning);
+  margin-bottom: 8px;
+}
+
+.settings-api-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--muted);
+}
+
+.settings-api-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.settings-inner-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  overflow: hidden;
+}
+
+.settings-inner-card :deep(.el-tabs__header) {
+  margin-bottom: 0;
+  padding: 0 16px;
+}
+
+.settings-inner-card :deep(.el-tabs__nav-wrap::after) {
+  height: 1px;
+}
+
+.settings-inner-card :deep(.el-tabs__content) {
+  padding: 0 16px 16px;
+}
+
+.faq-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  overflow: hidden;
+}
+
+.faq-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.faq-header:hover {
+  background: var(--accent);
+}
+
+.faq-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.faq-arrow {
+  transition: transform 0.2s;
+  color: var(--muted-foreground);
+}
+
+.faq-arrow.expanded {
+  transform: rotate(180deg);
+}
+
+.faq-body {
+  padding: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.faq-item-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.faq-item-desc {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin-top: 2px;
+}
+
+.faq-field-label {
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
+.faq-field-unit {
+  font-size: 13px;
+  color: var(--muted-foreground);
 }
 </style>

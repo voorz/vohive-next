@@ -38,6 +38,8 @@ const unavailableDescription = computed(() => {
   return '当前设备暂时无法提供 AT 串口终端，请稍后重试。'
 })
 
+const statusText = computed(() => atSending.value ? '发送中...' : '空闲')
+
 watch(
   () => atTemplate.value,
   (v) => {
@@ -50,7 +52,7 @@ async function sendAT() {
   const cmd = String(atCmd.value || '').trim()
   if (!cmd) return
   atSending.value = true
-  atCmd.value = '' // 清空输入框
+  atCmd.value = ''
   try {
     const result = await devicesService.sendAT(props.deviceId, {
       cmd: cmd,
@@ -83,101 +85,311 @@ function clearATHistory() {
 <template>
   <div>
     <div class="flex items-center gap-3">
-      <div class="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center text-gray-700 dark:text-gray-300">
-        <el-icon size="22"><Code24Regular /></el-icon>
+      <div class="tab-icon-box">
+        <el-icon size="20"><Code24Regular /></el-icon>
       </div>
       <div>
-        <div class="text-lg font-bold text-gray-900 dark:text-white">AT 终端</div>
-        <div class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">发送 AT 指令并查看回显（多行响应会完整返回）</div>
+        <div class="tab-title">AT 终端</div>
+        <div class="tab-desc">发送 AT 指令并查看回显（多行响应会完整返回）</div>
       </div>
     </div>
 
     <template v-if="!canUseATTerminal">
-      <div class="mt-4 p-8 flex flex-col items-center justify-center bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-900/50 rounded-xl">
-        <el-icon size="48" class="text-orange-400 mb-4"><Warning24Regular /></el-icon>
-        <div class="text-lg font-bold text-orange-700 dark:text-orange-400">{{ unavailableTitle }}</div>
-        <div class="text-sm text-orange-600 dark:text-orange-300 mt-2 text-center max-w-md">
-          {{ unavailableDescription }}
-        </div>
+      <div class="terminal-unavailable">
+        <el-icon size="48" class="terminal-unavailable-icon"><Warning24Regular /></el-icon>
+        <div class="terminal-unavailable-title">{{ unavailableTitle }}</div>
+        <div class="terminal-unavailable-desc">{{ unavailableDescription }}</div>
       </div>
     </template>
-    
+
     <template v-else>
-      <!-- 交互历史面板 -->
-    <div class="ui-panel-muted mt-4 p-4 h-[320px] overflow-auto flex flex-col gap-3 rounded-xl border border-gray-100 dark:border-white/10 relative">
-      <div v-if="atHistory.length === 0 && !atSending" class="absolute inset-0 flex items-center justify-center text-sm text-gray-400">
-        暂无 AT 会话记录
-      </div>
-      <div v-for="(h, i) in atHistory" :key="h.ts + h.cmd + i" class="flex flex-col gap-2 w-full">
-        
-        <!-- 请求记录（右侧气泡） -->
-        <div class="flex w-full justify-end">
-          <div class="max-w-[80%] bg-indigo-500 text-white rounded-2xl rounded-tr-sm px-4 py-2.5 shadow-sm">
-            <div class="text-sm font-mono break-words">{{ h.cmd }}</div>
-            <div class="text-[10px] text-indigo-100 mt-1 text-right">{{ new Date(h.ts).toLocaleTimeString() }}</div>
-          </div>
+      <div class="terminal">
+        <!-- 状态栏 -->
+        <div class="terminal-status-bar">
+          <span>AT 协议指令终端 · <span class="terminal-status-port">{{ atPort || '--' }}</span></span>
+          <span class="terminal-status-state" :class="{ 'is-busy': atSending }">{{ statusText }}</span>
         </div>
 
-        <!-- 响应/错误记录（左侧气泡） -->
-        <div class="flex w-full justify-start">
-          <div class="max-w-[80%] rounded-2xl rounded-tl-sm px-4 py-2.5 shadow-sm" :class="!h.ok ? 'bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-100 dark:border-red-900/50' : 'bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-white/5'">
-            <div class="text-sm whitespace-pre-wrap break-words font-mono">{{ h.response }}</div>
-            <div class="text-[10px] mt-1 text-gray-400 flex items-center gap-2">
-              <span>{{ new Date(h.ts).toLocaleTimeString() }}</span>
+        <!-- 快捷工具栏 -->
+        <div class="terminal-toolbar">
+          <el-select v-model="atTemplate" filterable clearable placeholder="常用命令（可选）" size="small" class="terminal-toolbar-select">
+            <el-option-group v-for="g in atTemplates" :key="g.label" :label="g.label">
+              <el-option v-for="it in g.items" :key="it.value" :label="it.label" :value="it.value" />
+            </el-option-group>
+          </el-select>
+          <el-button size="small" @click="clearATHistory" class="terminal-toolbar-btn">清空</el-button>
+        </div>
+
+        <!-- 会话记录区 -->
+        <div class="terminal-output">
+          <div v-if="atHistory.length === 0 && !atSending" class="terminal-output-empty">
+            暂无 AT 会话记录，在下方输入指令并回车发送
+          </div>
+          <div v-for="(h, i) in atHistory" :key="h.ts + h.cmd + i" class="terminal-entry">
+            <div class="terminal-cmd-line">
+              <span class="terminal-prompt">&gt;</span>
+              <span class="terminal-cmd-text">{{ h.cmd }}</span>
+              <span class="terminal-ts">{{ new Date(h.ts).toLocaleTimeString() }}</span>
             </div>
+            <div class="terminal-response" :class="{ 'is-error': !h.ok }">{{ h.response }}</div>
+          </div>
+          <div v-if="atSending" class="terminal-waiting">
+            <span class="terminal-prompt">&gt;</span>
+            <span class="terminal-dots"><span></span><span></span><span></span></span>
+            <span class="terminal-waiting-text">等待模组响应...</span>
           </div>
         </div>
 
-      </div>
-
-      <!-- 发送中等待状态（左侧呼吸气泡） -->
-      <div v-if="atSending" class="flex w-full justify-start mt-2">
-        <div class="max-w-[80%] bg-white dark:bg-gray-800 rounded-2xl rounded-tl-sm px-4 py-3 shadow-sm border border-gray-100 dark:border-white/5 flex items-center gap-2">
-          <div class="flex space-x-1">
-            <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-            <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-            <div class="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-bounce"></div>
-          </div>
-          <span class="text-xs text-gray-400 ml-1">等待模组响应...</span>
-        </div>
-      </div>
-    </div>
-    <!-- 输入区 -->
-    <div class="grid grid-cols-1 md:grid-cols-[200px_1fr_110px_auto] gap-3 mt-4">
-      <div class="space-y-1">
-        <div class="text-[11px] font-bold text-gray-500 uppercase tracking-wider">快捷指令模板</div>
-        <el-select v-model="atTemplate" filterable clearable placeholder="选择常用命令（可选）">
-           <el-option-group v-for="g in atTemplates" :key="g.label" :label="g.label">
-            <el-option v-for="it in g.items" :key="it.value" :label="it.label" :value="it.value" />
-          </el-option-group>
-        </el-select>
-      </div>
-
-      <div class="space-y-1">
-        <div class="text-[11px] font-bold text-gray-500 uppercase tracking-wider">命令</div>
-        <el-input
-          v-model="atCmd"
-          placeholder='例如 AT+CSQ (可自由编辑)'
-          @keyup.enter="sendAT"
-          :disabled="atSending"
-        />
-      </div>
-
-      <div class="space-y-1">
-        <div class="text-[11px] font-bold text-gray-500 uppercase tracking-wider">超时(ms)</div>
-        <el-input v-model.number="atTimeoutMs" type="number" inputmode="numeric" placeholder="10000" />
-      </div>
-
-      <div class="space-y-1 self-end">
-        <div class="text-[11px] font-bold text-gray-500 uppercase tracking-wider opacity-0 select-none">操作</div>
-        <div class="flex items-center justify-end gap-2">
-          <el-button type="default" @click="clearATHistory" class="ui-button-plain">清空</el-button>
-          <el-button type="primary" :loading="atSending" :disabled="!atCmd" @click="sendAT" class="!border-0">
+        <!-- 命令输入栏 -->
+        <div class="terminal-input-bar">
+          <span class="terminal-input-prompt">&gt;</span>
+          <el-input
+            v-model="atCmd"
+            placeholder="输入命令"
+            @keyup.enter="sendAT"
+            :disabled="atSending"
+            size="small"
+            class="terminal-input-field"
+          />
+          <el-input v-model.number="atTimeoutMs" type="number" inputmode="numeric" placeholder="超时" title="超时毫秒(ms)" size="small" class="terminal-timeout-field" />
+          <el-button type="primary" :loading="atSending" :disabled="!atCmd" @click="sendAT" size="small" class="terminal-send-btn">
             发送
           </el-button>
         </div>
       </div>
-      </div>
     </template>
   </div>
 </template>
+
+<style scoped>
+.tab-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 6px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tab-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.tab-desc {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin-top: 2px;
+}
+
+/* ── 不可用提示 ── */
+.terminal-unavailable {
+  margin-top: 16px;
+  border: 1px solid #2A2B2D;
+  border-radius: 8px;
+  background: #131416;
+  padding: 48px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.terminal-unavailable-icon {
+  color: #F59E0B;
+  margin-bottom: 16px;
+}
+
+.terminal-unavailable-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #F59E0B;
+  margin-bottom: 8px;
+}
+
+.terminal-unavailable-desc {
+  font-size: 13px;
+  color: #9CA3AF;
+  max-width: 400px;
+  line-height: 1.5;
+}
+
+/* ── 终端容器 ── */
+.terminal {
+  margin-top: 16px;
+  border: 1px solid #2A2B2D;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* 状态栏 */
+.terminal-status-bar {
+  background: #131416;
+  color: #9CA3AF;
+  padding: 0 16px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  border-bottom: 1px solid #2A2B2D;
+}
+
+.terminal-status-port {
+  color: #D1D5DB;
+  font-family: monospace;
+}
+
+.terminal-status-state {
+  color: #6B7280;
+}
+
+.terminal-status-state.is-busy {
+  color: #F59E0B;
+}
+
+/* 快捷工具栏 */
+.terminal-toolbar {
+  background: #0B0C0E;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #2A2B2D;
+}
+
+.terminal-toolbar-select {
+  width: 260px;
+}
+
+.terminal-toolbar-btn {
+  flex-shrink: 0;
+}
+
+/* 会话记录区 */
+.terminal-output {
+  background: #111111;
+  height: 320px;
+  overflow-y: auto;
+  padding: 12px 16px;
+  font-family: 'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace;
+  font-size: 13px;
+  color: #E5E7EB;
+  border-bottom: 1px solid #2A2B2D;
+}
+
+.terminal-output-empty {
+  color: #4B5563;
+  font-size: 13px;
+  text-align: center;
+  padding-top: 120px;
+}
+
+.terminal-entry {
+  margin-bottom: 8px;
+}
+
+.terminal-cmd-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.terminal-prompt {
+  color: #10B981;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.terminal-cmd-text {
+  color: #E5E7EB;
+  word-break: break-all;
+}
+
+.terminal-ts {
+  color: #374151;
+  font-size: 11px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.terminal-response {
+  color: #9CA3AF;
+  white-space: pre-wrap;
+  word-break: break-all;
+  padding-left: 20px;
+  margin-top: 2px;
+}
+
+.terminal-response.is-error {
+  color: #EF4444;
+}
+
+.terminal-waiting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.terminal-dots {
+  display: inline-flex;
+  gap: 3px;
+}
+
+.terminal-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #6B7280;
+  animation: terminal-bounce 1.4s infinite ease-in-out both;
+}
+
+.terminal-dots span:nth-child(1) { animation-delay: -0.32s; }
+.terminal-dots span:nth-child(2) { animation-delay: -0.16s; }
+
+.terminal-waiting-text {
+  color: #6B7280;
+  font-size: 12px;
+}
+
+@keyframes terminal-bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+/* 命令输入栏 */
+.terminal-input-bar {
+  background: #131416;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.terminal-input-prompt {
+  color: #10B981;
+  font-weight: 700;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+
+.terminal-input-field {
+  flex: 1;
+}
+
+.terminal-timeout-field {
+  width: 100px;
+  flex-shrink: 0;
+}
+
+.terminal-send-btn {
+  flex-shrink: 0;
+}
+</style>

@@ -92,12 +92,12 @@ const sourceLabel = computed(() => {
   <div>
     <!-- 标题行 -->
     <div class="flex items-center gap-3 mb-4">
-      <div class="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
-        <el-icon size="22"><Sim24Regular /></el-icon>
+      <div class="tab-icon-box">
+        <el-icon size="20"><Sim24Regular /></el-icon>
       </div>
       <div>
-        <div class="text-lg font-bold text-gray-900 dark:text-white">卡策略</div>
-        <div class="text-xs text-gray-500 dark:text-gray-400">网络/VoWiFi 开关跟着 SIM 卡走，切换即时生效</div>
+        <div class="tab-title">卡策略</div>
+        <div class="tab-desc">网络/VoWiFi 开关跟着 SIM 卡走，切换即时生效</div>
       </div>
     </div>
 
@@ -211,5 +211,33 @@ const sourceLabel = computed(() => {
 
       </div>
     </div>
+
   </div>
 </template>
+
+<style scoped>
+.tab-icon-box {
+  width: 38px;
+  height: 38px;
+  border-radius: 6px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tab-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.tab-desc {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin-top: 2px;
+}
+</style>
