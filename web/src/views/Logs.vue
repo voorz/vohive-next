@@ -119,10 +119,18 @@ function getLevelClass(level: string): string {
   switch (level.toLowerCase()) {
     case 'debug': return 'text-purple-500'
     case 'info': return 'text-blue-500'
-    case 'warn': return 'text-yellow-500'
-    case 'error': return 'text-red-500'
+    case 'warn': return 'log-warn'
+    case 'error': return 'log-error'
     case 'fatal': return 'text-red-600 font-bold'
     default: return 'text-gray-500'
+  }
+}
+
+function getMessageLevelClass(level: string): string {
+  switch (level.toLowerCase()) {
+    case 'warn': return 'log-warn'
+    case 'error': return 'log-error'
+    default: return ''
   }
 }
 
@@ -151,12 +159,7 @@ async function loadHistory() {
   })
 }
 
-onMounted(async () => {
-  await loadHistory()
-  connect()
-})
-
-watch(paused, () => {
+function updateHeaderActions() {
   headerActions.setActions(h('div', { class: 'flex items-center gap-2' }, [
     h(ElButton, { onClick: togglePause, type: paused.value ? 'success' : 'warning' }, () => [
       h(ElIcon, null, () => h(paused.value ? Play24Regular : Pause24Regular)),
@@ -171,7 +174,15 @@ watch(paused, () => {
       '导出'
     ])
   ]))
-}, { immediate: true })
+}
+
+onMounted(async () => {
+  await loadHistory()
+  connect()
+  updateHeaderActions()
+})
+
+watch(paused, updateHeaderActions)
 
 onUnmounted(() => {
   disconnect()
@@ -230,7 +241,7 @@ watch(levelFilter, () => {
           <span class="log-time">[{{ formatDateTime(log.time) }}]</span>
           <span class="log-level" :class="getLevelClass(log.level)">{{ log.level.toUpperCase().padEnd(5) }}</span>
           <span class="log-caller" :title="log.caller">{{ log.caller }}</span>
-          <span class="log-message">{{ log.message }}</span>
+          <span class="log-message" :class="getMessageLevelClass(log.level)">{{ log.message }}</span>
           <span v-if="log.fields" class="log-fields">{{ log.fields }}</span>
         </div>
       </div>
@@ -251,7 +262,8 @@ watch(levelFilter, () => {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
+  height: 60px;
+  padding: 0 16px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -281,7 +293,7 @@ watch(levelFilter, () => {
   overflow: auto;
   font-family: var(--oomol-font-sans);
   font-size: 12px;
-  background: #1a1a1a;
+  background: #000000;
   color: #e0e0e0;
   padding: 16px;
   border-radius: 0 0 8px 8px;
@@ -327,5 +339,13 @@ watch(levelFilter, () => {
 .log-fields {
   margin-left: 4px;
   color: color-mix(in oklab, var(--warning) 70%, transparent);
+}
+
+.log-warn {
+  color: var(--warning);
+}
+
+.log-error {
+  color: var(--destructive);
 }
 </style>

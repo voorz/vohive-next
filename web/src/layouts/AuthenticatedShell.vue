@@ -270,7 +270,7 @@ watch(lang, (v) => {
         <div class="main-inner">
           <router-view v-slot="{ Component, route: r }">
             <ErrorBoundary v-if="Component" title="页面渲染失败">
-              <component :is="Component" :key="r.fullPath" />
+              <component :is="Component" :key="r.path" />
             </ErrorBoundary>
             <LoadingScreen v-else title="正在加载页面…" subtitle="正在准备页面组件与资源" />
           </router-view>

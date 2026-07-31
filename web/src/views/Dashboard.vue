@@ -73,6 +73,10 @@ usePollingScheduler(fetchTrafficAnalysis, 60000, {
   backgroundIntervalMs: 120000
 })
 
+function updateHeaderActions() {
+  headerActions.setActions(h(RefreshButton, { loading: loading.value, onClick: fetchDevices }))
+}
+
 onMounted(() => {
   const win = window as Window & {
     requestIdleCallback?: (cb: IdleRequestCallback, opts?: IdleRequestOptions) => number
@@ -82,11 +86,10 @@ onMounted(() => {
   } else {
     setTimeout(fetchTrafficAnalysis, 800)
   }
+  updateHeaderActions()
 })
 
-watch(loading, () => {
-  headerActions.setActions(h(RefreshButton, { loading: loading.value, onClick: fetchDevices }))
-}, { immediate: true })
+watch(loading, updateHeaderActions)
 
 onUnmounted(() => {
   headerActions.clear()

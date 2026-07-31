@@ -496,10 +496,11 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
 </script>
 
 <template>
-  <div>
+  <div class="proxy-page h-[calc(100svh-56px-48px)] flex flex-col">
+    <div class="proxy-card flex-1 min-h-0 flex flex-col">
 
     <!-- Tab 切换 -->
-    <el-tabs v-model="activeTab" class="proxy-tabs mb-4">
+    <el-tabs v-model="activeTab" class="proxy-tabs">
       <el-tab-pane name="upstream">
         <template #label>
           <div class="flex items-center gap-1.5">
@@ -525,7 +526,7 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
     </el-tabs>
 
     <!-- ═══════════ 前置代理 Tab ═══════════ -->
-    <div v-show="activeTab === 'upstream'">
+    <div v-show="activeTab === 'upstream'" class="flex-1 min-h-0 overflow-auto">
       <ErrorState
         v-if="upstreamError"
         class="mb-6"
@@ -612,7 +613,7 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
     </div>
 
     <!-- ═══════════ 出站代理 Tab ═══════════ -->
-    <div v-show="activeTab === 'outbound'">
+    <div v-show="activeTab === 'outbound'" class="flex-1 min-h-0 overflow-auto">
       <ErrorState
         v-if="loadError"
         class="mb-6"
@@ -699,6 +700,7 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
           </div>
         </div>
       </div>
+    </div>
     </div>
 
     <!-- ═══════════ 出站代理编辑 Drawer ═══════════ -->
@@ -943,11 +945,33 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
 </template>
 
 <style scoped>
+.proxy-tabs {
+  flex-shrink: 0;
+}
 .proxy-tabs :deep(.el-tabs__header) {
   margin-bottom: 0;
+  height: 60px;
+  padding: 0 16px;
 }
 .proxy-tabs :deep(.el-tabs__nav-wrap::after) {
   height: 1px;
+}
+.proxy-tabs :deep(.el-tabs__content) {
+  display: none;
+}
+.proxy-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  box-shadow: var(--console-shadow-sm);
+  overflow: hidden;
+}
+.proxy-card .detail-panel {
+  max-height: none;
+  overflow: visible;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 /* ── Proxy page design system classes ── */

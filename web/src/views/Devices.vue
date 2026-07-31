@@ -1094,14 +1094,7 @@ watch(activeTab, (tab, prevTab) => {
   }
 })
 
-onMounted(() => {
-  fetchAll()
-  getMccMncIndex().then(index => {
-    mccMncIndex.value = index
-  }).catch(() => {})
-})
-
-watch([loading, rescanning], () => {
+function updateHeaderActions() {
   headerActions.setActions(h('div', { class: 'flex items-center gap-2' }, [
     h(RefreshButton, { loading: loading.value, onClick: fetchAll }),
     h(ElButton, { onClick: rescanDevices, loading: rescanning.value }, () => [
@@ -1113,7 +1106,17 @@ watch([loading, rescanning], () => {
       '添加设备'
     ])
   ]))
-}, { immediate: true })
+}
+
+onMounted(() => {
+  fetchAll()
+  getMccMncIndex().then(index => {
+    mccMncIndex.value = index
+  }).catch(() => {})
+  updateHeaderActions()
+})
+
+watch([loading, rescanning], updateHeaderActions)
 
 onBeforeUnmount(() => {
   if (listAbort) listAbort.abort()

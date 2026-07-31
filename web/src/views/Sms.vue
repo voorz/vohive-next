@@ -503,7 +503,7 @@ async function handleSelectDevice(deviceId: string, options: { syncRoute?: boole
   const silent = options.silent === true
 
   selectedDevice.value = nextDevice
-  clearSelectedThread(false)
+  threadFetchSeq += 1
   if (syncRoute) {
     void router.replace({ query: buildSmsQuery(nextDevice) })
   }
@@ -573,9 +573,10 @@ onMounted(async () => {
     await fetchMessages()
   }
   await ensureThreadSelection({ syncRoute: false, silent: false, scrollToBottom: false })
+  updateHeaderActions()
 })
 
-watch(loading, () => {
+function updateHeaderActions() {
   headerActions.setActions(h('div', { class: 'flex items-center gap-2' }, [
     h(RefreshButton, { loading: loading.value, onClick: refreshAll }),
     h(ElButton, { type: 'primary', onClick: openSendModal, class: 'font-bold !border-0' }, () => [
@@ -583,7 +584,9 @@ watch(loading, () => {
       '新建短信'
     ])
   ]))
-}, { immediate: true })
+}
+
+watch(loading, updateHeaderActions)
 
 onUnmounted(() => {
   clearLongPress()
@@ -738,7 +741,7 @@ async function confirmDeleteThread(thread: SmsThread) {
 </script>
 
 <template>
-  <div ref="smsPageRef" class="sms-page h-[calc(100vh-140px)] flex flex-col">
+  <div ref="smsPageRef" class="sms-page h-[calc(100svh-56px-48px)] flex flex-col">
     <ErrorState
       v-if="devicesError"
       class="mb-4"
@@ -764,6 +767,13 @@ async function confirmDeleteThread(thread: SmsThread) {
       retry-text="重试"
       @retry="refreshAll"
     />
+
+    <div v-if="isNarrowLayout && showListPane" class="sms-narrow-controls">
+      <el-select :model-value="selectedDevice" placeholder="选择设备" filterable @change="handleNarrowDeviceChange">
+        <el-option v-for="d in deviceSidebarItems" :key="d.id" :label="d.label" :value="d.id" />
+      </el-select>
+      <el-input v-model="searchQuery" placeholder="搜索联系人/内容" clearable />
+    </div>
 
     <div class="sms-card overflow-hidden relative">
       <div v-if="loading && threads.length === 0" class="sms-loading-overlay">
@@ -797,12 +807,10 @@ async function confirmDeleteThread(thread: SmsThread) {
 
         <div v-if="showListPane" class="sms-list-pane">
           <div class="sms-list-header">
-            <div class="space-y-3">
-              <el-select v-if="isNarrowLayout" :model-value="selectedDevice" placeholder="选择设备" filterable @change="handleNarrowDeviceChange">
-                <el-option v-for="d in deviceSidebarItems" :key="d.id" :label="d.label" :value="d.id" />
-              </el-select>
-              <el-input v-model="searchQuery" placeholder="搜索联系人/内容" clearable />
+            <div v-if="isNarrowLayout" class="sms-list-header-device">
+              {{ deviceSidebarItems.find(d => d.id === selectedDevice)?.label || '全部设备' }}
             </div>
+            <el-input v-else v-model="searchQuery" placeholder="搜索联系人/内容" clearable />
           </div>
 
           <ListSkeleton v-if="loading && filteredThreads.length === 0" :rows="10" />
@@ -1067,15 +1075,17 @@ async function confirmDeleteThread(thread: SmsThread) {
 
 .sms-thread-row {
   position: relative;
+  height: 100%;
 }
 
 .sms-thread-shell {
+  height: 78px;
   transition: background-color 0.16s ease, border-color 0.16s ease;
   border-bottom: 1px solid var(--border);
 }
 
 .sms-thread-shell-active {
-  background: color-mix(in srgb, var(--brand) 10%, transparent);
+  background: color-mix(in srgb, var(--foreground) 5%, transparent);
 }
 
 .sms-thread-row-active {
@@ -1171,6 +1181,10 @@ async function confirmDeleteThread(thread: SmsThread) {
     grid-template-columns: 260px 340px minmax(0, 1fr);
   }
 
+  .sms-list-pane {
+    border-right: 1px solid var(--border);
+  }
+
   .sms-delete-trigger {
     opacity: 0;
     pointer-events: none;
@@ -1223,6 +1237,8 @@ async function confirmDeleteThread(thread: SmsThread) {
 /* ── SMS page design system classes ── */
 
 .sms-card {
+  flex: 1;
+  min-height: 0;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--card);
@@ -1247,8 +1263,12 @@ async function confirmDeleteThread(thread: SmsThread) {
 }
 
 .sms-sidebar-header {
-  padding: 16px;
+  height: 60px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
 }
 
 .sms-sidebar-label {
@@ -1310,8 +1330,31 @@ async function confirmDeleteThread(thread: SmsThread) {
 }
 
 .sms-list-header {
-  padding: 16px;
+  height: 60px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
   border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.sms-list-header > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.sms-narrow-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+  margin-bottom: 12px;
+}
+
+.sms-list-header-device {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
 }
 
 .sms-thread-peer {
@@ -1339,12 +1382,14 @@ async function confirmDeleteThread(thread: SmsThread) {
 }
 
 .sms-detail-header {
-  padding: 16px;
+  height: 60px;
+  padding: 0 16px;
   border-bottom: 1px solid var(--border);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .sms-detail-peer {
@@ -1372,18 +1417,28 @@ async function confirmDeleteThread(thread: SmsThread) {
   font-size: 14px;
   line-height: 1.75;
   box-shadow: var(--console-shadow-sm);
-  border: 1px solid var(--border);
 }
 
 .sms-msg-in {
-  background: var(--card);
-  color: var(--foreground);
+  background: #F4F4F4;
+  color: #292929;
+  border-radius: 16px 16px 16px 0;
+}
+
+html.dark .sms-msg-in {
+  background: #111111;
+  color: #EBEBEB;
 }
 
 .sms-msg-out {
-  background: color-mix(in oklab, var(--brand) 8%, var(--card));
-  color: var(--foreground);
-  border-color: color-mix(in oklab, var(--brand) 20%, var(--border));
+  background: #292929;
+  color: #EBEBEB;
+  border-radius: 16px 16px 0 16px;
+}
+
+html.dark .sms-msg-out {
+  background: #EBEBEB;
+  color: #292929;
 }
 
 .sms-composer-bar {
