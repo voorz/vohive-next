@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/global"
 	"github.com/voorz/vohive/pkg/logger"
 	"github.com/minio/selfupdate"
@@ -23,8 +24,8 @@ import (
 var ErrDisabled = errors.New("in-app binary updates are disabled for this source-integrated build")
 
 const (
-	repoOwner = "iniwex5"
-	repoName  = "vohive-release"
+	defaultRepoOwner = "iniwex5"
+	defaultRepoName  = "vohive-release"
 )
 
 type Release struct {
@@ -47,8 +48,24 @@ type UpdateInfo struct {
 	IsDocker    bool   `json:"is_docker"`
 }
 
+// resolveRepo 从全局配置读取 release 源，留空时回退到默认值。
+func resolveRepo() (owner, name string) {
+	owner = defaultRepoOwner
+	name = defaultRepoName
+	if cfg := config.GetConfig(); cfg != nil {
+		if s := strings.TrimSpace(cfg.UpdateRepo.Owner); s != "" {
+			owner = s
+		}
+		if s := strings.TrimSpace(cfg.UpdateRepo.Name); s != "" {
+			name = s
+		}
+	}
+	return
+}
+
 // CheckUpdate 检查是否有新版本
 func CheckUpdate() (*UpdateInfo, error) {
+	repoOwner, repoName := resolveRepo()
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", repoOwner, repoName)
 
 	client := &http.Client{Timeout: 10 * time.Second}
@@ -111,6 +128,7 @@ func CheckUpdate() (*UpdateInfo, error) {
 
 // ApplyUpdate 获取最新 release 并下载对应架构的二进制进行自我替换
 func ApplyUpdate() error {
+	repoOwner, repoName := resolveRepo()
 	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", repoOwner, repoName)
 	client := &http.Client{Timeout: 15 * time.Second}
 

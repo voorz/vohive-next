@@ -281,6 +281,10 @@ func (s *Server) newRouter() *gin.Engine {
 		api.GET("/system/info", s.handleSystemInfo)            // 获取系统运行与版本信息
 		api.GET("/system/update/check", s.handleCheckUpdate)   // 检查系统更新
 		api.POST("/system/update/apply", s.handleApplyUpdate)  // 应用系统更新
+		api.GET("/settings/update-repo", s.handleGetUpdateRepo)       // 获取 release 源配置
+		api.PUT("/settings/update-repo", s.handleUpdateUpdateRepo)    // 更新 release 源配置
+		api.GET("/settings/sms-limit", s.handleGetSMSRateLimit)       // 获取短信限速配置
+		api.PUT("/settings/sms-limit", s.handleUpdateSMSRateLimit)    // 更新短信限速配置
 
 		api.GET("/devices", s.handleDeviceMgmtList)                                            // 获取设备列表（管理页用）
 		api.POST("/devices", s.handleDeviceMgmtAddDevice)                                      // 添加新设备

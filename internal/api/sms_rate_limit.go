@@ -1,13 +1,16 @@
 package api
 
 import (
+	"fmt"
 	"sync"
 	"time"
+
+	"github.com/voorz/vohive/internal/config"
 )
 
 const (
-	smsFirstHourLimit = 3
-	smsDailyLimit     = 10
+	defaultHourlyLimit = 3
+	defaultDailyLimit  = 10
 )
 
 type smsRateLimitResult struct {
@@ -30,6 +33,8 @@ type smsRateLimiter struct {
 	day            smsRateLimitDay
 	firstHourCount int
 	dailyCount     int
+	hourlyLimit    int
+	dailyLimit     int
 }
 
 func newSMSRateLimiter(startedAt time.Time, now func() time.Time) *smsRateLimiter {
@@ -39,11 +44,48 @@ func newSMSRateLimiter(startedAt time.Time, now func() time.Time) *smsRateLimite
 	if startedAt.IsZero() {
 		startedAt = now()
 	}
-	return &smsRateLimiter{
-		startedAt: startedAt,
-		now:       now,
-		day:       smsRateLimitDayOf(startedAt),
+	l := &smsRateLimiter{
+		startedAt:   startedAt,
+		now:         now,
+		day:         smsRateLimitDayOf(startedAt),
+		hourlyLimit: defaultHourlyLimit,
+		dailyLimit:  defaultDailyLimit,
 	}
+	l.reloadLimits()
+	return l
+}
+
+// reloadLimits 从全局配置读取限制参数，留空回退默认值
+func (l *smsRateLimiter) reloadLimits() {
+	if cfg := config.GetConfig(); cfg != nil {
+		if cfg.SMSRateLimit.HourlyLimit > 0 {
+			l.hourlyLimit = cfg.SMSRateLimit.HourlyLimit
+		}
+		if cfg.SMSRateLimit.DailyLimit > 0 {
+			l.dailyLimit = cfg.SMSRateLimit.DailyLimit
+		}
+	}
+}
+
+// UpdateLimits 更新限制参数（线程安全）
+func (l *smsRateLimiter) UpdateLimits(hourly, daily int) {
+	if hourly <= 0 || daily <= 0 {
+		return
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.hourlyLimit = hourly
+	l.dailyLimit = daily
+}
+
+// Limits 返回当前限制参数
+func (l *smsRateLimiter) Limits() (hourly, daily int) {
+	if l == nil {
+		return defaultHourlyLimit, defaultDailyLimit
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.hourlyLimit, l.dailyLimit
 }
 
 func smsRateLimitDayOf(t time.Time) smsRateLimitDay {
@@ -66,17 +108,17 @@ func (l *smsRateLimiter) Allow() smsRateLimitResult {
 		l.dailyCount = 0
 	}
 
-	if now.Before(l.startedAt.Add(time.Hour)) && l.firstHourCount >= smsFirstHourLimit {
+	if now.Before(l.startedAt.Add(time.Hour)) && l.firstHourCount >= l.hourlyLimit {
 		return smsRateLimitResult{
 			Code:       "first_hour_limit",
-			Message:    "首次运行 1 小时内最多只能发送 3 条短信，请稍后再试",
+			Message:    fmt.Sprintf("首次运行 1 小时内最多只能发送 %d 条短信，请稍后再试", l.hourlyLimit),
 			RetryAfter: l.startedAt.Add(time.Hour).Sub(now),
 		}
 	}
-	if l.dailyCount >= smsDailyLimit {
+	if l.dailyCount >= l.dailyLimit {
 		return smsRateLimitResult{
 			Code:       "daily_limit",
-			Message:    "每日最多只能发送 10 条短信，请明天再试",
+			Message:    fmt.Sprintf("每日最多只能发送 %d 条短信，请明天再试", l.dailyLimit),
 			RetryAfter: nextLocalMidnight(now).Sub(now),
 		}
 	}

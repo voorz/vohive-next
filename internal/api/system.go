@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -14,6 +15,97 @@ import (
 )
 
 var errNotFound = errors.New("not found")
+
+// handleGetUpdateRepo 返回当前 release 源配置
+func (s *Server) handleGetUpdateRepo(c *gin.Context) {
+	cfg := config.GetConfig()
+	owner := ""
+	name := ""
+	if cfg != nil {
+		owner = cfg.UpdateRepo.Owner
+		name = cfg.UpdateRepo.Name
+	}
+	if owner == "" {
+		owner = "iniwex5"
+	}
+	if name == "" {
+		name = "vohive-release"
+	}
+	c.JSON(http.StatusOK, gin.H{"owner": owner, "name": name})
+}
+
+// handleUpdateUpdateRepo 更新 release 源配置并热加载
+func (s *Server) handleUpdateUpdateRepo(c *gin.Context) {
+	var req struct {
+		Owner string `json:"owner"`
+		Name  string `json:"name"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "参数错误"})
+		return
+	}
+	owner := strings.TrimSpace(req.Owner)
+	name := strings.TrimSpace(req.Name)
+	if owner == "" || name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "owner 和 name 不能为空"})
+		return
+	}
+	configPath := config.GetConfigPath()
+	if configPath == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "配置文件路径未初始化"})
+		return
+	}
+	if err := config.UpdateUpdateRepoInFile(configPath, owner, name); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+	if err := config.ReloadFromFile(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "热加载配置失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "owner": owner, "name": name})
+}
+
+// handleGetSMSRateLimit 返回当前短信限速配置
+func (s *Server) handleGetSMSRateLimit(c *gin.Context) {
+	hourly, daily := s.smsRateLimiter().Limits()
+	c.JSON(http.StatusOK, gin.H{"hourly_limit": hourly, "daily_limit": daily})
+}
+
+// handleUpdateSMSRateLimit 更新短信限速配置并热加载
+func (s *Server) handleUpdateSMSRateLimit(c *gin.Context) {
+	var req struct {
+		HourlyLimit int `json:"hourly_limit"`
+		DailyLimit  int `json:"daily_limit"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "参数错误"})
+		return
+	}
+	if req.HourlyLimit <= 0 || req.DailyLimit <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "限制值必须大于 0"})
+		return
+	}
+	if req.DailyLimit < req.HourlyLimit {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "每日限制不能小于每小时限制"})
+		return
+	}
+	configPath := config.GetConfigPath()
+	if configPath == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "配置文件路径未初始化"})
+		return
+	}
+	if err := config.UpdateSMSRateLimitInFile(configPath, req.HourlyLimit, req.DailyLimit); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+	if err := config.ReloadFromFile(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "热加载配置失败: " + err.Error()})
+		return
+	}
+	s.smsRateLimiter().UpdateLimits(req.HourlyLimit, req.DailyLimit)
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "hourly_limit": req.HourlyLimit, "daily_limit": req.DailyLimit})
+}
 
 // resolveUninstallTargets 计算自毁流程需要清理的数据目录和配置文件路径。
 // 配置文件路径必须来自运行时实际加载的路径（config.GetConfigPath()），

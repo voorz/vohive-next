@@ -68,19 +68,31 @@ func ResolveIPFamily(in string) (enableV4 bool, enableV6 bool, err error) {
 }
 
 type Config struct {
-	Server   ServerConfig   `mapstructure:"server"`
-	Devices  []DeviceConfig `mapstructure:"devices"`
-	Telegram TelegramConfig `mapstructure:"telegram"`
-	Feishu   FeishuConfig   `mapstructure:"feishu"`
-	QQ       QQConfig       `mapstructure:"qq"`
-	Webhook  WebhookConfig  `mapstructure:"webhook"`
+	Server    ServerConfig    `mapstructure:"server"`
+	Devices   []DeviceConfig  `mapstructure:"devices"`
+	Telegram  TelegramConfig  `mapstructure:"telegram"`
+	Feishu    FeishuConfig    `mapstructure:"feishu"`
+	QQ        QQConfig        `mapstructure:"qq"`
+	Webhook   WebhookConfig   `mapstructure:"webhook"`
 
-	Bark     BarkConfig     `mapstructure:"bark"`
-	Email    EmailConfig    `mapstructure:"email"`
-	Pushplus PushplusConfig `mapstructure:"pushplus"`
-	Web      WebConfig      `mapstructure:"web"`
-	Proxy    ProxyConfig    `mapstructure:"proxy"`
-	VoWiFi   VoWiFiConfig   `mapstructure:"vowifi"`
+	Bark      BarkConfig      `mapstructure:"bark"`
+	Email     EmailConfig     `mapstructure:"email"`
+	Pushplus  PushplusConfig  `mapstructure:"pushplus"`
+	Web       WebConfig       `mapstructure:"web"`
+	Proxy     ProxyConfig     `mapstructure:"proxy"`
+	VoWiFi    VoWiFiConfig    `mapstructure:"vowifi"`
+	UpdateRepo   UpdateRepoConfig   `mapstructure:"update_repo"`
+	SMSRateLimit SMSRateLimitConfig `mapstructure:"sms_rate_limit"`
+}
+
+type UpdateRepoConfig struct {
+	Owner string `mapstructure:"owner"`
+	Name  string `mapstructure:"name"`
+}
+
+type SMSRateLimitConfig struct {
+	HourlyLimit int `mapstructure:"hourly_limit"`
+	DailyLimit  int `mapstructure:"daily_limit"`
 }
 
 // ProxyConfig 定义代理服务配置
@@ -298,6 +310,10 @@ func Load(path string) (*Config, error) {
 	viper.SetDefault("web.password", "admin")
 	viper.SetDefault("vowifi.enabled", false)
 	viper.SetDefault("vowifi.mode", "vowifi")
+	viper.SetDefault("update_repo.owner", "iniwex5")
+	viper.SetDefault("update_repo.name", "vohive-release")
+	viper.SetDefault("sms_rate_limit.hourly_limit", 3)
+	viper.SetDefault("sms_rate_limit.daily_limit", 10)
 	viper.SetDefault("imscore.use_sipgo_udp", false)
 
 	// 官方默认推送秘钥与用户 (留空则不执行 Push)

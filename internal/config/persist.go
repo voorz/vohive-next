@@ -96,7 +96,72 @@ func UpdateNotificationInFile(path string, telegram TelegramConfig, feishu Feish
 	return nil
 }
 
-// UpdateWebCredentialsInFile 更新配置文件中的 Web 凭证（用户名和密码）
+// UpdateUpdateRepoInFile 更新配置文件中的 update_repo 节点（GitHub release 源）
+func UpdateUpdateRepoInFile(path string, owner, name string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("读取配置文件失败: %w", err)
+	}
+
+	root := make(map[string]any)
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return fmt.Errorf("解析配置文件失败: %w", err)
+	}
+
+	root["update_repo"] = map[string]any{
+		"owner": owner,
+		"name":  name,
+	}
+
+	out, err := yaml.Marshal(root)
+	if err != nil {
+		return fmt.Errorf("序列化配置文件失败: %w", err)
+	}
+
+	tmp := path + ".tmp"
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("创建配置目录失败: %w", err)
+	}
+	if err := os.WriteFile(tmp, out, 0o600); err != nil {
+		return fmt.Errorf("写入临时配置文件失败: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return fmt.Errorf("替换配置文件失败: %w", err)
+	}
+	return nil
+}
+
+// UpdateSMSRateLimitInFile 更新配置文件中的 sms_rate_limit 节点
+func UpdateSMSRateLimitInFile(path string, hourly, daily int) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("读取配置文件失败: %w", err)
+	}
+
+	root := make(map[string]any)
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return fmt.Errorf("解析配置文件失败: %w", err)
+	}
+
+	root["sms_rate_limit"] = map[string]any{
+		"hourly_limit": hourly,
+		"daily_limit":  daily,
+	}
+
+	out, err := yaml.Marshal(root)
+	if err != nil {
+		return fmt.Errorf("序列化配置文件失败: %w", err)
+	}
+
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, out, 0o600); err != nil {
+		return fmt.Errorf("写入临时配置文件失败: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return fmt.Errorf("替换配置文件失败: %w", err)
+	}
+	return nil
+}
 func UpdateWebCredentialsInFile(path string, username, password string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
