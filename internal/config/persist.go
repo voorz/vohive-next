@@ -338,3 +338,40 @@ func UpdateServerConfigInFile(path string, port string, debug bool) error {
 	}
 	return nil
 }
+
+// UpdateSiteInFile 更新配置文件中的 site 节点
+func UpdateSiteInFile(path string, name, subtitle, logoExt, faviconExt string) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("读取配置文件失败: %w", err)
+	}
+
+	root := make(map[string]any)
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return fmt.Errorf("解析配置文件失败: %w", err)
+	}
+
+	root["site"] = map[string]any{
+		"name":        name,
+		"subtitle":    subtitle,
+		"logo_ext":    logoExt,
+		"favicon_ext": faviconExt,
+	}
+
+	out, err := yaml.Marshal(root)
+	if err != nil {
+		return fmt.Errorf("序列化配置文件失败: %w", err)
+	}
+
+	tmp := path + ".tmp"
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("创建配置目录失败: %w", err)
+	}
+	if err := os.WriteFile(tmp, out, 0o600); err != nil {
+		return fmt.Errorf("写入临时配置文件失败: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return fmt.Errorf("替换配置文件失败: %w", err)
+	}
+	return nil
+}

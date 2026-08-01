@@ -4,9 +4,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"mime"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -208,6 +210,189 @@ func (s *Server) handleLocalUpdate(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "正在后台安装更新，系统稍后将自动重启..."})
+}
+
+// handleGetSite 返回站点信息配置
+func (s *Server) handleGetSite(c *gin.Context) {
+	cfg := config.GetConfig()
+	if cfg == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "配置未初始化"})
+		return
+	}
+	site := cfg.Site
+	c.JSON(http.StatusOK, gin.H{
+		"name":        site.Name,
+		"subtitle":    site.Subtitle,
+		"has_logo":    site.LogoExt != "",
+		"has_favicon": site.FaviconExt != "",
+	})
+}
+
+// handleUpdateSite 更新站点名称和副标题
+func (s *Server) handleUpdateSite(c *gin.Context) {
+	var req struct {
+		Name     string `json:"name"`
+		Subtitle string `json:"subtitle"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "参数错误"})
+		return
+	}
+	configPath := config.GetConfigPath()
+	if configPath == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "配置文件路径未初始化"})
+		return
+	}
+	cfg := config.GetConfig()
+	logoExt := ""
+	faviconExt := ""
+	if cfg != nil {
+		logoExt = cfg.Site.LogoExt
+		faviconExt = cfg.Site.FaviconExt
+	}
+	if err := config.UpdateSiteInFile(configPath, req.Name, req.Subtitle, logoExt, faviconExt); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+	if err := config.ReloadFromFile(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "热加载配置失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// handleUploadSiteLogo 上传自定义 logo
+func (s *Server) handleUploadSiteLogo(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "未接收到文件"})
+		return
+	}
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	if ext == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "文件缺少扩展名"})
+		return
+	}
+	// 保存文件
+	dataDir := filepath.Join("data")
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "创建目录失败"})
+		return
+	}
+	logoPath := filepath.Join(dataDir, "site-logo"+ext)
+	if err := c.SaveUploadedFile(file, logoPath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "保存文件失败"})
+		return
+	}
+	// 删除旧文件（如果扩展名不同）
+	cfg := config.GetConfig()
+	if cfg != nil && cfg.Site.LogoExt != "" && cfg.Site.LogoExt != ext {
+		oldPath := filepath.Join(dataDir, "site-logo"+cfg.Site.LogoExt)
+		os.Remove(oldPath)
+	}
+	// 更新配置
+	configPath := config.GetConfigPath()
+	name := "VoHive"
+	subtitle := "VoWiFi 管理控制台"
+	faviconExt := ""
+	if cfg != nil {
+		name = cfg.Site.Name
+		subtitle = cfg.Site.Subtitle
+		faviconExt = cfg.Site.FaviconExt
+	}
+	if err := config.UpdateSiteInFile(configPath, name, subtitle, ext, faviconExt); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+	config.ReloadFromFile()
+	logger.Info("站点 logo 已更新", "ext", ext)
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// handleUploadSiteFavicon 上传自定义 favicon
+func (s *Server) handleUploadSiteFavicon(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "未接收到文件"})
+		return
+	}
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	if ext == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "文件缺少扩展名"})
+		return
+	}
+	dataDir := filepath.Join("data")
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "创建目录失败"})
+		return
+	}
+	favPath := filepath.Join(dataDir, "site-favicon"+ext)
+	if err := c.SaveUploadedFile(file, favPath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "保存文件失败"})
+		return
+	}
+	cfg := config.GetConfig()
+	if cfg != nil && cfg.Site.FaviconExt != "" && cfg.Site.FaviconExt != ext {
+		oldPath := filepath.Join(dataDir, "site-favicon"+cfg.Site.FaviconExt)
+		os.Remove(oldPath)
+	}
+	configPath := config.GetConfigPath()
+	name := "VoHive"
+	subtitle := "VoWiFi 管理控制台"
+	logoExt := ""
+	if cfg != nil {
+		name = cfg.Site.Name
+		subtitle = cfg.Site.Subtitle
+		logoExt = cfg.Site.LogoExt
+	}
+	if err := config.UpdateSiteInFile(configPath, name, subtitle, logoExt, ext); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+	config.ReloadFromFile()
+	logger.Info("站点 favicon 已更新", "ext", ext)
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// handleServeSiteLogo 提供自定义 logo 文件（无需鉴权）
+func (s *Server) handleServeSiteLogo(c *gin.Context) {
+	cfg := config.GetConfig()
+	if cfg == nil || cfg.Site.LogoExt == "" {
+		c.Status(http.StatusNoContent)
+		return
+	}
+	logoPath := filepath.Join("data", "site-logo"+cfg.Site.LogoExt)
+	data, err := os.ReadFile(logoPath)
+	if err != nil {
+		c.Status(http.StatusNoContent)
+		return
+	}
+	ct := mime.TypeByExtension(cfg.Site.LogoExt)
+	if ct == "" {
+		ct = "application/octet-stream"
+	}
+	c.Data(http.StatusOK, ct, data)
+}
+
+// handleServeSiteFavicon 提供自定义 favicon 文件（无需鉴权）
+func (s *Server) handleServeSiteFavicon(c *gin.Context) {
+	cfg := config.GetConfig()
+	if cfg == nil || cfg.Site.FaviconExt == "" {
+		// 回退到默认 favicon.svg
+		c.Redirect(http.StatusFound, "/favicon.svg")
+		return
+	}
+	favPath := filepath.Join("data", "site-favicon"+cfg.Site.FaviconExt)
+	data, err := os.ReadFile(favPath)
+	if err != nil {
+		c.Redirect(http.StatusFound, "/favicon.svg")
+		return
+	}
+	ct := mime.TypeByExtension(cfg.Site.FaviconExt)
+	if ct == "" {
+		ct = "image/x-icon"
+	}
+	c.Data(http.StatusOK, ct, data)
 }
 
 // handleGetSecurity 返回安全配置

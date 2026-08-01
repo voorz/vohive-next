@@ -6,6 +6,7 @@ import { useHeaderActionsStore } from '../stores/headerActions'
 import LoadingScreen from '../components/LoadingScreen.vue'
 import ErrorBoundary from '../components/ErrorBoundary.vue'
 import { debugCollector } from '../debug/collector'
+import { useSiteConfig } from '../composables/useSiteConfig'
 import {
   Mail24Regular,
   Settings24Regular,
@@ -37,6 +38,7 @@ const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const headerActions = useHeaderActionsStore()
+const { siteConfig, load: loadSiteConfig } = useSiteConfig()
 const debugOpen = ref(false)
 const refreshing = ref(false)
 const lang = ref(localStorage.getItem('lang') || 'zh')
@@ -123,6 +125,7 @@ onMounted(() => {
   const saved = localStorage.getItem('debug_panel_open')
   debugOpen.value = saved === '1'
   window.addEventListener('keydown', onKeydown)
+  loadSiteConfig()
 })
 
 onUnmounted(() => {
@@ -168,10 +171,13 @@ watch(lang, (v) => {
     <aside class="sidebar" :class="{ 'mobile-hidden': isSmallScreen && collapsed }">
       <!-- 品牌区 -->
       <div class="brand">
-        <div class="brand-mark">V</div>
+        <div v-if="siteConfig.has_logo" class="brand-logo-wrap">
+          <img :src="'/api/site/logo'" alt="Logo" class="brand-logo-img" />
+        </div>
+        <div v-else class="brand-mark">V</div>
         <div class="brand-text">
-          <div class="brand-name">VoHive</div>
-          <div class="brand-subtitle">VoWiFi 管理控制台</div>
+          <div class="brand-name">{{ siteConfig.name }}</div>
+          <div class="brand-subtitle">{{ siteConfig.subtitle }}</div>
         </div>
       </div>
 
@@ -324,6 +330,21 @@ watch(lang, (v) => {
   min-height: 56px;
   padding: 0 20px;
   border-bottom: 1px solid var(--sidebar-border);
+}
+
+.brand-logo-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+}
+
+.brand-logo-img {
+  max-height: 38px;
+  max-width: 100%;
+  object-fit: contain;
 }
 
 .brand-mark {

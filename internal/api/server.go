@@ -263,6 +263,10 @@ func (s *Server) newRouter() *gin.Engine {
 	api.OPTIONS("/logs/stream", s.handleLogStreamOptions)
 	s.registerWebsheetRoutes(api)
 
+	// 站点资源（无需鉴权）
+	api.GET("/site/logo", s.handleServeSiteLogo)
+	api.GET("/site/favicon", s.handleServeSiteFavicon)
+
 	// 以下接口需要鉴权
 	api.Use(s.authMiddleware())
 	{
@@ -309,6 +313,10 @@ func (s *Server) newRouter() *gin.Engine {
 		api.GET("/settings/server", s.handleGetServerConfig)           // 获取服务器配置
 		api.PUT("/settings/server", s.handleUpdateServerConfig)        // 更新服务器配置
 		api.PUT("/settings/web-credentials", s.handleUpdateWebCredentials) // 更新管理员用户名+密码
+		api.GET("/settings/site", s.handleGetSite)                   // 获取站点信息
+		api.PUT("/settings/site", s.handleUpdateSite)                  // 更新站点名称/副标题
+		api.POST("/settings/site/logo", s.handleUploadSiteLogo)        // 上传自定义 logo
+		api.POST("/settings/site/favicon", s.handleUploadSiteFavicon) // 上传自定义 favicon
 
 		api.GET("/devices", s.handleDeviceMgmtList)                                            // 获取设备列表（管理页用）
 		api.POST("/devices", s.handleDeviceMgmtAddDevice)                                      // 添加新设备

@@ -371,4 +371,36 @@ export const systemService = {
       return res.data
     })
   },
+  getSiteConfig() {
+    return callService(async () => {
+      const res = await api.get<{ name: string; subtitle: string; has_logo: boolean; has_favicon: boolean }>('/settings/site')
+      return res.data
+    })
+  },
+  updateSite(name: string, subtitle: string) {
+    return callService(async () => {
+      const res = await api.put<{ status: string }>('/settings/site', { name, subtitle })
+      return res.data
+    })
+  },
+  uploadSiteLogo(file: File) {
+    return callService(async () => {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await api.post<{ status: string }>('/settings/site/logo', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      return res.data
+    })
+  },
+  uploadSiteFavicon(file: File) {
+    return callService(async () => {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await api.post<{ status: string }>('/settings/site/favicon', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      return res.data
+    })
+  },
 }

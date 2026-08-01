@@ -277,6 +277,7 @@ import SettingsSecurityRateLimit from '../components/SettingsSecurityRateLimit.v
 import SettingsSecurityTokenManager from '../components/SettingsSecurityTokenManager.vue'
 import SettingsGlobalDebugMode from '../components/SettingsGlobalDebugMode.vue'
 import SettingsGlobalDisplaySettings from '../components/SettingsGlobalDisplaySettings.vue'
+import SettingsGlobalSiteInfo from '../components/SettingsGlobalSiteInfo.vue'
 import { systemService, type UpdateInfo } from '../services/system'
 
 const updateInfo = ref<UpdateInfo | null>(null)
@@ -883,6 +884,9 @@ onBeforeUnmount(() => {
 
           <!-- FAQ 折叠卡片：显示设置 -->
           <SettingsGlobalDisplaySettings />
+
+          <!-- FAQ 折叠卡片：站点信息 -->
+          <SettingsGlobalSiteInfo />
         </div>
       </div>
 

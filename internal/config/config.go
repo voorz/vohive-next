@@ -84,6 +84,7 @@ type Config struct {
 	UpdateRepo   UpdateRepoConfig   `mapstructure:"update_repo"`
 	SMSRateLimit SMSRateLimitConfig `mapstructure:"sms_rate_limit"`
 	Security     SecurityConfig     `mapstructure:"security"`
+	Site         SiteConfig         `mapstructure:"site"`
 }
 
 type UpdateRepoConfig struct {
@@ -108,6 +109,18 @@ type SecurityConfig struct {
 	TokenTTLHours      int    `mapstructure:"token_ttl_hours"`
 	APIToken           string `mapstructure:"api_token"`
 	APITokenExpiry     int64  `mapstructure:"api_token_expiry"`
+}
+
+// SiteConfig 站点信息配置
+// Name: 站点名称（浏览器标签页标题 + 侧栏品牌名）
+// Subtitle: 副标题（侧栏品牌副标题）
+// LogoExt: 自定义 logo 文件扩展名（空 = 使用默认字母标记）
+// FaviconExt: 自定义 favicon 扩展名（空 = 使用默认 favicon.svg）
+type SiteConfig struct {
+	Name       string `mapstructure:"name"`
+	Subtitle   string `mapstructure:"subtitle"`
+	LogoExt    string `mapstructure:"logo_ext"`
+	FaviconExt string `mapstructure:"favicon_ext"`
 }
 
 // ProxyConfig 定义代理服务配置
@@ -331,6 +344,8 @@ func Load(path string) (*Config, error) {
 	viper.SetDefault("security.login_window_minutes", 2)
 	viper.SetDefault("security.login_max_attempts", 10)
 	viper.SetDefault("security.token_ttl_hours", 720)
+	viper.SetDefault("site.name", "VoHive")
+	viper.SetDefault("site.subtitle", "VoWiFi 管理控制台")
 
 	// 官方默认推送秘钥与用户 (留空则不执行 Push)
 	viper.SetDefault("vowifi.voice_gateway.linphone_push.linphone_user", "")
