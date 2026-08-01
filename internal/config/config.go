@@ -83,6 +83,7 @@ type Config struct {
 	VoWiFi    VoWiFiConfig    `mapstructure:"vowifi"`
 	UpdateRepo   UpdateRepoConfig   `mapstructure:"update_repo"`
 	SMSRateLimit SMSRateLimitConfig `mapstructure:"sms_rate_limit"`
+	Security     SecurityConfig     `mapstructure:"security"`
 }
 
 type UpdateRepoConfig struct {
@@ -93,6 +94,20 @@ type UpdateRepoConfig struct {
 type SMSRateLimitConfig struct {
 	HourlyLimit int `mapstructure:"hourly_limit"`
 	DailyLimit  int `mapstructure:"daily_limit"`
+}
+
+// SecurityConfig 安全配置
+// LoginWindowMinutes: 登录限速窗口（分钟），默认 2
+// LoginMaxAttempts: 窗口内最大登录尝试次数，默认 10
+// TokenTTLHours: Session Token 有效期（小时），默认 720（30天）
+// APIToken: API 访问令牌（空字符串表示未创建）
+// APITokenExpiry: API Token 过期时间（Unix 时间戳，0 表示永不过期）
+type SecurityConfig struct {
+	LoginWindowMinutes int    `mapstructure:"login_window_minutes"`
+	LoginMaxAttempts   int    `mapstructure:"login_max_attempts"`
+	TokenTTLHours      int    `mapstructure:"token_ttl_hours"`
+	APIToken           string `mapstructure:"api_token"`
+	APITokenExpiry     int64  `mapstructure:"api_token_expiry"`
 }
 
 // ProxyConfig 定义代理服务配置
@@ -313,6 +328,9 @@ func Load(path string) (*Config, error) {
 	viper.SetDefault("sms_rate_limit.hourly_limit", 3)
 	viper.SetDefault("sms_rate_limit.daily_limit", 10)
 	viper.SetDefault("imscore.use_sipgo_udp", false)
+	viper.SetDefault("security.login_window_minutes", 2)
+	viper.SetDefault("security.login_max_attempts", 10)
+	viper.SetDefault("security.token_ttl_hours", 720)
 
 	// 官方默认推送秘钥与用户 (留空则不执行 Push)
 	viper.SetDefault("vowifi.voice_gateway.linphone_push.linphone_user", "")

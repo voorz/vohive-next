@@ -642,7 +642,7 @@ watch(lang, (v) => {
 }
 
 .main-inner {
-  max-width: 1240px;
+  max-width: var(--page-max-width, 1240px);
   margin: 0 auto;
   padding: 24px 24px 24px;
 }

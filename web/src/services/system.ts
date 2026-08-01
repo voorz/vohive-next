@@ -29,6 +29,7 @@ export type SystemInfo = {
   build_time: string
   config: string
   docs: DocsLinks
+  username: string
 }
 
 export type TelegramSettings = {
@@ -317,5 +318,57 @@ export const systemService = {
       const res = await api.put<{ status: string; hourly_limit: number; daily_limit: number }>('/settings/sms-limit', { hourly_limit: hourlyLimit, daily_limit: dailyLimit })
       return res.data
     })
-  }
+  },
+  getSecurity() {
+    return callService(async () => {
+      const res = await api.get<{
+        login_window_minutes: number
+        login_max_attempts: number
+        token_ttl_hours: number
+        has_api_token: boolean
+        api_token_expiry: number
+      }>('/settings/security')
+      return res.data
+    })
+  },
+  saveSecurity(loginWindowMinutes: number, loginMaxAttempts: number, tokenTTLHours: number) {
+    return callService(async () => {
+      const res = await api.put<{ status: string }>('/settings/security', {
+        login_window_minutes: loginWindowMinutes,
+        login_max_attempts: loginMaxAttempts,
+        token_ttl_hours: tokenTTLHours,
+      })
+      return res.data
+    })
+  },
+  createAPIToken(ttlHours: number) {
+    return callService(async () => {
+      const res = await api.post<{ status: string; token: string; expiry: number }>('/settings/api-token', { ttl_hours: ttlHours })
+      return res.data
+    })
+  },
+  deleteAPIToken() {
+    return callService(async () => {
+      const res = await api.delete<{ status: string }>('/settings/api-token')
+      return res.data
+    })
+  },
+  getServerConfig() {
+    return callService(async () => {
+      const res = await api.get<{ port: string; debug: boolean }>('/settings/server')
+      return res.data
+    })
+  },
+  saveServerConfig(port: string, debug: boolean) {
+    return callService(async () => {
+      const res = await api.put<{ status: string; message: string }>('/settings/server', { port, debug })
+      return res.data
+    })
+  },
+  updateWebCredentials(username: string, password: string) {
+    return callService(async () => {
+      const res = await api.put<{ status: string; message: string }>('/settings/web-credentials', { username, password })
+      return res.data
+    })
+  },
 }

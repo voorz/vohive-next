@@ -1,6 +1,8 @@
 package api
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"net/http"
 	"os"
@@ -12,6 +14,7 @@ import (
 	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/updater"
 	"github.com/voorz/vohive/pkg/logger"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var errNotFound = errors.New("not found")
@@ -205,6 +208,193 @@ func (s *Server) handleLocalUpdate(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "正在后台安装更新，系统稍后将自动重启..."})
+}
+
+// handleGetSecurity 返回安全配置
+func (s *Server) handleGetSecurity(c *gin.Context) {
+	cfg := config.GetConfig()
+	if cfg == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "配置未初始化"})
+		return
+	}
+	sec := cfg.Security
+	c.JSON(http.StatusOK, gin.H{
+		"login_window_minutes": sec.LoginWindowMinutes,
+		"login_max_attempts":   sec.LoginMaxAttempts,
+		"token_ttl_hours":      sec.TokenTTLHours,
+		"has_api_token":        sec.APIToken != "",
+		"api_token_expiry":     sec.APITokenExpiry,
+	})
+}
+
+// handleUpdateSecurity 更新安全配置并热加载
+func (s *Server) handleUpdateSecurity(c *gin.Context) {
+	var req struct {
+		LoginWindowMinutes int `json:"login_window_minutes"`
+		LoginMaxAttempts   int `json:"login_max_attempts"`
+		TokenTTLHours      int `json:"token_ttl_hours"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "参数错误"})
+		return
+	}
+	if req.LoginWindowMinutes <= 0 || req.LoginMaxAttempts <= 0 || req.TokenTTLHours <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "参数必须大于 0"})
+		return
+	}
+	configPath := config.GetConfigPath()
+	if configPath == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "配置文件路径未初始化"})
+		return
+	}
+	if err := config.UpdateSecurityInFile(configPath, req.LoginWindowMinutes, req.LoginMaxAttempts, req.TokenTTLHours); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+	if err := config.ReloadFromFile(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "热加载配置失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// handleCreateAPIToken 创建或刷新 API Token
+func (s *Server) handleCreateAPIToken(c *gin.Context) {
+	var req struct {
+		TTLHours int `json:"ttl_hours"` // 0 = 永不过期
+	}
+	_ = c.ShouldBindJSON(&req) // 可选参数，忽略错误
+
+	rawBytes := make([]byte, 32)
+	if _, err := rand.Read(rawBytes); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "生成令牌失败"})
+		return
+	}
+	token := hex.EncodeToString(rawBytes)
+
+	var expiry int64 = 0
+	if req.TTLHours > 0 {
+		expiry = time.Now().Add(time.Duration(req.TTLHours) * time.Hour).Unix()
+	}
+
+	configPath := config.GetConfigPath()
+	if configPath == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "配置文件路径未初始化"})
+		return
+	}
+	if err := config.UpdateAPITokenInFile(configPath, token, expiry); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+	if err := config.ReloadFromFile(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "热加载配置失败: " + err.Error()})
+		return
+	}
+	logger.Info("API Token 已创建", "ip", c.ClientIP(), "ttl_hours", req.TTLHours)
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "ok",
+		"token":   token,
+		"expiry":  expiry,
+	})
+}
+
+// handleDeleteAPIToken 删除 API Token
+func (s *Server) handleDeleteAPIToken(c *gin.Context) {
+	configPath := config.GetConfigPath()
+	if configPath == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "配置文件路径未初始化"})
+		return
+	}
+	if err := config.UpdateAPITokenInFile(configPath, "", 0); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+	if err := config.ReloadFromFile(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "热加载配置失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+// handleGetServerConfig 返回服务器配置
+func (s *Server) handleGetServerConfig(c *gin.Context) {
+	cfg := config.GetConfig()
+	if cfg == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "配置未初始化"})
+		return
+	}
+	port := strings.TrimPrefix(cfg.Server.Port, ":")
+	c.JSON(http.StatusOK, gin.H{
+		"port":  port,
+		"debug": cfg.Server.Debug,
+	})
+}
+
+// handleUpdateServerConfig 更新服务器配置并热加载
+func (s *Server) handleUpdateServerConfig(c *gin.Context) {
+	var req struct {
+		Port  string `json:"port"`
+		Debug bool   `json:"debug"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "参数错误"})
+		return
+	}
+	port := strings.TrimSpace(req.Port)
+	if port == "" {
+		port = "7575"
+	}
+	configPath := config.GetConfigPath()
+	if configPath == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "配置文件路径未初始化"})
+		return
+	}
+	if err := config.UpdateServerConfigInFile(configPath, port, req.Debug); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+	if err := config.ReloadFromFile(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "热加载配置失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "配置已保存，端口变更需重启服务生效"})
+}
+
+// handleUpdateWebCredentials 更新管理员用户名和密码
+func (s *Server) handleUpdateWebCredentials(c *gin.Context) {
+	var req struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "参数错误"})
+		return
+	}
+	username := strings.TrimSpace(req.Username)
+	password := strings.TrimSpace(req.Password)
+	if username == "" || password == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "用户名和密码不能为空"})
+		return
+	}
+	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "密码处理失败"})
+		return
+	}
+	configPath := config.GetConfigPath()
+	if configPath == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "配置文件路径未初始化"})
+		return
+	}
+	if err := config.UpdateWebCredentialsInFile(configPath, username, string(hashed)); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "保存配置失败: " + err.Error()})
+		return
+	}
+	// 更新内存
+	s.auth.Username = username
+	s.auth.Password = string(hashed)
+	logger.Info("登录凭据已更新", "username", username, "ip", c.ClientIP())
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "凭据已更新"})
 }
 
 // handleCheckUpdate 检查系统更新

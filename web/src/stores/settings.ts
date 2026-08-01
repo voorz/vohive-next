@@ -22,7 +22,8 @@ const DEFAULT_SYSTEM_INFO: SystemInfo = {
     swagger_ui: '',
     openapi_yaml: '',
     openapi_json: ''
-  }
+  },
+  username: ''
 }
 
 type PasswordForm = {

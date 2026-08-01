@@ -84,21 +84,6 @@ const hasValidEmailConfig = computed(() => {
 })
 
 
-async function changePassword() {
-  if (passwordForm.value.new_password !== passwordForm.value.confirm_password) {
-    ElMessage.error('两次输入的新密码不一致')
-    return
-  }
-  
-  try {
-     const result = await settingsStore.changePasswordFromForm()
-     if (!result.ok) throw new Error(result.error.message || '更新失败')
-     ElMessage.success('密码已更新')
-     settingsStore.resetPasswordForm()
-  } catch {
-     ElMessage.error('失败：后端尚未实现该功能或请求失败')
-  }
-}
 
 async function loadSystemInfo() {
   const result = await settingsStore.fetchSystemInfo()
@@ -286,6 +271,12 @@ watch(() => emailForm.value.smtp_port, (newPort) => {
 
 
 import CoreManagement from '../components/CoreManagement.vue'
+import SettingsSecurityCredentials from '../components/SettingsSecurityCredentials.vue'
+import SettingsSecurityServerPort from '../components/SettingsSecurityServerPort.vue'
+import SettingsSecurityRateLimit from '../components/SettingsSecurityRateLimit.vue'
+import SettingsSecurityTokenManager from '../components/SettingsSecurityTokenManager.vue'
+import SettingsGlobalDebugMode from '../components/SettingsGlobalDebugMode.vue'
+import SettingsGlobalDisplaySettings from '../components/SettingsGlobalDisplaySettings.vue'
 import { systemService, type UpdateInfo } from '../services/system'
 
 const updateInfo = ref<UpdateInfo | null>(null)
@@ -886,6 +877,12 @@ onBeforeUnmount(() => {
               </div>
             </div>
           </div>
+
+          <!-- FAQ 折叠卡片：调试模式 -->
+          <SettingsGlobalDebugMode />
+
+          <!-- FAQ 折叠卡片：显示设置 -->
+          <SettingsGlobalDisplaySettings />
         </div>
       </div>
 
@@ -897,32 +894,22 @@ onBeforeUnmount(() => {
               <el-icon size="20"><Key24Regular /></el-icon>
             </div>
             <div>
-              <h3 class="settings-card-title">安全</h3>
-              <p class="settings-card-desc">更新访问凭证</p>
+              <h3 class="settings-card-title">安全配置</h3>
+              <p class="settings-card-desc">登录凭据、端口、限速与 Token 管理</p>
             </div>
           </div>
 
-          <div class="space-y-4 max-w-md">
-            <div class="space-y-1">
-              <label class="settings-form-label">当前密码</label>
-              <el-input v-model="passwordForm.old_password" type="password" show-password placeholder="••••••••" size="large" />
-            </div>
-            <div class="space-y-1">
-              <label class="settings-form-label">新密码</label>
-              <el-input v-model="passwordForm.new_password" type="password" show-password placeholder="••••••••" size="large" />
-            </div>
-            <div class="space-y-1">
-              <label class="settings-form-label">确认新密码</label>
-              <el-input v-model="passwordForm.confirm_password" type="password" show-password placeholder="••••••••" size="large" />
-            </div>
-            
-            <div class="pt-4">
-              <el-button type="primary" :loading="changingPassword" @click="changePassword" size="large" class="w-full !border-0">
-                <el-icon><Save24Regular /></el-icon>
-                更新凭证
-              </el-button>
-            </div>
-          </div>
+          <!-- 登录凭据 -->
+          <SettingsSecurityCredentials :username="systemInfo.username" />
+
+          <!-- Web 管理端口 -->
+          <SettingsSecurityServerPort />
+
+          <!-- 登录限速 -->
+          <SettingsSecurityRateLimit />
+
+          <!-- Token 管理 -->
+          <SettingsSecurityTokenManager />
         </div>
       </div>
 

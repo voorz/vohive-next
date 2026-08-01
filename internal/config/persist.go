@@ -229,3 +229,112 @@ func UpdateWebCredentialsInFile(path string, username, password string) error {
 	}
 	return nil
 }
+
+// UpdateSecurityInFile 更新配置文件中的 security 节点
+func UpdateSecurityInFile(path string, loginWindowMinutes, loginMaxAttempts, tokenTTLHours int) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("读取配置文件失败: %w", err)
+	}
+
+	root := make(map[string]any)
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return fmt.Errorf("解析配置文件失败: %w", err)
+	}
+
+	root["security"] = map[string]any{
+		"login_window_minutes": loginWindowMinutes,
+		"login_max_attempts":   loginMaxAttempts,
+		"token_ttl_hours":      tokenTTLHours,
+	}
+
+	out, err := yaml.Marshal(root)
+	if err != nil {
+		return fmt.Errorf("序列化配置文件失败: %w", err)
+	}
+
+	tmp := path + ".tmp"
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("创建配置目录失败: %w", err)
+	}
+	if err := os.WriteFile(tmp, out, 0o600); err != nil {
+		return fmt.Errorf("写入临时配置文件失败: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return fmt.Errorf("替换配置文件失败: %w", err)
+	}
+	return nil
+}
+
+// UpdateAPITokenInFile 更新配置文件中的 security.api_token 和 security.api_token_expiry
+func UpdateAPITokenInFile(path string, token string, expiry int64) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("读取配置文件失败: %w", err)
+	}
+
+	root := make(map[string]any)
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return fmt.Errorf("解析配置文件失败: %w", err)
+	}
+
+	sec, ok := root["security"].(map[string]any)
+	if !ok {
+		sec = make(map[string]any)
+	}
+	sec["api_token"] = token
+	sec["api_token_expiry"] = expiry
+	root["security"] = sec
+
+	out, err := yaml.Marshal(root)
+	if err != nil {
+		return fmt.Errorf("序列化配置文件失败: %w", err)
+	}
+
+	tmp := path + ".tmp"
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("创建配置目录失败: %w", err)
+	}
+	if err := os.WriteFile(tmp, out, 0o600); err != nil {
+		return fmt.Errorf("写入临时配置文件失败: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return fmt.Errorf("替换配置文件失败: %w", err)
+	}
+	return nil
+}
+
+// UpdateServerConfigInFile 更新配置文件中的 server 节点（port/debug）
+func UpdateServerConfigInFile(path string, port string, debug bool) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("读取配置文件失败: %w", err)
+	}
+
+	root := make(map[string]any)
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return fmt.Errorf("解析配置文件失败: %w", err)
+	}
+
+	root["server"] = map[string]any{
+		"port":  port,
+		"debug": debug,
+	}
+
+	out, err := yaml.Marshal(root)
+	if err != nil {
+		return fmt.Errorf("序列化配置文件失败: %w", err)
+	}
+
+	tmp := path + ".tmp"
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("创建配置目录失败: %w", err)
+	}
+	if err := os.WriteFile(tmp, out, 0o600); err != nil {
+		return fmt.Errorf("写入临时配置文件失败: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return fmt.Errorf("替换配置文件失败: %w", err)
+	}
+	return nil
+}

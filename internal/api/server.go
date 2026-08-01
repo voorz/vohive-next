@@ -154,7 +154,11 @@ func checkPassword(stored, input string) bool {
 }
 
 func (s *Server) issueSessionToken() (string, time.Time, error) {
-	exp := time.Now().Add(30 * 24 * time.Hour) // 有效期 30 天
+	ttlHours := 720 // 默认 30 天
+	if s.fullCfg != nil && s.fullCfg.Security.TokenTTLHours > 0 {
+		ttlHours = s.fullCfg.Security.TokenTTLHours
+	}
+	exp := time.Now().Add(time.Duration(ttlHours) * time.Hour)
 	expStr := strconv.FormatInt(exp.Unix(), 10)
 
 	h := hmac.New(sha256.New, []byte(s.auth.Password))
@@ -173,8 +177,17 @@ func (s *Server) allowLoginAttempt(ip string, now time.Time) bool {
 	if ip == "" {
 		ip = "unknown"
 	}
-	window := 2 * time.Minute
+	windowMinutes := 2
 	limit := 10
+	if s.fullCfg != nil {
+		if s.fullCfg.Security.LoginWindowMinutes > 0 {
+			windowMinutes = s.fullCfg.Security.LoginWindowMinutes
+		}
+		if s.fullCfg.Security.LoginMaxAttempts > 0 {
+			limit = s.fullCfg.Security.LoginMaxAttempts
+		}
+	}
+	window := time.Duration(windowMinutes) * time.Minute
 
 	s.loginMu.Lock()
 	defer s.loginMu.Unlock()
@@ -289,6 +302,13 @@ func (s *Server) newRouter() *gin.Engine {
 		api.DELETE("/settings/update-repo", s.handleDeleteUpdateRepo)  // 删除 release 源配置
 		api.GET("/settings/sms-limit", s.handleGetSMSRateLimit)       // 获取短信限速配置
 		api.PUT("/settings/sms-limit", s.handleUpdateSMSRateLimit)    // 更新短信限速配置
+		api.GET("/settings/security", s.handleGetSecurity)            // 获取安全配置
+		api.PUT("/settings/security", s.handleUpdateSecurity)          // 更新安全配置
+		api.POST("/settings/api-token", s.handleCreateAPIToken)        // 创建/刷新 API Token
+		api.DELETE("/settings/api-token", s.handleDeleteAPIToken)      // 删除 API Token
+		api.GET("/settings/server", s.handleGetServerConfig)           // 获取服务器配置
+		api.PUT("/settings/server", s.handleUpdateServerConfig)        // 更新服务器配置
+		api.PUT("/settings/web-credentials", s.handleUpdateWebCredentials) // 更新管理员用户名+密码
 
 		api.GET("/devices", s.handleDeviceMgmtList)                                            // 获取设备列表（管理页用）
 		api.POST("/devices", s.handleDeviceMgmtAddDevice)                                      // 添加新设备
@@ -1725,7 +1745,38 @@ func (s *Server) requestSessionToken(c *gin.Context) string {
 
 func (s *Server) isAuthenticatedRequest(c *gin.Context, now time.Time) bool {
 	token := s.requestSessionToken(c)
-	return token != "" && s.isSessionTokenValid(token, now)
+	if token == "" {
+		return false
+	}
+	// 1. 检查 session token
+	if s.isSessionTokenValid(token, now) {
+		return true
+	}
+	// 2. 检查 API token
+	if s.isAPITokenValid(token, now) {
+		return true
+	}
+	return false
+}
+
+// isAPITokenValid 检查 API Token 是否有效
+func (s *Server) isAPITokenValid(token string, now time.Time) bool {
+	if s.fullCfg == nil {
+		return false
+	}
+	apiToken := strings.TrimSpace(s.fullCfg.Security.APIToken)
+	if apiToken == "" {
+		return false
+	}
+	// 常量时间比较防止时序攻击
+	if !hmac.Equal([]byte(token), []byte(apiToken)) {
+		return false
+	}
+	// 检查过期时间（0 表示永不过期）
+	if s.fullCfg.Security.APITokenExpiry > 0 && now.After(time.Unix(s.fullCfg.Security.APITokenExpiry, 0)) {
+		return false
+	}
+	return true
 }
 
 func (s *Server) authMiddleware() gin.HandlerFunc {
@@ -1851,5 +1902,6 @@ func (s *Server) handleSystemInfo(c *gin.Context) {
 		"build_time": global.BuildTime,
 		"config":     viper.ConfigFileUsed(),
 		"docs":       currentAPIDocsLinks(),
+		"username":   s.auth.Username,
 	})
 }

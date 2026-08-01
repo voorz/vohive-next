@@ -42,12 +42,12 @@
   --accent-foreground: rgb(41, 41, 41);
 
   /* 语义色 */
-  --brand: rgb(124, 157, 255);
+  --brand: rgb(0, 188, 125);
   --brand-foreground: rgb(255, 255, 255);
-  --destructive: rgb(215, 50, 32);
+  --destructive: rgb(226, 0, 89);
   --info: rgb(59, 99, 251);
   --reward: rgb(252, 125, 0);
-  --success: rgb(5, 131, 78);
+  --success: rgb(0, 188, 125);
   --warning: rgb(252, 125, 0);
   --visibility-private: rgb(59, 99, 251);
   --visibility-public: rgb(5, 131, 78);
@@ -157,12 +157,12 @@ html.dark {
   --accent-foreground: rgb(235, 235, 235);
 
   /* 语义色 — 暗色 */
-  --brand: rgb(124, 157, 255);
+  --brand: rgb(0, 188, 125);
   --brand-foreground: rgb(255, 255, 255);
-  --destructive: rgb(223, 52, 34);
+  --destructive: rgb(226, 0, 89);
   --info: rgb(64, 105, 253);
   --reward: rgb(218, 159, 0);
-  --success: rgb(6, 136, 80);
+  --success: rgb(0, 188, 125);
   --warning: rgb(218, 159, 0);
   --visibility-private: rgb(64, 105, 253);
   --visibility-public: rgb(6, 136, 80);
@@ -918,4 +918,83 @@ html.dark .el-checkbox.is-checked .el-checkbox__label {
   .detail-panel {
     max-height: none;
   }
+}
+
+/* ── FAQ 卡片共享样式（供 Settings 子组件使用） ── */
+
+.faq-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--background);
+  overflow: hidden;
+}
+
+.faq-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s;
+}
+
+.faq-header:hover {
+  background: var(--accent);
+}
+
+.faq-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.faq-arrow {
+  transition: transform 0.2s;
+  color: var(--muted-foreground);
+}
+
+.faq-arrow.expanded {
+  transform: rotate(180deg);
+}
+
+.faq-body {
+  padding: 16px;
+  border-top: 1px solid var(--border);
+}
+
+.faq-item-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.faq-item-desc {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  margin-top: 2px;
+}
+
+.faq-field-label {
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
+.faq-field-unit {
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+
+.settings-form-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── Switch 开关品牌色 ── */
+.el-switch.is-checked .el-switch__core {
+  background-color: var(--brand);
+  border-color: var(--brand);
 }
