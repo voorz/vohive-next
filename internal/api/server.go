@@ -279,10 +279,14 @@ func (s *Server) newRouter() *gin.Engine {
 		api.POST("/settings/notifications/email/test", s.handleTestEmailNotification)
 		api.POST("/settings/password", s.handleChangePassword) // 修改登录密码
 		api.GET("/system/info", s.handleSystemInfo)            // 获取系统运行与版本信息
-		api.GET("/system/update/check", s.handleCheckUpdate)   // 检查系统更新
-		api.POST("/system/update/apply", s.handleApplyUpdate)  // 应用系统更新
+		api.GET("/system/update/check", s.handleCheckUpdate)          // 检查系统更新
+		api.GET("/system/update/releases", s.handleListReleases)    // 获取 Release 列表
+		api.POST("/system/update/apply", s.handleApplyUpdate)        // 应用最新版本更新
+		api.POST("/system/update/apply/:tag", s.handleApplyUpdateByTag) // 按 tag 应用指定版本更新
+		api.POST("/system/update/local", s.handleLocalUpdate)         // 上传本地二进制更新
 		api.GET("/settings/update-repo", s.handleGetUpdateRepo)       // 获取 release 源配置
 		api.PUT("/settings/update-repo", s.handleUpdateUpdateRepo)    // 更新 release 源配置
+		api.DELETE("/settings/update-repo", s.handleDeleteUpdateRepo)  // 删除 release 源配置
 		api.GET("/settings/sms-limit", s.handleGetSMSRateLimit)       // 获取短信限速配置
 		api.PUT("/settings/sms-limit", s.handleUpdateSMSRateLimit)    // 更新短信限速配置
 

@@ -310,8 +310,6 @@ func Load(path string) (*Config, error) {
 	viper.SetDefault("web.password", "admin")
 	viper.SetDefault("vowifi.enabled", false)
 	viper.SetDefault("vowifi.mode", "vowifi")
-	viper.SetDefault("update_repo.owner", "iniwex5")
-	viper.SetDefault("update_repo.name", "vohive-release")
 	viper.SetDefault("sms_rate_limit.hourly_limit", 3)
 	viper.SetDefault("sms_rate_limit.daily_limit", 10)
 	viper.SetDefault("imscore.use_sipgo_udp", false)

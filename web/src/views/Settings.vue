@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { useSettingsStore } from '../stores/settings'
 import FieldRow from '../components/FieldRow.vue'
 import { 
@@ -285,104 +285,111 @@ watch(() => emailForm.value.smtp_port, (newPort) => {
 
 
 
+import CoreManagement from '../components/CoreManagement.vue'
 import { systemService, type UpdateInfo } from '../services/system'
 
-const checkingUpdate = ref(false)
-const applyingUpdate = ref(false)
 const updateInfo = ref<UpdateInfo | null>(null)
+const checkingUpdate = ref(false)
+let hasAutoChecked = false
 
-const updateRepoDialogOpen = ref(false)
-const updateRepoForm = ref({ owner: '', name: '' })
-const updateRepoLoading = ref(false)
-
-async function doCheckUpdate() {
+async function autoCheckUpdate() {
+  if (hasAutoChecked || !repoAvailable.value) return
+  hasAutoChecked = true
   checkingUpdate.value = true
   try {
     const res = await systemService.checkUpdate()
-    if (!res.ok) throw new Error(res.error.message || '检查更新失败')
-    updateInfo.value = res.data
-    if (!res.data.has_update) {
-      ElMessage.success('当前已是最新版本')
+    if (res.ok) {
+      updateInfo.value = res.data
     }
-  } catch (e: any) {
-    ElMessage.error(e.message || '检查更新失败')
+  } catch {
+    // 静默失败，不打扰用户
   } finally {
     checkingUpdate.value = false
   }
 }
 
-async function doApplyUpdate() {  if (!updateInfo.value) return
-
-  if (updateInfo.value.is_docker) {
-    ElMessageBox.alert(
-      '检测到当前系统运行在 Docker 环境下。<br><br>不建议在 Docker 容器内直接执行文件热替换。请直接通过拉取最新镜像（如 <code>docker pull iniwex5/vohive:latest</code>）并重启容器来完成升级！',
-      '环境警告',
-      { dangerouslyUseHTMLString: true, type: 'warning' }
-    )
-    return
+watch(activeTab, (tab) => {
+  if (tab === 'about') {
+    autoCheckUpdate()
   }
+})
 
-  try {
-    await ElMessageBox.confirm(
-      `最新版本：${updateInfo.value.latest_version}，确定要现在更新并重启服务吗？<br><br><pre style="white-space: pre-wrap; font-size: 12px; max-height: 200px; overflow-y: auto; background: var(--el-fill-color-light); padding: 8px; border-radius: 4px; margin-top: 8px;">${updateInfo.value.release_note}</pre>`,
-      '应用更新',
-      { dangerouslyUseHTMLString: true, confirmButtonText: '立即更新', cancelButtonText: '取消', type: 'warning' }
-    )
-    applyingUpdate.value = true
-    const res = await systemService.applyUpdate()
-    if (!res.ok) throw new Error(res.error.message || '请求应用更新失败')
-    ElMessage.success(res.data?.message || '正在更新...')
-    setTimeout(() => {
-      window.location.reload()
-    }, 5000)
-  } catch (e: any) {
-    if (e !== 'cancel') {
-      ElMessage.error(e.message || '应用更新失败')
-    }
-  } finally {
-    applyingUpdate.value = false
-  }
-}
+const updateRepoDialogOpen = ref(false)
+const updateRepoForm = ref({ url: '' })
+const updateRepoLoading = ref(false)
 
 onMounted(() => {
   loadNotifications()
   loadSystemInfo()
   loadSMSRateLimit()
+  loadUpdateRepo()
 })
 
 async function openUpdateRepoDialog() {
-  updateRepoLoading.value = true
+  await loadUpdateRepo()
   updateRepoDialogOpen.value = true
+}
+
+async function loadUpdateRepo() {
   try {
     const res = await systemService.getUpdateRepo()
     if (res.ok) {
-      updateRepoForm.value.owner = res.data.owner
-      updateRepoForm.value.name = res.data.name
+      if (res.data.owner && res.data.name) {
+        updateRepoForm.value.url = `https://github.com/${res.data.owner}/${res.data.name}`
+      } else {
+        updateRepoForm.value.url = ''
+      }
     }
   } catch {
     // keep defaults
+  }
+}
+
+const repoAvailable = computed(() => {
+  return !!updateRepoForm.value.url
+})
+
+function parseGitHubUrl(url: string): { owner: string; name: string } | null {
+  const match = url.match(/github\.com\/([^/]+)\/([^/]+)/)
+  if (match) {
+    return { owner: match[1], name: match[2].replace(/\.git$/, '') }
+  }
+  return null
+}
+
+async function saveUpdateRepo() {
+  const url = updateRepoForm.value.url.trim()
+  if (!url) {
+    ElMessage.error('仓库地址不能为空')
+    return
+  }
+  const parsed = parseGitHubUrl(url)
+  if (!parsed) {
+    ElMessage.error('无效的 GitHub 仓库地址，应为 https://github.com/owner/name')
+    return
+  }
+  updateRepoLoading.value = true
+  try {
+    const res = await systemService.saveUpdateRepo(parsed.owner, parsed.name)
+    if (!res.ok) throw new Error(res.error.message || '保存失败')
+    ElMessage.success('Release 源已更新')
+    updateRepoDialogOpen.value = false
+    await loadUpdateRepo()
+  } catch (e: any) {
+    ElMessage.error(e.message || '保存失败')
   } finally {
     updateRepoLoading.value = false
   }
 }
 
-async function saveUpdateRepo() {
-  const owner = updateRepoForm.value.owner.trim()
-  const name = updateRepoForm.value.name.trim()
-  if (!owner || !name) {
-    ElMessage.warning('owner 和 name 不能为空')
-    return
-  }
-  updateRepoLoading.value = true
+async function deleteUpdateRepo() {
   try {
-    const res = await systemService.saveUpdateRepo(owner, name)
-    if (!res.ok) throw new Error(res.error.message || '保存失败')
-    ElMessage.success('Release 源已更新')
-    updateRepoDialogOpen.value = false
+    await systemService.deleteUpdateRepo()
+    ElMessage.success('配置已删除')
+    updateRepoForm.value.url = ''
+    await loadUpdateRepo()
   } catch (e: any) {
-    ElMessage.error(e.message || '保存失败')
-  } finally {
-    updateRepoLoading.value = false
+    ElMessage.error('删除失败')
   }
 }
 
@@ -934,56 +941,67 @@ onBeforeUnmount(() => {
 
           <div class="settings-inner-card p-4">
             <div class="space-y-4 text-sm">
+            <!-- 核心版本 -->
             <div class="settings-info-row">
-              <FieldRow label="版本" :value="systemInfo.version" monospace>
-                <div class="flex items-center justify-end gap-3">
-                  <el-button size="small" :loading="checkingUpdate" @click.stop="doCheckUpdate">
-                    检查更新
-                  </el-button>
-                  <el-button size="small" @click.stop="openUpdateRepoDialog">
-                    配置 release
-                  </el-button>
-                  <span>{{ systemInfo.version || 'Unknown' }}</span>
+              <FieldRow label="核心版本">
+                <div class="flex items-center justify-end gap-2">
+                  <span class="font-mono">{{ systemInfo.version || '--' }}</span>
+                  <el-tag v-if="checkingUpdate" type="info" size="small">检查中...</el-tag>
+                  <el-tag v-else-if="updateInfo?.has_update" type="warning" size="small">可更新至 {{ updateInfo.latest_version }}</el-tag>
+                  <el-tag v-else-if="updateInfo && !updateInfo.has_update" type="success" size="small">已是最新</el-tag>
                 </div>
               </FieldRow>
             </div>
-            
-            <div v-if="updateInfo?.has_update" class="settings-update-alert">
-              <div class="settings-update-title">
-                <el-icon><Alert24Regular /></el-icon>发现新版本: {{ updateInfo.latest_version }}
-              </div>
-              <div class="text-xs mb-4 whitespace-pre-wrap max-h-32 overflow-y-auto pr-2" style="color: var(--warning);">
-                {{ updateInfo.release_note || '暂无更新说明' }}
-              </div>
-              <el-button type="warning" :loading="applyingUpdate" @click="doApplyUpdate" class="w-full !border-0">
-                立即更新并重启
-              </el-button>
-            </div>
+
+            <!-- 构建时间 -->
             <div class="settings-info-row">
               <FieldRow label="构建时间" :value="systemInfo.build_time" monospace />
             </div>
+
+            <!-- Release 仓库 -->
+            <div class="settings-info-row">
+              <FieldRow label="Release 仓库">
+                <div class="flex items-center justify-end gap-2">
+                  <span class="flex items-center gap-1.5">
+                    <span class="settings-status-dot" :class="repoAvailable ? 'ok' : 'error'"></span>
+                    <span v-if="repoAvailable" class="font-mono text-xs">{{ updateRepoForm.url }}</span>
+                    <span v-else style="color: var(--muted-foreground);">未配置</span>
+                  </span>
+                  <el-button size="small" @click="openUpdateRepoDialog">配置 Release</el-button>
+                </div>
+              </FieldRow>
+            </div>
+
+            <!-- 配置路径 -->
             <div class="settings-info-row">
               <FieldRow label="配置路径" :value="systemInfo.config" monospace copyable />
             </div>
-            <div class="settings-api-card">
-              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div class="min-w-0">
-                  <div>
-                    <div class="settings-api-title">API 文档</div>
-                    <div class="settings-card-desc">打开后端直出的 OpenAPI 页面</div>
-                  </div>
+        </div>
+        </div>
+
+        <!-- 核心管理 -->
+        <div class="mt-4">
+          <CoreManagement :repo-available="repoAvailable" />
+        </div>
+
+        <!-- API 文档（核心管理下方） -->
+          <div class="settings-api-card mt-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div class="min-w-0">
+                <div>
+                  <div class="settings-api-title">API 文档</div>
+                  <div class="settings-card-desc">打开后端直出的 OpenAPI 页面</div>
                 </div>
-                <el-button
-                  type="primary"
-                  class="self-start sm:self-center shrink-0 !border-0"
-                  :disabled="!systemInfo.docs?.swagger_ui"
-                  @click="openAPIDocs"
-                >
-                  打开 API 文档
-                </el-button>
               </div>
+              <el-button
+                type="primary"
+                class="self-start sm:self-center shrink-0 !border-0"
+                :disabled="!systemInfo.docs?.swagger_ui"
+                @click="openAPIDocs"
+              >
+                打开 API 文档
+              </el-button>
             </div>
-          </div>
           </div>
         </div>
       </div>
@@ -994,24 +1012,20 @@ onBeforeUnmount(() => {
     <el-dialog v-model="updateRepoDialogOpen" title="配置 Release 源" width="440px" :close-on-click-modal="false">
       <div v-loading="updateRepoLoading" class="space-y-4">
         <div class="space-y-1">
-          <label class="settings-form-label">GitHub Owner</label>
-          <el-input v-model="updateRepoForm.owner" placeholder="例如 iniwex5" />
+          <label class="settings-form-label">GitHub 仓库地址</label>
+          <el-input v-model="updateRepoForm.url" placeholder="https://github.com/{OWNER}/{REPO}" />
+          <div class="settings-form-hint">粘贴完整仓库地址，系统将自动解析 owner 和 name</div>
         </div>
-        <div class="space-y-1">
-          <label class="settings-form-label">Repo Name</label>
-          <el-input v-model="updateRepoForm.name" placeholder="例如 vohive-release" />
-        </div>
-        <div class="settings-form-hint">
-          检查更新时访问 <code class="font-mono">https://api.github.com/repos/{owner}/{name}/releases/latest</code>。修改后立即生效。
+        <div class="flex justify-between gap-2">
+          <el-button @click="updateRepoDialogOpen = false">取消</el-button>
+          <div class="flex gap-2">
+            <el-button v-if="repoAvailable" type="danger" :loading="updateRepoLoading" @click="deleteUpdateRepo">删除配置</el-button>
+            <el-button type="primary" :loading="updateRepoLoading" @click="saveUpdateRepo" class="!border-0">保存</el-button>
+          </div>
         </div>
       </div>
-      <template #footer>
-        <div class="flex items-center justify-end gap-2">
-          <el-button @click="updateRepoDialogOpen = false">取消</el-button>
-          <el-button type="primary" :loading="updateRepoLoading" @click="saveUpdateRepo" class="!border-0">保存</el-button>
-        </div>
-      </template>
     </el-dialog>
+
   </div>
 </template>
 
@@ -1114,22 +1128,6 @@ onBeforeUnmount(() => {
   padding-bottom: 12px;
 }
 
-.settings-update-alert {
-  border: 1px solid color-mix(in oklab, var(--warning) 30%, var(--border));
-  border-radius: 8px;
-  padding: 16px;
-  background: color-mix(in oklab, var(--warning) 5%, transparent);
-}
-
-.settings-update-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
-  color: var(--warning);
-  margin-bottom: 8px;
-}
-
 .settings-api-card {
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -1141,6 +1139,21 @@ onBeforeUnmount(() => {
   font-size: 14px;
   font-weight: 700;
   color: var(--foreground);
+}
+
+.settings-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.settings-status-dot.ok {
+  background: var(--success);
+}
+
+.settings-status-dot.error {
+  background: var(--destructive);
 }
 
 .settings-inner-card {

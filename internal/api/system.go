@@ -16,7 +16,7 @@ import (
 
 var errNotFound = errors.New("not found")
 
-// handleGetUpdateRepo 返回当前 release 源配置
+// handleGetUpdateRepo 返回当前 release 源配置（无默认值）
 func (s *Server) handleGetUpdateRepo(c *gin.Context) {
 	cfg := config.GetConfig()
 	owner := ""
@@ -24,12 +24,6 @@ func (s *Server) handleGetUpdateRepo(c *gin.Context) {
 	if cfg != nil {
 		owner = cfg.UpdateRepo.Owner
 		name = cfg.UpdateRepo.Name
-	}
-	if owner == "" {
-		owner = "iniwex5"
-	}
-	if name == "" {
-		name = "vohive-release"
 	}
 	c.JSON(http.StatusOK, gin.H{"owner": owner, "name": name})
 }
@@ -64,6 +58,24 @@ func (s *Server) handleUpdateUpdateRepo(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "owner": owner, "name": name})
+}
+
+// handleDeleteUpdateRepo 删除 release 源配置并热加载
+func (s *Server) handleDeleteUpdateRepo(c *gin.Context) {
+	configPath := config.GetConfigPath()
+	if configPath == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "配置文件路径未初始化"})
+		return
+	}
+	if err := config.DeleteUpdateRepoInFile(configPath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+	if err := config.ReloadFromFile(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "热加载配置失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
 // handleGetSMSRateLimit 返回当前短信限速配置
@@ -133,6 +145,66 @@ func detectServiceStopCommands(lookPath func(string) (string, error), statFile f
 		cmds = append(cmds, []string{"systemctl", "disable", "--now", "vohive"})
 	}
 	return cmds
+}
+
+// handleListReleases 获取 Release 列表
+func (s *Server) handleListReleases(c *gin.Context) {
+	releases, err := updater.ListReleases()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"releases": releases})
+}
+
+// handleApplyUpdateByTag 按 tag 下载指定 Release 并应用更新
+func (s *Server) handleApplyUpdateByTag(c *gin.Context) {
+	tag := c.Param("tag")
+	if tag == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "tag 不能为空"})
+		return
+	}
+	if err := updater.ApplyUpdateByTag(tag); err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, updater.ErrDisabled) {
+			status = http.StatusConflict
+		} else {
+			logger.Error("按 tag 应用更新失败", "tag", tag, "err", err)
+		}
+		c.JSON(status, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "正在后台下载更新，系统稍后将自动重启..."})
+}
+
+// handleLocalUpdate 上传本地二进制文件进行更新
+func (s *Server) handleLocalUpdate(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "未接收到文件: " + err.Error()})
+		return
+	}
+
+	logger.Info("收到本地二进制上传", "filename", file.Filename, "size", file.Size)
+
+	src, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "打开上传文件失败: " + err.Error()})
+		return
+	}
+	defer src.Close()
+
+	if err := updater.ApplyLocalUpdate(src); err != nil {
+		status := http.StatusInternalServerError
+		if errors.Is(err, updater.ErrDisabled) {
+			status = http.StatusConflict
+		} else {
+			logger.Error("本地二进制更新失败", "err", err)
+		}
+		c.JSON(status, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "正在后台安装更新，系统稍后将自动重启..."})
 }
 
 // handleCheckUpdate 检查系统更新

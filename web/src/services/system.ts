@@ -13,6 +13,15 @@ export type UpdateInfo = {
   latest_version: string
   release_note: string
   is_docker: boolean
+  error?: string
+}
+
+export type ReleaseItem = {
+  tag_name: string
+  name: string
+  published_at: string
+  body: string
+  prerelease: boolean
 }
 
 export type SystemInfo = {
@@ -251,9 +260,31 @@ export const systemService = {
       return res.data
     })
   },
+  listReleases() {
+    return callService(async () => {
+      const res = await api.get<{ releases: ReleaseItem[] }>('/system/update/releases')
+      return res.data.releases
+    })
+  },
   applyUpdate() {
     return callService(async () => {
       const res = await api.post<{ message: string }>('/system/update/apply', {})
+      return res.data
+    })
+  },
+  applyUpdateByTag(tag: string) {
+    return callService(async () => {
+      const res = await api.post<{ message: string }>(`/system/update/apply/${tag}`, {})
+      return res.data
+    })
+  },
+  uploadLocalUpdate(file: File) {
+    return callService(async () => {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await api.post<{ message: string }>('/system/update/local', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
       return res.data
     })
   },
@@ -267,6 +298,12 @@ export const systemService = {
     return callService(async () => {
       const res = await api.put<{ status: string; owner: string; name: string }>('/settings/update-repo', { owner, name })
       return res.data
+    })
+  },
+  deleteUpdateRepo() {
+    return callService(async () => {
+      await api.delete<{ status: string }>('/settings/update-repo')
+      return true
     })
   },
   getSMSRateLimit() {
