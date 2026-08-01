@@ -61,10 +61,29 @@ async function remove() {
 }
 
 async function copy(text: string) {
-  try {
-    await navigator.clipboard.writeText(text)
+  // 优先 Clipboard API，fallback 到 execCommand
+  let ok = false
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text)
+      ok = true
+    } catch { /* fall through */ }
+  }
+  if (!ok) {
+    try {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      ta.style.position = 'fixed'
+      ta.style.left = '-9999px'
+      document.body.appendChild(ta)
+      ta.select()
+      ok = document.execCommand('copy')
+      document.body.removeChild(ta)
+    } catch { /* give up */ }
+  }
+  if (ok) {
     ElMessage.success('已复制到剪贴板')
-  } catch {
+  } else {
     ElMessage.error('复制失败')
   }
 }

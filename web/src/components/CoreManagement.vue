@@ -247,7 +247,7 @@ onBeforeUnmount(() => {
           @click="switchToOnline"
         >
           <el-icon size="14" class="mr-1"><Cloud24Regular /></el-icon>
-          检查更新
+          在线更新
         </button>
       </div>
     </div>
@@ -303,7 +303,7 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <!-- 检查更新 -->
+    <!-- 在线更新 -->
     <div v-else class="core-mgmt-body">
       <!-- 未配置提示 -->
       <div v-if="!repoAvailable" class="core-mgmt-hint" style="padding: 24px 0; text-align: center;">

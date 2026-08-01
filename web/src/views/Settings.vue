@@ -12,7 +12,8 @@ import {
   Add20Regular,
   Delete20Regular,
   Globe24Regular,
-  ChevronDown20Regular
+  ChevronDown20Regular,
+  WindowConsole20Regular
 } from '@vicons/fluent'
 
 const settingsStore = useSettingsStore()
@@ -278,6 +279,7 @@ import SettingsSecurityTokenManager from '../components/SettingsSecurityTokenMan
 import SettingsGlobalDebugMode from '../components/SettingsGlobalDebugMode.vue'
 import SettingsGlobalDisplaySettings from '../components/SettingsGlobalDisplaySettings.vue'
 import SettingsGlobalSiteInfo from '../components/SettingsGlobalSiteInfo.vue'
+import SettingsMcpConfig from '../components/SettingsMcpConfig.vue'
 import { systemService, type UpdateInfo } from '../services/system'
 
 const updateInfo = ref<UpdateInfo | null>(null)
@@ -407,6 +409,14 @@ onBeforeUnmount(() => {
             <div class="flex items-center gap-1.5">
               <el-icon size="16"><Globe24Regular /></el-icon>
               <span>全局</span>
+            </div>
+          </template>
+        </el-tab-pane>
+        <el-tab-pane name="mcp">
+          <template #label>
+            <div class="flex items-center gap-1.5">
+              <el-icon size="16"><WindowConsole20Regular /></el-icon>
+              <span>MCP</span>
             </div>
           </template>
         </el-tab-pane>
@@ -887,6 +897,22 @@ onBeforeUnmount(() => {
 
           <!-- FAQ 折叠卡片：站点信息 -->
           <SettingsGlobalSiteInfo />
+        </div>
+      </div>
+
+      <!-- ═══════════ MCP Tab ═══════════ -->
+      <div v-show="activeTab === 'mcp'" class="flex-1 min-h-0 overflow-auto">
+        <div class="p-6">
+          <div class="flex items-center gap-3 mb-6">
+            <div class="settings-icon-box">
+              <el-icon size="20"><WindowConsole20Regular /></el-icon>
+            </div>
+            <div>
+              <h3 class="settings-card-title">MCP</h3>
+              <p class="settings-card-desc">Model Context Protocol 配置与资源</p>
+            </div>
+          </div>
+          <SettingsMcpConfig :api-token-expiry="0" :has-api-token="false" @switch-tab="activeTab = $event" />
         </div>
       </div>
 

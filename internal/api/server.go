@@ -121,6 +121,7 @@ func New(cfg *config.Config, pool *device.Pool, fs http.FileSystem, proxyMgr *se
 		smsLimiter:    newSMSRateLimiter(time.Now(), time.Now),
 		shutdownCh:    make(chan struct{}),
 	}
+	s.initMCP()
 
 	return s
 }
@@ -317,6 +318,9 @@ func (s *Server) newRouter() *gin.Engine {
 		api.PUT("/settings/site", s.handleUpdateSite)                  // 更新站点名称/副标题
 		api.POST("/settings/site/logo", s.handleUploadSiteLogo)        // 上传自定义 logo
 		api.POST("/settings/site/favicon", s.handleUploadSiteFavicon) // 上传自定义 favicon
+
+		// MCP Streamable HTTP（需鉴权，复用 authMiddleware）
+		api.POST("/mcp", s.handleMcpRequest)
 
 		api.GET("/devices", s.handleDeviceMgmtList)                                            // 获取设备列表（管理页用）
 		api.POST("/devices", s.handleDeviceMgmtAddDevice)                                      // 添加新设备
