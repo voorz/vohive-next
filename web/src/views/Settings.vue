@@ -275,7 +275,7 @@ import CoreManagement from '../components/CoreManagement.vue'
 import SettingsSecurityCredentials from '../components/SettingsSecurityCredentials.vue'
 import SettingsSecurityServerPort from '../components/SettingsSecurityServerPort.vue'
 import SettingsSecurityRateLimit from '../components/SettingsSecurityRateLimit.vue'
-import SettingsSecurityTokenManager from '../components/SettingsSecurityTokenManager.vue'
+import SettingsMcpTokenManager from '../components/SettingsMcpTokenManager.vue'
 import SettingsGlobalDebugMode from '../components/SettingsGlobalDebugMode.vue'
 import SettingsGlobalDisplaySettings from '../components/SettingsGlobalDisplaySettings.vue'
 import SettingsGlobalSiteInfo from '../components/SettingsGlobalSiteInfo.vue'
@@ -912,7 +912,10 @@ onBeforeUnmount(() => {
               <p class="settings-card-desc">Model Context Protocol 配置与资源</p>
             </div>
           </div>
-          <SettingsMcpConfig :api-token-expiry="0" :has-api-token="false" @switch-tab="activeTab = $event" />
+          <SettingsMcpConfig />
+
+          <!-- Token 管理 -->
+          <SettingsMcpTokenManager />
         </div>
       </div>
 
@@ -925,7 +928,7 @@ onBeforeUnmount(() => {
             </div>
             <div>
               <h3 class="settings-card-title">安全配置</h3>
-              <p class="settings-card-desc">登录凭据、端口、限速与 Token 管理</p>
+              <p class="settings-card-desc">登录凭据、端口与限速</p>
             </div>
           </div>
 
@@ -938,8 +941,6 @@ onBeforeUnmount(() => {
           <!-- 登录限速 -->
           <SettingsSecurityRateLimit />
 
-          <!-- Token 管理 -->
-          <SettingsSecurityTokenManager />
         </div>
       </div>
 

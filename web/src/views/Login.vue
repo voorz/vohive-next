@@ -1,123 +1,331 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useRoute, useRouter } from 'vue-router'
-import { Person24Regular, LockClosed24Regular, ArrowRight24Regular } from '@vicons/fluent'
+import { useSiteConfig } from '../composables/useSiteConfig'
+import { WeatherSunny24Regular, WeatherMoon24Regular } from '@vicons/fluent'
 
 const auth = useAuthStore()
 const router = useRouter()
 const route = useRoute()
+const { siteConfig } = useSiteConfig()
 
-const form = ref({
-  username: '',
-  password: ''
-})
-
+const form = ref({ username: '', password: '' })
 const loading = ref(false)
+const isDark = ref(false)
+
+// 主题切换
+function applyTheme(dark: boolean) {
+  isDark.value = dark
+  if (dark) {
+    document.documentElement.classList.add('dark')
+  } else {
+    document.documentElement.classList.remove('dark')
+  }
+  localStorage.setItem('theme', dark ? 'dark' : 'light')
+}
+
+function toggleTheme() {
+  applyTheme(!isDark.value)
+}
+
+onMounted(() => {
+  // 读取主题偏好
+  const saved = localStorage.getItem('theme')
+  if (saved === 'dark') {
+    applyTheme(true)
+  } else if (saved === 'light') {
+    applyTheme(false)
+  } else {
+    // 跟随系统
+    applyTheme(window.matchMedia('(prefers-color-scheme: dark)').matches)
+  }
+})
 
 async function handleLogin() {
   const { ElMessage } = await import('element-plus')
   if (!form.value.username || !form.value.password) {
-    ElMessage.warning('请输入用户名和密码')
+    ElMessage.warning('Please enter username and password')
     return
   }
-  
   loading.value = true
-  // Mock delay for feel
-  await new Promise<void>(r => setTimeout(r, 600))
   const success = await auth.login(form.value.username, form.value.password)
   loading.value = false
-
   if (success) {
-    ElMessage.success('欢迎回来')
+    ElMessage.success('Welcome back')
     const q = typeof route.query.redirect === 'string' ? route.query.redirect : ''
     let redirect = q ? decodeURIComponent(q) : ''
     if (!redirect) {
-      try {
-        redirect = sessionStorage.getItem('post_login_redirect') || ''
-      } catch {
-        // Ignore sessionStorage read failures.
-      }
+      try { redirect = sessionStorage.getItem('post_login_redirect') || '' } catch {}
     }
     if (redirect) {
-      try {
-        sessionStorage.removeItem('post_login_redirect')
-      } catch {
-        // Ignore sessionStorage delete failures.
-      }
+      try { sessionStorage.removeItem('post_login_redirect') } catch {}
       router.push(redirect)
     } else {
       router.push('/')
     }
   } else {
-    ElMessage.error('登录失败，请检查凭证')
+    ElMessage.error('Login failed, please check credentials')
   }
 }
 </script>
 
 <template>
-  <div class="relative w-full h-full flex items-center justify-center overflow-hidden">
-    <div class="absolute -top-32 -left-32 w-[520px] h-[520px] rounded-full bg-indigo-500/15 dark:bg-indigo-500/20 blur-[120px] animate-pulse-slow" />
-    <div class="absolute -bottom-32 -right-32 w-[520px] h-[520px] rounded-full bg-indigo-500/12 dark:bg-indigo-500/16 blur-[120px] animate-pulse-slow" style="animation-delay: 2s" />
+  <div class="login-page">
+    <!-- 主题切换按钮 -->
+    <button class="theme-toggle" @click="toggleTheme" title="Toggle theme">
+      <component :is="isDark ? WeatherSunny24Regular : WeatherMoon24Regular" />
+    </button>
 
-    <div class="relative w-full max-w-md p-1">
-      <div class="relative bg-white/70 dark:bg-[#141418]/70 backdrop-blur-xl border border-gray-100 dark:border-white/10 rounded-2xl p-8 shadow-2xl overflow-hidden group">
-        <div class="absolute inset-0 bg-gradient-to-br from-indigo-500/8 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-
-        <div class="text-center mb-10 relative z-10">
-          <div class="w-20 h-20 bg-[#5b5bd6] rounded-2xl mx-auto flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-indigo-500/20 mb-6 transform group-hover:scale-105 transition-transform duration-300">
-            VH
-          </div>
-          <h2 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-400">
-            VoHive
-          </h2>
-          <p class="text-gray-500 dark:text-gray-400 text-sm mt-3 tracking-wide">4G 模组管理后台</p>
-        </div>
-
-        <form @submit.prevent="handleLogin" class="space-y-6 relative z-10">
-          <div class="space-y-2">
-            <div class="relative">
-              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 dark:text-gray-500">
-                <Person24Regular class="w-5 h-5" />
-              </div>
-              <input 
-                v-model="form.username" 
-                class="w-full bg-white/70 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-lg py-3 pl-10 pr-4 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-500/40 transition-all font-mono text-sm"
-                placeholder="用户名"
-                type="text"
-              />
-            </div>
-          </div>
-
-          <div class="space-y-2">
-            <div class="relative">
-              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 dark:text-gray-500">
-                <LockClosed24Regular class="w-5 h-5" />
-              </div>
-              <input 
-                v-model="form.password" 
-                class="w-full bg-white/70 dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-lg py-3 pl-10 pr-4 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-500/40 transition-all font-mono text-sm"
-                placeholder="密码"
-                type="password"
-              />
-            </div>
-          </div>
-
-          <button 
-            type="submit" 
-            :disabled="loading"
-            class="w-full bg-[#5b5bd6] hover:bg-[#4a4ac2] text-white font-bold py-3 px-4 rounded-lg shadow-sm flex items-center justify-center gap-2 transform active:scale-95 transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed"
-          >
-            <span v-if="loading" class="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-            <span v-else>登录</span>
-            <ArrowRight24Regular v-if="!loading" class="w-5 h-5" />
-          </button>
-        </form>
+    <!-- 登录卡片 -->
+    <div class="login-card">
+      <!-- Logo + 站点名 -->
+      <div class="login-logo">
+        <img v-if="siteConfig.has_logo" :src="'/api/site/logo'" alt="Logo" class="login-logo-img" />
+        <div v-else class="login-logo-placeholder">V</div>
+        <span class="login-site-name">{{ siteConfig.name }}</span>
       </div>
-      
-      <div class="text-center mt-6">
-        <p class="text-gray-500 text-xs">VoHive &copy; 2026</p>
-      </div>
+
+      <!-- 标题 -->
+      <h1 class="login-title">Welcome back</h1>
+      <p class="login-subtitle">Login with your Apple or Google account</p>
+
+      <!-- 分隔线 -->
+      <div class="login-separator"></div>
+
+      <!-- 表单 -->
+      <form @submit.prevent="handleLogin" class="login-form">
+        <label class="login-label" for="username">Name</label>
+        <input
+          id="username"
+          v-model="form.username"
+          type="text"
+          autocomplete="username"
+          :disabled="loading"
+          class="login-input"
+          placeholder=""
+        />
+
+        <label class="login-label" for="password">Password</label>
+        <input
+          id="password"
+          v-model="form.password"
+          type="password"
+          autocomplete="current-password"
+          :disabled="loading"
+          class="login-input"
+          placeholder=""
+          @keyup.enter="handleLogin"
+        />
+
+        <button type="submit" :disabled="loading" class="login-button">
+          <span v-if="loading" class="login-spinner"></span>
+          <span v-else>Login</span>
+        </button>
+      </form>
     </div>
+
+    <!-- 底部文字 -->
+    <p class="login-footer">
+      By clicking continue, you agree to our<br />
+      <a href="#">Terms of Service</a> and <a href="#">Privacy Policy</a>.
+    </p>
   </div>
 </template>
+
+<style scoped>
+.login-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+/* 主题切换按钮 */
+.theme-toggle {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  z-index: 10;
+}
+
+.theme-toggle:hover {
+  border-color: var(--brand);
+  color: var(--foreground);
+}
+
+.theme-toggle :deep(svg) {
+  width: 20px;
+  height: 20px;
+}
+
+/* 登录卡片 */
+.login-card {
+  width: 100%;
+  max-width: 400px;
+  padding: 32px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+}
+
+/* Logo 区域 */
+.login-logo {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.login-logo-img {
+  height: 28px;
+  width: auto;
+  object-fit: contain;
+}
+
+.login-logo-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: var(--brand);
+  color: white;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.login-site-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+/* 标题 */
+.login-title {
+  text-align: center;
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--foreground);
+  margin: 0 0 4px;
+}
+
+.login-subtitle {
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted-foreground);
+  margin: 0 0 20px;
+}
+
+/* 分隔线 */
+.login-separator {
+  height: 1px;
+  background: var(--border);
+  margin: 0 0 24px;
+}
+
+/* 表单 */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.login-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--foreground);
+  margin-bottom: -8px;
+}
+
+.login-input {
+  height: 40px;
+  width: 100%;
+  padding: 0 12px;
+  border: 1px solid var(--input);
+  border-radius: 8px;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.login-input:focus {
+  border-color: var(--brand);
+}
+
+.login-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 登录按钮 */
+.login-button {
+  height: 40px;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  background: var(--brand);
+  color: white;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.login-button:hover {
+  opacity: 0.9;
+}
+
+.login-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.login-spinner {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 底部文字 */
+.login-footer {
+  margin-top: 24px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  line-height: 1.6;
+}
+
+.login-footer a {
+  color: var(--brand);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+</style>

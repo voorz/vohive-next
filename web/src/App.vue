@@ -2,7 +2,6 @@
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from './stores/auth'
-import LoadingScreen from './components/LoadingScreen.vue'
 import { ElMessage } from 'element-plus'
 import { shouldRequireDisclaimerConfirmationText, shouldShowDisclaimer } from './disclaimer'
 
@@ -114,7 +113,7 @@ const shell = computed(() =>
         <component :is="shell" :is-dark="isDark" :theme="themeMode" @set-theme="setTheme" />
       </template>
       <template #fallback>
-        <LoadingScreen />
+        <div></div>
       </template>
     </Suspense>
 

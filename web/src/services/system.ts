@@ -16,6 +16,15 @@ export type UpdateInfo = {
   error?: string
 }
 
+export type APITokenInfo = {
+  id: number
+  name: string
+  prefix: string
+  expiry: number
+  created_at: string
+  last_used_at: string | null
+}
+
 export type ReleaseItem = {
   tag_name: string
   name: string
@@ -325,8 +334,6 @@ export const systemService = {
         login_window_minutes: number
         login_max_attempts: number
         token_ttl_hours: number
-        has_api_token: boolean
-        api_token_expiry: number
       }>('/settings/security')
       return res.data
     })
@@ -341,15 +348,21 @@ export const systemService = {
       return res.data
     })
   },
-  createAPIToken(ttlHours: number) {
+  listAPITokens() {
     return callService(async () => {
-      const res = await api.post<{ status: string; token: string; expiry: number }>('/settings/api-token', { ttl_hours: ttlHours })
+      const res = await api.get<{ status: string; tokens: APITokenInfo[] }>('/settings/api-tokens')
       return res.data
     })
   },
-  deleteAPIToken() {
+  createAPIToken(name: string, expiryDays: number) {
     return callService(async () => {
-      const res = await api.delete<{ status: string }>('/settings/api-token')
+      const res = await api.post<{ status: string; token: string; expiry: number }>('/settings/api-tokens', { name, expiry_days: expiryDays })
+      return res.data
+    })
+  },
+  deleteAPIToken(id: number) {
+    return callService(async () => {
+      const res = await api.delete<{ status: string }>(`/settings/api-tokens/${id}`)
       return res.data
     })
   },

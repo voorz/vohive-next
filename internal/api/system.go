@@ -1,19 +1,19 @@
 package api
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"errors"
 	"mime"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/voorz/vohive/internal/config"
+	"github.com/voorz/vohive/internal/db"
 	"github.com/voorz/vohive/internal/updater"
 	"github.com/voorz/vohive/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
@@ -407,8 +407,6 @@ func (s *Server) handleGetSecurity(c *gin.Context) {
 		"login_window_minutes": sec.LoginWindowMinutes,
 		"login_max_attempts":   sec.LoginMaxAttempts,
 		"token_ttl_hours":      sec.TokenTTLHours,
-		"has_api_token":        sec.APIToken != "",
-		"api_token_expiry":     sec.APITokenExpiry,
 	})
 }
 
@@ -443,61 +441,63 @@ func (s *Server) handleUpdateSecurity(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-// handleCreateAPIToken 创建或刷新 API Token
-func (s *Server) handleCreateAPIToken(c *gin.Context) {
-	var req struct {
-		TTLHours int `json:"ttl_hours"` // 0 = 永不过期
-	}
-	_ = c.ShouldBindJSON(&req) // 可选参数，忽略错误
-
-	rawBytes := make([]byte, 32)
-	if _, err := rand.Read(rawBytes); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "生成令牌失败"})
-		return
-	}
-	token := hex.EncodeToString(rawBytes)
-
-	var expiry int64 = 0
-	if req.TTLHours > 0 {
-		expiry = time.Now().Add(time.Duration(req.TTLHours) * time.Hour).Unix()
-	}
-
-	configPath := config.GetConfigPath()
-	if configPath == "" {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "配置文件路径未初始化"})
-		return
-	}
-	if err := config.UpdateAPITokenInFile(configPath, token, expiry); err != nil {
+// handleListAPITokens 列出全部 API Token
+func (s *Server) handleListAPITokens(c *gin.Context) {
+	tokens, err := db.ListAPITokens()
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
 		return
 	}
-	if err := config.ReloadFromFile(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "热加载配置失败: " + err.Error()})
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "tokens": tokens})
+}
+
+// handleCreateAPIToken 创建新 API Token（多 Token）
+func (s *Server) handleCreateAPIToken(c *gin.Context) {
+	var req struct {
+		Name       string `json:"name"`
+		ExpiryDays int    `json:"expiry_days"` // 0 = 永不过期
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "参数错误"})
 		return
 	}
-	logger.Info("API Token 已创建", "ip", c.ClientIP(), "ttl_hours", req.TTLHours)
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "名称不能为空"})
+		return
+	}
+
+	token, err := db.CreateAPIToken(name, req.ExpiryDays)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+
+	var expiry int64 = 0
+	if req.ExpiryDays > 0 {
+		expiry = time.Now().Add(time.Duration(req.ExpiryDays) * 24 * time.Hour).Unix()
+	}
+	logger.Info("API Token 已创建", "ip", c.ClientIP(), "name", name, "expiry_days", req.ExpiryDays)
 	c.JSON(http.StatusOK, gin.H{
-		"status":  "ok",
-		"token":   token,
-		"expiry":  expiry,
+		"status": "ok",
+		"token":  token,
+		"expiry": expiry,
 	})
 }
 
-// handleDeleteAPIToken 删除 API Token
+// handleDeleteAPIToken 删除指定 API Token（按 ID）
 func (s *Server) handleDeleteAPIToken(c *gin.Context) {
-	configPath := config.GetConfigPath()
-	if configPath == "" {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "配置文件路径未初始化"})
+	idStr := c.Param("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil || id == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "无效的 Token ID"})
 		return
 	}
-	if err := config.UpdateAPITokenInFile(configPath, "", 0); err != nil {
+	if err := db.DeleteAPIToken(uint(id)); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
 		return
 	}
-	if err := config.ReloadFromFile(); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "热加载配置失败: " + err.Error()})
-		return
-	}
+	logger.Info("API Token 已删除", "ip", c.ClientIP(), "id", id)
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 

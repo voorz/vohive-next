@@ -162,6 +162,7 @@ func Init(dbPath string) error {
 		&TrafficDay{},
 		&TrafficWeek{},
 		&TrafficMonth{},
+		&APIToken{},
 	); err != nil {
 		return err
 	}

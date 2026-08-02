@@ -309,8 +309,9 @@ func (s *Server) newRouter() *gin.Engine {
 		api.PUT("/settings/sms-limit", s.handleUpdateSMSRateLimit)    // 更新短信限速配置
 		api.GET("/settings/security", s.handleGetSecurity)            // 获取安全配置
 		api.PUT("/settings/security", s.handleUpdateSecurity)          // 更新安全配置
-		api.POST("/settings/api-token", s.handleCreateAPIToken)        // 创建/刷新 API Token
-		api.DELETE("/settings/api-token", s.handleDeleteAPIToken)      // 删除 API Token
+		api.GET("/settings/api-tokens", s.handleListAPITokens)          // 列出全部 API Token
+		api.POST("/settings/api-tokens", s.handleCreateAPIToken)         // 创建新 API Token
+		api.DELETE("/settings/api-tokens/:id", s.handleDeleteAPIToken)  // 删除指定 API Token
 		api.GET("/settings/server", s.handleGetServerConfig)           // 获取服务器配置
 		api.PUT("/settings/server", s.handleUpdateServerConfig)        // 更新服务器配置
 		api.PUT("/settings/web-credentials", s.handleUpdateWebCredentials) // 更新管理员用户名+密码
@@ -1771,24 +1772,9 @@ func (s *Server) isAuthenticatedRequest(c *gin.Context, now time.Time) bool {
 	return false
 }
 
-// isAPITokenValid 检查 API Token 是否有效
+// isAPITokenValid 检查 API Token 是否有效（多 Token，查 DB）
 func (s *Server) isAPITokenValid(token string, now time.Time) bool {
-	if s.fullCfg == nil {
-		return false
-	}
-	apiToken := strings.TrimSpace(s.fullCfg.Security.APIToken)
-	if apiToken == "" {
-		return false
-	}
-	// 常量时间比较防止时序攻击
-	if !hmac.Equal([]byte(token), []byte(apiToken)) {
-		return false
-	}
-	// 检查过期时间（0 表示永不过期）
-	if s.fullCfg.Security.APITokenExpiry > 0 && now.After(time.Unix(s.fullCfg.Security.APITokenExpiry, 0)) {
-		return false
-	}
-	return true
+	return db.ValidateAPIToken(token)
 }
 
 func (s *Server) authMiddleware() gin.HandlerFunc {

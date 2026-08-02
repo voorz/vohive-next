@@ -1,20 +1,15 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Copy24Regular, CheckmarkCircle24Regular, Document24Regular, Link24Regular, Open20Regular, WindowConsole20Regular } from '@vicons/fluent'
+import { Copy24Regular, CheckmarkCircle24Regular, Document24Regular, Link24Regular, Open20Regular } from '@vicons/fluent'
 
-const props = defineProps<{
-  apiTokenExpiry: number
-  hasApiToken: boolean
-}>()
-
-const emit = defineEmits<{
-  (e: 'switch-tab', tab: string): void
-}>()
-
-const expanded = ref(true)
 const endpointCopied = ref(false)
 const configCopied = ref(false)
+
+// 状态检测
+const statusOk = ref<boolean | null>(null) // null = 未检测, true = 正常, false = 异常
+const statusChecking = ref(false)
+let statusTimer: ReturnType<typeof setInterval> | null = null
 
 const endpoint = computed(() => `${window.location.origin}/api/mcp`)
 const openapiUrl = computed(() => `${window.location.origin}/openapi.json`)
@@ -28,9 +23,29 @@ const configJson = computed(() => JSON.stringify({
   },
 }, null, 2))
 
+async function checkStatus() {
+  statusChecking.value = true
+  try {
+    const res = await fetch(`${window.location.origin}/ping`, { method: 'GET' })
+    statusOk.value = res.ok
+  } catch {
+    statusOk.value = false
+  } finally {
+    statusChecking.value = false
+  }
+}
+
+onMounted(() => {
+  checkStatus()
+  statusTimer = setInterval(checkStatus, 30000)
+})
+
+onBeforeUnmount(() => {
+  if (statusTimer) clearInterval(statusTimer)
+})
+
 // 复制到剪贴板，带 fallback
 async function copyToClipboard(text: string): Promise<boolean> {
-  // 优先使用 Clipboard API
   if (navigator.clipboard && window.isSecureContext) {
     try {
       await navigator.clipboard.writeText(text)
@@ -39,7 +54,6 @@ async function copyToClipboard(text: string): Promise<boolean> {
       // fall through to fallback
     }
   }
-  // fallback: execCommand
   try {
     const ta = document.createElement('textarea')
     ta.value = text
@@ -79,65 +93,66 @@ async function copyConfig() {
 </script>
 
 <template>
-  <div class="space-y-4">
-    <!-- MCP 配置卡片 -->
-    <div class="mcp-config-card">
-      <div class="mcp-config-summary">
-        <div class="mcp-config-heading">
-          <div class="settings-icon-box">
-            <el-icon size="20"><WindowConsole20Regular /></el-icon>
-          </div>
-          <div>
-            <h2 class="mcp-config-title">MCP Server</h2>
-            <p class="mcp-config-desc">通过 MCP 协议让 AI 助手直接调试和操作 VoHive</p>
-          </div>
-        </div>
-
-        <div class="mcp-config-field">
-          <span class="mcp-field-label">端点地址</span>
-          <div class="mcp-endpoint">
-            <code>{{ endpoint }}</code>
-            <el-button text size="default" @click="copyEndpoint" class="mcp-copy-btn">
-              <el-icon size="20"><component :is="endpointCopied ? CheckmarkCircle24Regular : Copy24Regular" /></el-icon>
-            </el-button>
-          </div>
-        </div>
-
-        <el-button size="small" plain @click="emit('switch-tab', 'security')">
-          创建 API Token
-        </el-button>
+  <div class="mcp-config-card">
+    <div class="mcp-config-summary">
+      <!-- 标题 -->
+      <div>
+        <h2 class="mcp-config-title">MCP Server</h2>
+        <p class="mcp-config-desc">通过 MCP 协议让 AI 助手直接调试和操作 VoHive</p>
       </div>
 
-      <div class="mcp-config-code">
-        <div class="mcp-config-code-header">
-          <strong>客户端配置</strong>
-          <el-button text size="default" @click="copyConfig" class="mcp-copy-btn">
-            <el-icon size="20"><component :is="configCopied ? CheckmarkCircle24Regular : Copy24Regular" /></el-icon>
+      <!-- 端点地址 + 状态 -->
+      <div class="mcp-config-field">
+        <div class="mcp-field-row">
+          <span class="mcp-field-label">端点地址</span>
+          <span class="mcp-status" :class="{ ok: statusOk === true, err: statusOk === false, checking: statusChecking }">
+            <span class="mcp-status-dot"></span>
+            {{ statusChecking ? '检测中…' : statusOk === true ? '服务正常' : statusOk === false ? '服务异常' : '未检测' }}
+          </span>
+        </div>
+        <div class="mcp-endpoint">
+          <code>{{ endpoint }}</code>
+          <el-button text size="default" @click="copyEndpoint" class="mcp-copy-btn">
+            <el-icon size="20"><component :is="endpointCopied ? CheckmarkCircle24Regular : Copy24Regular" /></el-icon>
           </el-button>
         </div>
-        <pre>{{ configJson }}</pre>
+      </div>
+
+      <!-- 文档入口 -->
+      <div class="mcp-docs-inline">
+        <a class="mcp-doc-card" href="/docs" target="_blank" rel="noreferrer">
+          <div class="settings-icon-box">
+            <el-icon size="20"><Document24Regular /></el-icon>
+          </div>
+          <div class="mcp-doc-info">
+            <strong class="mcp-doc-title">API 文档</strong>
+            <p class="mcp-doc-desc">Swagger UI 交互式文档</p>
+          </div>
+          <el-icon class="mcp-doc-external" size="16"><Open20Regular /></el-icon>
+        </a>
+
+        <a class="mcp-doc-card" :href="openapiUrl" target="_blank" rel="noreferrer">
+          <div class="settings-icon-box">
+            <el-icon size="20"><Link24Regular /></el-icon>
+          </div>
+          <div class="mcp-doc-info">
+            <strong class="mcp-doc-title">OpenAPI Schema</strong>
+            <p class="mcp-doc-desc">OpenAPI 3.0 规范 JSON</p>
+          </div>
+          <el-icon class="mcp-doc-external" size="16"><Open20Regular /></el-icon>
+        </a>
       </div>
     </div>
 
-    <!-- API 文档卡片 -->
-    <div class="mcp-docs-grid">
-      <a class="mcp-doc-card" href="/docs" target="_blank" rel="noreferrer">
-        <div class="settings-icon-box">
-          <el-icon size="20"><Document24Regular /></el-icon>
-        </div>
-        <strong class="mcp-doc-title">API 文档</strong>
-        <p class="mcp-doc-desc">Swagger UI 交互式 API 文档</p>
-        <el-icon class="mcp-doc-external" size="16"><Open20Regular /></el-icon>
-      </a>
-
-      <a class="mcp-doc-card" :href="openapiUrl" target="_blank" rel="noreferrer">
-        <div class="settings-icon-box">
-          <el-icon size="20"><Link24Regular /></el-icon>
-        </div>
-        <strong class="mcp-doc-title">OpenAPI Schema</strong>
-        <p class="mcp-doc-desc">OpenAPI 3.0 规范 JSON 文件</p>
-        <el-icon class="mcp-doc-external" size="16"><Open20Regular /></el-icon>
-      </a>
+    <!-- 客户端配置代码 -->
+    <div class="mcp-config-code">
+      <div class="mcp-config-code-header">
+        <strong>客户端配置</strong>
+        <el-button text size="default" @click="copyConfig" class="mcp-copy-btn">
+          <el-icon size="20"><component :is="configCopied ? CheckmarkCircle24Regular : Copy24Regular" /></el-icon>
+        </el-button>
+      </div>
+      <pre>{{ configJson }}</pre>
     </div>
   </div>
 </template>
@@ -156,15 +171,9 @@ async function copyConfig() {
 .mcp-config-summary {
   display: grid;
   align-content: start;
-  justify-items: start;
+  justify-items: stretch;
   gap: 18px;
   min-width: 0;
-}
-
-.mcp-config-heading {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
 }
 
 .mcp-config-title {
@@ -188,10 +197,46 @@ async function copyConfig() {
   min-width: 0;
 }
 
+.mcp-field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .mcp-field-label {
   color: var(--muted-foreground);
   font-size: 12px;
   font-weight: 600;
+}
+
+.mcp-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mcp-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  background: var(--muted-foreground);
+}
+
+.mcp-status.ok .mcp-status-dot {
+  background: var(--success);
+}
+
+.mcp-status.err .mcp-status-dot {
+  background: var(--destructive);
+}
+
+.mcp-status.checking .mcp-status-dot {
+  background: var(--muted-foreground);
+  opacity: 0.5;
 }
 
 .mcp-endpoint {
@@ -213,6 +258,52 @@ async function copyConfig() {
   font-family: ui-monospace, monospace;
   font-size: 12px;
   white-space: nowrap;
+}
+
+/* 文档入口 — 行内双卡片 */
+.mcp-docs-inline {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mcp-doc-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--muted) 40%, transparent);
+  text-decoration: none;
+  transition: border-color 0.15s;
+}
+
+.mcp-doc-card:hover {
+  border-color: var(--brand);
+}
+
+.mcp-doc-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.mcp-doc-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--foreground);
+}
+
+.mcp-doc-desc {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  margin: 1px 0 0;
+}
+
+.mcp-doc-external {
+  color: var(--muted-foreground);
+  flex-shrink: 0;
 }
 
 .mcp-config-code {
@@ -247,49 +338,6 @@ async function copyConfig() {
   color: var(--foreground);
 }
 
-.mcp-docs-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.mcp-doc-card {
-  position: relative;
-  display: grid;
-  gap: 10px;
-  min-height: 140px;
-  padding: 18px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--background);
-  text-decoration: none;
-  transition: border-color 0.15s;
-}
-
-.mcp-doc-card:hover {
-  border-color: var(--brand);
-}
-
-.mcp-doc-title {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--foreground);
-}
-
-.mcp-doc-desc {
-  color: var(--muted-foreground);
-  line-height: 1.5;
-  font-size: 13px;
-  margin: 0;
-}
-
-.mcp-doc-external {
-  position: absolute;
-  right: 18px;
-  top: 18px;
-  color: var(--muted-foreground);
-}
-
 .mcp-copy-btn {
   padding: 4px 8px !important;
   height: auto !important;
@@ -300,9 +348,12 @@ async function copyConfig() {
 }
 
 @media (max-width: 960px) {
-  .mcp-config-card,
-  .mcp-docs-grid {
+  .mcp-config-card {
     display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .mcp-docs-inline {
     grid-template-columns: 1fr;
   }
 }

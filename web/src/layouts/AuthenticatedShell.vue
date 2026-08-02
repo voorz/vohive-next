@@ -3,7 +3,6 @@ import { computed, defineAsyncComponent, onMounted, onUnmounted, ref, watch } fr
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useHeaderActionsStore } from '../stores/headerActions'
-import LoadingScreen from '../components/LoadingScreen.vue'
 import ErrorBoundary from '../components/ErrorBoundary.vue'
 import { debugCollector } from '../debug/collector'
 import { useSiteConfig } from '../composables/useSiteConfig'
@@ -278,7 +277,6 @@ watch(lang, (v) => {
             <ErrorBoundary v-if="Component" title="页面渲染失败">
               <component :is="Component" :key="r.path" />
             </ErrorBoundary>
-            <LoadingScreen v-else title="正在加载页面…" subtitle="正在准备页面组件与资源" />
           </router-view>
         </div>
       </main>

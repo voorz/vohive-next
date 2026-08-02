@@ -472,9 +472,9 @@ function handleRangeChange(value: string | number | boolean | undefined) {
       </div>
       <div class="flex items-center gap-2">
         <el-radio-group :model-value="range" :disabled="disabled" @change="handleRangeChange">
-          <el-radio-button label="day">日</el-radio-button>
-          <el-radio-button label="week">周</el-radio-button>
-          <el-radio-button label="month">月</el-radio-button>
+          <el-radio-button value="day">日</el-radio-button>
+          <el-radio-button value="week">周</el-radio-button>
+          <el-radio-button value="month">月</el-radio-button>
         </el-radio-group>
         <RefreshButton :loading="loading" :disabled="disabled" @click="emit('refresh')" />
       </div>
@@ -537,7 +537,7 @@ function handleRangeChange(value: string | number | boolean | undefined) {
         暂无流量图表数据
       </div>
 
-      <el-table :data="analysisBuckets" size="small" stripe v-loading="!!loading" class="w-full">
+      <el-table :data="analysisBuckets" size="small" class="w-full">
         <el-table-column label="时间" min-width="140">
           <template #default="scope">{{ formatTrafficBucketTime(scope?.row || {}) }}</template>
         </el-table-column>
