@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	swusim "github.com/voorz/vowifi-core/engine/sim"
 	"github.com/voorz/vohive/pkg/logger"
 )
 
@@ -90,7 +91,7 @@ func ParseUSIMAuthResponse(deviceID string, resp []byte) (AKAResult, error) {
 			"device", deviceID,
 			"auts_len", len(auts),
 			"auts", maskHexBytes(auts))
-		return AKAResult{AUTS: auts}, nil
+		return AKAResult{AUTS: auts}, swusim.ErrSyncFailure
 
 	case 0xDD:
 		return AKAResult{}, errors.New("AKA MAC 校验失败")

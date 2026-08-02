@@ -2,6 +2,7 @@ package sim
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -109,6 +110,9 @@ func (d *ATAKAProvider) CalculateAKAWithPreference(rand16, autn16 []byte, prefer
 	if pref == AKAAppPreferenceUSIM {
 		res, err := d.calculateAKAOnUSIM(rand16, autn16)
 		if err != nil {
+			if errors.Is(err, swusim.ErrSyncFailure) {
+				return res, err
+			}
 			logger.Error("AKA 计算失败：USIM 模式失败", d.withDevice("err", err)...)
 			return AKAResult{}, err
 		}
@@ -129,6 +133,9 @@ func (d *ATAKAProvider) CalculateAKAWithPreference(rand16, autn16 []byte, prefer
 		return res, nil
 	} else {
 		if pref == AKAAppPreferenceISIMStrict {
+			if errors.Is(err, swusim.ErrSyncFailure) {
+				return res, err
+			}
 			return AKAResult{}, err
 		}
 		logger.Warn("ISIM 逻辑通道 AKA 失败，回退 USIM 逻辑通道", d.withDevice("err", err)...)
@@ -136,6 +143,9 @@ func (d *ATAKAProvider) CalculateAKAWithPreference(rand16, autn16 []byte, prefer
 
 	res, err := d.calculateAKAOnUSIM(rand16, autn16)
 	if err != nil {
+		if errors.Is(err, swusim.ErrSyncFailure) {
+			return res, err
+		}
 		return AKAResult{}, err
 	}
 	d.recordAKAProfile("USIM", pref, true)
