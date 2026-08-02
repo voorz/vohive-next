@@ -110,26 +110,28 @@ const secondaryStatus = (d: DeviceMgmtListItem) => {
 const cardClass = (d: DeviceMgmtListItem) => {
   const tone = primaryStatus(d).tone
   const selected = props.selectedId === d.id
-  const colors: Record<string, { selected: string; unselected: string }> = {
-    success: {
-      selected: 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-500/30 dark:bg-emerald-500/10',
-      unselected: 'border-gray-100 dark:border-white/10 hover:bg-emerald-50/40 dark:hover:bg-emerald-500/5',
-    },
-    warning: {
-      selected: 'border-amber-200 bg-amber-50/70 dark:border-amber-500/30 dark:bg-amber-500/10',
-      unselected: 'border-gray-100 dark:border-white/10 hover:bg-amber-50/40 dark:hover:bg-amber-500/5',
-    },
-    danger: {
-      selected: 'border-red-200 bg-red-50/70 dark:border-red-500/30 dark:bg-red-500/10',
-      unselected: 'border-gray-100 dark:border-white/10 hover:bg-red-50/40 dark:hover:bg-red-500/5',
-    },
-    neutral: {
-      selected: 'border-gray-200 bg-gray-50/70 dark:border-white/15 dark:bg-white/5',
-      unselected: 'border-gray-100 dark:border-white/10 hover:bg-gray-50/60 dark:hover:bg-white/5',
-    },
+  const bg: Record<string, string> = {
+    success: 'bg-emerald-50/70 dark:bg-emerald-500/10',
+    warning: 'bg-amber-50/70 dark:bg-amber-500/10',
+    danger: 'bg-red-50/70 dark:bg-red-500/10',
+    neutral: 'bg-gray-50/70 dark:bg-white/5',
   }
-  const c = colors[tone] || colors.neutral
-  return selected ? c.selected : c.unselected
+  const borderSelected: Record<string, string> = {
+    success: 'border-emerald-500 dark:border-emerald-400',
+    warning: 'border-amber-500 dark:border-amber-400',
+    danger: 'border-red-500 dark:border-red-400',
+    neutral: 'border-gray-300 dark:border-gray-600',
+  }
+  const borderUnselected: Record<string, string> = {
+    success: 'border-emerald-200 dark:border-emerald-500/20',
+    warning: 'border-amber-200 dark:border-amber-500/20',
+    danger: 'border-red-200 dark:border-red-500/20',
+    neutral: 'border-gray-100 dark:border-white/10',
+  }
+  const b = selected
+    ? (borderSelected[tone] || borderSelected.neutral)
+    : (borderUnselected[tone] || borderUnselected.neutral)
+  return `${b} ${bg[tone] || bg.neutral}`
 }
 </script>
 

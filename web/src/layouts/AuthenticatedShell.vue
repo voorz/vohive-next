@@ -653,11 +653,17 @@ watch(lang, (v) => {
 }
 
 .main {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+flex: 1;
+min-width: 0;
+min-height: 0;
+overflow-y: auto;
+overflow-x: hidden;
+background-image: radial-gradient(circle, rgba(0, 0, 0, 0.05) 1.5px, transparent 1.5px);
+background-size: 20px 20px;
+}
+
+.dark .main {
+background-image: radial-gradient(circle, rgba(255, 255, 255, 0.04) 1.5px, transparent 1.5px);
 }
 
 .main-inner {
