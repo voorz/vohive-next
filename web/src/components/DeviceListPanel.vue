@@ -106,6 +106,31 @@ const secondaryStatus = (d: DeviceMgmtListItem) => {
   if (d?.vowifi_enabled) return 'WiFi-Calling'
   return [registrationText(d), dataNetworkText(d)].filter(Boolean).join(' · ')
 }
+
+const cardClass = (d: DeviceMgmtListItem) => {
+  const tone = primaryStatus(d).tone
+  const selected = props.selectedId === d.id
+  const colors: Record<string, { selected: string; unselected: string }> = {
+    success: {
+      selected: 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-500/30 dark:bg-emerald-500/10',
+      unselected: 'border-gray-100 dark:border-white/10 hover:bg-emerald-50/40 dark:hover:bg-emerald-500/5',
+    },
+    warning: {
+      selected: 'border-amber-200 bg-amber-50/70 dark:border-amber-500/30 dark:bg-amber-500/10',
+      unselected: 'border-gray-100 dark:border-white/10 hover:bg-amber-50/40 dark:hover:bg-amber-500/5',
+    },
+    danger: {
+      selected: 'border-red-200 bg-red-50/70 dark:border-red-500/30 dark:bg-red-500/10',
+      unselected: 'border-gray-100 dark:border-white/10 hover:bg-red-50/40 dark:hover:bg-red-500/5',
+    },
+    neutral: {
+      selected: 'border-gray-200 bg-gray-50/70 dark:border-white/15 dark:bg-white/5',
+      unselected: 'border-gray-100 dark:border-white/10 hover:bg-gray-50/60 dark:hover:bg-white/5',
+    },
+  }
+  const c = colors[tone] || colors.neutral
+  return selected ? c.selected : c.unselected
+}
 </script>
 
 <template>
@@ -150,9 +175,7 @@ const secondaryStatus = (d: DeviceMgmtListItem) => {
           <button
             type="button"
             class="w-full h-full text-left p-3 rounded-xl border transition-all"
-            :class="selectedId === d.id
-              ? 'border-indigo-200 dark:border-indigo-500/30 bg-indigo-50/70 dark:bg-indigo-500/10'
-              : 'border-gray-100 dark:border-white/10 hover:bg-gray-50/60 dark:hover:bg-white/5'"
+            :class="cardClass(d)"
             @click="emit('select-device', d.id)"
           >
             <div class="flex items-start justify-between gap-2">

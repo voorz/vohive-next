@@ -2,7 +2,7 @@ import type { DeviceLifecyclePhase, DeviceMgmtListItem, DeviceOverviewItem } fro
 
 type DeviceLike = Pick<
   DeviceMgmtListItem | DeviceOverviewItem,
-  'running' | 'healthy' | 'control_online' | 'lifecycle_phase' | 'modem'
+  'running' | 'healthy' | 'control_online' | 'lifecycle_phase' | 'modem' | 'vowifi_enabled' | 'vowifi_runtime'
 >
 
 export function isRecoveryPhase(phase?: DeviceLifecyclePhase) {
@@ -63,6 +63,21 @@ export function primaryLifecycleStatus(device: DeviceLike | null | undefined) {
   }
   if (!isControlOnline(device)) {
     return { label: '恢复中', tag: 'warning' as const, tone: 'warning' as const, animated: true }
+  }
+  // VoWiFi 模式：根据 VoWiFi 就绪状态决定颜色（与运行状态卡片同步）
+  if (device?.vowifi_enabled) {
+    const rt = device?.vowifi_runtime
+    if (!rt) {
+      return { label: '在线', tag: 'danger' as const, tone: 'danger' as const, animated: false }
+    }
+    const all = [rt.sim_ready, rt.access_ready, rt.tunnel_ready, rt.ims_ready, rt.sms_ready, rt.call_ready]
+    if (all.every(Boolean)) {
+      return { label: '在线', tag: 'success' as const, tone: 'success' as const, animated: true }
+    }
+    if (all.some(Boolean)) {
+      return { label: '在线', tag: 'warning' as const, tone: 'warning' as const, animated: true }
+    }
+    return { label: '在线', tag: 'danger' as const, tone: 'danger' as const, animated: false }
   }
   return { label: '在线', tag: 'success' as const, tone: 'success' as const, animated: true }
 }
