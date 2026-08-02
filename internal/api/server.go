@@ -271,7 +271,7 @@ func (s *Server) newRouter() *gin.Engine {
 	// 以下接口需要鉴权
 	api.Use(s.authMiddleware())
 	{
-		api.POST("/system/uninstall", s.handleUninstall) // 必须登录后才能调用，见 handleUninstall 内的鉴权检查
+
 		api.GET("/openapi.yaml", s.handleOpenAPIYAML)
 		api.GET("/openapi.json", s.handleOpenAPIJSON)
 
