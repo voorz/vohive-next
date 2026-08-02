@@ -7,6 +7,7 @@ import EmptyState from '../components/EmptyState.vue'
 import ListSkeleton from '../components/ListSkeleton.vue'
 import ErrorState from '../components/ErrorState.vue'
 import RefreshButton from '../components/RefreshButton.vue'
+import DashboardStatsCards from '../components/DashboardStatsCards.vue'
 import TrafficAnalysisPanel from '../components/TrafficAnalysisPanel.vue'
 import { usePollingScheduler } from '../composables/usePollingScheduler'
 import { useDashboardStore } from '../stores/dashboard'
@@ -99,27 +100,13 @@ onUnmounted(() => {
 <template>
   <div>
     <div class="page-stack">
-      <!-- 指标卡片 -->
-      <div class="grid grid-cols-2 lg:grid-cols-4 gap-0 border-l border-r" style="border-color: var(--border);">
-        <div class="metric">
-          <span>设备总数</span>
-          <strong>{{ totalCount }}</strong>
-        </div>
-        <div class="metric">
-          <span>在线</span>
-          <strong style="color: var(--success);">{{ onlineCount }}</strong>
-        </div>
-        <div class="metric">
-          <span>离线</span>
-          <strong style="color: var(--destructive);">{{ offlineCount }}</strong>
-        </div>
-        <div class="metric">
-          <span>最近刷新</span>
-          <strong style="font-size: 14px; font-weight: 520;">
-            {{ lastUpdatedAt ? new Date(lastUpdatedAt).toLocaleTimeString() : '--:--:--' }}
-          </strong>
-        </div>
-      </div>
+      <!-- 统计卡片 -->
+      <DashboardStatsCards
+        :total="totalCount"
+        :online="onlineCount"
+        :offline="offlineCount"
+        :last-updated-at="lastUpdatedAt"
+      />
 
       <ErrorState
         v-if="devicesError"
