@@ -6,6 +6,8 @@ import { useHeaderActionsStore } from '../stores/headerActions'
 import ErrorBoundary from '../components/ErrorBoundary.vue'
 import { debugCollector } from '../debug/collector'
 import { useSiteConfig } from '../composables/useSiteConfig'
+import { useSettingsStore } from '../stores/settings'
+import { systemService } from '../services/system'
 import {
   Mail24Regular,
   Sim24Regular,
@@ -39,11 +41,13 @@ const route = useRoute()
 const auth = useAuthStore()
 const headerActions = useHeaderActionsStore()
 const { siteConfig, load: loadSiteConfig } = useSiteConfig()
+const settingsStore = useSettingsStore()
 const debugOpen = ref(false)
 const refreshing = ref(false)
 const lang = ref(localStorage.getItem('lang') || 'zh')
 const isSmallScreen = ref(false)
 const collapsed = ref(false)
+const repoUrl = ref('')
 const DebugPanel = defineAsyncComponent(() => import('../components/DebugPanel.vue'))
 
 function syncScreenSize() {
@@ -127,7 +131,26 @@ onMounted(() => {
   debugOpen.value = saved === '1'
   window.addEventListener('keydown', onKeydown)
   loadSiteConfig()
+  settingsStore.fetchSystemInfo()
+  loadRepoUrl()
 })
+
+async function loadRepoUrl() {
+  try {
+    const res = await systemService.getUpdateRepo()
+    if (res.ok && res.data.owner && res.data.name) {
+      repoUrl.value = `https://github.com/${res.data.owner}/${res.data.name}`
+    }
+  } catch { /* keep empty */ }
+}
+
+function openRepo() {
+  if (repoUrl.value) {
+    window.open(repoUrl.value, '_blank', 'noopener,noreferrer')
+  }
+}
+
+const appVersion = computed(() => settingsStore.systemInfo.version || 'v0.0.0')
 
 onUnmounted(() => {
   window.removeEventListener('resize', syncScreenSize)
@@ -198,13 +221,22 @@ watch(lang, (v) => {
 
       <!-- 底部功能区 -->
       <div class="sidebar-footer">
-        <!-- 语言选择 -->
-        <div class="language-select">
-          <span class="language-select-label">语言</span>
-          <select v-model="lang" class="language-select-trigger" aria-label="语言">
-            <option value="zh">中文</option>
-            <option value="en">English</option>
-          </select>
+        <!-- 版本 + GitHub -->
+        <div class="version-row">
+          <span class="version-label">版本</span>
+          <div class="version-right">
+            <button
+              type="button"
+              class="github-btn"
+              :class="{ disabled: !repoUrl }"
+              :title="repoUrl ? repoUrl : '未配置 Release 仓库'"
+              :disabled="!repoUrl"
+              @click="openRepo"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+            </button>
+            <span class="version-text">{{ appVersion }}</span>
+          </div>
         </div>
 
         <!-- 主题分段控件 -->
@@ -432,9 +464,9 @@ watch(lang, (v) => {
   border-top: 1px solid var(--sidebar-border);
 }
 
-/* 语言选择器 */
+/* 版本行 */
 
-.language-select {
+.version-row {
   display: grid;
   grid-column: 1 / -1;
   grid-template-columns: auto minmax(0, 1fr);
@@ -442,32 +474,59 @@ watch(lang, (v) => {
   gap: 8px;
 }
 
-.language-select-label,
-.theme-control > span {
+.version-label {
   color: var(--muted-foreground);
   font-size: 12px;
   font-weight: 620;
 }
 
-.language-select-trigger {
-  width: 100%;
+.version-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.github-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
   height: 30px;
-  padding: 0 8px;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--background);
-  font-size: 13px;
+  box-shadow: var(--console-shadow-sm);
   color: var(--foreground);
   cursor: pointer;
-  outline: none;
-  transition: border-color 150ms ease;
+  transition: background 150ms ease;
+  flex-shrink: 0;
 }
 
-.language-select-trigger:focus-visible {
-  border-color: var(--ring);
+.github-btn:hover:not(.disabled) {
+  background: var(--accent);
+}
+
+.github-btn.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.version-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  font-family: var(--oomol-font-mono);
+  white-space: nowrap;
 }
 
 /* 主题分段控件 */
+
+.theme-control > span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  font-weight: 620;
+}
 
 .theme-control {
   display: grid;
