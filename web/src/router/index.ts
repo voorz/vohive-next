@@ -45,6 +45,12 @@ const router = createRouter({
       name: 'Logs',
       component: () => import('../views/Logs.vue'),
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/carrier',
+      name: 'Carrier',
+      component: () => import('../views/Carrier.vue'),
+      meta: { requiresAuth: true }
     }
   ]
 })

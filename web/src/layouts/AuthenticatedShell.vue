@@ -8,6 +8,7 @@ import { debugCollector } from '../debug/collector'
 import { useSiteConfig } from '../composables/useSiteConfig'
 import {
   Mail24Regular,
+  Sim24Regular,
   Settings24Regular,
   SignOut24Regular,
   Board24Regular,
@@ -55,6 +56,7 @@ function syncScreenSize() {
 const menuItems = [
   { path: '/', label: '仪表盘', icon: Board24Regular },
   { path: '/devices', label: '设备管理', icon: Phone24Regular },
+  { path: '/carrier', label: '运营商配置', icon: Sim24Regular },
   { path: '/proxy', label: '代理管理', icon: Globe24Regular },
   { path: '/sms', label: '短信中心', icon: Mail24Regular },
   { path: '/logs', label: '实时日志', icon: DocumentText24Regular },

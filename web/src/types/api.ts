@@ -496,3 +496,187 @@ export type CarrierWebsheetInfo = {
   url: string
   method: string
 }
+
+// ============ 运营商配置相关类型 ============
+
+export type SecurityMechanism = {
+  alg?: string
+  ealg?: string
+  prot?: string
+  mode?: string
+}
+
+export type GatewayPrefixScore = {
+  prefix: string
+  score: number
+}
+
+export type RegisterPolicy = {
+  id?: string
+  temporary_status_codes?: number[]
+  forbidden_status_codes?: number[]
+  initial_reject_fallback_status_codes?: number[]
+  temporary_retry_seconds?: number
+}
+
+export type IKEConfig = {
+  addr?: string
+  port?: number
+  proposals?: string[]
+  esp_proposals?: string[]
+  dpd_interval?: number
+  nat_keepalive?: number
+  reauth_interval?: number
+  ip_stack?: string
+  apn?: string
+  replay_window?: number
+  enable_esn?: boolean
+  disable_eap_mac_validation?: boolean
+}
+
+export type EAPConfig = {
+  challenge_mode?: string
+  app_preference?: string
+  identity_source?: string
+  device_identity_enabled?: boolean
+  device_model?: string
+}
+
+export type IMSConfig = {
+  sec_agree_mode?: string
+  require_sec_agree?: boolean
+  proxy_require_sec_agree?: boolean
+  use_plain_digest_placeholder?: boolean
+  initial_authorization?: string
+  include_pani?: boolean
+  include_pani_authenticated?: boolean
+  fixed_pani?: string
+  user_agent?: string
+  supported_header?: string
+  allow_header?: string
+  contact_param_order?: string[]
+  contact_features?: string
+  security_client_mechanisms?: SecurityMechanism[]
+  security_client_format?: string
+  transport_mode?: string
+  strict_security_server_offer?: boolean
+  enable_initial_reject_fallback?: boolean
+  omit_route?: boolean
+  minimal_initial_headers?: boolean
+  force_header_port_5060?: boolean
+  omit_initial_security_client_protocol?: boolean
+  probe_initial_security_client_on_bad_request?: boolean
+  include_connection_keepalive_in_auth?: boolean
+  security_client_includes_server_params?: boolean
+  fallback_includes_server_params_in_sec_cl?: boolean
+  expires?: number
+  pcscf_addr?: string
+  domain?: string
+  realm?: string
+  authorization_identity?: string
+  include_accept_contact?: boolean
+  include_p_preferred_id?: boolean
+  include_p_visited_network_id?: boolean
+  include_p_access_network_info?: boolean
+  include_route?: boolean
+  include_cellular_network?: boolean
+  include_security_client?: boolean
+  include_require_sec_agree?: boolean
+  contact_user_random?: boolean
+  icsi_ref?: string
+  voice_supported_header?: string
+  voice_allow_header?: string
+  voice_accept_contact?: string
+  voice_p_preferred_service?: string
+  ike_gateway_prefix_scores?: GatewayPrefixScore[]
+  tcp_keepalive_seconds?: number
+  options_ping_interval_seconds?: number
+  local_port?: number
+  register_policy?: RegisterPolicy
+}
+
+export type E911Config = {
+  enabled?: boolean
+  provider?: string
+  websheet?: string
+  entitlement_endpoint?: string
+}
+
+export type DeviceConfig = {
+  imei?: string
+  ims_tac?: number
+  ims_cell_id?: number
+  ims_cell_id_mode?: string
+  ims_register_profile?: string
+}
+
+export type CarrierProfile = {
+id?: string
+mcc?: string
+mnc?: string
+  ike?: IKEConfig
+  eap?: EAPConfig
+  ims?: IMSConfig
+  e911?: E911Config
+  device?: DeviceConfig
+  blocked?: boolean
+}
+
+// 运营商列表项 (GET /api/carrier)
+export type CarrierListItem = {
+  mcc: string
+  mnc: string
+  name: string
+  ike_addr: string
+  device_ims_tac: number
+  device_ims_cell_id: number
+  has_user_config: boolean
+  active: boolean
+  has_system_default: boolean
+}
+
+// 运营商配置详情 (GET /api/carrier/{mcc}/{mnc})
+export type CarrierDetail = {
+  mcc: string
+  mnc: string
+  name: string
+  ike_addr: string
+  device_ims_tac: number
+  device_ims_cell_id: number
+  system_default: CarrierProfile | null
+  user_config: CarrierProfile | null
+  active: boolean
+}
+
+// 保存用户配置 (PUT /api/carrier/{mcc}/{mnc})
+export type CarrierSavePayload = {
+  name: string
+  ike_addr: string
+  device_ims_tac: number
+  device_ims_cell_id: number
+  config: CarrierProfile
+  active: boolean
+}
+
+// 新增运营商 (POST /api/carrier)
+export type CarrierAddPayload = {
+  name: string
+  mcc: string
+  mnc: string
+  ike_addr?: string
+  device_ims_tac?: number
+  device_ims_cell_id?: number
+}
+
+// 批量导入
+export type CarrierBatchImportPayload = {
+  mode: 'skip_existing' | 'update_existing'
+  carriers: CarrierAddPayload[]
+}
+
+export type CarrierBatchImportResult = {
+  total: number
+  imported: number
+  skipped: number
+  skipped_list: string[]
+}
