@@ -9,6 +9,8 @@ import (
 	"net"
 	"strings"
 	"time"
+
+	"github.com/voorz/vohive/pkg/logger"
 )
 
 const (
@@ -90,15 +92,20 @@ func ProbeSOCKS5(ctx context.Context, cfg ProbeConfig) (ProbeResult, error) {
 		timeout = 5 * time.Second
 	}
 
+	logger.Info("🌐 开始探测前置代理", "addr", result.ProxyAddr, "timeout", timeout)
+
 	dialer := &net.Dialer{Timeout: timeout}
 	conn, err := dialer.DialContext(ctx, "tcp", result.ProxyAddr)
 	if err != nil {
 		result.Error = fmt.Sprintf("代理 TCP 连接失败: %v", err)
+		logger.Warn("🌐 前置代理 TCP 连接失败", "addr", result.ProxyAddr, "err", err)
 		return finalizeProbeResult(result, startedAt), err
 	}
 	defer conn.Close()
 
 	result.Reachable = true
+	logger.Info("🌐 前置代理 TCP 连接成功", "addr", result.ProxyAddr, "remote", conn.RemoteAddr())
+
 	if err := conn.SetDeadline(probeDeadline(ctx, timeout)); err != nil {
 		result.Error = fmt.Sprintf("设置探测超时失败: %v", err)
 		return finalizeProbeResult(result, startedAt), err
@@ -108,21 +115,25 @@ func ProbeSOCKS5(ctx context.Context, cfg ProbeConfig) (ProbeResult, error) {
 	if err != nil {
 		result.Stage = ProbeStageHandshake
 		result.Error = err.Error()
+		logger.Warn("🌐 前置代理 SOCKS5 握手失败", "addr", result.ProxyAddr, "err", err)
 		return finalizeProbeResult(result, startedAt), err
 	}
 	result.Stage = ProbeStageUDPAssociate
 	result.HandshakeOK = true
 	result.AuthMethod = socks5AuthMethodName(selectedMethod)
+	logger.Info("🌐 前置代理 SOCKS5 握手成功", "addr", result.ProxyAddr, "auth_method", result.AuthMethod)
 
 	relayAddr, err := probeUDPAssociate(conn)
 	if err != nil {
 		result.Error = err.Error()
+		logger.Warn("🌐 前置代理 UDP Associate 失败", "addr", result.ProxyAddr, "err", err)
 		return finalizeProbeResult(result, startedAt), err
 	}
 
 	result.Stage = ProbeStageOK
 	result.UDPAssociateOK = true
 	result.RelayAddr = relayAddr.String()
+	logger.Info("🌐 前置代理 UDP Associate 成功", "addr", result.ProxyAddr, "relay_addr", result.RelayAddr)
 	return finalizeProbeResult(result, startedAt), nil
 }
 

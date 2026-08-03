@@ -1,6 +1,10 @@
 package api
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -8,6 +12,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/voorz/vohive/internal/db"
 	"github.com/voorz/vohive/internal/upstreamproxy"
+	"github.com/voorz/vohive/pkg/logger"
+	"golang.org/x/net/proxy"
 )
 
 // ── 前置代理管理 API（主服务） ──
@@ -60,6 +66,7 @@ func (s *Server) handleCreateUpstreamProxy(c *gin.Context) {
 		return
 	}
 	req = normalizeUpstreamProxyPayload(nil, req)
+	logger.Info("🌐 创建前置代理", "id", req.ID, "name", req.Name, "addr", req.Addr, "username", req.Username, "enabled", req.Enabled)
 	if req.ID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "id 不能为空"})
 		return
@@ -70,6 +77,7 @@ func (s *Server) handleCreateUpstreamProxy(c *gin.Context) {
 	}
 	result, probeErr := probeUpstreamProxyConfig(c, req)
 	if probeErr != nil {
+		logger.Warn("🌐 前置代理探测失败", "id", req.ID, "addr", req.Addr, "stage", result.Stage, "error", result.Error)
 		c.JSON(http.StatusBadGateway, gin.H{
 			"status":  "error",
 			"message": "前置代理探测失败: " + result.FailureSummary(),
@@ -77,10 +85,13 @@ func (s *Server) handleCreateUpstreamProxy(c *gin.Context) {
 		})
 		return
 	}
+	logger.Info("🌐 前置代理探测通过", "id", req.ID, "addr", req.Addr, "relay_addr", result.RelayAddr, "duration_ms", result.DurationMS)
 	if err := db.UpsertUpstreamProxy(req); err != nil {
+		logger.Error("🌐 前置代理保存失败", "id", req.ID, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
 		return
 	}
+	logger.Info("🌐 前置代理已保存", "id", req.ID)
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "ok",
 		"message": "前置代理已保存，并已通过探测",
@@ -107,12 +118,14 @@ func (s *Server) handleUpdateUpstreamProxy(c *gin.Context) {
 	}
 	req.ID = id
 	req = normalizeUpstreamProxyPayload(existing, req)
+	logger.Info("🌐 更新前置代理", "id", req.ID, "name", req.Name, "addr", req.Addr, "username", req.Username, "enabled", req.Enabled)
 	if req.Addr == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "addr 不能为空"})
 		return
 	}
 	result, probeErr := probeUpstreamProxyConfig(c, req)
 	if probeErr != nil {
+		logger.Warn("🌐 前置代理探测失败", "id", req.ID, "addr", req.Addr, "stage", result.Stage, "error", result.Error)
 		c.JSON(http.StatusBadGateway, gin.H{
 			"status":  "error",
 			"message": "前置代理探测失败: " + result.FailureSummary(),
@@ -120,10 +133,13 @@ func (s *Server) handleUpdateUpstreamProxy(c *gin.Context) {
 		})
 		return
 	}
+	logger.Info("🌐 前置代理探测通过", "id", req.ID, "addr", req.Addr, "relay_addr", result.RelayAddr, "duration_ms", result.DurationMS)
 	if err := db.UpsertUpstreamProxy(req); err != nil {
+		logger.Error("🌐 前置代理保存失败", "id", req.ID, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
 		return
 	}
+	logger.Info("🌐 前置代理已更新", "id", req.ID)
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "ok",
 		"message": "前置代理已更新，并已通过探测",
@@ -274,4 +290,129 @@ func maskSecret(s string) string {
 		return ""
 	}
 	return "****"
+}
+
+// handleLookupUpstreamProxy 查询前置代理 IP 归属与延迟
+func (s *Server) handleLookupUpstreamProxy(c *gin.Context) {
+	id := upstreamProxyIDParam(c)
+	proxy, err := db.GetUpstreamProxyByID(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+	if proxy == nil {
+		c.JSON(http.StatusNotFound, gin.H{"status": "error", "message": "前置代理不存在"})
+		return
+	}
+
+	host, port, err := net.SplitHostPort(proxy.Addr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "代理地址格式无效: " + proxy.Addr})
+		return
+	}
+
+	// TCP Dial 测延迟（直连代理服务器）
+	start := time.Now()
+	conn, dialErr := net.DialTimeout("tcp", net.JoinHostPort(host, port), 5*time.Second)
+	latencyMs := time.Since(start).Milliseconds()
+	if dialErr != nil {
+		logger.Warn("🌐 前置代理延迟测试失败", "id", id, "addr", proxy.Addr, "err", dialErr)
+		c.JSON(http.StatusOK, gin.H{
+			"status":     "ok",
+			"ip":         host,
+			"latency_ms": -1,
+			"error":      "TCP 连接失败: " + dialErr.Error(),
+		})
+		return
+	}
+	conn.Close()
+
+	// 通过 SOCKS5 代理获取出口 IP 与归属
+	ipInfo, ipErr := lookupIPInfoViaProxy(c.Request.Context(), proxy.Addr, proxy.Username, proxy.Password)
+	if ipErr != nil {
+		logger.Warn("🌐 出口 IP 查询失败", "id", id, "proxy_addr", proxy.Addr, "err", ipErr)
+		c.JSON(http.StatusOK, gin.H{
+			"status":     "ok",
+			"ip":         host,
+			"latency_ms": latencyMs,
+			"error":      "出口 IP 查询失败: " + ipErr.Error(),
+		})
+		return
+	}
+
+	logger.Info("🌐 前置代理 lookup 完成", "id", id, "addr", proxy.Addr, "exit_ip", ipInfo.IP, "latency_ms", latencyMs, "country", ipInfo.Country)
+	c.JSON(http.StatusOK, gin.H{
+		"status":       "ok",
+		"ip":           ipInfo.IP,
+		"country":      ipInfo.Country,
+		"region":       ipInfo.Region,
+		"city":         ipInfo.City,
+		"asn":          ipInfo.ASN,
+		"organization": ipInfo.Organization,
+		"latency_ms":   latencyMs,
+	})
+}
+
+type ipwhoResponse struct {
+	IP         string `json:"ip"`
+	Country    string `json:"country"`
+	Region     string `json:"region"`
+	City       string `json:"city"`
+	Connection struct {
+		ASN int    `json:"asn"`
+		Org string `json:"org"`
+	} `json:"connection"`
+}
+
+type ipInfoResult struct {
+	IP           string
+	Country      string
+	Region       string
+	City         string
+	ASN          string
+	Organization string
+}
+
+// lookupIPInfoViaProxy 通过 SOCKS5 代理请求 ipwho.is，获取出口 IP 与归属信息
+func lookupIPInfoViaProxy(ctx context.Context, proxyAddr, username, password string) (*ipInfoResult, error) {
+	var auth *proxy.Auth
+	if strings.TrimSpace(username) != "" {
+		auth = &proxy.Auth{User: strings.TrimSpace(username), Password: strings.TrimSpace(password)}
+	}
+	dialer, err := proxy.SOCKS5("tcp", proxyAddr, auth, &net.Dialer{Timeout: 10 * time.Second})
+	if err != nil {
+		return nil, fmt.Errorf("SOCKS5 dialer 创建失败: %w", err)
+	}
+	transport := &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return dialer.Dial(network, addr)
+		},
+	}
+	client := &http.Client{Timeout: 10 * time.Second, Transport: transport}
+	url := "https://ipwho.is/?t=" + fmt.Sprintf("%d", time.Now().UnixMilli())
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var data ipwhoResponse
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, err
+	}
+	asnStr := ""
+	if data.Connection.ASN > 0 {
+		asnStr = fmt.Sprintf("AS%d", data.Connection.ASN)
+	}
+	return &ipInfoResult{
+		IP:           data.IP,
+		Country:      data.Country,
+		Region:       data.Region,
+		City:         data.City,
+		ASN:          asnStr,
+		Organization: data.Connection.Org,
+	}, nil
 }

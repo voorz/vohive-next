@@ -442,6 +442,19 @@ export type UpstreamProxyCountryRulePayload = {
   enabled: boolean
 }
 
+// 前置代理 IP 归属与延迟查询结果
+export type UpstreamProxyLookupResult = {
+  status: string
+  ip: string
+  country?: string
+  region?: string
+  city?: string
+  asn?: string
+  organization?: string
+  latency_ms: number
+  error?: string
+}
+
 export type OperatorSelectionMode = 'automatic' | 'manual'
 export type OperatorSelectionRAT = '' | 'gsm' | 'lte' | 'wcdma' | 'nr5g'
 

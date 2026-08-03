@@ -8,7 +8,7 @@ import ErrorState from '../components/ErrorState.vue'
 import { usePollingScheduler } from '../composables/usePollingScheduler'
 import { useProxyStore } from '../stores/proxy'
 import { useUpstreamProxyStore } from '../stores/upstream-proxy'
-import type { ProxyInstance, ProxyDevice, ProxyMode, UpstreamProxy, UpstreamProxyCountry } from '../types/api'
+import type { ProxyInstance, ProxyDevice, ProxyMode, UpstreamProxy, UpstreamProxyCountry, UpstreamProxyLookupResult } from '../types/api'
 import { toAppError } from '../services/http'
 import {
   upstreamProxyAddressWarning,
@@ -23,7 +23,8 @@ import {
   Delete24Regular,
   Router24Regular,
   Link24Regular,
-  Earth24Regular
+  Earth24Regular,
+  PlugConnected24Regular
 } from '@vicons/fluent'
 
 // ── Tab 控制 ──
@@ -304,6 +305,27 @@ const countryRuleDrawerOpen = ref(false)
 const countryRuleTargetProxy = ref<UpstreamProxy | null>(null)
 const selectedCountryCode = ref('')
 
+// ── IP 归属与延迟查询 ──
+const lookupLoading = ref<string | null>(null)
+const lookupResults = ref<Map<string, UpstreamProxyLookupResult>>(new Map())
+
+async function doLookup(proxy: UpstreamProxy) {
+  lookupLoading.value = proxy.id
+  try {
+    const result = await upstreamStore.lookupProxy(proxy.id)
+    if (result.ok) {
+      lookupResults.value.set(proxy.id, result.data)
+    } else {
+      ElMessage.error(result.error?.message || '查询失败')
+    }
+  } catch (e: unknown) {
+    const err = toAppError(e)
+    ElMessage.error(err.message || '查询失败')
+  } finally {
+    lookupLoading.value = null
+  }
+}
+
 const availableCountries = computed(() => {
   if (!countryRuleTargetProxy.value) return []
   return upstreamStore.countries.filter((country) => {
@@ -579,34 +601,68 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
               </div>
             </div>
 
-            <div class="flex items-center gap-2 shrink-0 flex-wrap">
-              <el-tag size="small" :type="proxy.enabled ? 'success' : 'info'">
-                {{ proxy.enabled ? '已启用' : '已禁用' }}
-              </el-tag>
-              
-              <div class="proxy-rule-badge">
-                <el-icon size="14"><Link24Regular /></el-icon>
-                <span>{{ proxy.ruleCount }} 个国家规则</span>
+              <div class="flex items-center gap-2 shrink-0 flex-wrap">
+                <el-tag size="small" :type="proxy.enabled ? 'success' : 'info'">
+                  {{ proxy.enabled ? '已启用' : '已禁用' }}
+                </el-tag>
+                
+                <div class="proxy-rule-badge">
+                  <el-icon size="14"><Link24Regular /></el-icon>
+                  <span>{{ proxy.ruleCount }} 个国家规则</span>
+                </div>
+
+                <div class="proxy-divider hidden sm:block"></div>
+
+                <el-button size="small" :loading="lookupLoading === proxy.id" @click="doLookup(proxy)">
+                  <div class="flex items-center gap-1 -my-0.5">
+                    <el-icon size="14"><PlugConnected24Regular /></el-icon>
+                    <span>测延迟</span>
+                  </div>
+                </el-button>
+
+                <el-button size="small" @click="openCountryRuleDrawer(proxy)">
+                  <div class="flex items-center gap-1 -my-0.5">
+                    <el-icon size="14"><Link24Regular /></el-icon>
+                    <span>国家规则</span>
+                  </div>
+                </el-button>
+                
+                <el-button-group>
+                  <el-button size="small" @click="openUpstreamDrawer(proxy)">
+                    <el-icon><Edit24Regular /></el-icon>
+                  </el-button>
+                  <el-button size="small" type="danger" @click="deleteUpstream(proxy)">
+                    <el-icon><Delete24Regular /></el-icon>
+                  </el-button>
+                </el-button-group>
               </div>
 
-              <div class="proxy-divider hidden sm:block"></div>
-
-              <el-button size="small" @click="openCountryRuleDrawer(proxy)">
-                <div class="flex items-center gap-1 -my-0.5">
-                  <el-icon size="14"><Link24Regular /></el-icon>
-                  <span>国家规则</span>
-                </div>
-              </el-button>
-              
-              <el-button-group>
-                <el-button size="small" @click="openUpstreamDrawer(proxy)">
-                  <el-icon><Edit24Regular /></el-icon>
-                </el-button>
-                <el-button size="small" type="danger" @click="deleteUpstream(proxy)">
-                  <el-icon><Delete24Regular /></el-icon>
-                </el-button>
-              </el-button-group>
-            </div>
+              <!-- IP 归属与延迟结果 -->
+              <div v-if="lookupResults.get(proxy.id)" class="proxy-lookup-result">
+                <template v-if="lookupResults.get(proxy.id)?.error">
+                  <span class="lookup-error">{{ lookupResults.get(proxy.id)?.error }}</span>
+                </template>
+                <template v-else>
+                  <span class="lookup-item">
+                    <span class="lookup-label">IP</span>
+                    <span class="lookup-value font-mono">{{ lookupResults.get(proxy.id)?.ip }}</span>
+                  </span>
+                  <span v-if="lookupResults.get(proxy.id)?.country" class="lookup-item">
+                    <span class="lookup-label">归属</span>
+                    <span class="lookup-value">{{ lookupResults.get(proxy.id)?.country }}{{ lookupResults.get(proxy.id)?.city ? ' · ' + lookupResults.get(proxy.id)?.city : '' }}</span>
+                  </span>
+                  <span v-if="lookupResults.get(proxy.id)?.organization" class="lookup-item">
+                    <span class="lookup-label">ISP</span>
+                    <span class="lookup-value">{{ lookupResults.get(proxy.id)?.organization }}</span>
+                  </span>
+                  <span class="lookup-item">
+                    <span class="lookup-label">延迟</span>
+                    <span class="lookup-value font-mono" :class="{ 'latency-ok': (lookupResults.get(proxy.id)?.latency_ms ?? -1) > 0, 'latency-fail': (lookupResults.get(proxy.id)?.latency_ms ?? -1) < 0 }">
+                      {{ (lookupResults.get(proxy.id)?.latency_ms ?? -1) > 0 ? lookupResults.get(proxy.id)?.latency_ms + ' ms' : '超时' }}
+                    </span>
+                  </span>
+                </template>
+              </div>
           </div>
         </div>
       </div>
@@ -1123,5 +1179,49 @@ usePollingScheduler(() => fetchUpstream({ silent: true }), 10000, {
   font-size: 14px;
   font-weight: 700;
   color: var(--foreground);
+}
+
+/* ── IP 归属与延迟结果 ── */
+.proxy-lookup-result {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 8px 12px;
+  background: color-mix(in oklab, var(--brand) 5%, var(--muted));
+  border: 1px solid color-mix(in oklab, var(--brand) 15%, var(--border));
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.lookup-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lookup-label {
+  color: var(--muted-foreground);
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+}
+
+.lookup-value {
+  color: var(--foreground);
+}
+
+.latency-ok {
+  color: var(--success);
+  font-weight: 700;
+}
+
+.latency-fail {
+  color: var(--destructive);
+  font-weight: 700;
+}
+
+.lookup-error {
+  color: var(--destructive);
 }
 </style>

@@ -31,8 +31,8 @@ import (
 	"github.com/voorz/vohive/pkg/smscodec"
 	"github.com/voorz/vowifi-core/runtimehost/voicehost"
 
-	"github.com/voorz/vohive/pkg/logger"
 	"github.com/spf13/viper"
+	"github.com/voorz/vohive/pkg/logger"
 
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
@@ -295,30 +295,30 @@ func (s *Server) newRouter() *gin.Engine {
 		api.POST("/settings/notifications/webhook/test", s.handleTestWebhookNotification)
 		api.POST("/settings/notifications/bark/test", s.handleTestBarkNotification)
 		api.POST("/settings/notifications/email/test", s.handleTestEmailNotification)
-		api.POST("/settings/password", s.handleChangePassword) // 修改登录密码
-		api.GET("/system/info", s.handleSystemInfo)            // 获取系统运行与版本信息
-		api.GET("/system/update/check", s.handleCheckUpdate)          // 检查系统更新
-		api.GET("/system/update/releases", s.handleListReleases)    // 获取 Release 列表
-		api.POST("/system/update/apply", s.handleApplyUpdate)        // 应用最新版本更新
-		api.POST("/system/update/apply/:tag", s.handleApplyUpdateByTag) // 按 tag 应用指定版本更新
-		api.POST("/system/update/local", s.handleLocalUpdate)         // 上传本地二进制更新
-		api.GET("/settings/update-repo", s.handleGetUpdateRepo)       // 获取 release 源配置
-		api.PUT("/settings/update-repo", s.handleUpdateUpdateRepo)    // 更新 release 源配置
-		api.DELETE("/settings/update-repo", s.handleDeleteUpdateRepo)  // 删除 release 源配置
-		api.GET("/settings/sms-limit", s.handleGetSMSRateLimit)       // 获取短信限速配置
-		api.PUT("/settings/sms-limit", s.handleUpdateSMSRateLimit)    // 更新短信限速配置
-		api.GET("/settings/security", s.handleGetSecurity)            // 获取安全配置
-		api.PUT("/settings/security", s.handleUpdateSecurity)          // 更新安全配置
-		api.GET("/settings/api-tokens", s.handleListAPITokens)          // 列出全部 API Token
-		api.POST("/settings/api-tokens", s.handleCreateAPIToken)         // 创建新 API Token
-		api.DELETE("/settings/api-tokens/:id", s.handleDeleteAPIToken)  // 删除指定 API Token
-		api.GET("/settings/server", s.handleGetServerConfig)           // 获取服务器配置
-		api.PUT("/settings/server", s.handleUpdateServerConfig)        // 更新服务器配置
+		api.POST("/settings/password", s.handleChangePassword)             // 修改登录密码
+		api.GET("/system/info", s.handleSystemInfo)                        // 获取系统运行与版本信息
+		api.GET("/system/update/check", s.handleCheckUpdate)               // 检查系统更新
+		api.GET("/system/update/releases", s.handleListReleases)           // 获取 Release 列表
+		api.POST("/system/update/apply", s.handleApplyUpdate)              // 应用最新版本更新
+		api.POST("/system/update/apply/:tag", s.handleApplyUpdateByTag)    // 按 tag 应用指定版本更新
+		api.POST("/system/update/local", s.handleLocalUpdate)              // 上传本地二进制更新
+		api.GET("/settings/update-repo", s.handleGetUpdateRepo)            // 获取 release 源配置
+		api.PUT("/settings/update-repo", s.handleUpdateUpdateRepo)         // 更新 release 源配置
+		api.DELETE("/settings/update-repo", s.handleDeleteUpdateRepo)      // 删除 release 源配置
+		api.GET("/settings/sms-limit", s.handleGetSMSRateLimit)            // 获取短信限速配置
+		api.PUT("/settings/sms-limit", s.handleUpdateSMSRateLimit)         // 更新短信限速配置
+		api.GET("/settings/security", s.handleGetSecurity)                 // 获取安全配置
+		api.PUT("/settings/security", s.handleUpdateSecurity)              // 更新安全配置
+		api.GET("/settings/api-tokens", s.handleListAPITokens)             // 列出全部 API Token
+		api.POST("/settings/api-tokens", s.handleCreateAPIToken)           // 创建新 API Token
+		api.DELETE("/settings/api-tokens/:id", s.handleDeleteAPIToken)     // 删除指定 API Token
+		api.GET("/settings/server", s.handleGetServerConfig)               // 获取服务器配置
+		api.PUT("/settings/server", s.handleUpdateServerConfig)            // 更新服务器配置
 		api.PUT("/settings/web-credentials", s.handleUpdateWebCredentials) // 更新管理员用户名+密码
-		api.GET("/settings/site", s.handleGetSite)                   // 获取站点信息
-		api.PUT("/settings/site", s.handleUpdateSite)                  // 更新站点名称/副标题
-		api.POST("/settings/site/logo", s.handleUploadSiteLogo)        // 上传自定义 logo
-		api.POST("/settings/site/favicon", s.handleUploadSiteFavicon) // 上传自定义 favicon
+		api.GET("/settings/site", s.handleGetSite)                         // 获取站点信息
+		api.PUT("/settings/site", s.handleUpdateSite)                      // 更新站点名称/副标题
+		api.POST("/settings/site/logo", s.handleUploadSiteLogo)            // 上传自定义 logo
+		api.POST("/settings/site/favicon", s.handleUploadSiteFavicon)      // 上传自定义 favicon
 
 		// MCP Streamable HTTP（需鉴权，复用 authMiddleware）
 		api.POST("/mcp", s.handleMcpRequest)
@@ -365,6 +365,7 @@ func (s *Server) newRouter() *gin.Engine {
 		api.PUT("/upstream-proxies/:proxy_id", s.handleUpdateUpstreamProxy)                               // 更新前置代理
 		api.DELETE("/upstream-proxies/:proxy_id", s.handleDeleteUpstreamProxy)                            // 删除前置代理
 		api.POST("/upstream-proxies/:proxy_id/actions/probe", s.handleProbeUpstreamProxy)                 // 探测前置代理
+		api.GET("/upstream-proxies/:proxy_id/lookup", s.handleLookupUpstreamProxy)                        // 查询代理 IP 归属与延迟
 		api.GET("/upstream-proxy-countries", s.handleListUpstreamProxyCountries)                          // 列出可配置国家
 		api.GET("/upstream-proxy-country-rules", s.handleListUpstreamProxyCountryRules)                   // 列出国家规则
 		api.PUT("/upstream-proxy-country-rules/:country_code", s.handleUpsertUpstreamProxyCountryRule)    // 保存国家规则
@@ -392,17 +393,17 @@ func (s *Server) newRouter() *gin.Engine {
 		api.GET("/logs/history", s.handleLogHistory) // 获取历史日志
 
 		// ===== 运营商配置 =====
-		api.GET("/carrier", s.handleListCarriers)                         // 运营商列表（系统默认 + 用户配置）
-		api.GET("/carrier/defaults", s.handleListCarrierDefaults)         // 系统默认运营商列表
-		api.GET("/carrier/defaults/:mcc/:mnc", s.handleGetCarrierDefault) // 系统默认运营商详情
-		api.POST("/carrier", s.handleAddCarrier)                          // 添加运营商
-		api.POST("/carrier/batch", s.handleBatchImportCarriers)           // 批量导入运营商
-		api.GET("/carrier/:mcc/:mnc", s.handleGetCarrier)                 // 运营商配置详情
-		api.PUT("/carrier/:mcc/:mnc", s.handleSaveCarrierConfig)          // 保存用户配置
-		api.DELETE("/carrier/:mcc/:mnc", s.handleRemoveCarrier)           // 删除运营商
+		api.GET("/carrier", s.handleListCarriers)                            // 运营商列表（系统默认 + 用户配置）
+		api.GET("/carrier/defaults", s.handleListCarrierDefaults)            // 系统默认运营商列表
+		api.GET("/carrier/defaults/:mcc/:mnc", s.handleGetCarrierDefault)    // 系统默认运营商详情
+		api.POST("/carrier", s.handleAddCarrier)                             // 添加运营商
+		api.POST("/carrier/batch", s.handleBatchImportCarriers)              // 批量导入运营商
+		api.GET("/carrier/:mcc/:mnc", s.handleGetCarrier)                    // 运营商配置详情
+		api.PUT("/carrier/:mcc/:mnc", s.handleSaveCarrierConfig)             // 保存用户配置
+		api.DELETE("/carrier/:mcc/:mnc", s.handleRemoveCarrier)              // 删除运营商
 		api.DELETE("/carrier/:mcc/:mnc/config", s.handleDeleteCarrierConfig) // 删除用户配置
 		api.POST("/carrier/:mcc/:mnc/activate", s.handleActivateCarrier)     // 激活用户配置
-		api.POST("/carrier/:mcc/:mnc/deactivate", s.handleDeactivateCarrier)  // 禁用用户配置
+		api.POST("/carrier/:mcc/:mnc/deactivate", s.handleDeactivateCarrier) // 禁用用户配置
 	}
 	return r
 }

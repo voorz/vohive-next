@@ -5,7 +5,8 @@ import type {
   UpstreamProxy,
   UpstreamProxyCountry,
   UpstreamProxyCountryRule,
-  UpstreamProxyCountryRulePayload
+  UpstreamProxyCountryRulePayload,
+  UpstreamProxyLookupResult
 } from '../types/api'
 import { upstreamProxyService } from '../services/upstream-proxy'
 
@@ -69,6 +70,10 @@ export const useUpstreamProxyStore = defineStore('upstreamProxy', () => {
     return upstreamProxyService.deleteCountryRule(countryCode)
   }
 
+  async function lookupProxy(id: string) {
+    return upstreamProxyService.lookup(id)
+  }
+
   // 获取某个代理的国家规则列表
   function getRulesForProxy(proxyId: string): UpstreamProxyCountryRule[] {
     return countryRules.value.filter(rule => rule.upstream_proxy_id === proxyId)
@@ -93,6 +98,7 @@ export const useUpstreamProxyStore = defineStore('upstreamProxy', () => {
     deleteProxy,
     upsertCountryRule,
     deleteCountryRule,
+    lookupProxy,
     getRulesForProxy,
     getRuleForCountry
   }

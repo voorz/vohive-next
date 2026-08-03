@@ -4,7 +4,8 @@ import type {
   UpstreamProxy,
   UpstreamProxyCountry,
   UpstreamProxyCountryRule,
-  UpstreamProxyCountryRulePayload
+  UpstreamProxyCountryRulePayload,
+  UpstreamProxyLookupResult
 } from '../types/api'
 
 // 前置代理 API 服务层
@@ -70,6 +71,14 @@ export const upstreamProxyService = {
     return callService(async () => {
       await api.delete(`/upstream-proxy-country-rules/${encodeURIComponent(countryCode)}`)
       return true
+    })
+  },
+
+  // 查询代理 IP 归属与延迟
+  lookup(id: string) {
+    return callService(async () => {
+      const res = await api.get(`/upstream-proxies/${id}/lookup`)
+      return res.data as UpstreamProxyLookupResult
     })
   }
 }
