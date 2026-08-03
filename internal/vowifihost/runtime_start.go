@@ -7,12 +7,15 @@ import (
 	"time"
 
 	swusim "github.com/voorz/vowifi-core/engine/sim"
+	"github.com/voorz/vowifi-core/profiles"
 	"github.com/voorz/vowifi-core/runtimehost"
 	"github.com/voorz/vowifi-core/runtimehost/carrier"
 	"github.com/voorz/vowifi-core/runtimehost/eventhost"
 	"github.com/voorz/vowifi-core/runtimehost/messaging"
 	"github.com/voorz/vowifi-core/runtimehost/voiceclient"
 	"github.com/voorz/vowifi-core/runtimehost/voicehost"
+
+	carrierconfig "github.com/voorz/vohive/internal/carrier"
 
 	"github.com/voorz/vohive/pkg/logger"
 )
@@ -98,11 +101,30 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 	// are unavailable (flight mode), use the carrier preset's configured
 	// TAC/CellID to avoid all-zero utran-cell-id-3gpp (causes 403 Forbidden).
 	cellID := ""
-	if mcc := strings.TrimSpace(profile.MCC); mcc != "" {
-		mnc := strings.TrimSpace(profile.MNC)
+	mcc := strings.TrimSpace(profile.MCC)
+	mnc := strings.TrimSpace(profile.MNC)
+	if mcc != "" {
 		mode := carrier.IMSCellIDMode(mcc, mnc)
 		if mode != "none" {
 			cellID = carrier.DefaultUTRANCellIDSuffix(mcc, mnc)
+		}
+	}
+
+	// 从 JSON carrier profile（含用户覆盖）解析 IMS REGISTER 相关参数。
+	// RegisterProfile 必须在此注入，否则 Normalized() 的通用默认值会
+	// 覆盖 carrier 特定的 REGISTER header 配置。
+	var (
+		registerProfile  voiceclient.RegisterProfile
+		sipInstanceURN   string
+		registerExpiry   time.Duration
+		pcscfAddr        string
+	)
+	if mcc != "" && mnc != "" {
+		if p, err := profiles.Lookup(mcc, mnc); err == nil && p != nil {
+			registerProfile = carrierconfig.ResolveRegisterProfile(p)
+			sipInstanceURN = carrierconfig.ResolveSIPInstanceURN(p)
+			registerExpiry = carrierconfig.ResolveRegisterExpiry(p)
+			pcscfAddr = carrierconfig.ResolvePCSCFAddr(p)
 		}
 	}
 
@@ -119,7 +141,11 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 		Access:        runtimehost.NewModemAccessAdapter(req.Modem),
 		Dataplane:     req.Dataplane,
 		Proxy:         req.Prepared.Proxy,
-		DeliveryStore: req.DeliveryStore,
+		PCSCFAddr:     pcscfAddr,
+		RegisterProfile: registerProfile,
+		SIPInstanceURN:  sipInstanceURN,
+		RegisterExpiry:  registerExpiry,
+		DeliveryStore:   req.DeliveryStore,
 		Dispatch:      req.Dispatch,
 		BeforeStart:   req.BeforeStart,
 		ShouldRun: func() bool {

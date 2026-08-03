@@ -4,11 +4,7 @@ import type { AppError } from '../types/domain'
 import type { CarrierListItem, CarrierDetail, CarrierProfile } from '../types/api'
 import { carrierService } from '../services/carrier'
 
-// ═══════════════════════════════════════════════════════════
-// Mock 数据 — 后端 API 就绪后替换为真实调用
-// ═══════════════════════════════════════════════════════════
-
-// 3GPP 标准完整模板（所有字段 + 默认值）
+// 3GPP 标准完整模板（所有字段 + 默认值），用于"从标准模板创建"
 const standardTemplate: CarrierProfile = {
   ike: {
     addr: '', port: 500,
@@ -77,132 +73,6 @@ function mergeWithStandard(profile: CarrierProfile): CarrierProfile {
   }
 }
 
-const mockSystemDefaults: Record<string, CarrierProfile> = {
-  '234-10': {
-    id: 'giffgaff_23410', mcc: '234', mnc: '10',
-    ike: { proposals: ['aes256-sha512-prfsha512-modp2048'], esp_proposals: ['aes256-sha512'] },
-    ims: {
-      sec_agree_mode: 'auto', include_pani_authenticated: true,
-      strict_security_server_offer: true, enable_initial_reject_fallback: true,
-      contact_param_order: ['access_type', 'audio', 'smsip', 'icsi_ref', 'sip_instance'],
-      security_client_mechanisms: [
-        { alg: 'hmac-md5-96', ealg: 'des-ede3-cbc', prot: 'esp', mode: 'trans' },
-        { alg: 'hmac-md5-96', ealg: 'aes-cbc', prot: 'esp', mode: 'trans' },
-        { alg: 'hmac-md5-96', ealg: 'null', prot: 'esp', mode: 'trans' },
-        { alg: 'hmac-sha-1-96', ealg: 'des-ede3-cbc', prot: 'esp', mode: 'trans' },
-        { alg: 'hmac-sha-1-96', ealg: 'aes-cbc', prot: 'esp', mode: 'trans' },
-        { alg: 'hmac-sha-1-96', ealg: 'null', prot: 'esp', mode: 'trans' }
-      ],
-      transport_mode: 'auto', contact_features: 'ims_features',
-      initial_authorization: 'aka_empty_uri_first', security_client_format: 'full_spaced',
-      supported_header: 'path,sec-agree,gruu', user_agent: 'SimAdmin VoWiFi',
-      include_accept_contact: true, include_p_preferred_id: true,
-      include_p_visited_network_id: true, include_p_access_network_info: true,
-      include_route: true, include_cellular_network: true, include_security_client: true
-    },
-    device: { ims_tac: 28673, ims_cell_id: 12345678 },
-    blocked: false
-  },
-  '234-15': {
-    id: 'vodafone_23415', mcc: '234', mnc: '15',
-    ike: { proposals: ['aes256-sha256-prfsha256-modp2048'], esp_proposals: ['aes256-sha256'] },
-    ims: {
-      sec_agree_mode: 'auto', include_pani_authenticated: true,
-      contact_param_order: ['access_type', 'audio', 'smsip', 'icsi_ref', 'sip_instance'],
-      transport_mode: 'auto', contact_features: 'ims_features',
-      initial_authorization: 'aka_empty_uri_first', security_client_format: 'full_spaced',
-      supported_header: 'path,sec-agree,gruu', user_agent: 'SimAdmin VoWiFi',
-      include_accept_contact: true, include_p_preferred_id: true
-    },
-    blocked: false
-  },
-  '234-20': {
-    id: 'three_23420', mcc: '234', mnc: '20',
-    ike: { proposals: ['aes256-sha256-prfsha256-modp2048'], esp_proposals: ['aes256-sha256'] },
-    ims: {
-      sec_agree_mode: 'auto', include_pani_authenticated: true,
-      contact_param_order: ['access_type', 'audio', 'smsip', 'icsi_ref', 'sip_instance'],
-      transport_mode: 'auto', contact_features: 'ims_features',
-      initial_authorization: 'aka_empty_uri_first', security_client_format: 'full_spaced',
-      supported_header: 'path,sec-agree,gruu', user_agent: 'SimAdmin VoWiFi',
-      include_accept_contact: true, include_p_preferred_id: true,
-      include_p_visited_network_id: true
-    },
-    blocked: false
-  },
-  '310-260': {
-    id: 'tmobile_310260', mcc: '310', mnc: '260',
-    ike: { proposals: ['aes256-sha256-prfsha256-modp2048'], esp_proposals: ['aes256-sha256'] },
-    eap: { challenge_mode: 'standard', app_preference: 'auto', identity_source: 'derived' },
-    ims: {
-      sec_agree_mode: 'auto', include_pani_authenticated: true,
-      contact_param_order: ['access_type', 'audio', 'smsip', 'icsi_ref', 'sip_instance'],
-      transport_mode: 'auto', contact_features: 'ims_features',
-      initial_authorization: 'aka_empty_uri_first', security_client_format: 'full_spaced',
-      supported_header: 'path,sec-agree,gruu', user_agent: 'SimAdmin VoWiFi',
-      include_accept_contact: true, include_p_preferred_id: true
-    },
-    e911: { enabled: true, provider: 'intrado', entitlement_endpoint: 'https://tmobile.e911.com/vowifi' },
-    blocked: false
-  },
-  '460-0': {
-    id: 'chinamobile_4600', mcc: '460', mnc: '0',
-    ike: { proposals: ['aes256-sha256-prfsha256-modp2048'], esp_proposals: ['aes256-sha256'] },
-    ims: {
-      sec_agree_mode: 'auto', contact_param_order: ['access_type', 'audio', 'smsip', 'icsi_ref', 'sip_instance'],
-      transport_mode: 'auto', contact_features: 'ims_features',
-      initial_authorization: 'aka_empty_uri_first', security_client_format: 'full_spaced',
-      supported_header: 'path,sec-agree,gruu', user_agent: 'SimAdmin VoWiFi'
-    },
-    blocked: false
-  }
-}
-
-const mockUserConfigs: Record<string, CarrierProfile> = {
-  '234-10': {
-    id: 'giffgaff_23410', mcc: '234', mnc: '10',
-    ike: { proposals: ['aes256-sha512-prfsha512-modp2048'], esp_proposals: ['aes256-sha512'], nat_keepalive: 20 },
-    ims: {
-      sec_agree_mode: 'auto', include_pani_authenticated: true,
-      strict_security_server_offer: true, enable_initial_reject_fallback: true,
-      contact_param_order: ['access_type', 'audio', 'smsip', 'icsi_ref', 'sip_instance'],
-      transport_mode: 'auto', contact_features: 'ims_features',
-      initial_authorization: 'aka_empty_uri_first', security_client_format: 'full_spaced',
-      supported_header: 'path,sec-agree,gruu', user_agent: 'SimAdmin VoWiFi',
-      include_accept_contact: true, include_p_preferred_id: true,
-      expires: 600
-    },
-    device: { ims_tac: 28673, ims_cell_id: 12345678 },
-    blocked: false
-  },
-  '310-260': {
-    id: 'tmobile_310260', mcc: '310', mnc: '260',
-    ike: { proposals: ['aes256-sha256-prfsha256-modp2048'], esp_proposals: ['aes256-sha256'], dpd_interval: 600 },
-    eap: { challenge_mode: 'standard', app_preference: 'auto', identity_source: 'derived' },
-    ims: {
-      sec_agree_mode: 'auto', include_pani_authenticated: true,
-      contact_param_order: ['access_type', 'audio', 'smsip', 'icsi_ref', 'sip_instance'],
-      transport_mode: 'auto', contact_features: 'ims_features',
-      initial_authorization: 'aka_empty_uri_first', security_client_format: 'full_spaced',
-      supported_header: 'path,sec-agree,gruu', user_agent: 'SimAdmin VoWiFi',
-      include_accept_contact: true, include_p_preferred_id: true,
-      expires: 600
-    },
-    e911: { enabled: true, provider: 'intrado', entitlement_endpoint: 'https://tmobile.e911.com/vowifi' },
-    blocked: false
-  }
-}
-
-const mockCarrierList: CarrierListItem[] = [
-  { mcc: '234', mnc: '10', name: 'giffgaff UK', ike_addr: '', device_ims_tac: 28673, device_ims_cell_id: 12345678, has_user_config: true, active: false, has_system_default: true },
-  { mcc: '234', mnc: '15', name: 'Vodafone UK', ike_addr: '', device_ims_tac: 0, device_ims_cell_id: 0, has_user_config: false, active: false, has_system_default: true },
-  { mcc: '234', mnc: '20', name: 'Three UK', ike_addr: '', device_ims_tac: 0, device_ims_cell_id: 0, has_user_config: false, active: false, has_system_default: true },
-  { mcc: '310', mnc: '260', name: 'T-Mobile US', ike_addr: '', device_ims_tac: 0, device_ims_cell_id: 0, has_user_config: true, active: true, has_system_default: true },
-  { mcc: '460', mnc: '0', name: 'China Mobile', ike_addr: '', device_ims_tac: 0, device_ims_cell_id: 0, has_user_config: false, active: false, has_system_default: true }
-]
-
-// ═══════════════════════════════════════════════════════════
-
 export const useCarrierStore = defineStore('carrier', () => {
   const carriers = ref<CarrierListItem[]>([])
   const selectedMcc = ref('')
@@ -242,14 +112,14 @@ export const useCarrierStore = defineStore('carrier', () => {
     loading.value = true
     error.value = null
 
-    // TODO: 后端就绪后替换为真实 API
-    // const result = await carrierService.list()
-    // if (result.ok) { carriers.value = result.data } else { error.value = result.error }
-
-    // Mock
-    carriers.value = [...mockCarrierList]
-    if (carriers.value.length > 0 && !selectedMcc.value) {
-      await selectCarrier(carriers.value[0].mcc, carriers.value[0].mnc)
+    const result = await carrierService.list()
+    if (result.ok) {
+      carriers.value = result.data
+      if (carriers.value.length > 0 && !selectedMcc.value) {
+        await selectCarrier(carriers.value[0].mcc, carriers.value[0].mnc)
+      }
+    } else {
+      error.value = result.error
     }
     loading.value = false
   }
@@ -267,29 +137,17 @@ export const useCarrierStore = defineStore('carrier', () => {
     if (!selectedMcc.value || !selectedMnc.value) return
     detailLoading.value = true
 
-    // TODO: 后端就绪后替换为真实 API
-    // const result = await carrierService.get(selectedMcc.value, selectedMnc.value)
-    // if (result.ok) { detail.value = result.data } else { error.value = result.error }
-
-    // Mock
-    const key = `${selectedMcc.value}-${selectedMnc.value}`
-    const item = carriers.value.find(c => c.mcc === selectedMcc.value && c.mnc === selectedMnc.value)
-    if (item) {
-      detail.value = {
-        mcc: item.mcc, mnc: item.mnc, name: item.name,
-        ike_addr: item.ike_addr,
-        device_ims_tac: item.device_ims_tac,
-        device_ims_cell_id: item.device_ims_cell_id,
-        system_default: mockSystemDefaults[key] || null,
-        user_config: item.has_user_config ? (mockUserConfigs[key] || null) : null,
-        active: item.active
-      }
+    const result = await carrierService.get(selectedMcc.value, selectedMnc.value)
+    if (result.ok) {
+      detail.value = result.data
       // 初始化编辑副本
       if (detail.value.user_config) {
         editingConfig.value = JSON.parse(JSON.stringify(detail.value.user_config))
       } else {
         editingConfig.value = null
       }
+    } else {
+      error.value = result.error
     }
     detailLoading.value = false
   }
@@ -346,93 +204,106 @@ export const useCarrierStore = defineStore('carrier', () => {
     if (!editingConfig.value || !detail.value) return false
     saving.value = true
 
-    // TODO: 后端就绪后替换为真实 API
-    // const result = await carrierService.save(
-    //   selectedMcc.value, selectedMnc.value,
-    //   {
-    //     name: detail.value.name,
-    //     ike_addr: detail.value.ike_addr,
-    //     device_ims_tac: detail.value.device_ims_tac,
-    //     device_ims_cell_id: detail.value.device_ims_cell_id,
-    //     config: editingConfig.value,
-    //     active: detail.value.active
-    //   }
-    // )
+    const result = await carrierService.save(
+      selectedMcc.value, selectedMnc.value,
+      {
+        name: detail.value.name,
+        ike_addr: detail.value.ike_addr,
+        device_ims_tac: detail.value.device_ims_tac,
+        device_ims_cell_id: detail.value.device_ims_cell_id,
+        config: editingConfig.value,
+        active: detail.value.active
+      }
+    )
 
-    // Mock — 模拟保存延迟
-    await new Promise(r => setTimeout(r, 300))
-    detail.value.user_config = JSON.parse(JSON.stringify(editingConfig.value))
-    dirty.value = false
+    if (result.ok) {
+      detail.value.user_config = JSON.parse(JSON.stringify(editingConfig.value))
+      dirty.value = false
+      // 更新列表项状态
+      const item = carriers.value.find(c => c.mcc === selectedMcc.value && c.mnc === selectedMnc.value)
+      if (item) item.has_user_config = true
+      saving.value = false
+      return true
+    }
+
+    error.value = result.error
     saving.value = false
-
-    // 更新列表项状态
-    const item = carriers.value.find(c => c.mcc === selectedMcc.value && c.mnc === selectedMnc.value)
-    if (item) item.has_user_config = true
-
-    return true
+    return false
   }
 
   async function activateUserConfig() {
     if (!detail.value) return false
-    // TODO: await carrierService.activate(selectedMcc.value, selectedMnc.value)
-    await new Promise(r => setTimeout(r, 200))
-    detail.value.active = true
-    const item = carriers.value.find(c => c.mcc === selectedMcc.value && c.mnc === selectedMnc.value)
-    if (item) item.active = true
-    return true
+    const result = await carrierService.activate(selectedMcc.value, selectedMnc.value)
+    if (result.ok) {
+      detail.value.active = true
+      const item = carriers.value.find(c => c.mcc === selectedMcc.value && c.mnc === selectedMnc.value)
+      if (item) item.active = true
+      return true
+    }
+    error.value = result.error
+    return false
   }
 
   async function deactivateUserConfig() {
     if (!detail.value) return false
-    // TODO: await carrierService.deactivate(selectedMcc.value, selectedMnc.value)
-    await new Promise(r => setTimeout(r, 200))
-    detail.value.active = false
-    const item = carriers.value.find(c => c.mcc === selectedMcc.value && c.mnc === selectedMnc.value)
-    if (item) item.active = false
-    return true
+    const result = await carrierService.deactivate(selectedMcc.value, selectedMnc.value)
+    if (result.ok) {
+      detail.value.active = false
+      const item = carriers.value.find(c => c.mcc === selectedMcc.value && c.mnc === selectedMnc.value)
+      if (item) item.active = false
+      return true
+    }
+    error.value = result.error
+    return false
   }
 
   async function deleteUserConfig() {
     if (!detail.value) return false
-    // TODO: await carrierService.deleteConfig(selectedMcc.value, selectedMnc.value)
-    await new Promise(r => setTimeout(r, 200))
-    detail.value.user_config = null
-    detail.value.active = false
-    editingConfig.value = null
-    dirty.value = false
-    const item = carriers.value.find(c => c.mcc === selectedMcc.value && c.mnc === selectedMnc.value)
-    if (item) {
-      item.has_user_config = false
-      item.active = false
+    const result = await carrierService.deleteConfig(selectedMcc.value, selectedMnc.value)
+    if (result.ok) {
+      detail.value.user_config = null
+      detail.value.active = false
+      editingConfig.value = null
+      dirty.value = false
+      const item = carriers.value.find(c => c.mcc === selectedMcc.value && c.mnc === selectedMnc.value)
+      if (item) {
+        item.has_user_config = false
+        item.active = false
+      }
+      return true
     }
-    return true
+    error.value = result.error
+    return false
   }
 
   async function addCarrier(name: string, mcc: string, mnc: string, ike_addr = '', device_ims_tac = 0, device_ims_cell_id = 0) {
-    // TODO: await carrierService.add({ name, mcc, mnc, ike_addr, device_ims_tac, device_ims_cell_id })
-    await new Promise(r => setTimeout(r, 200))
-    carriers.value.push({
-      mcc, mnc, name, ike_addr, device_ims_tac, device_ims_cell_id,
-      has_user_config: false, active: false, has_system_default: false
-    })
-    return true
+    const result = await carrierService.add({ name, mcc, mnc, ike_addr, device_ims_tac, device_ims_cell_id })
+    if (result.ok) {
+      await fetchCarriers()
+      return true
+    }
+    error.value = result.error
+    return false
   }
 
   async function removeCarrier(mcc: string, mnc: string) {
-    // TODO: await carrierService.remove(mcc, mnc)
-    await new Promise(r => setTimeout(r, 200))
-    const idx = carriers.value.findIndex(c => c.mcc === mcc && c.mnc === mnc)
-    if (idx >= 0) carriers.value.splice(idx, 1)
-    if (selectedMcc.value === mcc && selectedMnc.value === mnc) {
-      if (carriers.value.length > 0) {
-        await selectCarrier(carriers.value[0].mcc, carriers.value[0].mnc)
-      } else {
-        selectedMcc.value = ''
-        selectedMnc.value = ''
-        detail.value = null
+    const result = await carrierService.remove(mcc, mnc)
+    if (result.ok) {
+      const idx = carriers.value.findIndex(c => c.mcc === mcc && c.mnc === mnc)
+      if (idx >= 0) carriers.value.splice(idx, 1)
+      if (selectedMcc.value === mcc && selectedMnc.value === mnc) {
+        if (carriers.value.length > 0) {
+          await selectCarrier(carriers.value[0].mcc, carriers.value[0].mnc)
+        } else {
+          selectedMcc.value = ''
+          selectedMnc.value = ''
+          detail.value = null
+        }
       }
+      return true
     }
-    return true
+    error.value = result.error
+    return false
   }
 
   return {

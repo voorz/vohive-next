@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/voorz/vohive/internal/api"
+	carrierconfig "github.com/voorz/vohive/internal/carrier"
 	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/db"
 	"github.com/voorz/vohive/internal/device"
@@ -101,6 +102,11 @@ func main() {
 		dbResolvedPath = absPath
 	}
 	logger.Info("数据库已初始化", "path", dbPath, "resolved_path", dbResolvedPath)
+
+	// 从 DB 加载活跃的运营商用户配置到 profiles 内存覆盖
+	if err := carrierconfig.LoadActiveOverrides(); err != nil {
+		logger.Warn("加载运营商用户配置失败，使用系统默认", "err", err)
+	}
 	countryResult := upstreamproxy.InitCountryTable(context.Background(), upstreamproxy.CountryTableOptions{
 		CachePath: upstreamproxy.DefaultCountryTableCachePath,
 	})
