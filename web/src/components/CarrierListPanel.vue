@@ -11,6 +11,8 @@ import {
   Search24Regular,
   ArrowImport24Regular
 } from '@vicons/fluent'
+import CarrierIcon from './CarrierIcon.vue'
+import CarrierIconPicker from './CarrierIconPicker.vue'
 const store = useCarrierStore()
 const { carriers, selectedMcc, selectedMnc, loading } = storeToRefs(store)
 
@@ -125,6 +127,7 @@ function confirmBatchImport() {
           :class="{ selected: item.mcc === selectedMcc && item.mnc === selectedMnc }"
           @click="handleSelect(item.mcc, item.mnc)"
         >
+          <CarrierIcon :mcc="item.mcc" :mnc="item.mnc" :size="28" />
           <div class="carrier-card-info">
             <div class="carrier-card-name">{{ item.name }}</div>
             <div class="carrier-card-plmn">{{ item.mcc }}:{{ item.mnc }}</div>
@@ -179,6 +182,7 @@ function confirmBatchImport() {
             <el-input-number v-model="addForm.device_ims_cell_id" :min="0" class="!w-full" />
           </div>
         </div>
+        <CarrierIconPicker :mcc="addForm.mcc" :mnc="addForm.mnc" />
       </div>
       <template #footer>
         <el-button @click="addDialogOpen = false">取消</el-button>
