@@ -231,6 +231,17 @@ func Save(mcc, mnc string, payload SavePayload) error {
 	// 确保 MCC/MNC 一致
 	payload.Config.MCC = mcc
 	payload.Config.MNC = mnc
+	// 注入运营商基础字段到 ProfileJSON，确保模板自带"身份标签"
+	payload.Config.Name = strings.TrimSpace(payload.Name)
+	if payload.Config.IKE.Addr == "" {
+		payload.Config.IKE.Addr = strings.TrimSpace(payload.IKEAddr)
+	}
+	if payload.Config.Device.IMSTAC == 0 {
+		payload.Config.Device.IMSTAC = payload.DeviceIMSTAC
+	}
+	if payload.Config.Device.IMSCellID == 0 {
+		payload.Config.Device.IMSCellID = payload.DeviceIMSCellID
+	}
 
 	jsonBytes, err := json.Marshal(payload.Config)
 	if err != nil {
@@ -263,10 +274,14 @@ func Save(mcc, mnc string, payload SavePayload) error {
 	return nil
 }
 
-// Remove 删除运营商用户配置。
+// Remove 删除运营商用户配置（仅允许删除用户添加的运营商，系统运营商不可删除）。
 func Remove(mcc, mnc string) error {
 	mcc = strings.TrimSpace(mcc)
 	mnc = strings.TrimSpace(mnc)
+	// 系统运营商不可删除
+	if p, err := profiles.Lookup(mcc, mnc); err == nil && p != nil {
+		return fmt.Errorf("系统运营商 %s-%s 不可删除", mcc, mnc)
+	}
 	if err := db.DeleteCarrierConfig(mcc, mnc); err != nil {
 		return err
 	}

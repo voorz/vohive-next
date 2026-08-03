@@ -21,7 +21,9 @@ const emit = defineEmits<{
 const isSystem = computed(() => props.type === 'system')
 
 const statusLabel = computed(() => {
-  if (isSystem.value) return '空闲'
+  if (isSystem.value) {
+    return props.active ? '使用中' : '备用'
+  }
   return props.active ? '使用中' : '空闲'
 })
 
@@ -37,7 +39,7 @@ const icon = isSystem.value ? Shield24Regular : Person24Regular
       'is-system': isSystem,
       'is-user': !isSystem,
       'is-selected': selected,
-      'is-active': !isSystem && active && hasConfig
+      'is-active': active && hasConfig
     }"
     @click="emit('click')"
   >
@@ -47,7 +49,7 @@ const icon = isSystem.value ? Shield24Regular : Person24Regular
     <div class="config-card-body">
       <div class="config-card-title">{{ titleLabel }}</div>
       <div class="config-card-status">
-        <span v-if="!isSystem && active && hasConfig" class="status-dot active" />
+        <span v-if="active && hasConfig" class="status-dot active" />
         <span v-else class="status-dot idle" />
         <span>{{ statusLabel }}</span>
       </div>

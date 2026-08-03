@@ -75,13 +75,13 @@ async function handleSave() {
 
 async function handleDelete() {
   const confirmed = await ElMessageBox.confirm(
-    '确定删除用户配置？删除后将回退到系统默认。',
-    '确认删除',
-    { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' }
+    '确定删除用户配置模板？删除后运营商条目保留，配置回退到系统默认。',
+    '确认删除用户模板',
+    { confirmButtonText: '删除模板', cancelButtonText: '取消', type: 'warning' }
   ).then(() => true).catch(() => false)
   if (!confirmed) return
   const ok = await store.deleteUserConfig()
-  if (ok) ElMessage.success('用户配置已删除')
+  if (ok) ElMessage.success('用户配置模板已删除')
 }
 
 async function handleToggleActive() {

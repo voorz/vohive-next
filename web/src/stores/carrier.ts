@@ -73,6 +73,40 @@ function mergeWithStandard(profile: CarrierProfile): CarrierProfile {
   }
 }
 
+// 注入运营商基础字段作为模板身份标签，并保证字段顺序（id/name/mcc/mnc 在前）
+function injectCarrierIdentity(profile: CarrierProfile, carrierName: string, mcc: string, mnc: string, detail: CarrierDetail): CarrierProfile {
+  profile.id = `${carrierName}_${mcc}${mnc}`
+  profile.name = detail.name
+  profile.mcc = mcc
+  profile.mnc = mnc
+  // 注入仓库基础字段到模板
+  if (detail.ike_addr) {
+    if (!profile.ike) profile.ike = {}
+    profile.ike.addr = detail.ike_addr
+  }
+  if (detail.device_ims_tac) {
+    if (!profile.device) profile.device = {}
+    profile.device.ims_tac = detail.device_ims_tac
+  }
+  if (detail.device_ims_cell_id) {
+    if (!profile.device) profile.device = {}
+    profile.device.ims_cell_id = detail.device_ims_cell_id
+  }
+  // 重建对象确保字段顺序：id, name, mcc, mnc, ike, eap, ims, e911, device, blocked
+  return {
+    id: profile.id,
+    name: profile.name,
+    mcc: profile.mcc,
+    mnc: profile.mnc,
+    ike: profile.ike,
+    eap: profile.eap,
+    ims: profile.ims,
+    e911: profile.e911,
+    device: profile.device,
+    blocked: profile.blocked
+  }
+}
+
 export const useCarrierStore = defineStore('carrier', () => {
   const carriers = ref<CarrierListItem[]>([])
   const selectedMcc = ref('')
@@ -160,30 +194,26 @@ export const useCarrierStore = defineStore('carrier', () => {
     editMode.value = mode
   }
 
-  // 从系统默认创建用户配置（自动补全缺失字段）
+  // 从系统默认创建用户配置（自动补全缺失字段 + 注入运营商基础字段）
   function createFromSystemDefault() {
     if (!detail.value?.system_default) return
     const sys = JSON.parse(JSON.stringify(detail.value.system_default)) as CarrierProfile
     // 合并标准默认值补全缺失字段
     const merged = mergeWithStandard(sys)
-    // id 格式: {name}_{mcc}{mnc}
+    // 注入运营商基础字段作为身份标签
     const carrierName = detail.value.name.toLowerCase().replace(/\s+/g, '')
-    merged.id = `${carrierName}_${selectedMcc.value}${selectedMnc.value}`
-    merged.mcc = selectedMcc.value
-    merged.mnc = selectedMnc.value
+    injectCarrierIdentity(merged, carrierName, selectedMcc.value, selectedMnc.value, detail.value)
     editingConfig.value = merged
     dirty.value = true
     previewTarget.value = 'user'
   }
 
-  // 从 3GPP 标准模板创建用户配置（全部标准默认值）
+  // 从 3GPP 标准模板创建用户配置（全部标准默认值 + 注入运营商基础字段）
   function createFromStandardTemplate() {
     if (!detail.value) return
     const tpl = JSON.parse(JSON.stringify(standardTemplate)) as CarrierProfile
     const carrierName = detail.value.name.toLowerCase().replace(/\s+/g, '')
-    tpl.id = `${carrierName}_${selectedMcc.value}${selectedMnc.value}`
-    tpl.mcc = selectedMcc.value
-    tpl.mnc = selectedMnc.value
+    injectCarrierIdentity(tpl, carrierName, selectedMcc.value, selectedMnc.value, detail.value)
     editingConfig.value = tpl
     dirty.value = true
     previewTarget.value = 'user'

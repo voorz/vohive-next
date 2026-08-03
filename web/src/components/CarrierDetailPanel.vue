@@ -142,7 +142,7 @@ function saveEdit() {
       <div class="config-cards-row">
         <CarrierConfigCard
           type="system"
-          :active="false"
+          :active="!detail.active || !hasUserConfig"
           :has-config="hasSystemDefault"
           :selected="previewTarget === 'system'"
           @click="store.setPreviewTarget('system')"

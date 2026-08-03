@@ -612,6 +612,7 @@ export type DeviceConfig = {
 
 export type CarrierProfile = {
 id?: string
+name?: string
 mcc?: string
 mnc?: string
   ike?: IKEConfig

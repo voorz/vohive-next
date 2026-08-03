@@ -11,7 +11,6 @@ import {
   Search24Regular,
   ArrowImport24Regular
 } from '@vicons/fluent'
-
 const store = useCarrierStore()
 const { carriers, selectedMcc, selectedMnc, loading } = storeToRefs(store)
 
@@ -61,13 +60,13 @@ async function handleAdd() {
 
 async function handleDelete(mcc: string, mnc: string, name: string) {
   const confirmed = await ElMessageBox.confirm(
-    `确定删除运营商「${name}」(${mcc}:${mnc})？`,
-    '确认删除',
-    { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' }
+    `确定移除运营商「${name}」(${mcc}:${mnc})？\n该操作会同时删除其用户配置模板。`,
+    '确认移除运营商',
+    { confirmButtonText: '移除', cancelButtonText: '取消', type: 'warning' }
   ).then(() => true).catch(() => false)
   if (!confirmed) return
   const ok = await store.removeCarrier(mcc, mnc)
-  if (ok) ElMessage.success('已删除')
+  if (ok) ElMessage.success('已移除')
 }
 
 function handleBatchImport() {
@@ -135,13 +134,16 @@ function confirmBatchImport() {
             <span v-else-if="item.has_user_config" class="badge-dot idle" title="有用户配置（未启用）" />
             <span v-if="item.has_system_default" class="badge-dot system" title="有系统默认" />
           </div>
-          <button
-            class="carrier-card-delete"
-            title="删除"
-            @click.stop="handleDelete(item.mcc, item.mnc, item.name)"
-          >
-            <el-icon size="14"><Delete24Regular /></el-icon>
-          </button>
+          <div class="carrier-card-actions">
+            <button
+              v-if="!item.has_system_default"
+              class="carrier-card-delete"
+              title="移除运营商"
+              @click.stop="handleDelete(item.mcc, item.mnc, item.name)"
+            >
+              <el-icon size="14"><Delete24Regular /></el-icon>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -325,6 +327,15 @@ function confirmBatchImport() {
   opacity: 0.5;
 }
 
+.carrier-card-actions {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .carrier-card-delete {
   display: flex;
   align-items: center;
@@ -338,7 +349,6 @@ function confirmBatchImport() {
   cursor: pointer;
   opacity: 0;
   transition: opacity 0.12s, background 0.12s, color 0.12s;
-  flex-shrink: 0;
 }
 
 .carrier-card:hover .carrier-card-delete {
