@@ -1,0 +1,69 @@
+<script setup lang="ts">
+import { computed, ref, watch } from 'vue'
+import { getCachedIcon, isPersonalizationEnabled } from '../composables/useOperatorIcon'
+
+const props = defineProps<{
+  mcc: string
+  mnc: string
+  size?: number
+}>()
+
+const cachedSrc = ref<string | null>(null)
+const enabled = ref(true)
+
+function refresh() {
+  enabled.value = isPersonalizationEnabled()
+  cachedSrc.value = enabled.value ? getCachedIcon(props.mcc, props.mnc) : null
+}
+
+watch(() => [props.mcc, props.mnc], refresh, { immediate: true })
+
+const iconSize = computed(() => props.size ?? 28)
+</script>
+
+<template>
+  <div class="carrier-icon-box" :style="{ width: `${iconSize}px`, height: `${iconSize}px` }">
+    <img
+      v-if="cachedSrc"
+      :src="cachedSrc"
+      class="carrier-icon-img"
+      alt="operator icon"
+    />
+    <svg
+      v-else
+      class="carrier-icon-default"
+      :width="iconSize"
+      :height="iconSize"
+      viewBox="0 0 24 24"
+      fill="none"
+    >
+      <rect x="3" y="5" width="18" height="14" rx="2" stroke="currentColor" stroke-width="1.5" />
+      <circle cx="8" cy="10" r="1.5" fill="currentColor" opacity="0.5" />
+      <path d="M3 16l4-4 3 3 4-4 7 6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.5" />
+    </svg>
+  </div>
+</template>
+
+<style scoped>
+.carrier-icon-box {
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.carrier-icon-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.carrier-icon-default {
+  color: var(--muted-foreground);
+  opacity: 0.6;
+}
+</style>

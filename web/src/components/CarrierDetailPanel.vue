@@ -8,6 +8,8 @@ import CarrierEditArea from './CarrierEditArea.vue'
 import ListSkeleton from './ListSkeleton.vue'
 import EmptyState from './EmptyState.vue'
 import { Sim24Regular, Edit24Regular } from '@vicons/fluent'
+import CarrierIconPicker from './CarrierIconPicker.vue'
+import CarrierIcon from './CarrierIcon.vue'
 
 const store = useCarrierStore()
 const { detail, selectedCarrier, detailLoading, previewTarget, carriers, selectedMcc, selectedMnc } = storeToRefs(store)
@@ -111,9 +113,7 @@ function saveEdit() {
       </div>
       <!-- 宽屏：图标盒子 + 运营商名 + PLMN + 编辑按钮 -->
       <div class="detail-header-wide">
-        <div class="detail-header-icon-box">
-          <el-icon size="20"><Sim24Regular /></el-icon>
-        </div>
+        <CarrierIcon :mcc="selectedMcc" :mnc="selectedMnc" :size="38" />
         <div class="detail-header-info">
           <div class="detail-header-name">{{ selectedCarrier?.name || '未选择' }}</div>
           <div class="detail-header-plmn">{{ selectedCarrier?.mcc }}:{{ selectedCarrier?.mnc }}</div>
@@ -193,6 +193,7 @@ function saveEdit() {
             <el-input-number v-model="editForm.ims_cell_id" :min="0" class="!w-full" />
           </div>
         </div>
+        <CarrierIconPicker :mcc="editForm.mcc" :mnc="editForm.mnc" />
       </div>
       <template #footer>
         <el-button @click="editDialogOpen = false">取消</el-button>
