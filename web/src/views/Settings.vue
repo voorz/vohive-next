@@ -279,6 +279,7 @@ import SettingsMcpTokenManager from '../components/SettingsMcpTokenManager.vue'
 import SettingsGlobalDebugMode from '../components/SettingsGlobalDebugMode.vue'
 import SettingsGlobalDisplaySettings from '../components/SettingsGlobalDisplaySettings.vue'
 import SettingsGlobalSiteInfo from '../components/SettingsGlobalSiteInfo.vue'
+import SettingsGlobalPersonalization from '../components/SettingsGlobalPersonalization.vue'
 import SettingsMcpConfig from '../components/SettingsMcpConfig.vue'
 import { systemService, type UpdateInfo } from '../services/system'
 
@@ -897,6 +898,9 @@ onBeforeUnmount(() => {
 
           <!-- FAQ 折叠卡片：站点信息 -->
           <SettingsGlobalSiteInfo />
+
+          <!-- FAQ 折叠卡片：个性化配置 -->
+          <SettingsGlobalPersonalization />
         </div>
       </div>
 
