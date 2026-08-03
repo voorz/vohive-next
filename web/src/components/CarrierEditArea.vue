@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useCarrierStore } from '../stores/carrier'
 import CarrierConfigForm from './CarrierConfigForm.vue'
+import { Codemirror } from 'vue-codemirror'
+import { json } from '@codemirror/lang-json'
+import { oneDark } from '@codemirror/theme-one-dark'
+import { EditorView } from 'codemirror'
 import {
   Person24Regular,
   Save24Regular,
@@ -20,6 +24,29 @@ const { editingConfig, editMode, dirty, saving, detail } = storeToRefs(store)
 // 代码模式 JSON 文本
 const codeText = ref('')
 const codeError = ref('')
+
+// 主题跟随
+const isDark = ref(document.documentElement.classList.contains('dark'))
+let themeObserver: MutationObserver | null = null
+onMounted(() => {
+  themeObserver = new MutationObserver(() => {
+    isDark.value = document.documentElement.classList.contains('dark')
+  })
+  themeObserver.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+})
+onUnmounted(() => themeObserver?.disconnect())
+
+const cmExtensions = computed(() => {
+  const exts = [json(), EditorView.lineWrapping]
+  if (isDark.value) exts.push(oneDark)
+  return exts
+})
+
+// CodeMirror 变更回调
+function onCmChange(value: string) {
+  codeText.value = value
+  onCodeInput()
+}
 
 // 从 store 同步到代码文本
 watch(
@@ -175,13 +202,14 @@ const hasUserConfig = computed(() => !!detail.value?.user_config || !!editingCon
 
         <!-- 代码模式 -->
         <div v-else class="code-editor-wrap">
-          <el-input
-            v-model="codeText"
-            type="textarea"
-            :autosize="{ minRows: 10 }"
-            class="code-editor"
-            @input="onCodeInput"
-          />
+          <div class="cm-container">
+            <Codemirror
+              :model-value="codeText"
+              :extensions="cmExtensions"
+              :style="{ height: '100%' }"
+              @update:model-value="onCmChange"
+            />
+          </div>
           <div v-if="codeError" class="code-error">
             <el-alert type="error" :closable="false" show-icon>
               {{ codeError }}
@@ -370,13 +398,26 @@ const hasUserConfig = computed(() => !!detail.value?.user_config || !!editingCon
   display: flex;
   flex-direction: column;
   gap: 8px;
+  height: 100%;
+  min-height: 0;
 }
 
-.code-editor :deep(.el-textarea__inner) {
-  font-family: var(--oomol-font-mono);
+.cm-container {
+  flex: 1;
+  min-height: 300px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.cm-container :deep(.cm-editor) {
+  height: 100%;
   font-size: 12px;
-  line-height: 1.5;
-  min-height: 300px !important;
+  font-family: var(--oomol-font-mono);
+}
+
+.cm-container :deep(.cm-scroller) {
+  font-family: var(--oomol-font-mono);
 }
 
 .code-error {

@@ -141,7 +141,7 @@ const fallbackStatusCodesText = computed({
     <!-- ════════ IKE/ePDG 阶段 ════════ -->
     <div class="faq-card">
       <div class="faq-header" @click="toggle('ike')">
-        <span class="faq-title">IKE/ePDG 连接阶段</span>
+        <span class="faq-title">IKE/ePDG 连接</span>
         <el-icon class="faq-arrow" :class="{ expanded: expanded.ike }" size="16"><ChevronDown20Regular /></el-icon>
       </div>
       <div v-show="expanded.ike" class="faq-body">
@@ -203,7 +203,7 @@ const fallbackStatusCodesText = computed({
     <!-- ════════ EAP-AKA 阶段 ════════ -->
     <div class="faq-card">
       <div class="faq-header" @click="toggle('eap')">
-        <span class="faq-title">EAP-AKA 认证阶段</span>
+        <span class="faq-title">EAP-AKA 认证</span>
         <el-icon class="faq-arrow" :class="{ expanded: expanded.eap }" size="16"><ChevronDown20Regular /></el-icon>
       </div>
       <div v-show="expanded.eap" class="faq-body">
@@ -241,7 +241,7 @@ const fallbackStatusCodesText = computed({
     <!-- ════════ IMS REGISTER 阶段 ════════ -->
     <div class="faq-card">
       <div class="faq-header" @click="toggle('ims')">
-        <span class="faq-title">IMS REGISTER 阶段</span>
+        <span class="faq-title">IMS REGISTER</span>
         <el-icon class="faq-arrow" :class="{ expanded: expanded.ims }" size="16"><ChevronDown20Regular /></el-icon>
       </div>
       <div v-show="expanded.ims" class="faq-body">

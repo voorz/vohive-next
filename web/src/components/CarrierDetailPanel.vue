@@ -8,8 +8,8 @@ import CarrierEditArea from './CarrierEditArea.vue'
 import ListSkeleton from './ListSkeleton.vue'
 import EmptyState from './EmptyState.vue'
 import { Sim24Regular, Edit24Regular } from '@vicons/fluent'
-import CarrierIconPicker from './CarrierIconPicker.vue'
 import CarrierIcon from './CarrierIcon.vue'
+import { downloadIcon } from '../composables/useOperatorIcon'
 
 const store = useCarrierStore()
 const { detail, selectedCarrier, detailLoading, previewTarget, carriers, selectedMcc, selectedMnc } = storeToRefs(store)
@@ -88,6 +88,12 @@ function saveEdit() {
   }
   ElMessage.success('运营商信息已更新')
   editDialogOpen.value = false
+  // 如果 MCC/MNC 变了，后台自动下载新图标
+  if (oldMcc !== newMcc || oldMnc !== newMnc) {
+    downloadIcon(newMcc, newMnc).then(() => {
+      window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc: newMcc, mnc: newMnc } }))
+    })
+  }
 }
 </script>
 
@@ -193,7 +199,6 @@ function saveEdit() {
             <el-input-number v-model="editForm.ims_cell_id" :min="0" class="!w-full" />
           </div>
         </div>
-        <CarrierIconPicker :mcc="editForm.mcc" :mnc="editForm.mnc" />
       </div>
       <template #footer>
         <el-button @click="editDialogOpen = false">取消</el-button>

@@ -6,6 +6,7 @@ import CarrierListPanel from '../components/CarrierListPanel.vue'
 import CarrierDetailPanel from '../components/CarrierDetailPanel.vue'
 import CarrierPreviewPanel from '../components/CarrierPreviewPanel.vue'
 import { Eye24Regular } from '@vicons/fluent'
+import { downloadIcon, getCachedIcon } from '../composables/useOperatorIcon'
 
 const store = useCarrierStore()
 const { detail, previewTarget } = storeToRefs(store)
@@ -31,10 +32,20 @@ const showThreeColumn = computed(() => isWide.value)
 // 是否显示预览抽屉按钮
 const showPreviewButton = computed(() => !isWide.value)
 
-onMounted(() => {
+onMounted(async () => {
   syncWidth()
   window.addEventListener('resize', syncWidth, { passive: true })
-  store.fetchCarriers()
+  await store.fetchCarriers()
+  // 页面加载时批量下载缺失的运营商图标（仅一次，失败不重试）
+  for (const c of store.carriers) {
+    if (!getCachedIcon(c.mcc, c.mnc)) {
+      downloadIcon(c.mcc, c.mnc).then(result => {
+        if (result) {
+          window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc: c.mcc, mnc: c.mnc } }))
+        }
+      })
+    }
+  }
 })
 </script>
 

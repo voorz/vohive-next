@@ -8,21 +8,17 @@ import EmptyState from './EmptyState.vue'
 import {
   Add24Regular,
   Delete24Regular,
-  Search24Regular,
-  ArrowImport24Regular
+  Search24Regular
 } from '@vicons/fluent'
 import CarrierIcon from './CarrierIcon.vue'
-import CarrierIconPicker from './CarrierIconPicker.vue'
+import { downloadIcon } from '../composables/useOperatorIcon'
 const store = useCarrierStore()
 const { carriers, selectedMcc, selectedMnc, loading } = storeToRefs(store)
 
 const searchText = ref('')
 const addDialogOpen = ref(false)
-const batchDialogOpen = ref(false)
 
 const addForm = ref({ name: '', mcc: '', mnc: '', ike_addr: '', device_ims_tac: 0, device_ims_cell_id: 0 })
-const batchText = ref('')
-const batchMode = ref<'skip_existing' | 'update_existing'>('skip_existing')
 
 const filteredCarriers = computed(() => {
   const q = searchText.value.trim().toLowerCase()
@@ -53,11 +49,16 @@ async function handleAdd() {
     form.device_ims_tac,
     form.device_ims_cell_id
   )
-  if (ok) {
-    ElMessage.success('运营商已添加')
-    addDialogOpen.value = false
-    addForm.value = { name: '', mcc: '', mnc: '', ike_addr: '', device_ims_tac: 0, device_ims_cell_id: 0 }
-  }
+if (ok) {
+ElMessage.success('运营商已添加')
+addDialogOpen.value = false
+// 后台自动下载运营商图标
+const mcc = form.mcc.trim(), mnc = form.mnc.trim()
+downloadIcon(mcc, mnc).then(() => {
+window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc, mnc } }))
+})
+addForm.value = { name: '', mcc: '', mnc: '', ike_addr: '', device_ims_tac: 0, device_ims_cell_id: 0 }
+}
 }
 
 async function handleDelete(mcc: string, mnc: string, name: string) {
@@ -69,15 +70,6 @@ async function handleDelete(mcc: string, mnc: string, name: string) {
   if (!confirmed) return
   const ok = await store.removeCarrier(mcc, mnc)
   if (ok) ElMessage.success('已移除')
-}
-
-function handleBatchImport() {
-  batchDialogOpen.value = true
-}
-
-function confirmBatchImport() {
-  ElMessage.info('批量导入功能将在后端就绪后启用')
-  batchDialogOpen.value = false
 }
 </script>
 
@@ -102,10 +94,6 @@ function confirmBatchImport() {
       <el-button size="small" type="primary" @click="addDialogOpen = true" class="!border-0">
         <el-icon class="mr-1"><Add24Regular /></el-icon>
         <span>添加</span>
-      </el-button>
-      <el-button size="small" @click="handleBatchImport">
-        <el-icon class="mr-1"><ArrowImport24Regular /></el-icon>
-        <span>批量导入</span>
       </el-button>
     </div>
 
@@ -182,38 +170,10 @@ function confirmBatchImport() {
             <el-input-number v-model="addForm.device_ims_cell_id" :min="0" class="!w-full" />
           </div>
         </div>
-        <CarrierIconPicker :mcc="addForm.mcc" :mnc="addForm.mnc" />
       </div>
       <template #footer>
         <el-button @click="addDialogOpen = false">取消</el-button>
         <el-button type="primary" @click="handleAdd" class="!border-0">添加</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 批量导入对话框 -->
-    <el-dialog v-model="batchDialogOpen" title="批量导入运营商" width="560px" :close-on-click-modal="false">
-      <div class="space-y-4">
-        <div class="space-y-1">
-          <label class="carrier-form-label">导入模式</label>
-          <el-radio-group v-model="batchMode">
-            <el-radio value="skip_existing">跳过已存在</el-radio>
-            <el-radio value="update_existing">更新已存在</el-radio>
-          </el-radio-group>
-        </div>
-        <div class="space-y-1">
-          <label class="carrier-form-label">JSON 数据</label>
-          <el-input
-            v-model="batchText"
-            type="textarea"
-            :rows="8"
-            placeholder='[{"name":"giffgaff","mcc":"234","mnc":"10"},{"name":"Vodafone UK","mcc":"234","mnc":"15"}]'
-          />
-          <div class="carrier-form-hint">粘贴 JSON 数组，每项含 name、mcc、mnc 字段</div>
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="batchDialogOpen = false">取消</el-button>
-        <el-button type="primary" @click="confirmBatchImport" class="!border-0">导入</el-button>
       </template>
     </el-dialog>
   </div>

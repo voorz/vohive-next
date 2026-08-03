@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, onMounted, onUnmounted } from 'vue'
 import { getCachedIcon, isPersonalizationEnabled } from '../composables/useOperatorIcon'
 
 const props = defineProps<{
@@ -17,6 +17,17 @@ function refresh() {
 }
 
 watch(() => [props.mcc, props.mnc], refresh, { immediate: true })
+
+// 监听图标下载完成事件，刷新缓存
+function onIconUpdated(e: Event) {
+  const detail = (e as CustomEvent).detail
+  if (detail && detail.mcc === props.mcc && detail.mnc === props.mnc) {
+    refresh()
+  }
+}
+
+onMounted(() => window.addEventListener('vohive-icon-updated', onIconUpdated))
+onUnmounted(() => window.removeEventListener('vohive-icon-updated', onIconUpdated))
 
 const iconSize = computed(() => props.size ?? 28)
 </script>
