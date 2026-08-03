@@ -140,10 +140,12 @@ func (s *Sampler) sample(periodStart time.Time) {
 		if dtx < 0 {
 			dtx = 0
 		}
-		points = append(points,
-			db.TrafficPoint{PeriodStart: periodStart, Resource: "iface", Tag: ifaceBaselineKey(wi.id, wi.iface), Direction: false, TrafficBytes: drx},
-			db.TrafficPoint{PeriodStart: periodStart, Resource: "iface", Tag: ifaceBaselineKey(wi.id, wi.iface), Direction: true, TrafficBytes: dtx},
-		)
+		if drx > 0 {
+			points = append(points, db.TrafficPoint{PeriodStart: periodStart, Resource: "iface", Tag: ifaceBaselineKey(wi.id, wi.iface), Direction: false, TrafficBytes: drx})
+		}
+		if dtx > 0 {
+			points = append(points, db.TrafficPoint{PeriodStart: periodStart, Resource: "iface", Tag: ifaceBaselineKey(wi.id, wi.iface), Direction: true, TrafficBytes: dtx})
+		}
 	}
 
 	if s.mgr != nil {

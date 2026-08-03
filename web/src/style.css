@@ -414,6 +414,13 @@ html.dark .el-button--danger:not(.is-plain):not(.is-text):not(.is-link) {
   --el-button-disabled-text-color: color-mix(in oklab, var(--background) 50%, transparent);
 }
 
+/* 暗色模式：radio-button 选中态背景为浅色，文字需改为深色 */
+html.dark .el-radio-button.is-active .el-radio-button__inner,
+html.dark .el-radio-button.is-checked .el-radio-button__inner,
+html.dark .el-radio-button .el-radio-button__original-radio:checked + .el-radio-button__inner {
+  color: var(--background) !important;
+}
+
 /* 暗色模式：checkbox 选中时背景为浅色，✓ 需改为深色 */
 html.dark .el-checkbox.is-checked .el-checkbox__inner,
 html.dark .el-checkbox.is-checked .el-checkbox__input.is-checked .el-checkbox__inner {

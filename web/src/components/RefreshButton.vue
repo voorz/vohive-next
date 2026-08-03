@@ -12,8 +12,23 @@ defineEmits<{
 </script>
 
 <template>
-  <el-button :loading="loading" :disabled="disabled" @click="$emit('click')">
-    <el-icon><ArrowSync24Regular /></el-icon>
+  <el-button :disabled="disabled || loading" class="refresh-btn" @click="$emit('click')">
+    <el-icon :class="{ 'is-spinning': loading }"><ArrowSync24Regular /></el-icon>
     刷新
   </el-button>
 </template>
+
+<style scoped>
+.refresh-btn {
+  min-width: 80px;
+  justify-content: center;
+}
+
+.is-spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+</style>

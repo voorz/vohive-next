@@ -114,7 +114,12 @@ func GetTrafficAnalysisWithChart(rangeName string, deviceID string, now time.Tim
 
 	buckets := make([]TrafficBucket, 0, len(bucketOrder))
 	for _, k := range bucketOrder {
-		buckets = append(buckets, *bucketAgg[k])
+		b := *bucketAgg[k]
+		// 过滤全 0 的桶，减少空行
+		if b.RxBytes == 0 && b.TxBytes == 0 && b.TotalBytes == 0 {
+			continue
+		}
+		buckets = append(buckets, b)
 	}
 
 	devices := make([]string, 0, len(deviceSet))

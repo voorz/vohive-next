@@ -537,7 +537,11 @@ function handleRangeChange(value: string | number | boolean | undefined) {
         暂无流量图表数据
       </div>
 
-      <el-table :data="analysisBuckets" size="small" class="w-full">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs text-gray-400">明细记录</span>
+        <span class="text-xs text-gray-400 font-mono">{{ analysisBuckets.length }} 行</span>
+      </div>
+      <el-table :data="analysisBuckets" size="small" class="w-full traffic-table" max-height="400">
         <el-table-column label="时间" min-width="140">
           <template #default="scope">{{ formatTrafficBucketTime(scope?.row || {}) }}</template>
         </el-table-column>
