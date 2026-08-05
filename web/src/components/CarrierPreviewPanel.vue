@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
-import { ElMessage } from 'element-plus'
 import { useCarrierStore } from '../stores/carrier'
+import { copyToClipboard } from '../utils/clipboard'
 import { Shield24Regular, Person24Regular, Copy24Regular, ArrowDownload24Regular } from '@vicons/fluent'
 import type { CarrierProfile } from '../types/api'
 
@@ -164,11 +164,7 @@ const paramSections = computed(() => {
 })
 
 function copyJson() {
-  navigator.clipboard.writeText(jsonText.value).then(() => {
-    ElMessage.success('JSON 已复制到剪贴板')
-  }).catch(() => {
-    ElMessage.error('复制失败')
-  })
+  copyToClipboard(jsonText.value, 'JSON 已复制到剪贴板')
 }
 
 function downloadJson() {
