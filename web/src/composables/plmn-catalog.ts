@@ -119,8 +119,9 @@ export function loadPlmnCatalog(): Promise<Record<string, IconCatalogEntry[]> | 
   }
 
   loadingPromise = (async () => {
-    // 镜像优先（jsdelivr CDN），直链兜底
-    for (const url of [ALL_JSON_MIRROR, ALL_JSON_URL]) {
+  // raw.githubusercontent.com first (canonical, immediate updates),
+  // jsdelivr CDN as fallback (may lag behind due to caching).
+  for (const url of [ALL_JSON_URL, ALL_JSON_MIRROR]) {
       try {
         const res = await fetch(url)
         if (!res.ok) continue

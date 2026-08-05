@@ -9,21 +9,19 @@ import ListSkeleton from './ListSkeleton.vue'
 import EmptyState from './EmptyState.vue'
 import { Sim24Regular, Edit24Regular } from '@vicons/fluent'
 import CarrierIcon from './CarrierIcon.vue'
-import { downloadIcon } from '../composables/useOperatorIcon'
 
 const store = useCarrierStore()
-const { detail, selectedCarrier, detailLoading, previewTarget, carriers, selectedMcc, selectedMnc } = storeToRefs(store)
+const { detail, selectedCarrier, detailLoading, previewTarget, carriers, selectedKey } = storeToRefs(store)
 
 const hasUserConfig = computed(() => !!detail.value?.user_config)
 const hasSystemDefault = computed(() => !!detail.value?.system_default)
 
 // 窄屏下拉选择
 function handleSelectChange(value: string) {
-  const [mcc, mnc] = value.split('-')
-  if (mcc && mnc) store.selectCarrier(mcc, mnc)
+  store.selectCarrier(value)
 }
 
-const selectValue = computed(() => `${selectedMcc.value}-${selectedMnc.value}`)
+const selectValue = computed(() => selectedKey.value)
 
 // 编辑运营商信息对话框
 const editDialogOpen = ref(false)
@@ -33,8 +31,8 @@ function openEditDialog() {
   if (!detail.value) return
   editForm.value = {
     name: detail.value.name,
-    mcc: selectedMcc.value,
-    mnc: selectedMnc.value,
+    mcc: detail.value.mcc,
+    mnc: detail.value.mnc,
     ike_addr: detail.value.ike_addr,
     ims_tac: detail.value.device_ims_tac,
     ims_cell_id: detail.value.device_ims_cell_id
@@ -52,48 +50,21 @@ function saveEdit() {
     ElMessage.warning('MCC 和 MNC 不能为空')
     return
   }
-  const oldMcc = selectedMcc.value
-  const oldMnc = selectedMnc.value
-  const newMcc = editForm.value.mcc.trim()
-  const newMnc = editForm.value.mnc.trim()
   // 更新 store 中的基础信息
   detail.value.name = editForm.value.name.trim()
   detail.value.ike_addr = editForm.value.ike_addr
   detail.value.device_ims_tac = editForm.value.ims_tac
   detail.value.device_ims_cell_id = editForm.value.ims_cell_id
-  // 如果 MCC/MNC 变了，需要更新列表项的 key
-  if (oldMcc !== newMcc || oldMnc !== newMnc) {
-    const item = carriers.value.find(c => c.mcc === oldMcc && c.mnc === oldMnc)
-    if (item) {
-      item.mcc = newMcc
-      item.mnc = newMnc
-      item.name = editForm.value.name.trim()
-      item.ike_addr = editForm.value.ike_addr
-      item.device_ims_tac = editForm.value.ims_tac
-      item.device_ims_cell_id = editForm.value.ims_cell_id
-    }
-    selectedMcc.value = newMcc
-    selectedMnc.value = newMnc
-    detail.value.mcc = newMcc
-    detail.value.mnc = newMnc
-  } else {
-    // 只更新名称和其他字段
-    const item = carriers.value.find(c => c.mcc === newMcc && c.mnc === newMnc)
-    if (item) {
-      item.name = editForm.value.name.trim()
-      item.ike_addr = editForm.value.ike_addr
-      item.device_ims_tac = editForm.value.ims_tac
-      item.device_ims_cell_id = editForm.value.ims_cell_id
-    }
+  // 更新列表项
+  const item = carriers.value.find(c => c.key === selectedKey.value)
+  if (item) {
+    item.name = editForm.value.name.trim()
+    item.ike_addr = editForm.value.ike_addr
+    item.device_ims_tac = editForm.value.ims_tac
+    item.device_ims_cell_id = editForm.value.ims_cell_id
   }
   ElMessage.success('运营商信息已更新')
   editDialogOpen.value = false
-  // 如果 MCC/MNC 变了，后台自动下载新图标
-  if (oldMcc !== newMcc || oldMnc !== newMnc) {
-    downloadIcon(newMcc, newMnc, editForm.value.name).then(() => {
-      window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc: newMcc, mnc: newMnc } }))
-    })
-  }
 }
 </script>
 
@@ -111,15 +82,15 @@ function saveEdit() {
         >
           <el-option
             v-for="c in carriers"
-            :key="`${c.mcc}-${c.mnc}`"
+            :key="c.key"
             :label="`${c.name}  ${c.mcc}:${c.mnc}`"
-            :value="`${c.mcc}-${c.mnc}`"
+            :value="c.key"
           />
         </el-select>
       </div>
       <!-- 宽屏：图标盒子 + 运营商名 + PLMN + 编辑按钮 -->
       <div class="detail-header-wide">
-        <CarrierIcon :mcc="selectedMcc" :mnc="selectedMnc" :name="selectedCarrier?.name" :size="38" />
+        <CarrierIcon :mcc="selectedCarrier?.mcc || ''" :mnc="selectedCarrier?.mnc || ''" :name="selectedCarrier?.name" :size="38" />
         <div class="detail-header-info">
           <div class="detail-header-name">{{ selectedCarrier?.name || '未选择' }}</div>
           <div class="detail-header-plmn">{{ selectedCarrier?.mcc }}:{{ selectedCarrier?.mnc }}</div>

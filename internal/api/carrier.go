@@ -9,6 +9,21 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// makeKey constructs a profile key from path params + optional brand query param.
+func makeKey(mcc, mnc, brand string) string {
+	// reuse the same plmnKey logic as the carrier package
+	trimmed := strings.TrimLeft(strings.TrimSpace(mnc), "0")
+	if trimmed == "" && strings.TrimSpace(mnc) != "" {
+		trimmed = "0"
+	}
+	key := strings.TrimSpace(mcc) + "-" + trimmed
+	brand = strings.TrimSpace(brand)
+	if brand != "" {
+		key = key + "__" + brand
+	}
+	return key
+}
+
 // handleListCarriers GET /api/carrier
 func (s *Server) handleListCarriers(c *gin.Context) {
 	list, err := carrierconfig.List()
@@ -19,15 +34,16 @@ func (s *Server) handleListCarriers(c *gin.Context) {
 	c.JSON(http.StatusOK, list)
 }
 
-// handleGetCarrier GET /api/carrier/:mcc/:mnc
+// handleGetCarrier GET /api/carrier/:mcc/:mnc?brand=
 func (s *Server) handleGetCarrier(c *gin.Context) {
 	mcc := strings.TrimSpace(c.Param("mcc"))
 	mnc := strings.TrimSpace(c.Param("mnc"))
+	brand := strings.TrimSpace(c.Query("brand"))
 	if mcc == "" || mnc == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "mcc 和 mnc 不能为空"})
 		return
 	}
-	detail, err := carrierconfig.Get(mcc, mnc)
+	detail, err := carrierconfig.Get(mcc, mnc, brand)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "查询运营商详情失败: " + err.Error()})
 		return
@@ -56,8 +72,8 @@ func (s *Server) handleAddCarrier(c *gin.Context) {
 // handleBatchImportCarriers POST /api/carrier/batch
 func (s *Server) handleBatchImportCarriers(c *gin.Context) {
 	var req struct {
-		Mode     string                       `json:"mode"`
-		Carriers []carrierconfig.AddPayload   `json:"carriers"`
+		Mode     string                     `json:"mode"`
+		Carriers []carrierconfig.AddPayload `json:"carriers"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "参数错误: " + err.Error()})
@@ -74,60 +90,70 @@ func (s *Server) handleBatchImportCarriers(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
-// handleRemoveCarrier DELETE /api/carrier/:mcc/:mnc
+// handleRemoveCarrier DELETE /api/carrier/:mcc/:mnc?brand=
 func (s *Server) handleRemoveCarrier(c *gin.Context) {
 	mcc := strings.TrimSpace(c.Param("mcc"))
 	mnc := strings.TrimSpace(c.Param("mnc"))
-	if err := carrierconfig.Remove(mcc, mnc); err != nil {
+	brand := strings.TrimSpace(c.Query("brand"))
+	key := makeKey(mcc, mnc, brand)
+	if err := carrierconfig.Remove(key); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "删除运营商失败: " + err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "运营商已删除"})
 }
 
-// handleSaveCarrierConfig PUT /api/carrier/:mcc/:mnc
+// handleSaveCarrierConfig PUT /api/carrier/:mcc/:mnc?brand=
 func (s *Server) handleSaveCarrierConfig(c *gin.Context) {
 	mcc := strings.TrimSpace(c.Param("mcc"))
 	mnc := strings.TrimSpace(c.Param("mnc"))
+	brand := strings.TrimSpace(c.Query("brand"))
+	key := makeKey(mcc, mnc, brand)
 	var payload carrierconfig.SavePayload
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "参数错误: " + err.Error()})
 		return
 	}
-	if err := carrierconfig.Save(mcc, mnc, payload); err != nil {
+	if err := carrierconfig.Save(key, payload); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "保存配置失败: " + err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "配置已保存"})
 }
 
-// handleDeleteCarrierConfig DELETE /api/carrier/:mcc/:mnc/config
+// handleDeleteCarrierConfig DELETE /api/carrier/:mcc/:mnc/config?brand=
 func (s *Server) handleDeleteCarrierConfig(c *gin.Context) {
 	mcc := strings.TrimSpace(c.Param("mcc"))
 	mnc := strings.TrimSpace(c.Param("mnc"))
-	if err := carrierconfig.DeleteConfig(mcc, mnc); err != nil {
+	brand := strings.TrimSpace(c.Query("brand"))
+	key := makeKey(mcc, mnc, brand)
+	if err := carrierconfig.DeleteConfig(key); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "删除配置失败: " + err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "用户配置已删除"})
 }
 
-// handleActivateCarrier POST /api/carrier/:mcc/:mnc/activate
+// handleActivateCarrier POST /api/carrier/:mcc/:mnc/activate?brand=
 func (s *Server) handleActivateCarrier(c *gin.Context) {
 	mcc := strings.TrimSpace(c.Param("mcc"))
 	mnc := strings.TrimSpace(c.Param("mnc"))
-	if err := carrierconfig.Activate(mcc, mnc); err != nil {
+	brand := strings.TrimSpace(c.Query("brand"))
+	key := makeKey(mcc, mnc, brand)
+	if err := carrierconfig.Activate(key); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "激活配置失败: " + err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "运营商配置已激活"})
 }
 
-// handleDeactivateCarrier POST /api/carrier/:mcc/:mnc/deactivate
+// handleDeactivateCarrier POST /api/carrier/:mcc/:mnc/deactivate?brand=
 func (s *Server) handleDeactivateCarrier(c *gin.Context) {
 	mcc := strings.TrimSpace(c.Param("mcc"))
 	mnc := strings.TrimSpace(c.Param("mnc"))
-	if err := carrierconfig.Deactivate(mcc, mnc); err != nil {
+	brand := strings.TrimSpace(c.Query("brand"))
+	key := makeKey(mcc, mnc, brand)
+	if err := carrierconfig.Deactivate(key); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "禁用配置失败: " + err.Error()})
 		return
 	}

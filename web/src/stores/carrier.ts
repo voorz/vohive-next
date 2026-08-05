@@ -73,13 +73,12 @@ function mergeWithStandard(profile: CarrierProfile): CarrierProfile {
   }
 }
 
-// 注入运营商基础字段作为模板身份标签，并保证字段顺序（id/name/mcc/mnc 在前）
-function injectCarrierIdentity(profile: CarrierProfile, carrierName: string, mcc: string, mnc: string, detail: CarrierDetail): CarrierProfile {
-  profile.id = `${carrierName}_${mcc}${mnc}`
+// 注入运营商基础字段作为模板身份标签
+function injectCarrierIdentity(profile: CarrierProfile, carrierName: string, key: string, detail: CarrierDetail): CarrierProfile {
+  profile.id = `${carrierName}_${key.replace(/-/g, '')}`
   profile.name = detail.name
-  profile.mcc = mcc
-  profile.mnc = mnc
-  // 注入仓库基础字段到模板
+  profile.mcc = detail.mcc
+  profile.mnc = detail.mnc
   if (detail.ike_addr) {
     if (!profile.ike) profile.ike = {}
     profile.ike.addr = detail.ike_addr
@@ -92,7 +91,6 @@ function injectCarrierIdentity(profile: CarrierProfile, carrierName: string, mcc
     if (!profile.device) profile.device = {}
     profile.device.ims_cell_id = detail.device_ims_cell_id
   }
-  // 重建对象确保字段顺序：id, name, mcc, mnc, ike, eap, ims, e911, device, blocked
   return {
     id: profile.id,
     name: profile.name,
@@ -109,8 +107,7 @@ function injectCarrierIdentity(profile: CarrierProfile, carrierName: string, mcc
 
 export const useCarrierStore = defineStore('carrier', () => {
   const carriers = ref<CarrierListItem[]>([])
-  const selectedMcc = ref('')
-  const selectedMnc = ref('')
+  const selectedKey = ref('')
   const detail = ref<CarrierDetail | null>(null)
   const loading = ref(false)
   const detailLoading = ref(false)
@@ -130,10 +127,8 @@ export const useCarrierStore = defineStore('carrier', () => {
   const dirty = ref(false)
 
   const selectedCarrier = computed(() =>
-    carriers.value.find(c => c.mcc === selectedMcc.value && c.mnc === selectedMnc.value) || null
+    carriers.value.find(c => c.key === selectedKey.value) || null
   )
-
-  const plmnKey = computed(() => `${selectedMcc.value}-${selectedMnc.value}`)
 
   // 当前预览的配置
   const previewConfig = computed<CarrierProfile | null>(() => {
@@ -149,8 +144,8 @@ export const useCarrierStore = defineStore('carrier', () => {
     const result = await carrierService.list()
     if (result.ok) {
       carriers.value = result.data
-      if (carriers.value.length > 0 && !selectedMcc.value) {
-        await selectCarrier(carriers.value[0].mcc, carriers.value[0].mnc)
+      if (carriers.value.length > 0 && !selectedKey.value) {
+        await selectCarrier(carriers.value[0].key)
       }
     } else {
       error.value = result.error
@@ -158,23 +153,21 @@ export const useCarrierStore = defineStore('carrier', () => {
     loading.value = false
   }
 
-  async function selectCarrier(mcc: string, mnc: string) {
-    if (selectedMcc.value === mcc && selectedMnc.value === mnc && detail.value) return
-    selectedMcc.value = mcc
-    selectedMnc.value = mnc
+  async function selectCarrier(key: string) {
+    if (selectedKey.value === key && detail.value) return
+    selectedKey.value = key
     previewTarget.value = 'user'
     dirty.value = false
     await fetchDetail()
   }
 
   async function fetchDetail() {
-    if (!selectedMcc.value || !selectedMnc.value) return
+    if (!selectedKey.value) return
     detailLoading.value = true
 
-    const result = await carrierService.get(selectedMcc.value, selectedMnc.value)
+    const result = await carrierService.get(selectedKey.value)
     if (result.ok) {
       detail.value = result.data
-      // 初始化编辑副本
       if (detail.value.user_config) {
         editingConfig.value = JSON.parse(JSON.stringify(detail.value.user_config))
       } else {
@@ -194,37 +187,33 @@ export const useCarrierStore = defineStore('carrier', () => {
     editMode.value = mode
   }
 
-  // 从系统默认创建用户配置（自动补全缺失字段 + 注入运营商基础字段）
+  // 从系统默认创建用户配置
   function createFromSystemDefault() {
     if (!detail.value?.system_default) return
     const sys = JSON.parse(JSON.stringify(detail.value.system_default)) as CarrierProfile
-    // 合并标准默认值补全缺失字段
     const merged = mergeWithStandard(sys)
-    // 注入运营商基础字段作为身份标签
     const carrierName = detail.value.name.toLowerCase().replace(/\s+/g, '')
-    injectCarrierIdentity(merged, carrierName, selectedMcc.value, selectedMnc.value, detail.value)
+    injectCarrierIdentity(merged, carrierName, selectedKey.value, detail.value)
     editingConfig.value = merged
     dirty.value = true
     previewTarget.value = 'user'
   }
 
-  // 从 3GPP 标准模板创建用户配置（全部标准默认值 + 注入运营商基础字段）
+  // 从 3GPP 标准模板创建用户配置
   function createFromStandardTemplate() {
     if (!detail.value) return
     const tpl = JSON.parse(JSON.stringify(standardTemplate)) as CarrierProfile
     const carrierName = detail.value.name.toLowerCase().replace(/\s+/g, '')
-    injectCarrierIdentity(tpl, carrierName, selectedMcc.value, selectedMnc.value, detail.value)
+    injectCarrierIdentity(tpl, carrierName, selectedKey.value, detail.value)
     editingConfig.value = tpl
     dirty.value = true
     previewTarget.value = 'user'
   }
 
-  // 标记编辑内容已变更
   function markDirty() {
     dirty.value = true
   }
 
-  // 从代码模式 JSON 同步回编辑配置
   function syncFromJson(json: CarrierProfile) {
     editingConfig.value = json
     dirty.value = true
@@ -235,7 +224,7 @@ export const useCarrierStore = defineStore('carrier', () => {
     saving.value = true
 
     const result = await carrierService.save(
-      selectedMcc.value, selectedMnc.value,
+      selectedKey.value,
       {
         name: detail.value.name,
         ike_addr: detail.value.ike_addr,
@@ -249,8 +238,7 @@ export const useCarrierStore = defineStore('carrier', () => {
     if (result.ok) {
       detail.value.user_config = JSON.parse(JSON.stringify(editingConfig.value))
       dirty.value = false
-      // 更新列表项状态
-      const item = carriers.value.find(c => c.mcc === selectedMcc.value && c.mnc === selectedMnc.value)
+      const item = carriers.value.find(c => c.key === selectedKey.value)
       if (item) item.has_user_config = true
       saving.value = false
       return true
@@ -263,10 +251,10 @@ export const useCarrierStore = defineStore('carrier', () => {
 
   async function activateUserConfig() {
     if (!detail.value) return false
-    const result = await carrierService.activate(selectedMcc.value, selectedMnc.value)
+    const result = await carrierService.activate(selectedKey.value)
     if (result.ok) {
       detail.value.active = true
-      const item = carriers.value.find(c => c.mcc === selectedMcc.value && c.mnc === selectedMnc.value)
+      const item = carriers.value.find(c => c.key === selectedKey.value)
       if (item) item.active = true
       return true
     }
@@ -276,10 +264,10 @@ export const useCarrierStore = defineStore('carrier', () => {
 
   async function deactivateUserConfig() {
     if (!detail.value) return false
-    const result = await carrierService.deactivate(selectedMcc.value, selectedMnc.value)
+    const result = await carrierService.deactivate(selectedKey.value)
     if (result.ok) {
       detail.value.active = false
-      const item = carriers.value.find(c => c.mcc === selectedMcc.value && c.mnc === selectedMnc.value)
+      const item = carriers.value.find(c => c.key === selectedKey.value)
       if (item) item.active = false
       return true
     }
@@ -289,13 +277,13 @@ export const useCarrierStore = defineStore('carrier', () => {
 
   async function deleteUserConfig() {
     if (!detail.value) return false
-    const result = await carrierService.deleteConfig(selectedMcc.value, selectedMnc.value)
+    const result = await carrierService.deleteConfig(selectedKey.value)
     if (result.ok) {
       detail.value.user_config = null
       detail.value.active = false
       editingConfig.value = null
       dirty.value = false
-      const item = carriers.value.find(c => c.mcc === selectedMcc.value && c.mnc === selectedMnc.value)
+      const item = carriers.value.find(c => c.key === selectedKey.value)
       if (item) {
         item.has_user_config = false
         item.active = false
@@ -316,17 +304,16 @@ export const useCarrierStore = defineStore('carrier', () => {
     return false
   }
 
-  async function removeCarrier(mcc: string, mnc: string) {
-    const result = await carrierService.remove(mcc, mnc)
+  async function removeCarrier(key: string) {
+    const result = await carrierService.remove(key)
     if (result.ok) {
-      const idx = carriers.value.findIndex(c => c.mcc === mcc && c.mnc === mnc)
+      const idx = carriers.value.findIndex(c => c.key === key)
       if (idx >= 0) carriers.value.splice(idx, 1)
-      if (selectedMcc.value === mcc && selectedMnc.value === mnc) {
+      if (selectedKey.value === key) {
         if (carriers.value.length > 0) {
-          await selectCarrier(carriers.value[0].mcc, carriers.value[0].mnc)
+          await selectCarrier(carriers.value[0].key)
         } else {
-          selectedMcc.value = ''
-          selectedMnc.value = ''
+          selectedKey.value = ''
           detail.value = null
         }
       }
@@ -339,10 +326,8 @@ export const useCarrierStore = defineStore('carrier', () => {
   return {
     // state
     carriers,
-    selectedMcc,
-    selectedMnc,
+    selectedKey,
     selectedCarrier,
-    plmnKey,
     detail,
     loading,
     detailLoading,

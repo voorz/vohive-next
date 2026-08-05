@@ -13,7 +13,7 @@ import {
 import CarrierIcon from './CarrierIcon.vue'
 import { downloadIcon } from '../composables/useOperatorIcon'
 const store = useCarrierStore()
-const { carriers, selectedMcc, selectedMnc, loading } = storeToRefs(store)
+const { carriers, selectedKey, loading } = storeToRefs(store)
 
 const searchText = ref('')
 const addDialogOpen = ref(false)
@@ -31,8 +31,8 @@ const filteredCarriers = computed(() => {
   )
 })
 
-function handleSelect(mcc: string, mnc: string) {
-  store.selectCarrier(mcc, mnc)
+function handleSelect(key: string) {
+  store.selectCarrier(key)
 }
 
 async function handleAdd() {
@@ -61,14 +61,14 @@ addForm.value = { name: '', mcc: '', mnc: '', ike_addr: '', device_ims_tac: 0, d
 }
 }
 
-async function handleDelete(mcc: string, mnc: string, name: string) {
+async function handleDelete(key: string, name: string) {
   const confirmed = await ElMessageBox.confirm(
-    `确定移除运营商「${name}」(${mcc}:${mnc})？\n该操作会同时删除其用户配置模板。`,
+    `确定移除运营商「${name}」(${key})？\n该操作会同时删除其用户配置模板。`,
     '确认移除运营商',
     { confirmButtonText: '移除', cancelButtonText: '取消', type: 'warning' }
   ).then(() => true).catch(() => false)
   if (!confirmed) return
-  const ok = await store.removeCarrier(mcc, mnc)
+  const ok = await store.removeCarrier(key)
   if (ok) ElMessage.success('已移除')
 }
 </script>
@@ -110,10 +110,10 @@ async function handleDelete(mcc: string, mnc: string, name: string) {
       <div v-else class="carrier-cards">
         <div
           v-for="item in filteredCarriers"
-          :key="`${item.mcc}-${item.mnc}`"
+          :key="item.key"
           class="carrier-card"
-          :class="{ selected: item.mcc === selectedMcc && item.mnc === selectedMnc }"
-          @click="handleSelect(item.mcc, item.mnc)"
+          :class="{ selected: item.key === selectedKey }"
+          @click="handleSelect(item.key)"
         >
           <CarrierIcon :mcc="item.mcc" :mnc="item.mnc" :name="item.name" :size="28" />
           <div class="carrier-card-info">
@@ -130,7 +130,7 @@ async function handleDelete(mcc: string, mnc: string, name: string) {
               v-if="!item.has_system_default"
               class="carrier-card-delete"
               title="移除运营商"
-              @click.stop="handleDelete(item.mcc, item.mnc, item.name)"
+              @click.stop="handleDelete(item.key, item.name)"
             >
               <el-icon size="14"><Delete24Regular /></el-icon>
             </button>

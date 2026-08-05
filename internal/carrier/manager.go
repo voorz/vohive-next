@@ -23,38 +23,40 @@ import (
 
 // ListItem 对应前端 CarrierListItem 类型。
 type ListItem struct {
-	MCC             string `json:"mcc"`
-	MNC             string `json:"mnc"`
-	Name            string `json:"name"`
-	IKEAddr         string `json:"ike_addr"`
-	DeviceIMSTAC    int    `json:"device_ims_tac"`
-	DeviceIMSCellID int    `json:"device_ims_cell_id"`
-	HasUserConfig   bool   `json:"has_user_config"`
-	Active          bool   `json:"active"`
-	HasSystemDefault bool  `json:"has_system_default"`
+	Key              string `json:"key"`
+	MCC              string `json:"mcc"`
+	MNC              string `json:"mnc"`
+	Name             string `json:"name"`
+	IKEAddr          string `json:"ike_addr"`
+	DeviceIMSTAC     int    `json:"device_ims_tac"`
+	DeviceIMSCellID  int    `json:"device_ims_cell_id"`
+	HasUserConfig    bool   `json:"has_user_config"`
+	Active           bool   `json:"active"`
+	HasSystemDefault bool   `json:"has_system_default"`
 }
 
 // Detail 对应前端 CarrierDetail 类型。
 type Detail struct {
-	MCC             string                `json:"mcc"`
-	MNC             string                `json:"mnc"`
-	Name            string                `json:"name"`
-	IKEAddr         string                `json:"ike_addr"`
-	DeviceIMSTAC    int                   `json:"device_ims_tac"`
-	DeviceIMSCellID int                   `json:"device_ims_cell_id"`
+	Key             string                 `json:"key"`
+	MCC             string                 `json:"mcc"`
+	MNC             string                 `json:"mnc"`
+	Name            string                 `json:"name"`
+	IKEAddr         string                 `json:"ike_addr"`
+	DeviceIMSTAC    int                    `json:"device_ims_tac"`
+	DeviceIMSCellID int                    `json:"device_ims_cell_id"`
 	SystemDefault   *profiles.CarrierProfile `json:"system_default"`
 	UserConfig      *profiles.CarrierProfile `json:"user_config"`
-	Active          bool                  `json:"active"`
+	Active          bool                   `json:"active"`
 }
 
 // SavePayload 对应前端 CarrierSavePayload 类型。
 type SavePayload struct {
-	Name            string                `json:"name"`
-	IKEAddr         string                `json:"ike_addr"`
-	DeviceIMSTAC    int                   `json:"device_ims_tac"`
-	DeviceIMSCellID int                   `json:"device_ims_cell_id"`
+	Name            string                 `json:"name"`
+	IKEAddr         string                 `json:"ike_addr"`
+	DeviceIMSTAC    int                    `json:"device_ims_tac"`
+	DeviceIMSCellID int                    `json:"device_ims_cell_id"`
 	Config          *profiles.CarrierProfile `json:"config"`
-	Active          bool                  `json:"active"`
+	Active          bool                   `json:"active"`
 }
 
 // AddPayload 对应前端 CarrierAddPayload 类型。
@@ -90,8 +92,7 @@ func List() ([]ListItem, error) {
 	}
 	userMap := make(map[string]*db.CarrierConfig, len(userConfigs))
 	for i := range userConfigs {
-		key := plmnKey(userConfigs[i].MCC, userConfigs[i].MNC)
-		userMap[key] = &userConfigs[i]
+		userMap[userConfigs[i].ProfileKey] = &userConfigs[i]
 	}
 
 	// 3. 合并：系统默认 + 用户独有
@@ -101,6 +102,7 @@ func List() ([]ListItem, error) {
 	for key, p := range sysAll {
 		seen[key] = true
 		item := ListItem{
+			Key:              key,
 			MCC:              p.MCC,
 			MNC:              p.MNC,
 			Name:             p.Name,
@@ -112,7 +114,6 @@ func List() ([]ListItem, error) {
 		if uc, ok := userMap[key]; ok {
 			item.HasUserConfig = true
 			item.Active = uc.Active
-			// 用户配置的展示字段优先
 			if uc.Name != "" {
 				item.Name = uc.Name
 			}
@@ -135,6 +136,7 @@ func List() ([]ListItem, error) {
 			continue
 		}
 		out = append(out, ListItem{
+			Key:             key,
 			MCC:             uc.MCC,
 			MNC:             uc.MNC,
 			Name:            uc.Name,
@@ -155,26 +157,34 @@ func List() ([]ListItem, error) {
 }
 
 // Get 返回指定运营商的详情（系统默认 + 用户配置）。
-func Get(mcc, mnc string) (*Detail, error) {
+// brand 为可选参数，用于指定变体（如 "cmlink"），空字符串返回 base profile。
+func Get(mcc, mnc, brand string) (*Detail, error) {
 	mcc = strings.TrimSpace(mcc)
 	mnc = strings.TrimSpace(mnc)
+	brand = strings.TrimSpace(brand)
 	if mcc == "" || mnc == "" {
 		return nil, fmt.Errorf("mcc and mnc are required")
 	}
 
+	key := plmnKey(mcc, mnc)
+	if brand != "" {
+		key = key + "__" + brand
+	}
+
 	// 系统默认
 	var sysDefault *profiles.CarrierProfile
-	if p, err := profiles.Lookup(mcc, mnc); err == nil && p != nil {
+	if p, err := profiles.LookupWithSPN(mcc, mnc, brand); err == nil && p != nil {
 		sysDefault = p
 	}
 
 	// 用户配置
-	uc, err := db.GetCarrierConfig(mcc, mnc)
+	uc, err := db.GetCarrierConfig(key)
 	if err != nil {
 		return nil, fmt.Errorf("get carrier config: %w", err)
 	}
 
 	d := &Detail{
+		Key:           key,
 		MCC:           mcc,
 		MNC:           mnc,
 		SystemDefault: sysDefault,
@@ -212,7 +222,9 @@ func Add(payload AddPayload) error {
 	if strings.TrimSpace(payload.Name) == "" {
 		return fmt.Errorf("name is required")
 	}
+	key := plmnKey(mcc, mnc)
 	c := &db.CarrierConfig{
+		ProfileKey:      key,
 		MCC:             mcc,
 		MNC:             mnc,
 		Name:            strings.TrimSpace(payload.Name),
@@ -225,19 +237,18 @@ func Add(payload AddPayload) error {
 }
 
 // Save 保存用户配置（包含完整 CarrierProfile JSON）。
-func Save(mcc, mnc string, payload SavePayload) error {
-	mcc = strings.TrimSpace(mcc)
-	mnc = strings.TrimSpace(mnc)
-	if mcc == "" || mnc == "" {
-		return fmt.Errorf("mcc and mnc are required")
+func Save(key string, payload SavePayload) error {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return fmt.Errorf("profile key is required")
 	}
 	if payload.Config == nil {
 		return fmt.Errorf("config is required")
 	}
-	// 确保 MCC/MNC 一致
+	// 从 key 解析 MCC/MNC
+	mcc, mnc := parseKey(key)
 	payload.Config.MCC = mcc
 	payload.Config.MNC = mnc
-	// 注入运营商基础字段到 ProfileJSON，确保模板自带"身份标签"
 	payload.Config.Name = strings.TrimSpace(payload.Name)
 	if payload.Config.IKE.Addr == "" {
 		payload.Config.IKE.Addr = strings.TrimSpace(payload.IKEAddr)
@@ -255,6 +266,7 @@ func Save(mcc, mnc string, payload SavePayload) error {
 	}
 
 	c := &db.CarrierConfig{
+		ProfileKey:      key,
 		MCC:             mcc,
 		MNC:             mnc,
 		Name:            strings.TrimSpace(payload.Name),
@@ -268,39 +280,36 @@ func Save(mcc, mnc string, payload SavePayload) error {
 		return err
 	}
 
-	// 热更新：如果 active=true，立即注入到 profiles 内存
+	// 热更新
 	if payload.Active {
-		profiles.SetUserOverride(mcc, mnc, payload.Config)
-		logger.Info("运营商配置已热更新", "mcc", mcc, "mnc", mnc, "event", "CARRIER_CONFIG_HOT_RELOAD")
+		profiles.SetUserOverrideByKey(key, payload.Config)
+		logger.Info("运营商配置已热更新", "key", key, "event", "CARRIER_CONFIG_HOT_RELOAD")
 	} else {
-		// 如果 deactive 了，清除 override
-		profiles.SetUserOverride(mcc, mnc, nil)
+		profiles.SetUserOverrideByKey(key, nil)
 	}
 
 	return nil
 }
 
 // Remove 删除运营商用户配置（仅允许删除用户添加的运营商，系统运营商不可删除）。
-func Remove(mcc, mnc string) error {
-	mcc = strings.TrimSpace(mcc)
-	mnc = strings.TrimSpace(mnc)
+func Remove(key string) error {
+	key = strings.TrimSpace(key)
+	mcc, mnc := parseKey(key)
 	// 系统运营商不可删除
 	if p, err := profiles.Lookup(mcc, mnc); err == nil && p != nil {
-		return fmt.Errorf("系统运营商 %s-%s 不可删除", mcc, mnc)
+		return fmt.Errorf("系统运营商 %s 不可删除", key)
 	}
-	if err := db.DeleteCarrierConfig(mcc, mnc); err != nil {
+	if err := db.DeleteCarrierConfig(key); err != nil {
 		return err
 	}
-	// 清除内存中的 override
-	profiles.SetUserOverride(mcc, mnc, nil)
+	profiles.SetUserOverrideByKey(key, nil)
 	return nil
 }
 
 // DeleteConfig 仅删除用户配置的 ProfileJSON，保留运营商条目。
-func DeleteConfig(mcc, mnc string) error {
-	mcc = strings.TrimSpace(mcc)
-	mnc = strings.TrimSpace(mnc)
-	uc, err := db.GetCarrierConfig(mcc, mnc)
+func DeleteConfig(key string) error {
+	key = strings.TrimSpace(key)
+	uc, err := db.GetCarrierConfig(key)
 	if err != nil {
 		return err
 	}
@@ -312,46 +321,43 @@ func DeleteConfig(mcc, mnc string) error {
 	if err := db.UpsertCarrierConfig(uc); err != nil {
 		return err
 	}
-	profiles.SetUserOverride(mcc, mnc, nil)
+	profiles.SetUserOverrideByKey(key, nil)
 	return nil
 }
 
 // Activate 启用指定运营商的用户配置。
-func Activate(mcc, mnc string) error {
-	mcc = strings.TrimSpace(mcc)
-	mnc = strings.TrimSpace(mnc)
-	uc, err := db.GetCarrierConfig(mcc, mnc)
+func Activate(key string) error {
+	key = strings.TrimSpace(key)
+	uc, err := db.GetCarrierConfig(key)
 	if err != nil {
 		return err
 	}
 	if uc == nil {
-		return fmt.Errorf("carrier config not found for %s-%s", mcc, mnc)
+		return fmt.Errorf("carrier config not found for key %s", key)
 	}
 	if uc.ProfileJSON == "" {
-		return fmt.Errorf("no profile json to activate for %s-%s", mcc, mnc)
+		return fmt.Errorf("no profile json to activate for key %s", key)
 	}
-	if err := db.SetCarrierConfigActive(mcc, mnc, true); err != nil {
+	if err := db.SetCarrierConfigActive(key, true); err != nil {
 		return err
 	}
-	// 热更新
 	var p profiles.CarrierProfile
 	if err := json.Unmarshal([]byte(uc.ProfileJSON), &p); err != nil {
 		return fmt.Errorf("unmarshal profile json: %w", err)
 	}
-	profiles.SetUserOverride(mcc, mnc, &p)
-	logger.Info("运营商配置已激活", "mcc", mcc, "mnc", mnc, "event", "CARRIER_CONFIG_ACTIVATED")
+	profiles.SetUserOverrideByKey(key, &p)
+	logger.Info("运营商配置已激活", "key", key, "event", "CARRIER_CONFIG_ACTIVATED")
 	return nil
 }
 
 // Deactivate 禁用指定运营商的用户配置。
-func Deactivate(mcc, mnc string) error {
-	mcc = strings.TrimSpace(mcc)
-	mnc = strings.TrimSpace(mnc)
-	if err := db.SetCarrierConfigActive(mcc, mnc, false); err != nil {
+func Deactivate(key string) error {
+	key = strings.TrimSpace(key)
+	if err := db.SetCarrierConfigActive(key, false); err != nil {
 		return err
 	}
-	profiles.SetUserOverride(mcc, mnc, nil)
-	logger.Info("运营商配置已禁用", "mcc", mcc, "mnc", mnc, "event", "CARRIER_CONFIG_DEACTIVATED")
+	profiles.SetUserOverrideByKey(key, nil)
+	logger.Info("运营商配置已禁用", "key", key, "event", "CARRIER_CONFIG_DEACTIVATED")
 	return nil
 }
 
@@ -368,10 +374,10 @@ func LoadActiveOverrides() error {
 		var p profiles.CarrierProfile
 		if err := json.Unmarshal([]byte(c.ProfileJSON), &p); err != nil {
 			logger.Warn("解析运营商配置 JSON 失败，跳过",
-				"mcc", c.MCC, "mnc", c.MNC, "err", err)
+				"key", c.ProfileKey, "err", err)
 			continue
 		}
-		profiles.SetUserOverride(c.MCC, c.MNC, &p)
+		profiles.SetUserOverrideByKey(c.ProfileKey, &p)
 	}
 	if len(configs) > 0 {
 		logger.Info("已从数据库加载运营商用户配置", "count", len(configs), "event", "CARRIER_CONFIG_DB_LOADED")
@@ -386,8 +392,9 @@ func ListSystemDefaults() ([]ListItem, error) {
 		return nil, err
 	}
 	out := make([]ListItem, 0, len(all))
-	for _, p := range all {
+	for key, p := range all {
 		out = append(out, ListItem{
+			Key:              key,
 			MCC:              p.MCC,
 			MNC:              p.MNC,
 			Name:             p.Name,
@@ -413,8 +420,7 @@ func BatchImport(payloads []AddPayload, mode string) (*BatchImportResult, error)
 	}
 	for _, p := range payloads {
 		key := plmnKey(p.MCC, p.MNC)
-		// 检查是否已存在
-		existing, err := db.GetCarrierConfig(p.MCC, p.MNC)
+		existing, err := db.GetCarrierConfig(key)
 		if err != nil {
 			return nil, fmt.Errorf("check existing %s: %w", key, err)
 		}
@@ -434,7 +440,6 @@ func BatchImport(payloads []AddPayload, mode string) (*BatchImportResult, error)
 }
 
 // ResolveRegisterProfile 从 CarrierProfile 解析出 voiceclient.RegisterProfile。
-// 直接复用 vowifi-core 的导出转换函数，确保字段映射一致。
 func ResolveRegisterProfile(p *profiles.CarrierProfile) voiceclient.RegisterProfile {
 	if p == nil {
 		return voiceclient.RegisterProfile{}
@@ -443,7 +448,6 @@ func ResolveRegisterProfile(p *profiles.CarrierProfile) voiceclient.RegisterProf
 }
 
 // ResolveSIPInstanceURN 从 CarrierProfile 解析出 SIP Instance URN。
-// 目前从 Device.IMEI 派生（urn:gsma:imei:xxx），未来可扩展为独立字段。
 func ResolveSIPInstanceURN(p *profiles.CarrierProfile) string {
 	if p == nil || p.Device.IMEI == "" {
 		return ""
@@ -475,10 +479,23 @@ func ResolvePCSCFAddr(p *profiles.CarrierProfile) string {
 func plmnKey(mcc, mnc string) string {
 	mcc = strings.TrimSpace(mcc)
 	mnc = strings.TrimSpace(mnc)
-	// strip leading zeros from MNC
 	trimmed := strings.TrimLeft(mnc, "0")
 	if trimmed == "" && mnc != "" {
 		trimmed = "0"
 	}
 	return mcc + "-" + trimmed
+}
+
+// parseKey 从 profile key 解析 MCC 和 MNC。
+// "234-33" → ("234", "33"), "234-33__cmlink" → ("234", "33")
+func parseKey(key string) (mcc, mnc string) {
+	base := key
+	if idx := strings.Index(base, "__"); idx >= 0 {
+		base = base[:idx]
+	}
+	parts := strings.SplitN(base, "-", 2)
+	if len(parts) == 2 {
+		return parts[0], parts[1]
+	}
+	return "", ""
 }

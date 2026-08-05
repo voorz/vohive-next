@@ -638,6 +638,7 @@ mnc?: string
 
 // 运营商列表项 (GET /api/carrier)
 export type CarrierListItem = {
+  key: string
   mcc: string
   mnc: string
   name: string
@@ -649,8 +650,9 @@ export type CarrierListItem = {
   has_system_default: boolean
 }
 
-// 运营商配置详情 (GET /api/carrier/{mcc}/{mnc})
+// 运营商配置详情 (GET /api/carrier/{mcc}/{mnc}?brand=)
 export type CarrierDetail = {
+  key: string
   mcc: string
   mnc: string
   name: string

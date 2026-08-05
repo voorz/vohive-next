@@ -10,10 +10,12 @@ import (
 )
 
 // CarrierConfig 存储用户自定义的运营商配置（覆盖系统内置 JSON 模板）。
-// 主键为 MCC+MNC 组合，ProfileJSON 存储完整的 CarrierProfile JSON。
+// 主键为 ProfileKey（如 "234-33" 或 "234-33__cmlink"），
+// 允许同 PLMN 多变体各自独立存储用户配置。
 type CarrierConfig struct {
-	MCC             string    `gorm:"column:mcc;primaryKey" json:"mcc"`
-	MNC             string    `gorm:"column:mnc;primaryKey" json:"mnc"`
+	ProfileKey      string    `gorm:"column:profile_key;primaryKey" json:"profile_key"`
+	MCC             string    `gorm:"column:mcc" json:"mcc"`
+	MNC             string    `gorm:"column:mnc" json:"mnc"`
 	Name            string    `gorm:"column:name" json:"name"`
 	IKEAddr         string    `gorm:"column:ike_addr" json:"ike_addr"`
 	DeviceIMSTAC    int       `gorm:"column:device_ims_tac" json:"device_ims_tac"`
@@ -33,14 +35,20 @@ func UpsertCarrierConfig(c *CarrierConfig) error {
 	}
 	c.MCC = strings.TrimSpace(c.MCC)
 	c.MNC = strings.TrimSpace(c.MNC)
-	if c.MCC == "" || c.MNC == "" {
-		return errors.New("mcc and mnc are required")
+	c.ProfileKey = strings.TrimSpace(c.ProfileKey)
+	if c.ProfileKey == "" && c.MCC != "" && c.MNC != "" {
+		c.ProfileKey = c.MCC + "-" + c.MNC
+	}
+	if c.ProfileKey == "" {
+		return errors.New("profile_key is required")
 	}
 	now := time.Now()
 	c.UpdatedAt = now
 	return DB.Clauses(clause.OnConflict{
-		Columns: []clause.Column{{Name: "mcc"}, {Name: "mnc"}},
+		Columns: []clause.Column{{Name: "profile_key"}},
 		DoUpdates: clause.Assignments(map[string]any{
+			"mcc":               c.MCC,
+			"mnc":               c.MNC,
 			"name":              c.Name,
 			"ike_addr":          c.IKEAddr,
 			"device_ims_tac":    c.DeviceIMSTAC,
@@ -58,22 +66,21 @@ func ListCarrierConfigs() ([]CarrierConfig, error) {
 		return nil, nil
 	}
 	var out []CarrierConfig
-	err := DB.Order("mcc asc, mnc asc").Find(&out).Error
+	err := DB.Order("profile_key asc").Find(&out).Error
 	return out, err
 }
 
-// GetCarrierConfig 按 MCC+MNC 查询单条用户配置。
-func GetCarrierConfig(mcc, mnc string) (*CarrierConfig, error) {
+// GetCarrierConfig 按 ProfileKey 查询单条用户配置。
+func GetCarrierConfig(profileKey string) (*CarrierConfig, error) {
 	if DB == nil {
 		return nil, nil
 	}
-	mcc = strings.TrimSpace(mcc)
-	mnc = strings.TrimSpace(mnc)
-	if mcc == "" || mnc == "" {
-		return nil, errors.New("mcc and mnc are required")
+	profileKey = strings.TrimSpace(profileKey)
+	if profileKey == "" {
+		return nil, errors.New("profile_key is required")
 	}
 	var out CarrierConfig
-	err := DB.Where("mcc = ? AND mnc = ?", mcc, mnc).First(&out).Error
+	err := DB.Where("profile_key = ?", profileKey).First(&out).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -83,12 +90,17 @@ func GetCarrierConfig(mcc, mnc string) (*CarrierConfig, error) {
 	return &out, nil
 }
 
+// GetCarrierConfigByPLMN 按 MCC+MNC 查询单条用户配置（向后兼容，返回 base profile）。
+func GetCarrierConfigByPLMN(mcc, mnc string) (*CarrierConfig, error) {
+	return GetCarrierConfig(mcc + "-" + mnc)
+}
+
 // DeleteCarrierConfig 删除指定运营商的用户配置。
-func DeleteCarrierConfig(mcc, mnc string) error {
+func DeleteCarrierConfig(profileKey string) error {
 	if DB == nil {
 		return nil
 	}
-	return DB.Where("mcc = ? AND mnc = ?", mcc, mnc).Delete(&CarrierConfig{}).Error
+	return DB.Where("profile_key = ?", profileKey).Delete(&CarrierConfig{}).Error
 }
 
 // ListActiveCarrierConfigs 返回所有 active=true 的用户配置。
@@ -102,11 +114,52 @@ func ListActiveCarrierConfigs() ([]CarrierConfig, error) {
 }
 
 // SetCarrierConfigActive 设置指定运营商配置的启用状态。
-func SetCarrierConfigActive(mcc, mnc string, active bool) error {
+func SetCarrierConfigActive(profileKey string, active bool) error {
 	if DB == nil {
 		return nil
 	}
 	return DB.Model(&CarrierConfig{}).
-		Where("mcc = ? AND mnc = ?", mcc, mnc).
+		Where("profile_key = ?", profileKey).
 		Update("active", active).Error
+}
+
+// MigrateCarrierConfigPK 迁移 carrier_configs 表 PK 到 (profile_key)。
+// 处理两种旧 PK：2列 (mcc, mnc) 或 3列 (mcc, mnc, gid1)（TASK 6 GID1 残留）。
+// SQLite 不支持直接修改 PK，需要重建表：建新表 → 复制数据 → 删旧表 → 重命名。
+func MigrateCarrierConfigPK() error {
+	if DB == nil {
+		return nil
+	}
+	var pkColumns []struct {
+		Name string
+	}
+	DB.Raw("SELECT name FROM pragma_table_info('carrier_configs') WHERE pk > 0 ORDER BY pk").Scan(&pkColumns)
+
+	// 如果已经是单列 PK (profile_key)，无需迁移
+	if len(pkColumns) == 1 && pkColumns[0].Name == "profile_key" {
+		return nil
+	}
+
+	// 旧表有复合 PK (2列或3列)，需要迁移
+	if len(pkColumns) >= 2 {
+		DB.Exec(`CREATE TABLE carrier_configs_new (
+			profile_key TEXT PRIMARY KEY,
+			mcc TEXT NOT NULL DEFAULT '',
+			mnc TEXT NOT NULL DEFAULT '',
+			name TEXT NOT NULL DEFAULT '',
+			ike_addr TEXT DEFAULT '',
+			device_ims_tac INTEGER DEFAULT 0,
+			device_ims_cell_id INTEGER DEFAULT 0,
+			profile_json TEXT DEFAULT '',
+			active BOOLEAN NOT NULL DEFAULT 0,
+			created_at DATETIME,
+			updated_at DATETIME
+		)`)
+		DB.Exec(`INSERT INTO carrier_configs_new (profile_key, mcc, mnc, name, ike_addr, device_ims_tac, device_ims_cell_id, profile_json, active, created_at, updated_at)
+			SELECT COALESCE(profile_key, mcc || '-' || mnc), mcc, mnc, name, ike_addr, device_ims_tac, device_ims_cell_id, profile_json, active, created_at, updated_at
+			FROM carrier_configs`)
+		DB.Exec("DROP TABLE carrier_configs")
+		DB.Exec("ALTER TABLE carrier_configs_new RENAME TO carrier_configs")
+	}
+	return nil
 }
