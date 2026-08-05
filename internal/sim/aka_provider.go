@@ -242,6 +242,10 @@ func (d *ATAKAProvider) calculateAKAOnUSIM(rand16, autn16 []byte) (AKAResult, er
 		logger.Debug("AKA 使用的 SIM 应用", d.withDevice("app", "USIM", "channel", ch)...)
 		return res, nil
 	}
+	// sync failure 是确定性的（SQN 不匹配），换 APDU 格式无用，直接返回让上层走 AUTS 重同步
+	if errors.Is(err, swusim.ErrSyncFailure) {
+		return res, err
+	}
 	logger.Warn("USIM 逻辑通道首选 APDU 失败，尝试带 Le 变体", d.withDevice("err", err)...)
 
 	apdu2, err2 := BuildUSIMAuthAPDU(rand16, autn16, true)
@@ -280,6 +284,10 @@ func (d *ATAKAProvider) calculateAKAOnISIMLogicalChannel(rand16, autn16 []byte) 
 	res, err := d.sendLogicalAuth(ch, apdu)
 	if err == nil {
 		return res, nil
+	}
+	// sync failure 是确定性的（SQN 不匹配），换 APDU 格式无用，直接返回让上层走 AUTS 重同步
+	if errors.Is(err, swusim.ErrSyncFailure) {
+		return res, err
 	}
 	logger.Warn("ISIM 逻辑通道首选 APDU 失败，尝试带 Le 变体", d.withDevice("err", err)...)
 
