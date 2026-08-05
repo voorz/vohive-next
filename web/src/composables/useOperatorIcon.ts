@@ -23,7 +23,7 @@ function normalizeMnc(mnc: string): string {
   return mnc.replace(/^0+/, '') || '0'
 }
 
-export function getIconInfo(mcc: string, mnc: string): IconEntry | null {
+export function getIconInfo(mcc: string, mnc: string, name?: string): IconEntry | null {
   // 1. 检查用户覆盖
   const override = getIconOverride(mcc, mnc)
   if (override) return override
@@ -33,6 +33,15 @@ export function getIconInfo(mcc: string, mnc: string): IconEntry | null {
   const target = normalizeMnc(mnc)
   const found = entries.find(e => normalizeMnc(e.mnc) === target)
   if (!found) return null
+  // 3. 检查子运营商匹配（GID1 覆盖图标）
+  if (name && found.subs) {
+    const nameLower = name.toLowerCase()
+    const sub = found.subs.find(s => s.names.some(n => nameLower.includes(n)))
+    if (sub) {
+      return { iconName: sub.icon, iconScope: sub.scope }
+    }
+  }
+  // 4. 返回默认图标
   return { iconName: found.icon, iconScope: found.scope }
 }
 
@@ -70,29 +79,36 @@ export function getAvailableIcons(mcc: string): { icon: string; scope: string; m
   return ICON_CATALOG[mcc] || []
 }
 
-export function getIconUrl(mcc: string, mnc: string): string | null {
-  const info = getIconInfo(mcc, mnc)
+export function getIconUrl(mcc: string, mnc: string, name?: string): string | null {
+  const info = getIconInfo(mcc, mnc, name)
   if (!info) return null
   return `${ICON_BASE}/${info.iconScope}/${info.iconName}.png`
 }
 
-export function getCachedIcon(mcc: string, mnc: string): string | null {
-  const key = `${STORAGE_PREFIX}${mcc}-${mnc}`
-  return localStorage.getItem(key)
+export function getCachedIcon(mcc: string, mnc: string, name?: string): string | null {
+  const info = getIconInfo(mcc, mnc, name)
+  if (!info) return null
+  // 用 iconName 区分同 PLMN 下不同子运营商的缓存
+  const key = `${STORAGE_PREFIX}${mcc}-${mnc}-${info.iconName}`
+  const cached = localStorage.getItem(key)
+  if (cached) return cached
+  // 向后兼容：检查旧缓存 key
+  return localStorage.getItem(`${STORAGE_PREFIX}${mcc}-${mnc}`)
 }
 
-export async function downloadIcon(mcc: string, mnc: string): Promise<string | null> {
-  const info = getIconInfo(mcc, mnc)
+export async function downloadIcon(mcc: string, mnc: string, name?: string): Promise<string | null> {
+  const info = getIconInfo(mcc, mnc, name)
   if (!info) return null
   const path = `${info.iconScope}/${info.iconName}.png`
   const mirrorUrl = `${MIRROR_BASE}/${path}`
   const directUrl = `${ICON_BASE}/${path}`
+  const cacheKey = `${STORAGE_PREFIX}${mcc}-${mnc}-${info.iconName}`
 
   // 1. 镜像下载（最多重试 2 次）
   for (let i = 0; i < 2; i++) {
     const result = await tryFetchIcon(mirrorUrl)
     if (result) {
-      cacheIcon(mcc, mnc, result)
+      localStorage.setItem(cacheKey, result)
       return result
     }
   }
@@ -100,7 +116,7 @@ export async function downloadIcon(mcc: string, mnc: string): Promise<string | n
   // 2. 直链兜底
   const result = await tryFetchIcon(directUrl)
   if (result) {
-    cacheIcon(mcc, mnc, result)
+    localStorage.setItem(cacheKey, result)
     return result
   }
 
@@ -119,10 +135,6 @@ async function tryFetchIcon(url: string): Promise<string | null> {
   }
 }
 
-function cacheIcon(mcc: string, mnc: string, base64: string) {
-  const key = `${STORAGE_PREFIX}${mcc}-${mnc}`
-  localStorage.setItem(key, base64)
-}
 
 export function isPersonalizationEnabled(): boolean {
   try {

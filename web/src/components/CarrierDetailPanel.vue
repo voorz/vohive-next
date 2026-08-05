@@ -90,7 +90,7 @@ function saveEdit() {
   editDialogOpen.value = false
   // 如果 MCC/MNC 变了，后台自动下载新图标
   if (oldMcc !== newMcc || oldMnc !== newMnc) {
-    downloadIcon(newMcc, newMnc).then(() => {
+    downloadIcon(newMcc, newMnc, editForm.value.name).then(() => {
       window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc: newMcc, mnc: newMnc } }))
     })
   }
@@ -119,7 +119,7 @@ function saveEdit() {
       </div>
       <!-- 宽屏：图标盒子 + 运营商名 + PLMN + 编辑按钮 -->
       <div class="detail-header-wide">
-        <CarrierIcon :mcc="selectedMcc" :mnc="selectedMnc" :size="38" />
+        <CarrierIcon :mcc="selectedMcc" :mnc="selectedMnc" :name="selectedCarrier?.name" :size="38" />
         <div class="detail-header-info">
           <div class="detail-header-name">{{ selectedCarrier?.name || '未选择' }}</div>
           <div class="detail-header-plmn">{{ selectedCarrier?.mcc }}:{{ selectedCarrier?.mnc }}</div>

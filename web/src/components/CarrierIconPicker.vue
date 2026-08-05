@@ -15,6 +15,7 @@ import {
 const props = defineProps<{
   mcc: string
   mnc: string
+  name?: string
 }>()
 
 const emit = defineEmits<{
@@ -38,7 +39,7 @@ const currentOverride = computed(() => {
 
 const defaultIcon = computed(() => {
   if (!props.mcc || !props.mnc) return null
-  return getIconInfo(props.mcc, props.mnc)
+  return getIconInfo(props.mcc, props.mnc, props.name)
 })
 
 function refreshState() {
@@ -53,10 +54,10 @@ function refreshState() {
     selectedIcon.value = ''
     selectedScope.value = ''
   }
-  previewSrc.value = props.mcc && props.mnc ? getCachedIcon(props.mcc, props.mnc) : null
+  previewSrc.value = props.mcc && props.mnc ? getCachedIcon(props.mcc, props.mnc, props.name) : null
 }
 
-watch(() => [props.mcc, props.mnc], refreshState, { immediate: true })
+watch(() => [props.mcc, props.mnc, props.name], refreshState, { immediate: true })
 
 function onSelectIcon(icon: string, scope: string) {
   selectedIcon.value = icon
@@ -86,7 +87,7 @@ async function handleDownload() {
   if (!props.mcc || !props.mnc) return
   downloading.value = true
   try {
-    const result = await downloadIcon(props.mcc, props.mnc)
+    const result = await downloadIcon(props.mcc, props.mnc, props.name)
     if (result) {
       previewSrc.value = result
       ElMessage.success('图标下载成功')

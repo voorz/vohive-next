@@ -1,10 +1,29 @@
 /**
  * 运营商图标 catalog - 自动生成
- * 生成时间: 2026-08-03T17:59:47.200Z
- * 覆盖 140 个 MCC，共 500 个运营商
+ * 生成时间: 2026-08-05T15:37:39.714Z
+ * 覆盖 140 个 MCC
+ *
+ * 数据结构:
+ *   - mnc/icon/scope: 运营商默认图标
+ *   - subs: 子运营商 (GID1 覆盖图标), 用 name 匹配
+ *     - names: profile_provider_names (小写)
+ *     - icon/scope: 覆盖父级
  */
 
-export const ICON_CATALOG: Record<string, { mnc: string; icon: string; scope: string }[]> = {
+export interface IconSubOperator {
+  names: string[]
+  icon: string
+  scope: string
+}
+
+export interface IconCatalogEntry {
+  mnc: string
+  icon: string
+  scope: string
+  subs?: IconSubOperator[]
+}
+
+export const ICON_CATALOG: Record<string, IconCatalogEntry[]> = {
   '202': [
     { mnc: '01', icon: 'cosmote', scope: '202' },
     { mnc: '05', icon: 'vodafone', scope: 'worldwide' },
@@ -12,7 +31,7 @@ export const ICON_CATALOG: Record<string, { mnc: string; icon: string; scope: st
   '204': [
     { mnc: '04', icon: 'vodafone', scope: 'worldwide' },
     { mnc: '07', icon: 'teleena', scope: '204' },
-    { mnc: '08', icon: 'kpn', scope: '204' },
+    { mnc: '08', icon: 'kpn', scope: '204', subs: [{ names: ['betterroaming', '1global', 'speedtest travel', 'heinemann', 'xesim', 'sparhandy', 'cluj airport', 'digital republic', 'bunq', 'freenet travel', 'esimfirst', 'truphone', 'high mobile', 'jazeera', 'getesim', 'adnec', 'ntv', 'simly', 'numero'], icon: 'betterroaming', scope: '204' }] },
     { mnc: '09', icon: 'lycamobile', scope: 'worldwide' },
     { mnc: '16', icon: 'odido', scope: '204' },
   ],
@@ -24,7 +43,7 @@ export const ICON_CATALOG: Record<string, { mnc: string; icon: string; scope: st
     { mnc: '28', icon: 'bics', scope: '206' },
   ],
   '208': [
-    { mnc: '01', icon: 'orange-france', scope: 'worldwide' },
+    { mnc: '01', icon: 'orange-france', scope: 'worldwide', subs: [{ names: ['holafly'], icon: 'holafly', scope: 'worldwide' }] },
     { mnc: '09', icon: 'sfr', scope: '208' },
     { mnc: '10', icon: 'sfr', scope: '208' },
     { mnc: '15', icon: 'iliad', scope: '208' },
@@ -37,11 +56,11 @@ export const ICON_CATALOG: Record<string, { mnc: string; icon: string; scope: st
   ],
   '214': [
     { mnc: '01', icon: 'vodafone', scope: 'worldwide' },
-    { mnc: '03', icon: 'orange', scope: 'worldwide' },
+    { mnc: '03', icon: 'orange', scope: 'worldwide', subs: [{ names: ['simyo'], icon: 'orange', scope: '214' }] },
     { mnc: '04', icon: 'yoigo', scope: '214' },
     { mnc: '05', icon: 'movistar', scope: 'worldwide' },
     { mnc: '06', icon: 'vodafone', scope: 'worldwide' },
-    { mnc: '07', icon: 'movistar', scope: 'worldwide' },
+    { mnc: '07', icon: 'movistar', scope: 'worldwide', subs: [{ names: ['o2'], icon: 'movistar', scope: '214' }] },
     { mnc: '22', icon: 'meo', scope: 'worldwide' },
     { mnc: '34', icon: 'aire', scope: '214' },
   ],
@@ -52,7 +71,7 @@ export const ICON_CATALOG: Record<string, { mnc: string; icon: string; scope: st
   ],
   '218': [
     { mnc: '03', icon: 'ht-eronet', scope: '218' },
-    { mnc: '05', icon: 'novotel', scope: '218' },
+    { mnc: '05', icon: 'novotel', scope: '218', subs: [{ names: ['novotel'], icon: 'novotel', scope: '218' }] },
     { mnc: '90', icon: 'bh-mobile', scope: '218' },
   ],
   '219': [
@@ -106,7 +125,7 @@ export const ICON_CATALOG: Record<string, { mnc: string; icon: string; scope: st
     { mnc: '05', icon: '3', scope: '232' },
     { mnc: '07', icon: 't-mobile', scope: 'worldwide' },
     { mnc: '08', icon: 'lycamobile', scope: 'worldwide' },
-    { mnc: '10', icon: '3', scope: '232' },
+    { mnc: '10', icon: '3', scope: '232', subs: [{ names: ['holafly'], icon: 'holafly', scope: 'worldwide' }] },
     { mnc: '11', icon: 'bob', scope: '232' },
     { mnc: '12', icon: 'one', scope: 'worldwide' },
     { mnc: '17', icon: 'spusu', scope: 'worldwide' },
@@ -114,7 +133,7 @@ export const ICON_CATALOG: Record<string, { mnc: string; icon: string; scope: st
   ],
   '234': [
     { mnc: '03', icon: 'airtel', scope: '234' },
-    { mnc: '10', icon: 'o2', scope: '234' },
+    { mnc: '10', icon: 'o2', scope: '234', subs: [{ names: ['giffgaff'], icon: 'giffgaff', scope: '234' }] },
     { mnc: '15', icon: 'vodafone', scope: 'worldwide' },
     { mnc: '18', icon: 'cloud-9-mobile', scope: '234' },
     { mnc: '20', icon: '3', scope: '234' },
@@ -122,7 +141,7 @@ export const ICON_CATALOG: Record<string, { mnc: string; icon: string; scope: st
     { mnc: '26', icon: 'lycamobile', scope: 'worldwide' },
     { mnc: '30', icon: 'orange', scope: '234' },
     { mnc: '33', icon: 'orange', scope: '234' },
-    { mnc: '40', icon: 'spusu-international', scope: 'worldwide' },
+    { mnc: '40', icon: 'spusu-international', scope: 'worldwide', subs: [{ names: ['spusu'], icon: 'spusu', scope: 'worldwide' }] },
     { mnc: '50', icon: 'jt', scope: '234' },
     { mnc: '55', icon: 'airtel', scope: '234' },
     { mnc: '57', icon: 'sky', scope: 'worldwide' },
@@ -161,7 +180,7 @@ export const ICON_CATALOG: Record<string, { mnc: string; icon: string; scope: st
   ],
   '248': [
     { mnc: '01', icon: 'telia', scope: '248' },
-    { mnc: '02', icon: 'elisa', scope: '248' },
+    { mnc: '02', icon: 'elisa', scope: '248', subs: [{ names: ['esim internet', 'esim.gg'], icon: 'esim-internet', scope: '248' }] },
   ],
   '250': [
     { mnc: '01', icon: 'mts', scope: '250' },
@@ -312,9 +331,9 @@ export const ICON_CATALOG: Record<string, { mnc: string; icon: string; scope: st
     { mnc: '84', icon: 'telna-mobile', scope: '310' },
     { mnc: '140', icon: 'gta-wireless', scope: '310' },
     { mnc: '150', icon: 'at-and-t', scope: '310' },
-    { mnc: '240', icon: 't-mobile', scope: 'worldwide' },
+    { mnc: '240', icon: 't-mobile', scope: 'worldwide', subs: [{ names: ['helium'], icon: 't-mobile', scope: '310' }] },
     { mnc: '260', icon: 't-mobile', scope: 'worldwide' },
-    { mnc: '280', icon: 'at-and-t', scope: '310' },
+    { mnc: '280', icon: 'at-and-t', scope: '310', subs: [{ names: ['redpocket', 'freedompop', 'red pocket', 'mywireless'], icon: 'redpocket', scope: '310' }] },
     { mnc: '380', icon: 'at-and-t', scope: '310' },
     { mnc: '410', icon: 'at-and-t', scope: '310' },
     { mnc: '840', icon: 'telna-mobile', scope: '310' },
@@ -334,7 +353,7 @@ export const ICON_CATALOG: Record<string, { mnc: string; icon: string; scope: st
   '334': [
     { mnc: '020', icon: 'telcel', scope: '334' },
     { mnc: '030', icon: 'movistar', scope: '334' },
-    { mnc: '050', icon: 'at-and-t', scope: '334' },
+    { mnc: '050', icon: 'at-and-t', scope: '334', subs: [{ names: ['wim'], icon: 'wim', scope: '334' }] },
     { mnc: '130', icon: 'axtel', scope: '334' },
     { mnc: '140', icon: 'altan-redes', scope: '334' },
   ],
@@ -516,8 +535,8 @@ export const ICON_CATALOG: Record<string, { mnc: string; icon: string; scope: st
     { mnc: '10', icon: 'ntt-docomo', scope: '440' },
     { mnc: '11', icon: 'rakuten', scope: '440' },
     { mnc: '20', icon: 'softbank', scope: '440' },
-    { mnc: '51', icon: 'au', scope: '440' },
-    { mnc: '54', icon: 'au', scope: '440' },
+    { mnc: '51', icon: 'au', scope: '440', subs: [{ names: ['povo'], icon: 'povo', scope: '440' }] },
+    { mnc: '54', icon: 'au', scope: '440', subs: [{ names: ['uq mobile'], icon: 'au-3', scope: '440' }] },
   ],
   '450': [
     { mnc: '05', icon: 'sktelecom', scope: '450' },
@@ -537,7 +556,7 @@ export const ICON_CATALOG: Record<string, { mnc: string; icon: string; scope: st
     { mnc: '03', icon: '3', scope: '454' },
     { mnc: '06', icon: 'smartone', scope: '454' },
     { mnc: '07', icon: 'china-unicom', scope: '454' },
-    { mnc: '12', icon: 'cmcc-hk', scope: '454' },
+    { mnc: '12', icon: 'cmcc-hk', scope: '454', subs: [{ names: ['holafly'], icon: 'holafly', scope: 'worldwide' }] },
     { mnc: '19', icon: 'csl', scope: '454' },
     { mnc: '31', icon: 'ctexcel', scope: '454' },
     { mnc: '35', icon: 'webbing', scope: 'worldwide' },

@@ -5,6 +5,7 @@ import { getCachedIcon, isPersonalizationEnabled } from '../composables/useOpera
 const props = defineProps<{
   mcc: string
   mnc: string
+  name?: string
   size?: number
 }>()
 
@@ -13,10 +14,10 @@ const enabled = ref(true)
 
 function refresh() {
   enabled.value = isPersonalizationEnabled()
-  cachedSrc.value = enabled.value ? getCachedIcon(props.mcc, props.mnc) : null
+  cachedSrc.value = enabled.value ? getCachedIcon(props.mcc, props.mnc, props.name) : null
 }
 
-watch(() => [props.mcc, props.mnc], refresh, { immediate: true })
+watch(() => [props.mcc, props.mnc, props.name], refresh, { immediate: true })
 
 // 监听图标下载完成事件，刷新缓存
 function onIconUpdated(e: Event) {

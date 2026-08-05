@@ -54,7 +54,7 @@ ElMessage.success('运营商已添加')
 addDialogOpen.value = false
 // 后台自动下载运营商图标
 const mcc = form.mcc.trim(), mnc = form.mnc.trim()
-downloadIcon(mcc, mnc).then(() => {
+downloadIcon(mcc, mnc, form.name.trim()).then(() => {
 window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc, mnc } }))
 })
 addForm.value = { name: '', mcc: '', mnc: '', ike_addr: '', device_ims_tac: 0, device_ims_cell_id: 0 }
@@ -115,7 +115,7 @@ async function handleDelete(mcc: string, mnc: string, name: string) {
           :class="{ selected: item.mcc === selectedMcc && item.mnc === selectedMnc }"
           @click="handleSelect(item.mcc, item.mnc)"
         >
-          <CarrierIcon :mcc="item.mcc" :mnc="item.mnc" :size="28" />
+          <CarrierIcon :mcc="item.mcc" :mnc="item.mnc" :name="item.name" :size="28" />
           <div class="carrier-card-info">
             <div class="carrier-card-name">{{ item.name }}</div>
             <div class="carrier-card-plmn">{{ item.mcc }}:{{ item.mnc }}</div>

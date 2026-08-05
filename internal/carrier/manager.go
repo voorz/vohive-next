@@ -10,6 +10,7 @@ package carrier
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -144,6 +145,11 @@ func List() ([]ListItem, error) {
 			Active:          uc.Active,
 		})
 	}
+
+	// Sort by carrier name asc for stable ordering across refreshes.
+	sort.SliceStable(out, func(i, j int) bool {
+		return out[i].Name < out[j].Name
+	})
 
 	return out, nil
 }
