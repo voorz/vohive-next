@@ -104,9 +104,9 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 	mcc := strings.TrimSpace(profile.MCC)
 	mnc := strings.TrimSpace(profile.MNC)
 	if mcc != "" {
-		mode := carrier.IMSCellIDMode(mcc, mnc)
+		mode := carrier.IMSCellIDMode(mcc, mnc, profile.SPN)
 		if mode != "none" {
-			cellID = carrier.DefaultUTRANCellIDSuffix(mcc, mnc)
+			cellID = carrier.DefaultUTRANCellIDSuffix(mcc, mnc, profile.SPN)
 		}
 	}
 

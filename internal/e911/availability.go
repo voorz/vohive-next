@@ -15,6 +15,7 @@ func SetupAvailable(status modem.DeviceStatus) bool {
 	cfg := carrier.ResolveEffectiveCarrierConfig(carrier.EffectiveCarrierConfigInput{
 		MCC: mcc,
 		MNC: mnc,
+		SPN: status.NativeSPN,
 	})
 	return cfg.E911.Enabled
 }

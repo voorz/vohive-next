@@ -71,16 +71,17 @@ func (p *Pool) buildVoWiFiStartProfile(worker *Worker, traceID string) (identity
 		"mnc", mnc,
 		"imei", imei)
 
-	return buildVoWiFiRawProfile(imsi, mcc, mnc, imei, smsc), nil
+	return buildVoWiFiRawProfile(imsi, mcc, mnc, imei, smsc, status.NativeSPN), nil
 }
 
-func buildVoWiFiRawProfile(imsi, mcc, mnc, imei, smsc string) identity.Profile {
+func buildVoWiFiRawProfile(imsi, mcc, mnc, imei, smsc, spn string) identity.Profile {
 	return identity.Profile{
 		IMSI: strings.TrimSpace(imsi),
 		MCC:  strings.TrimSpace(mcc),
 		MNC:  strings.TrimSpace(mnc),
 		IMEI: strings.TrimSpace(imei),
 		SMSC: strings.TrimSpace(smsc),
+		SPN:  strings.TrimSpace(spn),
 	}
 }
 
