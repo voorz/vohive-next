@@ -1,19 +1,18 @@
 /**
  * 运营商图标管理
- * - 全量 catalog 映射（140 MCC，500+ 运营商）
- * - localStorage 缓存，不主动下载
- * - 用户手动触发下载
+ * - 数据源: plmn-index 仓库（懒加载 all.json + localStorage 缓存）
+ * - 图标下载: localStorage 缓存，用户手动触发
  */
 
-import { ICON_CATALOG } from './icon-catalog'
+import { getPlmnCatalog } from './plmn-catalog'
 
-const ICON_BASE = 'https://raw.githubusercontent.com/NekokoLPA/operator-icons/master/icons'
-const MIRROR_BASE = 'https://cdn.jsdelivr.net/gh/NekokoLPA/operator-icons@master/icons'
+const ICON_BASE = 'https://raw.githubusercontent.com/voorz/plmn-index/main/plmn/icons'
+const MIRROR_BASE = 'https://cdn.jsdelivr.net/gh/voorz/plmn-index@main/plmn/icons'
 const STORAGE_PREFIX = 'vohive.icon.'
 const OVERRIDE_PREFIX = 'vohive.icon-override.'
 const SETTINGS_KEY = 'vohive.personalization'
 
-interface IconEntry {
+export interface IconEntry {
   iconName: string
   iconScope: string
 }
@@ -27,8 +26,10 @@ export function getIconInfo(mcc: string, mnc: string, name?: string): IconEntry 
   // 1. 检查用户覆盖
   const override = getIconOverride(mcc, mnc)
   if (override) return override
-  // 2. 查 catalog
-  const entries = ICON_CATALOG[mcc]
+  // 2. 查 catalog（从 plmn-index 懒加载）
+  const catalog = getPlmnCatalog()
+  if (!catalog) return null
+  const entries = catalog[mcc]
   if (!entries) return null
   const target = normalizeMnc(mnc)
   const found = entries.find(e => normalizeMnc(e.mnc) === target)
@@ -76,7 +77,9 @@ export function clearIconOverride(mcc: string, mnc: string) {
 
 /** 获取指定 MCC 下所有可选图标 */
 export function getAvailableIcons(mcc: string): { icon: string; scope: string; mnc: string }[] {
-  return ICON_CATALOG[mcc] || []
+  const catalog = getPlmnCatalog()
+  if (!catalog) return []
+  return catalog[mcc] || []
 }
 
 export function getIconUrl(mcc: string, mnc: string, name?: string): string | null {
@@ -162,6 +165,9 @@ export function clearAllIconCache() {
     if (key && key.startsWith(STORAGE_PREFIX)) keys.push(key)
   }
   keys.forEach(k => localStorage.removeItem(k))
+  // 同时清除 PLMN catalog 缓存
+  localStorage.removeItem('vohive.plmn-catalog')
+  localStorage.removeItem('vohive.plmn-catalog.version')
 }
 
 function blobToBase64(blob: Blob): Promise<string> {

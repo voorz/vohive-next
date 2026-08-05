@@ -7,6 +7,7 @@ import CarrierDetailPanel from '../components/CarrierDetailPanel.vue'
 import CarrierPreviewPanel from '../components/CarrierPreviewPanel.vue'
 import { Eye24Regular } from '@vicons/fluent'
 import { downloadIcon, getCachedIcon } from '../composables/useOperatorIcon'
+import { loadPlmnCatalog } from '../composables/plmn-catalog'
 
 const store = useCarrierStore()
 const { detail, previewTarget } = storeToRefs(store)
@@ -36,6 +37,8 @@ onMounted(async () => {
   syncWidth()
   window.addEventListener('resize', syncWidth, { passive: true })
   await store.fetchCarriers()
+  // 确保 PLMN catalog 已加载（首次打开会 fetch all.json，之后从缓存读）
+  await loadPlmnCatalog()
   // 页面加载时批量下载缺失的运营商图标（仅一次，失败不重试）
   for (const c of store.carriers) {
     if (!getCachedIcon(c.mcc, c.mnc, c.name)) {
