@@ -28,6 +28,16 @@ func normalizeUpstreamProxyPayload(existing *db.UpstreamProxy, req db.UpstreamPr
 
 	if existing != nil {
 		out.CreatedAt = existing.CreatedAt
+		// 部分更新：空字段从现有记录继承（支持只传 enabled 的 toggle 操作）
+		if out.Name == "" {
+			out.Name = existing.Name
+		}
+		if out.Addr == "" {
+			out.Addr = existing.Addr
+		}
+		if out.Username == "" {
+			out.Username = existing.Username
+		}
 		if out.Password == "" {
 			out.Password = existing.Password
 		}
@@ -51,10 +61,6 @@ func (s *Server) handleListUpstreamProxies(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
 		return
 	}
-	// 密码脱敏
-	for i := range proxies {
-		proxies[i].Password = maskSecret(proxies[i].Password)
-	}
 	c.JSON(http.StatusOK, proxies)
 }
 
@@ -75,17 +81,6 @@ func (s *Server) handleCreateUpstreamProxy(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "addr 不能为空"})
 		return
 	}
-	result, probeErr := probeUpstreamProxyConfig(c, req)
-	if probeErr != nil {
-		logger.Warn("🌐 前置代理探测失败", "id", req.ID, "addr", req.Addr, "stage", result.Stage, "error", result.Error)
-		c.JSON(http.StatusBadGateway, gin.H{
-			"status":  "error",
-			"message": "前置代理探测失败: " + result.FailureSummary(),
-			"result":  result,
-		})
-		return
-	}
-	logger.Info("🌐 前置代理探测通过", "id", req.ID, "addr", req.Addr, "relay_addr", result.RelayAddr, "duration_ms", result.DurationMS)
 	if err := db.UpsertUpstreamProxy(req); err != nil {
 		logger.Error("🌐 前置代理保存失败", "id", req.ID, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
@@ -94,8 +89,7 @@ func (s *Server) handleCreateUpstreamProxy(c *gin.Context) {
 	logger.Info("🌐 前置代理已保存", "id", req.ID)
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "ok",
-		"message": "前置代理已保存，并已通过探测",
-		"result":  result,
+		"message": "前置代理已保存",
 	})
 }
 
@@ -123,17 +117,6 @@ func (s *Server) handleUpdateUpstreamProxy(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "addr 不能为空"})
 		return
 	}
-	result, probeErr := probeUpstreamProxyConfig(c, req)
-	if probeErr != nil {
-		logger.Warn("🌐 前置代理探测失败", "id", req.ID, "addr", req.Addr, "stage", result.Stage, "error", result.Error)
-		c.JSON(http.StatusBadGateway, gin.H{
-			"status":  "error",
-			"message": "前置代理探测失败: " + result.FailureSummary(),
-			"result":  result,
-		})
-		return
-	}
-	logger.Info("🌐 前置代理探测通过", "id", req.ID, "addr", req.Addr, "relay_addr", result.RelayAddr, "duration_ms", result.DurationMS)
 	if err := db.UpsertUpstreamProxy(req); err != nil {
 		logger.Error("🌐 前置代理保存失败", "id", req.ID, "err", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
@@ -142,8 +125,7 @@ func (s *Server) handleUpdateUpstreamProxy(c *gin.Context) {
 	logger.Info("🌐 前置代理已更新", "id", req.ID)
 	c.JSON(http.StatusOK, gin.H{
 		"status":  "ok",
-		"message": "前置代理已更新，并已通过探测",
-		"result":  result,
+		"message": "前置代理已更新",
 	})
 }
 
@@ -311,12 +293,13 @@ func (s *Server) handleLookupUpstreamProxy(c *gin.Context) {
 		return
 	}
 
-	// TCP Dial 测延迟（直连代理服务器）
-	start := time.Now()
+	// TCP 连通性检查
 	conn, dialErr := net.DialTimeout("tcp", net.JoinHostPort(host, port), 5*time.Second)
-	latencyMs := time.Since(start).Milliseconds()
 	if dialErr != nil {
-		logger.Warn("🌐 前置代理延迟测试失败", "id", id, "addr", proxy.Addr, "err", dialErr)
+		logger.Warn("🌐 前置代理连接失败", "id", id, "addr", proxy.Addr, "err", dialErr)
+		if saveErr := db.SaveUpstreamProxyLookup(id, "", "", "", "", "", "", -1, "TCP 连接失败: "+dialErr.Error()); saveErr != nil {
+			logger.Error("🌐 保存 lookup 结果失败", "id", id, "err", saveErr)
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"status":     "ok",
 			"ip":         host,
@@ -327,10 +310,29 @@ func (s *Server) handleLookupUpstreamProxy(c *gin.Context) {
 	}
 	conn.Close()
 
+	// 通过 SOCKS5 代理连接 1.1.1.1:80 测量纯代理往返延迟
+	latencyMs, latencyErr := measureProxyLatency(proxy.Addr, proxy.Username, proxy.Password)
+	if latencyErr != nil {
+		logger.Warn("🌐 前置代理延迟测试失败", "id", id, "addr", proxy.Addr, "err", latencyErr)
+		if saveErr := db.SaveUpstreamProxyLookup(id, "", "", "", "", "", "", -1, "SOCKS5 延迟测试失败: "+latencyErr.Error()); saveErr != nil {
+			logger.Error("🌐 保存 lookup 结果失败", "id", id, "err", saveErr)
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"status":     "ok",
+			"ip":         host,
+			"latency_ms": -1,
+			"error":      "SOCKS5 延迟测试失败: " + latencyErr.Error(),
+		})
+		return
+	}
+
 	// 通过 SOCKS5 代理获取出口 IP 与归属
 	ipInfo, ipErr := lookupIPInfoViaProxy(c.Request.Context(), proxy.Addr, proxy.Username, proxy.Password)
 	if ipErr != nil {
 		logger.Warn("🌐 出口 IP 查询失败", "id", id, "proxy_addr", proxy.Addr, "err", ipErr)
+		if saveErr := db.SaveUpstreamProxyLookup(id, "", "", "", "", "", "", latencyMs, "出口 IP 查询失败: "+ipErr.Error()); saveErr != nil {
+			logger.Error("🌐 保存 lookup 结果失败", "id", id, "err", saveErr)
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"status":     "ok",
 			"ip":         host,
@@ -341,6 +343,9 @@ func (s *Server) handleLookupUpstreamProxy(c *gin.Context) {
 	}
 
 	logger.Info("🌐 前置代理 lookup 完成", "id", id, "addr", proxy.Addr, "exit_ip", ipInfo.IP, "latency_ms", latencyMs, "country", ipInfo.Country)
+	if saveErr := db.SaveUpstreamProxyLookup(id, ipInfo.IP, ipInfo.Country, ipInfo.Region, ipInfo.City, ipInfo.ASN, ipInfo.Organization, latencyMs, ""); saveErr != nil {
+		logger.Error("🌐 保存 lookup 结果失败", "id", id, "err", saveErr)
+	}
 	c.JSON(http.StatusOK, gin.H{
 		"status":       "ok",
 		"ip":           ipInfo.IP,
@@ -371,6 +376,26 @@ type ipInfoResult struct {
 	City         string
 	ASN          string
 	Organization string
+}
+
+// measureProxyLatency 通过 SOCKS5 代理连接 1.1.1.1:80 测量纯代理往返延迟
+func measureProxyLatency(proxyAddr, username, password string) (int64, error) {
+	auth := (*proxy.Auth)(nil)
+	if strings.TrimSpace(username) != "" {
+		auth = &proxy.Auth{User: strings.TrimSpace(username), Password: strings.TrimSpace(password)}
+	}
+	dialer, err := proxy.SOCKS5("tcp", proxyAddr, auth, &net.Dialer{Timeout: 10 * time.Second})
+	if err != nil {
+		return -1, fmt.Errorf("SOCKS5 dialer 创建失败: %w", err)
+	}
+	start := time.Now()
+	conn, err := dialer.Dial("tcp", "1.1.1.1:80")
+	if err != nil {
+		return -1, fmt.Errorf("SOCKS5 连接失败: %w", err)
+	}
+	latencyMs := time.Since(start).Milliseconds()
+	conn.Close()
+	return latencyMs, nil
 }
 
 // lookupIPInfoViaProxy 通过 SOCKS5 代理请求 ipwho.is，获取出口 IP 与归属信息
