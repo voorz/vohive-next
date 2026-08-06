@@ -83,8 +83,8 @@ async function clearIconCache() {
     <div v-show="expanded" class="faq-body">
       <div class="flex items-center justify-between mb-4">
         <div>
-          <div class="faq-item-title">运营商图标</div>
-          <div class="faq-item-desc">在运营商列表与详情中显示个性化图标，关闭后使用默认图标</div>
+          <div class="faq-item-title">使用外部图标资源</div>
+          <div class="faq-item-desc">显示个性化图标，关闭后使用默认图标</div>
         </div>
         <el-button size="small" type="primary" :loading="saving" @click="save" class="!border-0">保存</el-button>
       </div>
@@ -95,7 +95,7 @@ async function clearIconCache() {
 
       <div class="flex items-center justify-between" style="border-top: 1px solid var(--border); padding-top: 12px;">
         <div>
-          <div class="faq-item-title">图标缓存</div>
+          <div class="faq-item-title">缓存管理</div>
           <div class="faq-item-desc">已缓存 {{ iconCacheCount }} 个图标（运营商 + 国旗），清除后需重新下载</div>
         </div>
         <el-button
