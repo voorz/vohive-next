@@ -36,8 +36,8 @@ const router = createRouter({
     },
     {
       path: '/proxy',
-      name: 'Proxy',
-      component: () => import('../views/Proxy.vue'),
+      name: 'ProxyConfig',
+      component: () => import('../views/ProxyConfig.vue'),
       meta: { requiresAuth: true }
     },
     {

@@ -418,6 +418,16 @@ export type UpstreamProxy = {
   enabled: boolean
   created_at?: string
   updated_at?: string
+  // 持久化的 lookup 结果（由后端 /lookup 接口写入）
+  lookup_ip?: string
+  lookup_country?: string
+  lookup_region?: string
+  lookup_city?: string
+  lookup_asn?: string
+  lookup_organization?: string
+  lookup_latency_ms?: number
+  lookup_error?: string
+  lookup_at?: string
 }
 
 // MCC/MNC 表中的国家分组

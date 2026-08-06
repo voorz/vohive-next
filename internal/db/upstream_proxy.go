@@ -20,6 +20,17 @@ type UpstreamProxy struct {
 	Enabled   bool      `json:"enabled"`            // 是否启用
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+
+	// 持久化的 lookup 结果（由 /lookup 接口写入）
+	LookupIP           string `gorm:"column:lookup_ip" json:"lookup_ip,omitempty"`
+	LookupCountry      string `gorm:"column:lookup_country" json:"lookup_country,omitempty"`
+	LookupRegion       string `gorm:"column:lookup_region" json:"lookup_region,omitempty"`
+	LookupCity         string `gorm:"column:lookup_city" json:"lookup_city,omitempty"`
+	LookupASN          string `gorm:"column:lookup_asn" json:"lookup_asn,omitempty"`
+	LookupOrganization string `gorm:"column:lookup_organization" json:"lookup_organization,omitempty"`
+	LookupLatencyMs    int64  `gorm:"column:lookup_latency_ms" json:"lookup_latency_ms,omitempty"`
+	LookupError        string `gorm:"column:lookup_error" json:"lookup_error,omitempty"`
+	LookupAt           time.Time `gorm:"column:lookup_at" json:"lookup_at,omitempty"`
 }
 
 // UpstreamProxyCountryRule 将 SIM home country 路由到指定前置代理。
@@ -71,6 +82,22 @@ func UpsertUpstreamProxy(p UpstreamProxy) error {
 		return errors.New("empty addr")
 	}
 	return DB.Save(&p).Error
+}
+
+// SaveUpstreamProxyLookup 保存代理 lookup 结果到数据库
+func SaveUpstreamProxyLookup(id string, ip, country, region, city, asn, organization string, latencyMs int64, lookupErr string) error {
+	updates := map[string]interface{}{
+		"lookup_ip":           ip,
+		"lookup_country":      country,
+		"lookup_region":       region,
+		"lookup_city":         city,
+		"lookup_asn":          asn,
+		"lookup_organization": organization,
+		"lookup_latency_ms":   latencyMs,
+		"lookup_error":        lookupErr,
+		"lookup_at":           time.Now(),
+	}
+	return DB.Model(&UpstreamProxy{}).Where("id = ?", id).Updates(updates).Error
 }
 
 // DeleteUpstreamProxy 删除前置代理（同时清理关联的国家规则）

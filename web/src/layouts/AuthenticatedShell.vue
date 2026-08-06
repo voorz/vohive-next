@@ -61,7 +61,7 @@ const menuItems = [
   { path: '/', label: '仪表盘', icon: Board24Regular },
   { path: '/devices', label: '设备管理', icon: Phone24Regular },
   { path: '/carrier', label: '模板配置', icon: Sim24Regular },
-  { path: '/proxy', label: '代理管理', icon: Globe24Regular },
+  { path: '/proxy', label: '代理配置', icon: Globe24Regular },
   { path: '/sms', label: '短信中心', icon: Mail24Regular },
   { path: '/logs', label: '实时日志', icon: DocumentText24Regular },
   { path: '/settings', label: '系统设置', icon: Settings24Regular }
@@ -87,7 +87,7 @@ const currentNavIcon = computed(() => currentNavItem.value?.icon ?? Board24Regul
 
 function isActive(path: string): boolean {
   if (path === '/') return route.path === '/'
-  return route.path.startsWith(path)
+  return route.path === path || route.path.startsWith(path + '/')
 }
 
 async function handleLogout() {
