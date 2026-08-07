@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useCarrierStore } from '../stores/carrier'
 import CarrierEditArea from './CarrierEditArea.vue'
@@ -7,6 +7,8 @@ import ListSkeleton from './ListSkeleton.vue'
 import EmptyState from './EmptyState.vue'
 import { Add24Regular } from '@vicons/fluent'
 import CarrierIcon from './CarrierIcon.vue'
+import CountryFlag from './CountryFlag.vue'
+import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
 
 const emit = defineEmits<{
   'open-search': []
@@ -21,6 +23,31 @@ function handleSelectChange(value: string) {
 }
 
 const selectValue = computed(() => selectedKey.value)
+
+// PLMN 索引信息（国家/代码/ISO）
+const plmnInfo = ref<PlmnInfoEntry | null>(null)
+
+// 触发加载
+onMounted(() => loadPlmnInfo())
+
+// 选中运营商变化时查询 PLMN 信息
+watch(() => selectedCarrier.value?.key, (key) => {
+  // 子品牌 key 如 "234-33__cmlink" 需取主网 PLMN 查找
+  const baseKey = key ? key.split('__')[0] : ''
+  plmnInfo.value = baseKey ? getPlmnInfo(baseKey) : null
+}, { immediate: true })
+
+const countryName = computed(() => plmnInfo.value?.country?.name || '')
+const countryIso = computed(() => plmnInfo.value?.country?.iso || '')
+const countryCode = computed(() => plmnInfo.value?.country?.code || '')
+
+// 激活状态文案
+const activationStatus = computed(() => {
+  if (!detail.value) return ''
+  if (detail.value.active) return '自定义生效'
+  if (detail.value.system_default) return '默认配置生效'
+  return ''
+})
 </script>
 
 <template>
@@ -29,6 +56,13 @@ const selectValue = computed(() => selectedKey.value)
     <div class="detail-header">
       <!-- 窄屏下拉选择器 + 添加按钮 -->
       <div class="detail-header-narrow">
+        <CarrierIcon
+          :mcc="selectedCarrier?.mcc || ''"
+          :mnc="selectedCarrier?.mnc || ''"
+          :name="selectedCarrier?.name"
+          :size="38"
+          class="narrow-logo"
+        />
         <el-select
           :model-value="selectValue"
           @change="handleSelectChange"
@@ -47,12 +81,18 @@ const selectValue = computed(() => selectedKey.value)
           <span>添加</span>
         </el-button>
       </div>
-      <!-- 宽屏：图标盒子 + 运营商名 + PLMN -->
+      <!-- 宽屏：图标盒子 + 运营商名 + 详细信息 -->
       <div class="detail-header-wide">
         <CarrierIcon :mcc="selectedCarrier?.mcc || ''" :mnc="selectedCarrier?.mnc || ''" :name="selectedCarrier?.name" :size="38" />
         <div class="detail-header-info">
           <div class="detail-header-name">{{ selectedCarrier?.name || '未选择' }}</div>
-          <div class="detail-header-plmn">{{ selectedCarrier?.mcc }}:{{ selectedCarrier?.mnc }}</div>
+          <div class="detail-header-meta">
+            <span class="detail-header-plmn">{{ selectedCarrier?.mcc }}:{{ selectedCarrier?.mnc }}</span>
+            <span v-if="countryCode" class="detail-header-code">+{{ countryCode }}</span>
+            <CountryFlag v-if="countryIso" :iso="countryIso" :size="16" class="detail-header-flag" />
+            <span v-if="countryName" class="detail-header-country">{{ countryName }}</span>
+            <span v-if="activationStatus" class="activation-status">{{ activationStatus }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -107,6 +147,10 @@ const selectValue = computed(() => selectedKey.value)
   gap: 8px;
 }
 
+.narrow-logo {
+  flex-shrink: 0;
+}
+
 .detail-header-narrow .el-select {
   flex: 1;
 }
@@ -155,7 +199,39 @@ const selectValue = computed(() => selectedKey.value)
   font-size: 12px;
   color: var(--muted-foreground);
   font-family: var(--oomol-font-mono);
+}
+
+.detail-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin-top: 1px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.detail-header-code {
+  font-family: var(--oomol-font-mono);
+  color: var(--brand);
+  opacity: 0.8;
+}
+
+.detail-header-flag {
+  opacity: 0.9;
+}
+
+.detail-header-country {
+  opacity: 0.7;
+}
+
+.activation-status {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--muted);
+  color: var(--muted-foreground);
 }
 
 /* 内容区 — 去掉 padding 让分割线贯通 */

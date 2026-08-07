@@ -3,6 +3,8 @@ import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search24Regular, Add24Regular } from '@vicons/fluent'
 import CarrierIcon from './CarrierIcon.vue'
+import CountryFlag from './CountryFlag.vue'
+import carrierPresets from '../data/carrier-presets.json'
 
 // plmn-index 条目结构
 interface PlmnOperator {
@@ -53,6 +55,7 @@ interface SearchResult {
   operator: string        // 第一个 operator 的 operator
   country: string
   countryIso: string
+  countryCode: string     // 国家电话代码，如 44
   region: string
   hasSubs: boolean
   subs: SubBrand[]
@@ -68,6 +71,9 @@ interface TreeNode {
   mnc: string
   brand: string
   country?: string
+  countryIso?: string
+  countryCode?: string
+  operator?: string
   hasSubs?: boolean
   subCount?: number
   isSub?: boolean
@@ -217,6 +223,7 @@ function doSearch() {
       operator,
       country: countryName,
       countryIso,
+      countryCode: entry.country?.code || '',
       region,
       hasSubs: subs.length > 0,
       subs,
@@ -268,6 +275,9 @@ const treeData = computed<TreeNode[]>(() => {
       mnc: item.mnc,
       brand: item.brand,
       country: item.country,
+      countryIso: item.countryIso,
+      countryCode: item.countryCode,
+      operator: item.operator,
       hasSubs: item.hasSubs,
       disabled: props.existingPlmns.includes(item.plmn),
     }
@@ -308,6 +318,25 @@ function handleAdd() {
 function handleClose() {
   emit('update:modelValue', false)
 }
+
+// 快捷添加胶囊
+interface PresetItem {
+  key: string
+  name: string
+  mcc: string
+  mnc: string
+}
+const presets = carrierPresets as PresetItem[]
+
+function isPresetAdded(key: string): boolean {
+  return props.existingPlmns.includes(key)
+}
+
+function handleQuickAdd(preset: PresetItem) {
+  if (isPresetAdded(preset.key)) return
+  emit('add', [preset.key])
+  emit('update:modelValue', false)
+}
 </script>
 
 <template>
@@ -332,6 +361,23 @@ function handleClose() {
           <el-icon><Search24Regular /></el-icon>
         </template>
       </el-input>
+    </div>
+
+    <!-- 快捷添加胶囊 -->
+    <div class="presets-bar">
+      <button
+        v-for="preset in presets"
+        :key="preset.key"
+        class="preset-capsule"
+        :class="{ disabled: isPresetAdded(preset.key) }"
+        :disabled="isPresetAdded(preset.key)"
+        @click="handleQuickAdd(preset)"
+      >
+        <CarrierIcon :mcc="preset.mcc" :mnc="preset.mnc" :name="preset.name" :size="20" />
+        <span class="preset-name">{{ preset.name }}</span>
+        <span class="preset-plmn">{{ preset.mcc }}:{{ preset.mnc }}</span>
+        <span v-if="isPresetAdded(preset.key)" class="preset-added">已添加</span>
+      </button>
     </div>
 
     <!-- 搜索结果 -->
@@ -374,7 +420,10 @@ function handleClose() {
               <div class="node-brand" :class="{ 'sub-brand': data.isSub }">{{ data.brand }}</div>
               <div class="node-meta">
                 <span v-if="!data.isSub" class="node-plmn">{{ data.mcc }}:{{ data.mnc }}</span>
+                <span v-if="!data.isSub && data.countryCode" class="node-code">+{{ data.countryCode }}</span>
+                <CountryFlag v-if="!data.isSub && data.countryIso" :iso="data.countryIso" :size="16" class="node-flag" />
                 <span v-if="data.country && !data.isSub" class="node-country">{{ data.country }}</span>
+                <span v-if="!data.isSub && data.operator && data.operator !== data.brand" class="node-operator">{{ data.operator }}</span>
                 <span v-if="data.hasSubs" class="node-subs-count">{{ data.subCount }} 个子品牌</span>
                 <span v-if="data.names?.length" class="sub-names">{{ data.names.join(', ') }}</span>
                 <span v-if="data.gid1" class="sub-gid">GID1: {{ data.gid1 }}</span>
@@ -439,6 +488,60 @@ function handleClose() {
 .search-hint-sub {
   font-size: 12px;
   opacity: 0.7;
+}
+
+/* 快捷添加胶囊 */
+.presets-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.preset-capsule {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px 5px 5px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--card);
+  cursor: pointer;
+  transition: all 0.12s;
+  position: relative;
+}
+
+.preset-capsule:hover:not(.disabled) {
+  border-color: var(--brand);
+  background: color-mix(in oklab, var(--brand) 8%, var(--card));
+}
+
+.preset-capsule.disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.preset-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--foreground);
+  white-space: nowrap;
+}
+
+.preset-plmn {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  font-family: var(--oomol-font-mono);
+  white-space: nowrap;
+}
+
+.preset-added {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
 }
 
 /* el-tree 自定义样式 */
@@ -519,8 +622,23 @@ function handleClose() {
   font-family: var(--oomol-font-mono);
 }
 
+.node-code {
+  font-family: var(--oomol-font-mono);
+  color: var(--brand);
+  opacity: 0.8;
+}
+
+.node-flag {
+  opacity: 0.9;
+}
+
 .node-country {
   opacity: 0.7;
+}
+
+.node-operator {
+  opacity: 0.6;
+  font-style: italic;
 }
 
 .node-subs-count {

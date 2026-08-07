@@ -98,6 +98,21 @@ func (s *Server) handleListCarriers(c *gin.Context) {
 			}
 		}
 
+		// 检查是否有系统默认模板
+		if p, err := profiles.LookupWithSPN(item.MCC, item.MNC, brandSuffix); err == nil && p != nil {
+			item.HasSystemDefault = true
+		}
+
+		// 检查是否有用户配置模板
+		if tpl, _ := db.GetCarrierTemplateByKey(v.PLMN); tpl != nil {
+			item.HasUserConfig = true
+		}
+
+		// 检查用户配置是否已激活
+		if act, _ := db.GetCarrierActivation(v.PLMN); act != nil && act.TemplateID != nil {
+			item.Active = true
+		}
+
 		out = append(out, item)
 	}
 

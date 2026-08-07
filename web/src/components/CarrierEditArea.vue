@@ -9,13 +9,13 @@ import { json } from '@codemirror/lang-json'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { EditorView } from 'codemirror'
 import {
-  Person24Regular,
-  Save24Regular,
-  Delete24Regular,
-  DocumentEdit24Regular,
-  Code24Regular,
-  ArrowUpRight24Regular,
-  DocumentAdd24Regular
+Sim24Regular,
+Save24Regular,
+Delete24Regular,
+DocumentEdit24Regular,
+Code24Regular,
+ArrowUpRight24Regular,
+DocumentAdd24Regular
 } from '@vicons/fluent'
 
 const store = useCarrierStore()
@@ -137,7 +137,7 @@ const hasUserConfig = computed(() => !!detail.value?.user_config || !!editingCon
     <!-- 无用户配置状态 -->
     <div v-if="!hasUserConfig" class="edit-empty">
       <div class="edit-empty-icon">
-        <el-icon size="28"><Person24Regular /></el-icon>
+        <el-icon size="28"><Sim24Regular /></el-icon>
       </div>
       <div class="edit-empty-title">尚未创建自定义配置</div>
       <div class="edit-empty-desc">从系统默认或 3GPP 标准模板创建配置</div>
@@ -159,7 +159,7 @@ const hasUserConfig = computed(() => !!detail.value?.user_config || !!editingCon
       <div class="edit-header">
         <div class="edit-header-left">
           <div class="edit-header-icon">
-            <el-icon size="16"><Person24Regular /></el-icon>
+            <el-icon size="16"><Sim24Regular /></el-icon>
           </div>
           <span class="edit-header-label">用户配置</span>
           <span v-if="dirty" class="dirty-badge">未保存</span>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useCarrierStore } from '../stores/carrier'
@@ -11,7 +11,9 @@ import {
   Search24Regular
 } from '@vicons/fluent'
 import CarrierIcon from './CarrierIcon.vue'
+import CountryFlag from './CountryFlag.vue'
 import { downloadIcon, getCachedIcon } from '../composables/useOperatorIcon'
+import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
 
 const emit = defineEmits<{
   'open-search': []
@@ -21,6 +23,33 @@ const store = useCarrierStore()
 const { carriers, selectedKey, loading } = storeToRefs(store)
 
 const searchText = ref('')
+
+// PLMN 索引信息
+const plmnInfoMap = ref<Record<string, PlmnInfoEntry | null>>({})
+const plmInfoLoaded = ref(false)
+
+onMounted(async () => {
+  await loadPlmnInfo()
+  plmInfoLoaded.value = true
+})
+
+// 同步刷新 plmnInfoMap
+watch([carriers, plmInfoLoaded], () => {
+  const map: Record<string, PlmnInfoEntry | null> = {}
+  for (const c of carriers.value) {
+    // 子品牌 key 如 "234-33__cmlink" 需取主网 PLMN 查找
+    const baseKey = c.key.split('__')[0]
+    map[c.key] = getPlmnInfo(baseKey)
+  }
+  plmnInfoMap.value = map
+}, { immediate: true })
+
+function getCountryIso(key: string): string {
+  return plmnInfoMap.value[key]?.country?.iso || ''
+}
+function getCountryCode(key: string): string {
+  return plmnInfoMap.value[key]?.country?.code || ''
+}
 
 const filteredCarriers = computed(() => {
   const q = searchText.value.trim().toLowerCase()
@@ -109,12 +138,17 @@ async function handleDelete(key: string, name: string) {
           <CarrierIcon :mcc="item.mcc" :mnc="item.mnc" :name="item.name" :size="28" />
           <div class="carrier-card-info">
             <div class="carrier-card-name">{{ item.name }}</div>
-            <div class="carrier-card-plmn">{{ item.mcc }}:{{ item.mnc }}</div>
+            <div class="carrier-card-meta">
+              <span class="carrier-card-plmn">{{ item.mcc }}:{{ item.mnc }}</span>
+              <span v-if="getCountryCode(item.key)" class="carrier-card-code">+{{ getCountryCode(item.key) }}</span>
+              <CountryFlag v-if="getCountryIso(item.key)" :iso="getCountryIso(item.key)" :size="14" class="carrier-card-flag" />
+              <span v-if="getCountryIso(item.key)" class="carrier-card-iso">{{ getCountryIso(item.key) }}</span>
+            </div>
           </div>
           <div class="carrier-card-badges">
-            <span v-if="item.active" class="badge-dot active" title="用户配置启用中" />
-            <span v-else-if="item.has_user_config" class="badge-dot idle" title="有用户配置（未启用）" />
-            <span v-if="item.has_system_default" class="badge-dot system" title="有系统默认" />
+            <span v-if="item.active" class="badge-dot active" title="用户自定义模板生效" />
+            <span v-else-if="item.has_system_default" class="badge-dot system" title="系统默认模板生效" />
+            <span v-else class="badge-dot none" title="无模板配置" />
           </div>
           <div class="carrier-card-actions">
             <button
@@ -213,7 +247,31 @@ async function handleDelete(key: string, name: string) {
   font-size: 11px;
   color: var(--muted-foreground);
   font-family: var(--oomol-font-mono);
+}
+
+.carrier-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin-top: 1px;
+}
+
+.carrier-card-code {
+  font-size: 11px;
+  font-family: var(--oomol-font-mono);
+  color: var(--brand);
+  opacity: 0.8;
+}
+
+.carrier-card-flag {
+  opacity: 0.9;
+}
+
+.carrier-card-iso {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  opacity: 0.7;
+  font-family: var(--oomol-font-mono);
 }
 
 .carrier-card-badges {
@@ -230,17 +288,16 @@ async function handleDelete(key: string, name: string) {
 }
 
 .badge-dot.active {
-  background: var(--success);
-}
-
-.badge-dot.idle {
-  background: var(--warning);
-  opacity: 0.6;
+  background: var(--brand);
 }
 
 .badge-dot.system {
-  background: var(--info);
-  opacity: 0.5;
+  background: var(--warning);
+}
+
+.badge-dot.none {
+  background: var(--muted-foreground);
+  opacity: 0.3;
 }
 
 .carrier-card-actions {
