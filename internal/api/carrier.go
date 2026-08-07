@@ -1,10 +1,14 @@
 package api
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
 	carrierconfig "github.com/voorz/vohive/internal/carrier"
+	"github.com/voorz/vohive/internal/db"
+	"github.com/voorz/vohive/pkg/logger"
 
 	"github.com/gin-gonic/gin"
 )
@@ -25,13 +29,62 @@ func makeKey(mcc, mnc, brand string) string {
 }
 
 // handleListCarriers GET /api/carrier
+// 运营商列表只从 DB (carrier_visible + carrier_index) 读取。
+// 嵌入的 profiles/*.json 仅作为配置模板 fallback，不用于构建列表。
 func (s *Server) handleListCarriers(c *gin.Context) {
-	list, err := carrierconfig.List()
+	// 从 carrier_visible 获取所有可见运营商
+	visible, err := db.ListCarrierVisible()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "查询运营商列表失败: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "查询可见运营商列表失败: " + err.Error()})
 		return
 	}
-	c.JSON(http.StatusOK, list)
+
+	out := make([]carrierconfig.ListItem, 0, len(visible))
+	for _, v := range visible {
+		// 从 carrier_index 查运营商元数据
+		idx, err := db.GetCarrierIndex(v.PLMN)
+		if err != nil {
+			logger.Warn("查询运营商索引失败", "plmn", v.PLMN, "err", err)
+			continue
+		}
+
+		item := carrierconfig.ListItem{
+			Key: v.PLMN,
+		}
+
+		if idx != nil {
+			item.MCC = idx.MCC
+			item.MNC = idx.MNC
+			// 从 raw_json 提取运营商名称
+			name := idx.PLMN
+			var raw struct {
+				Operators []struct {
+					Brand    string `json:"brand"`
+					Operator string `json:"operator"`
+				} `json:"operators"`
+			}
+			if json.Unmarshal([]byte(idx.RawJSON), &raw) == nil && len(raw.Operators) > 0 {
+				if raw.Operators[0].Brand != "" {
+					name = raw.Operators[0].Brand
+				} else if raw.Operators[0].Operator != "" {
+					name = raw.Operators[0].Operator
+				}
+			}
+			item.Name = name
+		} else {
+			// index 中没有，尝试从 PLMN key 解析 MCC/MNC
+			parts := strings.SplitN(v.PLMN, "-", 2)
+			if len(parts) == 2 {
+				item.MCC = parts[0]
+				item.MNC = parts[1]
+			}
+			item.Name = v.PLMN
+		}
+
+		out = append(out, item)
+	}
+
+	c.JSON(http.StatusOK, out)
 }
 
 // handleGetCarrier GET /api/carrier/:mcc/:mnc?brand=
@@ -184,4 +237,58 @@ func (s *Server) handleGetCarrierDefault(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, p)
+}
+
+// handleBatchAddVisible POST /api/carriers/visible/batch
+// 从 plmn-index 批量添加运营商到可见列表。
+func (s *Server) handleBatchAddVisible(c *gin.Context) {
+	var req struct {
+		PLMNs []string `json:"plmns"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "参数错误: " + err.Error()})
+		return
+	}
+	if len(req.PLMNs) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "plmns 不能为空"})
+		return
+	}
+	if err := db.BatchAddCarrierVisible(req.PLMNs); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "批量添加失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": fmt.Sprintf("已添加 %d 个运营商", len(req.PLMNs))})
+}
+
+// handleRemoveVisible DELETE /api/carriers/visible/:plmn
+// 从可见列表移除运营商（软删除，可重新添加）。
+func (s *Server) handleRemoveVisible(c *gin.Context) {
+	plmn := strings.TrimSpace(c.Param("plmn"))
+	if plmn == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "plmn 不能为空"})
+		return
+	}
+	if err := db.RemoveCarrierVisible(plmn); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "移除失败: " + err.Error()})
+		return
+	}
+	// 同时清除激活记录
+	_ = db.ClearCarrierActivation(plmn)
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "已移除"})
+}
+
+// handleSearchCarrierIndex GET /api/carriers/search?q=
+// 搜索 plmn-index 中的运营商（从本地 DB carrier_index 表）。
+func (s *Server) handleSearchCarrierIndex(c *gin.Context) {
+	q := strings.TrimSpace(c.Query("q"))
+	if q == "" {
+		c.JSON(http.StatusOK, []db.CarrierIndex{})
+		return
+	}
+	results, err := db.SearchCarrierIndex(q, 50)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "搜索失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, results)
 }

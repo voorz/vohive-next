@@ -164,6 +164,10 @@ func Init(dbPath string) error {
 		&TrafficMonth{},
 		&APIToken{},
 		&CarrierConfig{},
+		&CarrierIndex{},
+		&CarrierVisible{},
+		&CarrierTemplate{},
+		&CarrierActivation{},
 	); err != nil {
 		return err
 	}

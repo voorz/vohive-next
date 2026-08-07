@@ -404,6 +404,11 @@ func (s *Server) newRouter() *gin.Engine {
 		api.DELETE("/carrier/:mcc/:mnc/config", s.handleDeleteCarrierConfig) // 删除用户配置
 		api.POST("/carrier/:mcc/:mnc/activate", s.handleActivateCarrier)     // 激活用户配置
 		api.POST("/carrier/:mcc/:mnc/deactivate", s.handleDeactivateCarrier) // 禁用用户配置
+
+		// ===== 运营商可见列表（新架构：plmn-index → visible） =====
+		api.POST("/carriers/visible/batch", s.handleBatchAddVisible)         // 批量添加运营商到可见列表
+		api.DELETE("/carriers/visible/:plmn", s.handleRemoveVisible)         // 从可见列表移除运营商
+		api.GET("/carriers/search", s.handleSearchCarrierIndex)              // 搜索 plmn-index
 	}
 	return r
 }
