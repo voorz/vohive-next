@@ -19,7 +19,7 @@ const jsonText = computed(() => {
 
 const title = computed(() => {
   if (previewTarget.value === 'system') return '系统默认预览'
-  return '用户配置预览'
+  return '配置预览'
 })
 
 const subtitle = computed(() => {

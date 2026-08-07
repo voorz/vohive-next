@@ -163,7 +163,6 @@ func Init(dbPath string) error {
 		&TrafficWeek{},
 		&TrafficMonth{},
 		&APIToken{},
-		&CarrierConfig{},
 		&CarrierIndex{},
 		&CarrierVisible{},
 		&CarrierTemplate{},
@@ -172,14 +171,14 @@ func Init(dbPath string) error {
 		return err
 	}
 
-	// 迁移 carrier_configs 表 PK (mcc+mnc → profile_key)
-	if err := MigrateCarrierConfigPK(); err != nil {
-		return err
-	}
 	if err := RunICCIDReKeyMigration(DB); err != nil {
 		return err
 	}
 	if err := MigrateCardPolicyCanonicalICCID(DB); err != nil {
+		return err
+	}
+	// 迁移旧 carrier_configs 数据到 carrier_templates
+	if err := MigrateCarrierConfigsToTemplates(); err != nil {
 		return err
 	}
 	return nil

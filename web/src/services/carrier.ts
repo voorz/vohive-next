@@ -3,11 +3,7 @@ import { callService } from './http'
 import type {
   CarrierListItem,
   CarrierDetail,
-  CarrierSavePayload,
-  CarrierAddPayload,
-  CarrierBatchImportPayload,
-  CarrierBatchImportResult,
-  CarrierProfile
+  CarrierSavePayload
 } from '../types/api'
 
 /** 从 profile key 解析 mcc/mnc/brand */
@@ -39,31 +35,6 @@ export const carrierService = {
         : `/carrier/${mcc}/${mnc}`
       const res = await api.get(url)
       return res.data as CarrierDetail
-    })
-  },
-
-  add(payload: CarrierAddPayload) {
-    return callService(async () => {
-      await api.post('/carrier', payload)
-      return true
-    })
-  },
-
-  batchImport(payload: CarrierBatchImportPayload) {
-    return callService(async () => {
-      const res = await api.post('/carrier/batch', payload)
-      return res.data as CarrierBatchImportResult
-    })
-  },
-
-  remove(key: string) {
-    const { mcc, mnc, brand } = parseKey(key)
-    return callService(async () => {
-      const url = brand
-        ? `/carrier/${mcc}/${mnc}?brand=${encodeURIComponent(brand)}`
-        : `/carrier/${mcc}/${mnc}`
-      await api.delete(url)
-      return true
     })
   },
 
@@ -108,20 +79,6 @@ export const carrierService = {
         : `/carrier/${mcc}/${mnc}/deactivate`
       await api.post(url)
       return true
-    })
-  },
-
-  getDefaults() {
-    return callService(async () => {
-      const res = await api.get('/carrier/defaults')
-      return res.data as CarrierListItem[]
-    })
-  },
-
-  getDefault(mcc: string, mnc: string) {
-    return callService(async () => {
-      const res = await api.get(`/carrier/defaults/${mcc}/${mnc}`)
-      return res.data as CarrierProfile
     })
   },
 

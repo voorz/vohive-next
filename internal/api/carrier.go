@@ -8,6 +8,7 @@ import (
 
 	carrierconfig "github.com/voorz/vohive/internal/carrier"
 	"github.com/voorz/vohive/internal/db"
+	"github.com/voorz/vowifi-core/profiles"
 	"github.com/voorz/vohive/pkg/logger"
 
 	"github.com/gin-gonic/gin"
@@ -104,6 +105,7 @@ func (s *Server) handleListCarriers(c *gin.Context) {
 }
 
 // handleGetCarrier GET /api/carrier/:mcc/:mnc?brand=
+// 从 carrier_index 获取元数据，从 carrier_templates 获取用户配置，从 profiles 获取系统默认。
 func (s *Server) handleGetCarrier(c *gin.Context) {
 	mcc := strings.TrimSpace(c.Param("mcc"))
 	mnc := strings.TrimSpace(c.Param("mnc"))
@@ -112,67 +114,90 @@ func (s *Server) handleGetCarrier(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "mcc 和 mnc 不能为空"})
 		return
 	}
-	detail, err := carrierconfig.Get(mcc, mnc, brand)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "查询运营商详情失败: " + err.Error()})
-		return
-	}
-	if detail == nil {
-		c.JSON(http.StatusNotFound, gin.H{"status": "error", "message": "运营商未找到"})
-		return
-	}
-	c.JSON(http.StatusOK, detail)
-}
-
-// handleAddCarrier POST /api/carrier
-func (s *Server) handleAddCarrier(c *gin.Context) {
-	var payload carrierconfig.AddPayload
-	if err := c.ShouldBindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "参数错误: " + err.Error()})
-		return
-	}
-	if err := carrierconfig.Add(payload); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "添加运营商失败: " + err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "运营商已添加"})
-}
-
-// handleBatchImportCarriers POST /api/carrier/batch
-func (s *Server) handleBatchImportCarriers(c *gin.Context) {
-	var req struct {
-		Mode     string                     `json:"mode"`
-		Carriers []carrierconfig.AddPayload `json:"carriers"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "参数错误: " + err.Error()})
-		return
-	}
-	if req.Mode == "" {
-		req.Mode = "skip_existing"
-	}
-	result, err := carrierconfig.BatchImport(req.Carriers, req.Mode)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "批量导入失败: " + err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, result)
-}
-
-// handleRemoveCarrier DELETE /api/carrier/:mcc/:mnc?brand=
-func (s *Server) handleRemoveCarrier(c *gin.Context) {
-	mcc := strings.TrimSpace(c.Param("mcc"))
-	mnc := strings.TrimSpace(c.Param("mnc"))
-	brand := strings.TrimSpace(c.Query("brand"))
 	key := makeKey(mcc, mnc, brand)
-	if err := carrierconfig.Remove(key); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "删除运营商失败: " + err.Error()})
-		return
+
+	// 系统默认
+	var sysDefault *profiles.CarrierProfile
+	if p, err := profiles.LookupWithSPN(mcc, mnc, brand); err == nil && p != nil {
+		sysDefault = p
 	}
-	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "运营商已删除"})
+
+	// 从 carrier_index 获取元数据
+	name := ""
+	plmnKey := key
+	if idx := strings.Index(plmnKey, "__"); idx > 0 {
+		plmnKey = plmnKey[:idx]
+	}
+	if carrierIdx, _ := db.GetCarrierIndex(plmnKey); carrierIdx != nil {
+		var raw struct {
+			Operators []struct {
+				Brand    string `json:"brand"`
+				Operator string `json:"operator"`
+			} `json:"operators"`
+		}
+		if json.Unmarshal([]byte(carrierIdx.RawJSON), &raw) == nil && len(raw.Operators) > 0 {
+			if raw.Operators[0].Brand != "" {
+				name = raw.Operators[0].Brand
+			} else if raw.Operators[0].Operator != "" {
+				name = raw.Operators[0].Operator
+			}
+		}
+	}
+	if brand != "" {
+		name = brand
+	}
+	if name == "" && sysDefault != nil {
+		name = sysDefault.Name
+	}
+	if name == "" {
+		name = plmnKey
+	}
+
+	// 用户配置
+	tpl, _ := db.GetCarrierTemplateByKey(key)
+	var userConfig *profiles.CarrierProfile
+	if tpl != nil && tpl.ProfileJSON != "" {
+		var p profiles.CarrierProfile
+		if err := json.Unmarshal([]byte(tpl.ProfileJSON), &p); err == nil {
+			userConfig = &p
+		}
+	}
+
+	// 激活状态
+	act, _ := db.GetCarrierActivation(key)
+	active := act != nil && act.TemplateID != nil
+
+	// ePDG 地址、设备信息
+	ikeAddr := ""
+	deviceIMSTAC := 0
+	deviceIMSCellID := 0
+	if userConfig != nil {
+		ikeAddr = userConfig.IKE.Addr
+		deviceIMSTAC = userConfig.Device.IMSTAC
+		deviceIMSCellID = userConfig.Device.IMSCellID
+	} else if sysDefault != nil {
+		ikeAddr = sysDefault.IKE.Addr
+		deviceIMSTAC = sysDefault.Device.IMSTAC
+		deviceIMSCellID = sysDefault.Device.IMSCellID
+	}
+
+	d := &carrierconfig.Detail{
+		Key:             key,
+		MCC:             mcc,
+		MNC:             mnc,
+		Name:            name,
+		IKEAddr:         ikeAddr,
+		DeviceIMSTAC:    deviceIMSTAC,
+		DeviceIMSCellID: deviceIMSCellID,
+		SystemDefault:   sysDefault,
+		UserConfig:      userConfig,
+		Active:          active,
+	}
+	c.JSON(http.StatusOK, d)
 }
 
 // handleSaveCarrierConfig PUT /api/carrier/:mcc/:mnc?brand=
+// 保存用户配置到 carrier_templates + carrier_activation。
 func (s *Server) handleSaveCarrierConfig(c *gin.Context) {
 	mcc := strings.TrimSpace(c.Param("mcc"))
 	mnc := strings.TrimSpace(c.Param("mnc"))
@@ -183,76 +208,127 @@ func (s *Server) handleSaveCarrierConfig(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "参数错误: " + err.Error()})
 		return
 	}
-	if err := carrierconfig.Save(key, payload); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "保存配置失败: " + err.Error()})
+	if payload.Config == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "config 不能为空"})
 		return
 	}
+
+	// 注入 MCC/MNC/Name
+	payload.Config.MCC = mcc
+	payload.Config.MNC = mnc
+	payload.Config.Name = strings.TrimSpace(payload.Name)
+	if payload.Config.IKE.Addr == "" {
+		payload.Config.IKE.Addr = strings.TrimSpace(payload.IKEAddr)
+	}
+	if payload.Config.Device.IMSTAC == 0 {
+		payload.Config.Device.IMSTAC = payload.DeviceIMSTAC
+	}
+	if payload.Config.Device.IMSCellID == 0 {
+		payload.Config.Device.IMSCellID = payload.DeviceIMSCellID
+	}
+
+	jsonBytes, err := json.Marshal(payload.Config)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "序列化配置失败: " + err.Error()})
+		return
+	}
+
+	// upsert carrier_templates
+	tpl, _ := db.GetCarrierTemplateByKey(key)
+	if tpl != nil {
+		tpl.Name = strings.TrimSpace(payload.Name)
+		tpl.ProfileJSON = string(jsonBytes)
+		if err := db.UpdateCarrierTemplate(tpl); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "更新模板失败: " + err.Error()})
+			return
+		}
+	} else {
+		tpl = &db.CarrierTemplate{
+			Key:         key,
+			Name:        strings.TrimSpace(payload.Name),
+			ProfileJSON: string(jsonBytes),
+		}
+		if err := db.CreateCarrierTemplate(tpl); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "创建模板失败: " + err.Error()})
+			return
+		}
+	}
+
+	// 激活状态
+	var templateID *int64
+	if payload.Active {
+		templateID = &tpl.ID
+	}
+	_ = db.SetCarrierActivation(key, templateID)
+
+	// 热更新
+	if payload.Active {
+		profiles.SetUserOverrideByKey(key, payload.Config)
+		logger.Info("运营商配置已热更新", "key", key, "event", "CARRIER_CONFIG_HOT_RELOAD")
+	} else {
+		profiles.SetUserOverrideByKey(key, nil)
+	}
+
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "配置已保存"})
 }
 
 // handleDeleteCarrierConfig DELETE /api/carrier/:mcc/:mnc/config?brand=
+// 删除 carrier_templates 中的用户模板，清除激活记录。
 func (s *Server) handleDeleteCarrierConfig(c *gin.Context) {
 	mcc := strings.TrimSpace(c.Param("mcc"))
 	mnc := strings.TrimSpace(c.Param("mnc"))
 	brand := strings.TrimSpace(c.Query("brand"))
 	key := makeKey(mcc, mnc, brand)
-	if err := carrierconfig.DeleteConfig(key); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "删除配置失败: " + err.Error()})
-		return
+
+	tpl, _ := db.GetCarrierTemplateByKey(key)
+	if tpl != nil {
+		_ = db.DeleteCarrierTemplate(tpl.ID)
 	}
+	_ = db.ClearCarrierActivation(key)
+	profiles.SetUserOverrideByKey(key, nil)
+
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "用户配置已删除"})
 }
 
 // handleActivateCarrier POST /api/carrier/:mcc/:mnc/activate?brand=
+// 激活用户模板。
 func (s *Server) handleActivateCarrier(c *gin.Context) {
 	mcc := strings.TrimSpace(c.Param("mcc"))
 	mnc := strings.TrimSpace(c.Param("mnc"))
 	brand := strings.TrimSpace(c.Query("brand"))
 	key := makeKey(mcc, mnc, brand)
-	if err := carrierconfig.Activate(key); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "激活配置失败: " + err.Error()})
+
+	tpl, _ := db.GetCarrierTemplateByKey(key)
+	if tpl == nil || tpl.ProfileJSON == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "无用户模板可激活"})
 		return
 	}
+	_ = db.SetCarrierActivation(key, &tpl.ID)
+
+	var p profiles.CarrierProfile
+	if err := json.Unmarshal([]byte(tpl.ProfileJSON), &p); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "解析模板失败: " + err.Error()})
+		return
+	}
+	profiles.SetUserOverrideByKey(key, &p)
+	logger.Info("运营商配置已激活", "key", key, "event", "CARRIER_CONFIG_ACTIVATED")
+
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "运营商配置已激活"})
 }
 
 // handleDeactivateCarrier POST /api/carrier/:mcc/:mnc/deactivate?brand=
+// 禁用用户模板，回退到系统默认。
 func (s *Server) handleDeactivateCarrier(c *gin.Context) {
 	mcc := strings.TrimSpace(c.Param("mcc"))
 	mnc := strings.TrimSpace(c.Param("mnc"))
 	brand := strings.TrimSpace(c.Query("brand"))
 	key := makeKey(mcc, mnc, brand)
-	if err := carrierconfig.Deactivate(key); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "禁用配置失败: " + err.Error()})
-		return
-	}
+
+	_ = db.ClearCarrierActivation(key)
+	profiles.SetUserOverrideByKey(key, nil)
+	logger.Info("运营商配置已禁用", "key", key, "event", "CARRIER_CONFIG_DEACTIVATED")
+
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "运营商配置已禁用"})
-}
-
-// handleListCarrierDefaults GET /api/carrier/defaults
-func (s *Server) handleListCarrierDefaults(c *gin.Context) {
-	list, err := carrierconfig.ListSystemDefaults()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "查询系统默认列表失败: " + err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, list)
-}
-
-// handleGetCarrierDefault GET /api/carrier/defaults/:mcc/:mnc
-func (s *Server) handleGetCarrierDefault(c *gin.Context) {
-	mcc := strings.TrimSpace(c.Param("mcc"))
-	mnc := strings.TrimSpace(c.Param("mnc"))
-	p, err := carrierconfig.GetSystemDefault(mcc, mnc)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "查询系统默认失败: " + err.Error()})
-		return
-	}
-	if p == nil {
-		c.JSON(http.StatusNotFound, gin.H{"status": "error", "message": "系统默认配置未找到"})
-		return
-	}
-	c.JSON(http.StatusOK, p)
 }
 
 // handleBatchAddVisible POST /api/carriers/visible/batch

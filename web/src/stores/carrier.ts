@@ -294,16 +294,6 @@ export const useCarrierStore = defineStore('carrier', () => {
     return false
   }
 
-  async function addCarrier(name: string, mcc: string, mnc: string, ike_addr = '', device_ims_tac = 0, device_ims_cell_id = 0) {
-    const result = await carrierService.add({ name, mcc, mnc, ike_addr, device_ims_tac, device_ims_cell_id })
-    if (result.ok) {
-      await fetchCarriers()
-      return true
-    }
-    error.value = result.error
-    return false
-  }
-
   /** 从 plmn-index 批量添加运营商 */
   async function addCarriersFromIndex(plmns: string[]) {
     const result = await carrierService.addCarriersFromIndex(plmns)
@@ -364,7 +354,6 @@ async function removeCarrier(key: string) {
     activateUserConfig,
     deactivateUserConfig,
     deleteUserConfig,
-    addCarrier,
     addCarriersFromIndex,
     removeCarrier
   }

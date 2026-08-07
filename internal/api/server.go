@@ -393,14 +393,9 @@ func (s *Server) newRouter() *gin.Engine {
 		api.GET("/logs/history", s.handleLogHistory) // 获取历史日志
 
 		// ===== 运营商配置 =====
-		api.GET("/carrier", s.handleListCarriers)                            // 运营商列表（系统默认 + 用户配置）
-		api.GET("/carrier/defaults", s.handleListCarrierDefaults)            // 系统默认运营商列表
-		api.GET("/carrier/defaults/:mcc/:mnc", s.handleGetCarrierDefault)    // 系统默认运营商详情
-		api.POST("/carrier", s.handleAddCarrier)                             // 添加运营商
-		api.POST("/carrier/batch", s.handleBatchImportCarriers)              // 批量导入运营商
+		api.GET("/carrier", s.handleListCarriers)                            // 运营商列表（carrier_visible + carrier_index）
 		api.GET("/carrier/:mcc/:mnc", s.handleGetCarrier)                    // 运营商配置详情
 		api.PUT("/carrier/:mcc/:mnc", s.handleSaveCarrierConfig)             // 保存用户配置
-		api.DELETE("/carrier/:mcc/:mnc", s.handleRemoveCarrier)              // 删除运营商
 		api.DELETE("/carrier/:mcc/:mnc/config", s.handleDeleteCarrierConfig) // 删除用户配置
 		api.POST("/carrier/:mcc/:mnc/activate", s.handleActivateCarrier)     // 激活用户配置
 		api.POST("/carrier/:mcc/:mnc/deactivate", s.handleDeactivateCarrier) // 禁用用户配置
