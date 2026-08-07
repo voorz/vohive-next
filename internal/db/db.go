@@ -177,10 +177,6 @@ func Init(dbPath string) error {
 	if err := MigrateCardPolicyCanonicalICCID(DB); err != nil {
 		return err
 	}
-	// 迁移旧 carrier_configs 数据到 carrier_templates
-	if err := MigrateCarrierConfigsToTemplates(); err != nil {
-		return err
-	}
 	return nil
 }
 

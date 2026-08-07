@@ -76,3 +76,4 @@ docs/
 bin/
 dist/
 build.ps1
+deploy/

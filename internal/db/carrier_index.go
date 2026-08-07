@@ -3,8 +3,6 @@ package db
 import (
 	"strings"
 	"time"
-
-	"github.com/voorz/vohive/pkg/logger"
 )
 
 // CarrierIndex 存储从 plmn-index 仓库同步的运营商索引数据。
@@ -354,62 +352,6 @@ func ClearCarrierActivation(key string) error {
 }
 
 // --- Helpers ---
-
-// MigrateCarrierConfigsToTemplates 将旧 carrier_configs 表中的 profile_json 数据迁移到 carrier_templates。
-// 仅迁移有 profile_json 的记录，已存在于 carrier_templates 的 key 会跳过。
-func MigrateCarrierConfigsToTemplates() error {
-	if DB == nil {
-		return nil
-	}
-	// 检查 carrier_configs 表是否存在
-	var count int64
-	DB.Table("carrier_configs").Limit(1).Count(&count)
-	if DB.Error != nil {
-		// 表不存在，跳过
-		return nil
-	}
-
-	type oldConfig struct {
-		ProfileKey  string `gorm:"column:profile_key"`
-		Name        string `gorm:"column:name"`
-		ProfileJSON string `gorm:"column:profile_json"`
-		Active      bool   `gorm:"column:active"`
-	}
-
-	var configs []oldConfig
-	if err := DB.Table("carrier_configs").Where("profile_json != ''").Find(&configs).Error; err != nil {
-		return err
-	}
-	if len(configs) == 0 {
-		return nil
-	}
-
-	migrated := 0
-	for _, c := range configs {
-		// 检查是否已存在
-		existing, _ := GetCarrierTemplateByKey(c.ProfileKey)
-		if existing != nil {
-			continue
-		}
-		tpl := &CarrierTemplate{
-			Key:         c.ProfileKey,
-			Name:        c.Name,
-			ProfileJSON: c.ProfileJSON,
-		}
-		if err := CreateCarrierTemplate(tpl); err != nil {
-			continue
-		}
-		// 如果旧配置是 active 的，设置激活
-		if c.Active {
-			_ = SetCarrierActivation(c.ProfileKey, &tpl.ID)
-		}
-		migrated++
-	}
-	if migrated > 0 {
-		logger.Info("已迁移运营商配置到新表", "count", migrated, "event", "CARRIER_CONFIG_MIGRATED")
-	}
-	return nil
-}
 
 func isRecordNotFound(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "record not found")
