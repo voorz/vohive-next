@@ -555,6 +555,7 @@ export type IKEConfig = {
   replay_window?: number
   enable_esn?: boolean
   disable_eap_mac_validation?: boolean
+  rf_off_delay?: number
 }
 
 export type EAPConfig = {

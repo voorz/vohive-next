@@ -12,7 +12,7 @@ const standardTemplate: CarrierProfile = {
     esp_proposals: ['aes256-sha256', 'aes128-sha256', 'aes256-sha1', 'aes128-sha1'],
     dpd_interval: 0, nat_keepalive: 20, reauth_interval: 0,
     ip_stack: '', apn: 'ims', replay_window: 32,
-    enable_esn: false, disable_eap_mac_validation: false
+    enable_esn: false, disable_eap_mac_validation: false, rf_off_delay: 5
   },
   eap: {
     challenge_mode: 'standard', app_preference: 'auto', identity_source: 'derived',
@@ -20,9 +20,9 @@ const standardTemplate: CarrierProfile = {
   },
   ims: {
     sec_agree_mode: 'auto', require_sec_agree: false, proxy_require_sec_agree: false,
-    use_plain_digest_placeholder: false, initial_authorization: 'aka_empty_uri_first',
-    include_pani: false, include_pani_authenticated: false, fixed_pani: '',
-    user_agent: 'SimAdmin VoWiFi', supported_header: 'path,sec-agree,gruu', allow_header: '',
+    use_plain_digest_placeholder: true, initial_authorization: 'aka_empty_uri_first',
+    include_pani: false, include_pani_authenticated: true, fixed_pani: '',
+    user_agent: 'User-Agent: Apple iPhone17,4/27.0 (17,4; iOS 27.0; 24A5220a) Boot/3.0.0 VoIP/1.0 Carrier/61.0', supported_header: 'path,sec-agree,gruu', allow_header: '',
     contact_param_order: ['access_type', 'audio', 'smsip', 'icsi_ref', 'sip_instance'],
     contact_features: 'ims_features',
     security_client_mechanisms: [
@@ -34,7 +34,7 @@ const standardTemplate: CarrierProfile = {
       { alg: 'hmac-sha-1-96', ealg: 'null', prot: 'esp', mode: 'trans' }
     ],
     security_client_format: 'full_spaced', transport_mode: 'auto',
-    strict_security_server_offer: false, enable_initial_reject_fallback: false,
+    strict_security_server_offer: true, enable_initial_reject_fallback: true,
     omit_route: false, minimal_initial_headers: false, force_header_port_5060: false,
     omit_initial_security_client_protocol: false, probe_initial_security_client_on_bad_request: false,
     include_connection_keepalive_in_auth: false, security_client_includes_server_params: false,
@@ -42,13 +42,20 @@ const standardTemplate: CarrierProfile = {
     pcscf_addr: '', domain: '', realm: '', authorization_identity: 'imsi_home_domain',
     include_accept_contact: false, include_p_preferred_id: false,
     include_p_visited_network_id: false, include_p_access_network_info: false,
-    include_route: false, include_cellular_network: false, include_security_client: false,
-    include_require_sec_agree: false, contact_user_random: false,
+    include_route: false, include_cellular_network: true, include_security_client: false,
+    include_require_sec_agree: true, contact_user_random: false,
     icsi_ref: 'urn%3Aurn-7%3A3gpp-service.ims.icsi.mmtel',
     voice_supported_header: '', voice_allow_header: '', voice_accept_contact: '', voice_p_preferred_service: '',
-    ike_gateway_prefix_scores: [], tcp_keepalive_seconds: 30, options_ping_interval_seconds: 45,
+    ike_gateway_prefix_scores: [
+      { prefix: '2a03:dd00:1f80:', score: 100 },
+      { prefix: '2a03:dd00:1f81:810:', score: 80 },
+      { prefix: '2a03:dd00:1f81:10:', score: 10 },
+      { prefix: '2a03:dd00:1f81:5010:', score: 10 },
+      { prefix: '2a03:dd00:1f81:', score: 40 }
+    ], tcp_keepalive_seconds: 30, options_ping_interval_seconds: 45,
     local_port: 5060,
     register_policy: {
+      id: 'adaptive-default',
       temporary_status_codes: [408, 480, 500, 502, 503, 504],
       forbidden_status_codes: [403],
       initial_reject_fallback_status_codes: [400, 403, 480, 500],

@@ -188,6 +188,10 @@ const fallbackStatusCodesText = computed({
             <label class="form-label">APN</label>
             <el-input :model-value="cfg.ike?.apn || ''" @update:model-value="(v: string) => { ensureIke(); cfg.ike!.apn = v; onInput() }" placeholder="ims" />
           </div>
+          <div class="field">
+            <label class="form-label">RFOff 延迟 (秒)</label>
+            <el-input-number :model-value="cfg.ike?.rf_off_delay || 0" @update:model-value="(v: number | undefined) => { ensureIke(); cfg.ike!.rf_off_delay = v || 0; onInput() }" :min="0" placeholder="5" class="!w-full" />
+          </div>
           <div class="field col-span-2 form-switch-row">
             <div><div class="switch-title">启用 ESN</div><div class="switch-desc">Extended Sequence Numbers</div></div>
             <el-switch :model-value="cfg.ike?.enable_esn || false" @update:model-value="(v: string | number | boolean) => { ensureIke(); cfg.ike!.enable_esn = Boolean(v); onInput() }" />
@@ -280,7 +284,7 @@ const fallbackStatusCodesText = computed({
           </div>
           <div class="field col-span-2">
             <label class="form-label">User-Agent</label>
-            <el-input :model-value="cfg.ims?.user_agent || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.user_agent = v; onInput() }" placeholder="SimAdmin VoWiFi" />
+            <el-input :model-value="cfg.ims?.user_agent || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.user_agent = v; onInput() }" placeholder="User-Agent: Apple iPhone17,4/27.0 (17,4; iOS 27.0; 24A5220a) Boot/3.0.0 VoIP/1.0 Carrier/61.0" />
           </div>
           <div class="field col-span-2">
             <label class="form-label">Supported 头</label>
