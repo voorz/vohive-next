@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Search24Regular, Add24Regular, CheckmarkCircle24Regular } from '@vicons/fluent'
+import { Search24Regular, Add24Regular } from '@vicons/fluent'
 import CarrierIcon from './CarrierIcon.vue'
 
 // plmn-index 条目结构
@@ -36,6 +36,14 @@ interface PlmnEntry {
   operators: PlmnOperator[]
 }
 
+// 子品牌信息
+interface SubBrand {
+  brand: string
+  names: string[]
+  gid1: string
+  gid2: string
+}
+
 // 搜索结果项
 interface SearchResult {
   plmn: string           // 234-33
@@ -47,7 +55,25 @@ interface SearchResult {
   countryIso: string
   region: string
   hasSubs: boolean
-  subBrands: string[]
+  subs: SubBrand[]
+}
+
+// el-tree 节点数据
+interface TreeNode {
+  key: string
+  label: string
+  disabled?: boolean
+  // 自定义渲染数据
+  mcc: string
+  mnc: string
+  brand: string
+  country?: string
+  hasSubs?: boolean
+  subCount?: number
+  isSub?: boolean
+  names?: string[]
+  gid1?: string
+  children?: TreeNode[]
 }
 
 const props = defineProps<{
@@ -72,8 +98,11 @@ onUnmounted(() => window.removeEventListener('resize', handleResize))
 const searchQuery = ref('')
 const searchResults = ref<SearchResult[]>([])
 const searching = ref(false)
-const selectedPlmns = ref<Set<string>>(new Set())
 const inputRef = ref<HTMLInputElement | null>(null)
+
+// el-tree ref
+const treeRef = ref()
+const selectedCount = ref(0)
 
 // 本地缓存的 all.json 数据
 let allData: Record<string, PlmnEntry> | null = null
@@ -144,21 +173,18 @@ function doSearch() {
     const region = entry.country?.region || ''
 
     // 匹配：PLMN(234-30) / MCC:MNC(234:30) / brand / operator / country / iso
-    // 包含所有 operator 和 sub 的名称
     const haystackParts = [
-      plmn.toLowerCase(),                          // 234-30
-      `${entry.mcc}:${entry.mnc}`,                 // 234:30
-      `${entry.mcc}${entry.mnc}`,                  // 23430
+      plmn.toLowerCase(),
+      `${entry.mcc}:${entry.mnc}`,
+      `${entry.mcc}${entry.mnc}`,
       entry.mcc, entry.mnc,
       countryName.toLowerCase(),
       countryIso.toLowerCase(),
     ]
 
-    // 加入所有 operator 的 brand/operator
     for (const op of (entry.operators || [])) {
       if (op.brand) haystackParts.push(op.brand.toLowerCase())
       if (op.operator) haystackParts.push(op.operator.toLowerCase())
-      // 加入所有 sub 的 brand 和 names
       for (const sub of (op.subs || [])) {
         if (sub.brand) haystackParts.push(sub.brand.toLowerCase())
         if (sub.names) {
@@ -170,13 +196,18 @@ function doSearch() {
     }
 
     const haystack = haystackParts.join(' ')
-
-    // 同时规范化 haystack 中的分隔符
     const normalizedHaystack = haystack.replace(/:/g, '-')
 
     if (!normalizedHaystack.includes(q)) continue
 
-    const subBrands = (firstOp?.subs || []).map(s => s.brand || '').filter(Boolean)
+    const subs: SubBrand[] = (firstOp?.subs || [])
+      .filter(s => s.brand)
+      .map(s => ({
+        brand: s.brand || '',
+        names: s.names || [],
+        gid1: s.gid1 || '',
+        gid2: s.gid2 || '',
+      }))
 
     results.push({
       plmn,
@@ -187,12 +218,11 @@ function doSearch() {
       country: countryName,
       countryIso,
       region,
-      hasSubs: subBrands.length > 0,
-      subBrands,
+      hasSubs: subs.length > 0,
+      subs,
     })
   }
 
-  // 限制结果数量
   searchResults.value = results.slice(0, 200)
 }
 
@@ -203,12 +233,18 @@ watch(searchQuery, () => {
   searchTimer = setTimeout(doSearch, 200)
 })
 
+// 搜索结果变化时清空选中
+watch(searchResults, () => {
+  selectedCount.value = 0
+  nextTick(() => treeRef.value?.setCheckedKeys([]))
+})
+
 // 弹窗打开时加载数据 + 聚焦输入框
 watch(() => props.modelValue, async (open) => {
   if (open) {
-    selectedPlmns.value.clear()
     searchQuery.value = ''
     searchResults.value = []
+    selectedCount.value = 0
     await nextTick()
     inputRef.value?.focus()
     if (!allData) {
@@ -222,34 +258,50 @@ watch(() => props.modelValue, async (open) => {
   }
 })
 
-function toggleSelect(plmn: string) {
-  if (selectedPlmns.value.has(plmn)) {
-    selectedPlmns.value.delete(plmn)
-  } else {
-    selectedPlmns.value.add(plmn)
-  }
-  // 触发响应式更新
-  selectedPlmns.value = new Set(selectedPlmns.value)
-}
+// 转换搜索结果为 el-tree 数据
+const treeData = computed<TreeNode[]>(() => {
+  return searchResults.value.map(item => {
+    const node: TreeNode = {
+      key: item.plmn,
+      label: item.brand,
+      mcc: item.mcc,
+      mnc: item.mnc,
+      brand: item.brand,
+      country: item.country,
+      hasSubs: item.hasSubs,
+      disabled: props.existingPlmns.includes(item.plmn),
+    }
+    if (item.hasSubs) {
+      node.subCount = item.subs.length
+      node.children = item.subs.map(sub => ({
+        key: `${item.plmn}__${sub.brand}`,
+        label: sub.brand,
+        mcc: item.mcc,
+        mnc: item.mnc,
+        brand: sub.brand,
+        isSub: true,
+        names: sub.names,
+        gid1: sub.gid1,
+        disabled: props.existingPlmns.includes(`${item.plmn}__${sub.brand}`),
+      }))
+    }
+    return node
+  })
+})
 
-function isSelected(plmn: string) {
-  return selectedPlmns.value.has(plmn)
+function handleCheck() {
+  const keys = treeRef.value?.getCheckedKeys() || []
+  selectedCount.value = keys.length
 }
-
-function isExisting(plmn: string) {
-  return props.existingPlmns.includes(plmn)
-}
-
-const selectedCount = computed(() => selectedPlmns.value.size)
 
 function handleAdd() {
-  const plmns = Array.from(selectedPlmns.value)
-  if (plmns.length === 0) {
+  const keys = treeRef.value?.getCheckedKeys() || []
+  if (keys.length === 0) {
     ElMessage.warning('请先选择运营商')
     return
   }
-  emit('add', plmns)
-  selectedPlmns.value.clear()
+  emit('add', keys as string[])
+  treeRef.value?.setCheckedKeys([])
   emit('update:modelValue', false)
 }
 
@@ -298,47 +350,40 @@ function handleClose() {
         <span>未找到匹配的运营商</span>
       </div>
 
-      <div v-else class="result-list">
-        <div
-          v-for="item in searchResults"
-          :key="item.plmn"
-          class="result-item"
-          :class="{
-            selected: isSelected(item.plmn),
-            existing: isExisting(item.plmn)
-          }"
-          @click="!isExisting(item.plmn) && toggleSelect(item.plmn)"
-        >
-          <!-- 选中标记 -->
-          <div class="result-check">
-            <el-icon v-if="isExisting(item.plmn)" size="16" class="check-existing" />
-            <el-icon v-else-if="isSelected(item.plmn)" size="16" class="check-selected">
-              <CheckmarkCircle24Regular />
-            </el-icon>
-          </div>
-
-          <!-- 图标 -->
-          <CarrierIcon
-            :mcc="item.mcc"
-            :mnc="item.mnc"
-            :name="item.brand"
-            :size="32"
-          />
-
-          <!-- 信息 -->
-          <div class="result-info">
-            <div class="result-brand">{{ item.brand }}</div>
-            <div class="result-meta">
-              <span class="result-plmn">{{ item.mcc }}:{{ item.mnc }}</span>
-              <span v-if="item.country" class="result-country">{{ item.country }}</span>
-              <span v-if="item.hasSubs" class="result-subs">{{ item.subBrands.join(', ') }}</span>
+      <el-tree
+        v-else
+        ref="treeRef"
+        :data="treeData"
+        node-key="key"
+        show-checkbox
+        check-strictly
+        :expand-on-click-node="true"
+        :props="{ label: 'label', disabled: 'disabled' }"
+        @check="handleCheck"
+        class="result-tree"
+      >
+        <template #default="{ data }">
+          <div class="tree-node-content">
+            <CarrierIcon
+              :mcc="data.mcc"
+              :mnc="data.mnc"
+              :name="data.brand"
+              :size="data.isSub ? 24 : 32"
+            />
+            <div class="node-info">
+              <div class="node-brand" :class="{ 'sub-brand': data.isSub }">{{ data.brand }}</div>
+              <div class="node-meta">
+                <span v-if="!data.isSub" class="node-plmn">{{ data.mcc }}:{{ data.mnc }}</span>
+                <span v-if="data.country && !data.isSub" class="node-country">{{ data.country }}</span>
+                <span v-if="data.hasSubs" class="node-subs-count">{{ data.subCount }} 个子品牌</span>
+                <span v-if="data.names?.length" class="sub-names">{{ data.names.join(', ') }}</span>
+                <span v-if="data.gid1" class="sub-gid">GID1: {{ data.gid1 }}</span>
+              </div>
             </div>
+            <span v-if="data.disabled" class="badge-existing">已添加</span>
           </div>
-
-          <!-- 已添加标记 -->
-          <span v-if="isExisting(item.plmn)" class="badge-existing">已添加</span>
-        </div>
-      </div>
+        </template>
+      </el-tree>
     </div>
 
     <!-- 底部操作栏 -->
@@ -396,69 +441,58 @@ function handleClose() {
   opacity: 0.7;
 }
 
-.result-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+/* el-tree 自定义样式 */
+.result-tree {
   padding: 4px;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
-.result-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid transparent;
+:deep(.el-tree-node__content) {
+  height: auto !important;
+  min-height: 48px;
+  padding: 4px 6px;
   border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.12s, border-color 0.12s;
+  transition: background 0.12s;
 }
 
-.result-item:hover {
+:deep(.el-tree-node__content:hover) {
   background: var(--accent);
 }
 
-.result-item.selected {
-  background: color-mix(in oklab, var(--brand) 8%, var(--card));
-  border-color: color-mix(in oklab, var(--brand) 30%, var(--border));
+:deep(.el-checkbox__inner) {
+  border-color: var(--border);
 }
 
-.result-item.existing {
-  opacity: 0.5;
-  cursor: default;
+:deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
+  background-color: var(--brand);
+  border-color: var(--brand);
 }
 
-.result-item.existing:hover {
-  background: transparent;
+:deep(.el-tree-node__expand-icon) {
+  color: var(--muted-foreground);
+  font-size: 14px;
 }
 
-.result-check {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.check-selected {
+:deep(.el-tree-node__expand-icon.expanded) {
   color: var(--brand);
 }
 
-.check-existing {
-  width: 16px;
-  height: 16px;
-  border-radius: 999px;
-  background: var(--muted-foreground);
-  opacity: 0.4;
-}
-
-.result-info {
+/* 节点内容布局 */
+.tree-node-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   flex: 1;
   min-width: 0;
 }
 
-.result-brand {
+.node-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.node-brand {
   font-size: 13px;
   font-weight: 600;
   color: var(--foreground);
@@ -467,7 +501,12 @@ function handleClose() {
   white-space: nowrap;
 }
 
-.result-meta {
+.node-brand.sub-brand {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.node-meta {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -476,13 +515,26 @@ function handleClose() {
   color: var(--muted-foreground);
 }
 
-.result-plmn {
+.node-plmn {
   font-family: var(--oomol-font-mono);
 }
 
-.result-subs {
+.node-country {
+  opacity: 0.7;
+}
+
+.node-subs-count {
   color: var(--brand);
   opacity: 0.7;
+}
+
+.sub-names {
+  opacity: 0.7;
+}
+
+.sub-gid {
+  font-family: var(--oomol-font-mono);
+  opacity: 0.5;
 }
 
 .badge-existing {

@@ -41,10 +41,18 @@ func (s *Server) handleListCarriers(c *gin.Context) {
 
 	out := make([]carrierconfig.ListItem, 0, len(visible))
 	for _, v := range visible {
+		// 解析 key：可能是 PLMN（234-30）或 PLMN__brand（234-30__BT Mobile）
+		plmnKey := v.PLMN
+		brandSuffix := ""
+		if idx := strings.Index(plmnKey, "__"); idx > 0 {
+			brandSuffix = plmnKey[idx+2:]
+			plmnKey = plmnKey[:idx]
+		}
+
 		// 从 carrier_index 查运营商元数据
-		idx, err := db.GetCarrierIndex(v.PLMN)
+		carrierIdx, err := db.GetCarrierIndex(plmnKey)
 		if err != nil {
-			logger.Warn("查询运营商索引失败", "plmn", v.PLMN, "err", err)
+			logger.Warn("查询运营商索引失败", "plmn", plmnKey, "err", err)
 			continue
 		}
 
@@ -52,33 +60,41 @@ func (s *Server) handleListCarriers(c *gin.Context) {
 			Key: v.PLMN,
 		}
 
-		if idx != nil {
-			item.MCC = idx.MCC
-			item.MNC = idx.MNC
+		if carrierIdx != nil {
+			item.MCC = carrierIdx.MCC
+			item.MNC = carrierIdx.MNC
 			// 从 raw_json 提取运营商名称
-			name := idx.PLMN
+			name := carrierIdx.PLMN
 			var raw struct {
 				Operators []struct {
 					Brand    string `json:"brand"`
 					Operator string `json:"operator"`
 				} `json:"operators"`
 			}
-			if json.Unmarshal([]byte(idx.RawJSON), &raw) == nil && len(raw.Operators) > 0 {
+			if json.Unmarshal([]byte(carrierIdx.RawJSON), &raw) == nil && len(raw.Operators) > 0 {
 				if raw.Operators[0].Brand != "" {
 					name = raw.Operators[0].Brand
 				} else if raw.Operators[0].Operator != "" {
 					name = raw.Operators[0].Operator
 				}
 			}
+			// 如果有 brand 后缀（子品牌），用 brand 作为名称
+			if brandSuffix != "" {
+				name = brandSuffix
+			}
 			item.Name = name
 		} else {
 			// index 中没有，尝试从 PLMN key 解析 MCC/MNC
-			parts := strings.SplitN(v.PLMN, "-", 2)
+			parts := strings.SplitN(plmnKey, "-", 2)
 			if len(parts) == 2 {
 				item.MCC = parts[0]
 				item.MNC = parts[1]
 			}
-			item.Name = v.PLMN
+			if brandSuffix != "" {
+				item.Name = brandSuffix
+			} else {
+				item.Name = plmnKey
+			}
 		}
 
 		out = append(out, item)
