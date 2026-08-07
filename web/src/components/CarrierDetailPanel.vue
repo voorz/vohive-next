@@ -7,8 +7,12 @@ import CarrierConfigCard from './CarrierConfigCard.vue'
 import CarrierEditArea from './CarrierEditArea.vue'
 import ListSkeleton from './ListSkeleton.vue'
 import EmptyState from './EmptyState.vue'
-import { Sim24Regular, Edit24Regular } from '@vicons/fluent'
+import { Sim24Regular, Edit24Regular, Add24Regular } from '@vicons/fluent'
 import CarrierIcon from './CarrierIcon.vue'
+
+const emit = defineEmits<{
+  'open-search': []
+}>()
 
 const store = useCarrierStore()
 const { detail, selectedCarrier, detailLoading, previewTarget, carriers, selectedKey } = storeToRefs(store)
@@ -72,7 +76,7 @@ function saveEdit() {
   <div class="detail-panel">
     <!-- 详情页头部 (60px) -->
     <div class="detail-header">
-      <!-- 窄屏下拉选择器 -->
+      <!-- 窄屏下拉选择器 + 添加按钮 -->
       <div class="detail-header-narrow">
         <el-select
           :model-value="selectValue"
@@ -87,6 +91,10 @@ function saveEdit() {
             :value="c.key"
           />
         </el-select>
+        <el-button size="small" type="primary" @click="emit('open-search')" class="!border-0 add-btn-narrow">
+          <el-icon class="mr-1"><Add24Regular /></el-icon>
+          <span>添加</span>
+        </el-button>
       </div>
       <!-- 宽屏：图标盒子 + 运营商名 + PLMN + 编辑按钮 -->
       <div class="detail-header-wide">
@@ -207,6 +215,16 @@ function saveEdit() {
 .detail-header-narrow {
   display: none;
   flex: 1;
+  align-items: center;
+  gap: 8px;
+}
+
+.detail-header-narrow .el-select {
+  flex: 1;
+}
+
+.add-btn-narrow {
+  flex-shrink: 0;
 }
 
 .detail-header-wide {
@@ -279,7 +297,7 @@ function saveEdit() {
 /* 响应式：窄屏显示下拉选择器 */
 @media (max-width: 768px) {
   .detail-header-narrow {
-    display: block;
+    display: flex;
   }
   .detail-header-wide {
     display: none;

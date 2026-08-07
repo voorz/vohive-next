@@ -123,5 +123,21 @@ export const carrierService = {
       const res = await api.get(`/carrier/defaults/${mcc}/${mnc}`)
       return res.data as CarrierProfile
     })
+  },
+
+  /** 从 plmn-index 批量添加运营商到可见列表 */
+  addCarriersFromIndex(plmns: string[]) {
+    return callService(async () => {
+      await api.post('/carriers/visible/batch', { plmns })
+      return true
+    })
+  },
+
+  /** 从可见列表移除运营商 */
+  removeCarrierVisible(plmn: string) {
+    return callService(async () => {
+      await api.delete(`/carriers/visible/${plmn}`)
+      return true
+    })
   }
 }

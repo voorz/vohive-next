@@ -304,9 +304,21 @@ export const useCarrierStore = defineStore('carrier', () => {
     return false
   }
 
-  async function removeCarrier(key: string) {
-    const result = await carrierService.remove(key)
+  /** 从 plmn-index 批量添加运营商 */
+  async function addCarriersFromIndex(plmns: string[]) {
+    const result = await carrierService.addCarriersFromIndex(plmns)
     if (result.ok) {
+      await fetchCarriers()
+      return true
+    }
+    error.value = result.error
+    return false
+  }
+
+async function removeCarrier(key: string) {
+  // 新架构：只从 carrier_visible 删除
+  const visibleResult = await carrierService.removeCarrierVisible(key)
+  if (visibleResult.ok) {
       const idx = carriers.value.findIndex(c => c.key === key)
       if (idx >= 0) carriers.value.splice(idx, 1)
       if (selectedKey.value === key) {
@@ -319,7 +331,7 @@ export const useCarrierStore = defineStore('carrier', () => {
       }
       return true
     }
-    error.value = result.error
+    error.value = visibleResult.error
     return false
   }
 
@@ -353,6 +365,7 @@ export const useCarrierStore = defineStore('carrier', () => {
     deactivateUserConfig,
     deleteUserConfig,
     addCarrier,
+    addCarriersFromIndex,
     removeCarrier
   }
 })
