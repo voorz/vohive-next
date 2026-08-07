@@ -394,6 +394,7 @@ func (s *Server) newRouter() *gin.Engine {
 
 		// ===== 运营商配置 =====
 		api.GET("/carrier", s.handleListCarriers)                            // 运营商列表（carrier_visible + carrier_index）
+		api.GET("/carrier/generic", s.handleGetGenericProfile)               // 3GPP 通用默认模板
 		api.GET("/carrier/:mcc/:mnc", s.handleGetCarrier)                    // 运营商配置详情
 		api.PUT("/carrier/:mcc/:mnc", s.handleSaveCarrierConfig)             // 保存用户配置
 		api.DELETE("/carrier/:mcc/:mnc/config", s.handleDeleteCarrierConfig) // 删除用户配置

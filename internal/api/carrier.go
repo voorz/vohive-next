@@ -119,6 +119,17 @@ func (s *Server) handleListCarriers(c *gin.Context) {
 	c.JSON(http.StatusOK, out)
 }
 
+// handleGetGenericProfile GET /api/carrier/generic
+// 返回 3GPP 通用默认模板（generic.json）。
+func (s *Server) handleGetGenericProfile(c *gin.Context) {
+	p, err := profiles.Generic()
+	if err != nil || p == nil {
+		c.JSON(http.StatusNotFound, gin.H{"status": "error", "message": "通用模板不可用"})
+		return
+	}
+	c.JSON(http.StatusOK, p)
+}
+
 // handleGetCarrier GET /api/carrier/:mcc/:mnc?brand=
 // 从 carrier_index 获取元数据，从 carrier_templates 获取用户配置，从 profiles 获取系统默认。
 func (s *Server) handleGetCarrier(c *gin.Context) {

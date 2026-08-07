@@ -3,6 +3,7 @@ import { callService } from './http'
 import type {
   CarrierListItem,
   CarrierDetail,
+  CarrierProfile,
   CarrierSavePayload
 } from '../types/api'
 
@@ -35,6 +36,13 @@ export const carrierService = {
         : `/carrier/${mcc}/${mnc}`
       const res = await api.get(url)
       return res.data as CarrierDetail
+    })
+  },
+
+  getGenericProfile() {
+    return callService(async () => {
+      const res = await api.get('/carrier/generic')
+      return res.data as CarrierProfile
     })
   },
 
