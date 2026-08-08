@@ -97,15 +97,12 @@ func ResolveRegisterProfile(p *profiles.CarrierProfile) voiceclient.RegisterProf
 }
 
 // ResolveSIPInstanceURN 从 CarrierProfile 解析出 SIP Instance URN。
+// 使用 FormatGSMAIMEIURN 进行 GSMA 标准格式化 (TAC-SNR-SVN)。
 func ResolveSIPInstanceURN(p *profiles.CarrierProfile) string {
 	if p == nil || p.Device.IMEI == "" {
 		return ""
 	}
-	imei := strings.TrimSpace(p.Device.IMEI)
-	if imei == "" {
-		return ""
-	}
-	return "urn:gsma:imei:" + imei
+	return voiceclient.FormatGSMAIMEIURN(strings.TrimSpace(p.Device.IMEI))
 }
 
 // ResolveRegisterExpiry 从 CarrierProfile 解析出 REGISTER Expires。
