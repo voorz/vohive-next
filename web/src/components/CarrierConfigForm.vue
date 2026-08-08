@@ -14,6 +14,7 @@ const expanded = ref<Record<string, boolean>>({
   ike: true,
   eap: false,
   ims: false,
+  voice: false,
   e911: false,
   device: false
 })
@@ -355,25 +356,6 @@ const fallbackStatusCodesText = computed({
             <el-input v-model="contactParamOrderText" placeholder="access_type, audio, smsip, icsi_ref, sip_instance" />
           </div>
 
-          <!-- 语音 INVITE 头 -->
-          <div class="field col-span-2 section-divider">语音 INVITE 头</div>
-          <div class="field">
-            <label class="form-label">Voice Supported</label>
-            <el-input :model-value="cfg.ims?.voice_supported_header || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_supported_header = v; onInput() }" placeholder="空=继承 REGISTER Supported" />
-          </div>
-          <div class="field">
-            <label class="form-label">Voice Allow</label>
-            <el-input :model-value="cfg.ims?.voice_allow_header || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_allow_header = v; onInput() }" placeholder="空=INVITE,ACK,CANCEL,BYE,..." />
-          </div>
-          <div class="field">
-            <label class="form-label">Voice Accept-Contact</label>
-            <el-input :model-value="cfg.ims?.voice_accept_contact || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_accept_contact = v; onInput() }" placeholder="空=不发送 Accept-Contact" />
-          </div>
-          <div class="field">
-            <label class="form-label">Voice P-Preferred-Service</label>
-            <el-input :model-value="cfg.ims?.voice_p_preferred_service || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_p_preferred_service = v; onInput() }" placeholder="空=不发送 P-Preferred-Service" />
-          </div>
-
           <!-- 注册策略 -->
           <div class="field col-span-2 section-divider">注册策略</div>
           <div class="field col-span-2">
@@ -490,6 +472,37 @@ const fallbackStatusCodesText = computed({
           <div class="field col-span-2 form-switch-row">
             <div><div class="switch-title">Contact URI 随机 UUID</div><div class="switch-desc">contact_user_random</div></div>
             <el-switch :model-value="cfg.ims?.contact_user_random || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.contact_user_random = Boolean(v); onInput() }" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════ 语音会话 ════════ -->
+    <div class="faq-card">
+      <div class="faq-header" @click="toggle('voice')">
+        <span class="faq-title">语音会话 (INVITE/MESSAGE)</span>
+        <el-icon class="faq-arrow" :class="{ expanded: expanded.voice }" size="16"><ChevronDown20Regular /></el-icon>
+      </div>
+      <div v-show="expanded.voice" class="faq-body">
+        <div class="form-grid">
+          <div class="field col-span-2" style="color: var(--el-text-color-secondary); font-size: 0.85em;">
+            非 REGISTER 请求 (INVITE/MESSAGE/UPDATE 等) 的 SIP 头配置。空值=使用默认或继承 REGISTER 配置。
+          </div>
+          <div class="field">
+            <label class="form-label">Supported</label>
+            <el-input :model-value="cfg.ims?.voice_supported_header || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_supported_header = v; onInput() }" placeholder="空=继承 REGISTER Supported" />
+          </div>
+          <div class="field">
+            <label class="form-label">Allow</label>
+            <el-input :model-value="cfg.ims?.voice_allow_header || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_allow_header = v; onInput() }" placeholder="空=INVITE,ACK,CANCEL,BYE,..." />
+          </div>
+          <div class="field">
+            <label class="form-label">Accept-Contact</label>
+            <el-input :model-value="cfg.ims?.voice_accept_contact || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_accept_contact = v; onInput() }" placeholder="空=不发送 Accept-Contact" />
+          </div>
+          <div class="field">
+            <label class="form-label">P-Preferred-Service</label>
+            <el-input :model-value="cfg.ims?.voice_p_preferred_service || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_p_preferred_service = v; onInput() }" placeholder="空=不发送 P-Preferred-Service" />
           </div>
         </div>
       </div>
