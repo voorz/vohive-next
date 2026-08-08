@@ -51,6 +51,12 @@ const router = createRouter({
       name: 'Carrier',
       component: () => import('../views/Carrier.vue'),
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/module',
+      name: 'Module',
+      component: () => import('../views/Module.vue'),
+      meta: { requiresAuth: true }
     }
   ]
 })
