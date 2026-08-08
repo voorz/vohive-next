@@ -87,8 +87,8 @@ const countryCode = computed(() => plmnInfo.value?.country?.code || '')
 
 <style scoped>
 .device-header {
-  height: 60px;
-  padding: 0 24px;
+  min-height: 60px;
+  padding: 8px 24px;
   display: flex;
   align-items: center;
 }
@@ -98,7 +98,8 @@ const countryCode = computed(() => plmnInfo.value?.country?.code || '')
   align-items: center;
   justify-content: space-between;
   width: 100%;
-  gap: 12px;
+  gap: 8px 12px;
+  flex-wrap: wrap;
 }
 
 .device-header-name {
