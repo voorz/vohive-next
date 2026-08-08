@@ -1,0 +1,23 @@
+[
+  { "key": "204-04", "name": "Vodafone NL", "mcc": "204", "mnc": "4" },
+  { "key": "228-02", "name": "Sunrise CH", "mcc": "228", "mnc": "2" },
+  { "key": "234-10", "name": "giffgaff UK", "mcc": "234", "mnc": "10" },
+  { "key": "234-15", "name": "Vodafone UK", "mcc": "234", "mnc": "15" },
+  { "key": "234-20", "name": "Three UK", "mcc": "234", "mnc": "20" },
+  { "key": "234-30", "name": "EE UK", "mcc": "234", "mnc": "30" },
+  { "key": "234-33", "name": "EE UK", "mcc": "234", "mnc": "33" },
+  { "key": "234-33__CMlink", "name": "CMlink UK", "mcc": "234", "mnc": "33" },
+  { "key": "234-33__CTExcel", "name": "CTExcel UK", "mcc": "234", "mnc": "33" },
+  { "key": "262-03", "name": "O2 DE", "mcc": "262", "mnc": "3" },
+  { "key": "310-260", "name": "T-Mobile US", "mcc": "310", "mnc": "260" },
+  { "key": "310-280", "name": "AT&T US", "mcc": "310", "mnc": "280" },
+  { "key": "310-410", "name": "LycaMobile US", "mcc": "310", "mnc": "410" },
+  { "key": "454-0", "name": "CSL HK", "mcc": "454", "mnc": "0" },
+  { "key": "454-3", "name": "Three HK", "mcc": "454", "mnc": "3" },
+  { "key": "460-0", "name": "China Mobile", "mcc": "460", "mnc": "0" },
+  { "key": "460-1", "name": "China Unicom", "mcc": "460", "mnc": "1" },
+  { "key": "460-3", "name": "China Telecom", "mcc": "460", "mnc": "3" },
+  { "key": "530-1", "name": "One NZ", "mcc": "530", "mnc": "1" },
+  { "key": "530-24", "name": "2degrees NZ", "mcc": "530", "mnc": "24" },
+  { "key": "530-5", "name": "Spark NZ", "mcc": "530", "mnc": "5" }
+]

@@ -14,6 +14,7 @@ const expanded = ref<Record<string, boolean>>({
   ike: true,
   eap: false,
   ims: false,
+  voice: false,
   e911: false,
   device: false
 })
@@ -104,6 +105,18 @@ function onInput() {
   store.markDirty()
 }
 
+// 生成随机 wlan-node-id PANI 值
+function generateRandomPANI() {
+  const hex = Array.from({length: 12}, () => Math.floor(Math.random() * 16).toString(16)).join('')
+  if (cfg.value.ims) {
+    cfg.value.ims.fixed_pani = `IEEE-802.11;i-wlan-node-id=${hex};network-provided`
+  } else {
+    ensureIms()
+    cfg.value.ims!.fixed_pani = `IEEE-802.11;i-wlan-node-id=${hex};network-provided`
+  }
+  onInput()
+}
+
 // 数组 ↔ 逗号分隔文本
 const ikeProposalsText = computed({
   get: () => (cfg.value.ike?.proposals || []).join(', '),
@@ -187,6 +200,10 @@ const fallbackStatusCodesText = computed({
           <div class="field">
             <label class="form-label">APN</label>
             <el-input :model-value="cfg.ike?.apn || ''" @update:model-value="(v: string) => { ensureIke(); cfg.ike!.apn = v; onInput() }" placeholder="ims" />
+          </div>
+          <div class="field">
+            <label class="form-label">RFOff 延迟 (秒)</label>
+            <el-input-number :model-value="cfg.ike?.rf_off_delay || 0" @update:model-value="(v: number | undefined) => { ensureIke(); cfg.ike!.rf_off_delay = v || 0; onInput() }" :min="0" placeholder="5" class="!w-full" />
           </div>
           <div class="field col-span-2 form-switch-row">
             <div><div class="switch-title">启用 ESN</div><div class="switch-desc">Extended Sequence Numbers</div></div>
@@ -280,7 +297,7 @@ const fallbackStatusCodesText = computed({
           </div>
           <div class="field col-span-2">
             <label class="form-label">User-Agent</label>
-            <el-input :model-value="cfg.ims?.user_agent || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.user_agent = v; onInput() }" placeholder="SimAdmin VoWiFi" />
+            <el-input :model-value="cfg.ims?.user_agent || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.user_agent = v; onInput() }" placeholder="User-Agent: Apple iPhone17,2/26.6 (17,2; iOS 26.6; 23G82) Boot/3.0.0 VoIP/1.0 Carrier/59.0" />
           </div>
           <div class="field col-span-2">
             <label class="form-label">Supported 头</label>
@@ -318,9 +335,13 @@ const fallbackStatusCodesText = computed({
               <el-option v-for="opt in securityClientFormatOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
             </el-select>
           </div>
-          <div class="field">
+          <div class="field col-span-2">
             <label class="form-label">固定 PANI</label>
-            <el-input :model-value="cfg.ims?.fixed_pani || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.fixed_pani = v; onInput() }" placeholder="覆盖动态 BSSID" />
+            <div class="flex gap-2">
+              <el-input :model-value="cfg.ims?.fixed_pani || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.fixed_pani = v; onInput() }" placeholder="空=自动生成 IEEE-802.11;i-wlan-node-id=000000000000" class="!flex-1" />
+              <el-button @click="generateRandomPANI" class="!shrink-0">随机生成</el-button>
+              <el-button @click="() => { ensureIms(); cfg.ims!.fixed_pani = ''; onInput() }" class="!shrink-0" plain>清空</el-button>
+            </div>
           </div>
           <div class="field">
             <label class="form-label">TCP Keepalive (秒)</label>
@@ -333,25 +354,6 @@ const fallbackStatusCodesText = computed({
           <div class="field col-span-2">
             <label class="form-label">Contact 参数顺序 (逗号分隔)</label>
             <el-input v-model="contactParamOrderText" placeholder="access_type, audio, smsip, icsi_ref, sip_instance" />
-          </div>
-
-          <!-- 语音 INVITE 头 -->
-          <div class="field col-span-2 section-divider">语音 INVITE 头</div>
-          <div class="field">
-            <label class="form-label">Voice Supported</label>
-            <el-input :model-value="cfg.ims?.voice_supported_header || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_supported_header = v; onInput() }" placeholder="空=默认" />
-          </div>
-          <div class="field">
-            <label class="form-label">Voice Allow</label>
-            <el-input :model-value="cfg.ims?.voice_allow_header || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_allow_header = v; onInput() }" placeholder="空=默认" />
-          </div>
-          <div class="field">
-            <label class="form-label">Voice Accept-Contact</label>
-            <el-input :model-value="cfg.ims?.voice_accept_contact || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_accept_contact = v; onInput() }" placeholder="空=默认" />
-          </div>
-          <div class="field">
-            <label class="form-label">Voice P-Preferred-Service</label>
-            <el-input :model-value="cfg.ims?.voice_p_preferred_service || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_p_preferred_service = v; onInput() }" placeholder="空=默认" />
           </div>
 
           <!-- 注册策略 -->
@@ -470,6 +472,37 @@ const fallbackStatusCodesText = computed({
           <div class="field col-span-2 form-switch-row">
             <div><div class="switch-title">Contact URI 随机 UUID</div><div class="switch-desc">contact_user_random</div></div>
             <el-switch :model-value="cfg.ims?.contact_user_random || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.contact_user_random = Boolean(v); onInput() }" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════ 语音会话 ════════ -->
+    <div class="faq-card">
+      <div class="faq-header" @click="toggle('voice')">
+        <span class="faq-title">语音会话 (INVITE/MESSAGE)</span>
+        <el-icon class="faq-arrow" :class="{ expanded: expanded.voice }" size="16"><ChevronDown20Regular /></el-icon>
+      </div>
+      <div v-show="expanded.voice" class="faq-body">
+        <div class="form-grid">
+          <div class="field col-span-2" style="color: var(--el-text-color-secondary); font-size: 0.85em;">
+            非 REGISTER 请求 (INVITE/MESSAGE/UPDATE 等) 的 SIP 头配置。空值=使用默认或继承 REGISTER 配置。
+          </div>
+          <div class="field">
+            <label class="form-label">Supported</label>
+            <el-input :model-value="cfg.ims?.voice_supported_header || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_supported_header = v; onInput() }" placeholder="空=继承 REGISTER Supported" />
+          </div>
+          <div class="field">
+            <label class="form-label">Allow</label>
+            <el-input :model-value="cfg.ims?.voice_allow_header || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_allow_header = v; onInput() }" placeholder="空=INVITE,ACK,CANCEL,BYE,..." />
+          </div>
+          <div class="field">
+            <label class="form-label">Accept-Contact</label>
+            <el-input :model-value="cfg.ims?.voice_accept_contact || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_accept_contact = v; onInput() }" placeholder="空=不发送 Accept-Contact" />
+          </div>
+          <div class="field">
+            <label class="form-label">P-Preferred-Service</label>
+            <el-input :model-value="cfg.ims?.voice_p_preferred_service || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_p_preferred_service = v; onInput() }" placeholder="空=不发送 P-Preferred-Service" />
           </div>
         </div>
       </div>

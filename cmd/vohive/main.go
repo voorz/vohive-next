@@ -19,6 +19,7 @@ import (
 	"github.com/voorz/vohive/internal/db"
 	"github.com/voorz/vohive/internal/device"
 	"github.com/voorz/vohive/internal/notify"
+	"github.com/voorz/vohive/internal/plmnindex"
 	proxyserver "github.com/voorz/vohive/internal/proxy/server"
 	"github.com/voorz/vohive/internal/proxy/traffic"
 	"github.com/voorz/vohive/internal/sipgw"
@@ -107,6 +108,9 @@ func main() {
 	if err := carrierconfig.LoadActiveOverrides(); err != nil {
 		logger.Warn("加载运营商用户配置失败，使用系统默认", "err", err)
 	}
+
+	// 启动 plmn-index 同步（首次空库时拉取，之后每 24h 定期同步）
+	plmnindex.StartPeriodicSync(context.Background())
 	countryResult := upstreamproxy.InitCountryTable(context.Background(), upstreamproxy.CountryTableOptions{
 		CachePath: upstreamproxy.DefaultCountryTableCachePath,
 	})

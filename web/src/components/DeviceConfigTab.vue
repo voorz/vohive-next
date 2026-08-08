@@ -54,12 +54,12 @@ watch(
         </div>
       </div>
       <div class="flex items-center gap-2">
-        <el-button type="danger" :loading="deleting" @click="emit('delete')" class="!border-0">
-          <el-icon><Delete24Regular /></el-icon>
+        <el-button type="danger" :loading="deleting" @click="emit('delete')" class="!border-0" size="small">
+          <el-icon size="20"><Delete24Regular /></el-icon>
           删除设备
         </el-button>
-        <el-button type="primary" :loading="saving" @click="emit('save')" class="!border-0">
-          <el-icon><Save24Regular /></el-icon>
+        <el-button type="primary" :loading="saving" @click="emit('save')" class="!border-0" size="small">
+          <el-icon size="20"><Save24Regular /></el-icon>
           保存配置
         </el-button>
       </div>

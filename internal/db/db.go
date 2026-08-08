@@ -163,15 +163,14 @@ func Init(dbPath string) error {
 		&TrafficWeek{},
 		&TrafficMonth{},
 		&APIToken{},
-		&CarrierConfig{},
+		&CarrierIndex{},
+		&CarrierVisible{},
+		&CarrierTemplate{},
+		&CarrierActivation{},
 	); err != nil {
 		return err
 	}
 
-	// 迁移 carrier_configs 表 PK (mcc+mnc → profile_key)
-	if err := MigrateCarrierConfigPK(); err != nil {
-		return err
-	}
 	if err := RunICCIDReKeyMigration(DB); err != nil {
 		return err
 	}

@@ -1,19 +1,24 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
+import { ElMessage } from 'element-plus'
 import { useCarrierStore } from '../stores/carrier'
 import CarrierListPanel from '../components/CarrierListPanel.vue'
 import CarrierDetailPanel from '../components/CarrierDetailPanel.vue'
 import CarrierPreviewPanel from '../components/CarrierPreviewPanel.vue'
+import CarrierSearchDialog from '../components/CarrierSearchDialog.vue'
 import { Eye24Regular } from '@vicons/fluent'
 import { downloadIcon, getCachedIcon } from '../composables/useOperatorIcon'
 import { loadPlmnCatalog } from '../composables/plmn-catalog'
 
 const store = useCarrierStore()
-const { detail, previewTarget } = storeToRefs(store)
+const { detail, previewTarget, carriers } = storeToRefs(store)
 
 // 预览抽屉（中窄屏）
 const previewDrawerOpen = ref(false)
+
+// 搜索弹窗（页面级，宽屏和窄屏共用）
+const searchDialogOpen = ref(false)
 
 // 窗口宽度响应
 const isWide = ref(true)
@@ -50,6 +55,24 @@ onMounted(async () => {
     }
   }
 })
+
+async function handleAddCarriers(plmns: string[]) {
+  const ok = await store.addCarriersFromIndex(plmns)
+  if (ok) {
+    ElMessage.success(`已添加 ${plmns.length} 个运营商`)
+    for (const c of store.carriers) {
+      if (plmns.includes(c.key) || plmns.includes(`${c.mcc}-${c.mnc}`)) {
+        if (!getCachedIcon(c.mcc, c.mnc, c.name)) {
+          downloadIcon(c.mcc, c.mnc, c.name).then(result => {
+            if (result) {
+              window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc: c.mcc, mnc: c.mnc } }))
+            }
+          })
+        }
+      }
+    }
+  }
+}
 </script>
 
 <template>
@@ -58,12 +81,12 @@ onMounted(async () => {
     <div class="carrier-grid" :class="{ 'three-col': showThreeColumn, 'two-col': isMedium, 'one-col': isNarrow }">
       <!-- 左栏：运营商列表（窄屏隐藏，由详情页下拉替代） -->
       <div v-show="!isNarrow" class="carrier-col-list">
-        <CarrierListPanel />
+        <CarrierListPanel @open-search="searchDialogOpen = true" />
       </div>
 
       <!-- 中栏：详情页 -->
       <div class="carrier-col-detail">
-        <CarrierDetailPanel />
+        <CarrierDetailPanel @open-search="searchDialogOpen = true" />
 
         <!-- 预览按钮（中窄屏浮动） -->
         <button
@@ -91,6 +114,13 @@ onMounted(async () => {
     >
       <CarrierPreviewPanel v-if="detail" />
     </el-drawer>
+
+    <!-- 搜索添加运营商弹窗（页面级） -->
+    <CarrierSearchDialog
+      v-model="searchDialogOpen"
+      :existing-plmns="carriers.map(c => c.key)"
+      @add="handleAddCarriers"
+    />
   </div>
 </template>
 

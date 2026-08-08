@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import {
   Shield24Regular,
-  Person24Regular,
+  Sim24Regular,
   CheckmarkCircle24Regular,
   CloudOff24Regular
 } from '@vicons/fluent'
@@ -29,7 +29,7 @@ const statusLabel = computed(() => {
 
 const titleLabel = computed(() => isSystem.value ? '系统默认' : '用户配置')
 
-const icon = isSystem.value ? Shield24Regular : Person24Regular
+const icon = isSystem.value ? Shield24Regular : Sim24Regular
 </script>
 
 <template>

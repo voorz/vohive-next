@@ -9,13 +9,13 @@ import { json } from '@codemirror/lang-json'
 import { oneDark } from '@codemirror/theme-one-dark'
 import { EditorView } from 'codemirror'
 import {
-  Person24Regular,
-  Save24Regular,
-  Delete24Regular,
-  DocumentEdit24Regular,
-  Code24Regular,
-  ArrowUpRight24Regular,
-  DocumentAdd24Regular
+Sim24Regular,
+Save24Regular,
+Delete24Regular,
+DocumentEdit24Regular,
+Code24Regular,
+ArrowUpRight24Regular,
+DocumentAdd24Regular
 } from '@vicons/fluent'
 
 const store = useCarrierStore()
@@ -116,9 +116,16 @@ async function handleToggleActive() {
   if (detail.value.active) {
     const ok = await store.deactivateUserConfig()
     if (ok) ElMessage.success('已禁用用户配置，回退系统默认')
+    else ElMessage.error('禁用失败')
   } else {
+    // 未保存的更改或未保存的新配置，提示先保存
+    if (dirty.value || !detail.value.user_config) {
+      ElMessage.warning('请先保存配置再启用')
+      return
+    }
     const ok = await store.activateUserConfig()
     if (ok) ElMessage.success('已启用用户配置')
+    else ElMessage.error('启用失败，请重试')
   }
 }
 
@@ -130,14 +137,14 @@ const hasUserConfig = computed(() => !!detail.value?.user_config || !!editingCon
     <!-- 无用户配置状态 -->
     <div v-if="!hasUserConfig" class="edit-empty">
       <div class="edit-empty-icon">
-        <el-icon size="28"><Person24Regular /></el-icon>
+        <el-icon size="28"><Sim24Regular /></el-icon>
       </div>
-      <div class="edit-empty-title">尚未创建用户配置</div>
+      <div class="edit-empty-title">尚未创建自定义配置</div>
       <div class="edit-empty-desc">从系统默认或 3GPP 标准模板创建配置</div>
       <div class="edit-empty-actions">
         <el-button type="primary" @click="store.createFromSystemDefault()" class="!border-0" :disabled="!detail?.system_default">
           <el-icon class="mr-1.5"><ArrowUpRight24Regular /></el-icon>
-          <span>从系统默认创建</span>
+          <span>{{ detail?.system_default ? '从系统默认创建' : '未提供默认模板' }}</span>
         </el-button>
         <el-button @click="store.createFromStandardTemplate()">
           <el-icon class="mr-1.5"><DocumentAdd24Regular /></el-icon>
@@ -152,7 +159,7 @@ const hasUserConfig = computed(() => !!detail.value?.user_config || !!editingCon
       <div class="edit-header">
         <div class="edit-header-left">
           <div class="edit-header-icon">
-            <el-icon size="16"><Person24Regular /></el-icon>
+            <el-icon size="16"><Sim24Regular /></el-icon>
           </div>
           <span class="edit-header-label">用户配置</span>
           <span v-if="dirty" class="dirty-badge">未保存</span>

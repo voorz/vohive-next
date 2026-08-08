@@ -3,11 +3,8 @@ import { callService } from './http'
 import type {
   CarrierListItem,
   CarrierDetail,
-  CarrierSavePayload,
-  CarrierAddPayload,
-  CarrierBatchImportPayload,
-  CarrierBatchImportResult,
-  CarrierProfile
+  CarrierProfile,
+  CarrierSavePayload
 } from '../types/api'
 
 /** 从 profile key 解析 mcc/mnc/brand */
@@ -42,28 +39,10 @@ export const carrierService = {
     })
   },
 
-  add(payload: CarrierAddPayload) {
+  getGenericProfile() {
     return callService(async () => {
-      await api.post('/carrier', payload)
-      return true
-    })
-  },
-
-  batchImport(payload: CarrierBatchImportPayload) {
-    return callService(async () => {
-      const res = await api.post('/carrier/batch', payload)
-      return res.data as CarrierBatchImportResult
-    })
-  },
-
-  remove(key: string) {
-    const { mcc, mnc, brand } = parseKey(key)
-    return callService(async () => {
-      const url = brand
-        ? `/carrier/${mcc}/${mnc}?brand=${encodeURIComponent(brand)}`
-        : `/carrier/${mcc}/${mnc}`
-      await api.delete(url)
-      return true
+      const res = await api.get('/carrier/generic')
+      return res.data as CarrierProfile
     })
   },
 
@@ -111,17 +90,19 @@ export const carrierService = {
     })
   },
 
-  getDefaults() {
+  /** 从 plmn-index 批量添加运营商到可见列表 */
+  addCarriersFromIndex(plmns: string[]) {
     return callService(async () => {
-      const res = await api.get('/carrier/defaults')
-      return res.data as CarrierListItem[]
+      await api.post('/carriers/visible/batch', { plmns })
+      return true
     })
   },
 
-  getDefault(mcc: string, mnc: string) {
+  /** 从可见列表移除运营商 */
+  removeCarrierVisible(plmn: string) {
     return callService(async () => {
-      const res = await api.get(`/carrier/defaults/${mcc}/${mnc}`)
-      return res.data as CarrierProfile
+      await api.delete(`/carriers/visible/${plmn}`)
+      return true
     })
   }
 }

@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useCarrierStore } from '../stores/carrier'
 import { copyToClipboard } from '../utils/clipboard'
-import { Shield24Regular, Person24Regular, Copy24Regular, ArrowDownload24Regular } from '@vicons/fluent'
+import { Shield24Regular, Sim24Regular, Copy24Regular, ArrowDownload24Regular } from '@vicons/fluent'
 import type { CarrierProfile } from '../types/api'
 
 const store = useCarrierStore()
@@ -19,7 +19,7 @@ const jsonText = computed(() => {
 
 const title = computed(() => {
   if (previewTarget.value === 'system') return '系统默认预览'
-  return '用户配置预览'
+  return '配置预览'
 })
 
 const subtitle = computed(() => {
@@ -188,7 +188,7 @@ function downloadJson() {
       <div class="preview-header-left">
         <div class="preview-header-icon" :class="{ 'is-system': isSystem }">
           <el-icon size="16">
-            <component :is="isSystem ? Shield24Regular : Person24Regular" />
+            <component :is="isSystem ? Shield24Regular : Sim24Regular" />
           </el-icon>
         </div>
         <div>

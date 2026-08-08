@@ -265,7 +265,14 @@ func (p *Pool) prepareVoWiFiStartContext(deviceID, traceID, runtimeEPDGOverride 
 			// routing table yet, causing the first IKE_SA_INIT
 			// packet to be silently dropped (manifests as a ~95s
 			// hang before reconnection succeeds).
-			time.Sleep(3 * time.Second)
+			// Delay is configurable per carrier profile (default 5s).
+			rfOffDelay := prepared.EffectiveCarrier.RFOffDelay
+			if rfOffDelay <= 0 {
+				rfOffDelay = 5
+			}
+			logger.Info("飞行模式后等待网络栈稳定",
+				"trace_id", traceID, "device", deviceID, "rf_off_delay_s", rfOffDelay)
+			time.Sleep(time.Duration(rfOffDelay) * time.Second)
 		}
 	}
 

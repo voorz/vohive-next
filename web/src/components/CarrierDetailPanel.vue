@@ -1,20 +1,21 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
-import { ElMessage } from 'element-plus'
 import { useCarrierStore } from '../stores/carrier'
-import CarrierConfigCard from './CarrierConfigCard.vue'
 import CarrierEditArea from './CarrierEditArea.vue'
 import ListSkeleton from './ListSkeleton.vue'
 import EmptyState from './EmptyState.vue'
-import { Sim24Regular, Edit24Regular } from '@vicons/fluent'
+import { Add24Regular } from '@vicons/fluent'
 import CarrierIcon from './CarrierIcon.vue'
+import CountryFlag from './CountryFlag.vue'
+import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
+
+const emit = defineEmits<{
+  'open-search': []
+}>()
 
 const store = useCarrierStore()
-const { detail, selectedCarrier, detailLoading, previewTarget, carriers, selectedKey } = storeToRefs(store)
-
-const hasUserConfig = computed(() => !!detail.value?.user_config)
-const hasSystemDefault = computed(() => !!detail.value?.system_default)
+const { detail, selectedCarrier, detailLoading, carriers, selectedKey } = storeToRefs(store)
 
 // 窄屏下拉选择
 function handleSelectChange(value: string) {
@@ -23,57 +24,45 @@ function handleSelectChange(value: string) {
 
 const selectValue = computed(() => selectedKey.value)
 
-// 编辑运营商信息对话框
-const editDialogOpen = ref(false)
-const editForm = ref({ name: '', mcc: '', mnc: '', ike_addr: '', ims_tac: 0, ims_cell_id: 0 })
+// PLMN 索引信息（国家/代码/ISO）
+const plmnInfo = ref<PlmnInfoEntry | null>(null)
 
-function openEditDialog() {
-  if (!detail.value) return
-  editForm.value = {
-    name: detail.value.name,
-    mcc: detail.value.mcc,
-    mnc: detail.value.mnc,
-    ike_addr: detail.value.ike_addr,
-    ims_tac: detail.value.device_ims_tac,
-    ims_cell_id: detail.value.device_ims_cell_id
-  }
-  editDialogOpen.value = true
-}
+// 触发加载
+onMounted(() => loadPlmnInfo())
 
-function saveEdit() {
-  if (!detail.value) return
-  if (!editForm.value.name.trim()) {
-    ElMessage.warning('运营商名称不能为空')
-    return
-  }
-  if (!editForm.value.mcc.trim() || !editForm.value.mnc.trim()) {
-    ElMessage.warning('MCC 和 MNC 不能为空')
-    return
-  }
-  // 更新 store 中的基础信息
-  detail.value.name = editForm.value.name.trim()
-  detail.value.ike_addr = editForm.value.ike_addr
-  detail.value.device_ims_tac = editForm.value.ims_tac
-  detail.value.device_ims_cell_id = editForm.value.ims_cell_id
-  // 更新列表项
-  const item = carriers.value.find(c => c.key === selectedKey.value)
-  if (item) {
-    item.name = editForm.value.name.trim()
-    item.ike_addr = editForm.value.ike_addr
-    item.device_ims_tac = editForm.value.ims_tac
-    item.device_ims_cell_id = editForm.value.ims_cell_id
-  }
-  ElMessage.success('运营商信息已更新')
-  editDialogOpen.value = false
-}
+// 选中运营商变化时查询 PLMN 信息
+watch(() => selectedCarrier.value?.key, (key) => {
+  // 子品牌 key 如 "234-33__cmlink" 需取主网 PLMN 查找
+  const baseKey = key ? key.split('__')[0] : ''
+  plmnInfo.value = baseKey ? getPlmnInfo(baseKey) : null
+}, { immediate: true })
+
+const countryName = computed(() => plmnInfo.value?.country?.name || '')
+const countryIso = computed(() => plmnInfo.value?.country?.iso || '')
+const countryCode = computed(() => plmnInfo.value?.country?.code || '')
+
+// 激活状态文案
+const activationStatus = computed(() => {
+  if (!detail.value) return ''
+  if (detail.value.active) return '自定义生效'
+  if (detail.value.system_default) return '默认配置生效'
+  return ''
+})
 </script>
 
 <template>
   <div class="detail-panel">
     <!-- 详情页头部 (60px) -->
     <div class="detail-header">
-      <!-- 窄屏下拉选择器 -->
+      <!-- 窄屏下拉选择器 + 添加按钮 -->
       <div class="detail-header-narrow">
+        <CarrierIcon
+          :mcc="selectedCarrier?.mcc || ''"
+          :mnc="selectedCarrier?.mnc || ''"
+          :name="selectedCarrier?.name"
+          :size="38"
+          class="narrow-logo"
+        />
         <el-select
           :model-value="selectValue"
           @change="handleSelectChange"
@@ -87,22 +76,24 @@ function saveEdit() {
             :value="c.key"
           />
         </el-select>
+        <el-button size="small" type="primary" @click="emit('open-search')" class="!border-0 add-btn-narrow">
+          <el-icon class="mr-1"><Add24Regular /></el-icon>
+          <span>添加</span>
+        </el-button>
       </div>
-      <!-- 宽屏：图标盒子 + 运营商名 + PLMN + 编辑按钮 -->
+      <!-- 宽屏：图标盒子 + 运营商名 + 详细信息 -->
       <div class="detail-header-wide">
         <CarrierIcon :mcc="selectedCarrier?.mcc || ''" :mnc="selectedCarrier?.mnc || ''" :name="selectedCarrier?.name" :size="38" />
         <div class="detail-header-info">
           <div class="detail-header-name">{{ selectedCarrier?.name || '未选择' }}</div>
-          <div class="detail-header-plmn">{{ selectedCarrier?.mcc }}:{{ selectedCarrier?.mnc }}</div>
+          <div class="detail-header-meta">
+            <span class="detail-header-plmn">{{ selectedCarrier?.mcc }}:{{ selectedCarrier?.mnc }}</span>
+            <span v-if="countryCode" class="detail-header-code">+{{ countryCode }}</span>
+            <CountryFlag v-if="countryIso" :iso="countryIso" :size="16" class="detail-header-flag" />
+            <span v-if="countryName" class="detail-header-country">{{ countryName }}</span>
+            <span v-if="activationStatus" class="activation-status">{{ activationStatus }}</span>
+          </div>
         </div>
-        <el-button
-          v-if="detail"
-          size="small"
-          @click="openEditDialog"
-        >
-          <el-icon class="mr-1"><Edit24Regular /></el-icon>
-          <span>编辑运营商</span>
-        </el-button>
       </div>
     </div>
 
@@ -115,67 +106,12 @@ function saveEdit() {
     />
 
     <div v-else class="detail-content">
-      <!-- 配置卡片区域 -->
-      <div class="config-cards-row">
-        <CarrierConfigCard
-          type="system"
-          :active="!detail.active || !hasUserConfig"
-          :has-config="hasSystemDefault"
-          :selected="previewTarget === 'system'"
-          @click="store.setPreviewTarget('system')"
-        />
-        <CarrierConfigCard
-          type="user"
-          :active="detail.active"
-          :has-config="hasUserConfig"
-          :selected="previewTarget === 'user'"
-          @click="store.setPreviewTarget('user')"
-        />
-      </div>
-
       <!-- 编辑区 -->
       <div class="edit-area-wrap">
         <CarrierEditArea />
       </div>
     </div>
 
-    <!-- 编辑运营商信息对话框 -->
-    <el-dialog v-model="editDialogOpen" title="编辑运营商信息" width="460px" :close-on-click-modal="false">
-      <div class="space-y-4">
-        <div class="space-y-1">
-          <label class="carrier-form-label">运营商名称</label>
-          <el-input v-model="editForm.name" placeholder="例如 giffgaff UK" />
-        </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div class="space-y-1">
-            <label class="carrier-form-label">MCC</label>
-            <el-input v-model="editForm.mcc" placeholder="例如 234" />
-          </div>
-          <div class="space-y-1">
-            <label class="carrier-form-label">MNC</label>
-            <el-input v-model="editForm.mnc" placeholder="例如 10" />
-          </div>
-        </div>
-        <div class="space-y-1">
-          <label class="carrier-form-label">ePDG 地址（可选）</label>
-          <el-input v-model="editForm.ike_addr" placeholder="空则自动生成 3GPP FQDN" />
-        </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div class="space-y-1">
-            <label class="carrier-form-label">LTE TAC</label>
-            <el-input-number v-model="editForm.ims_tac" :min="0" class="!w-full" />
-          </div>
-          <div class="space-y-1">
-            <label class="carrier-form-label">LTE Cell ID</label>
-            <el-input-number v-model="editForm.ims_cell_id" :min="0" class="!w-full" />
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="editDialogOpen = false">取消</el-button>
-        <el-button type="primary" @click="saveEdit" class="!border-0">保存</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -207,6 +143,20 @@ function saveEdit() {
 .detail-header-narrow {
   display: none;
   flex: 1;
+  align-items: center;
+  gap: 8px;
+}
+
+.narrow-logo {
+  flex-shrink: 0;
+}
+
+.detail-header-narrow .el-select {
+  flex: 1;
+}
+
+.add-btn-narrow {
+  flex-shrink: 0;
 }
 
 .detail-header-wide {
@@ -249,7 +199,39 @@ function saveEdit() {
   font-size: 12px;
   color: var(--muted-foreground);
   font-family: var(--oomol-font-mono);
+}
+
+.detail-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin-top: 1px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.detail-header-code {
+  font-family: var(--oomol-font-mono);
+  color: var(--brand);
+  opacity: 0.8;
+}
+
+.detail-header-flag {
+  opacity: 0.9;
+}
+
+.detail-header-country {
+  opacity: 0.7;
+}
+
+.activation-status {
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--muted);
+  color: var(--muted-foreground);
 }
 
 /* 内容区 — 去掉 padding 让分割线贯通 */
@@ -261,36 +243,20 @@ function saveEdit() {
   overflow: hidden;
 }
 
-/* 配置卡片行 — 有 padding */
-.config-cards-row {
-  display: flex;
-  gap: 10px;
-  padding: 10px;
-  flex-shrink: 0;
-}
-
-/* 编辑区 — 填充剩余空间 */
+/* 编辑区 — 填充全部空间 */
 .edit-area-wrap {
   flex: 1;
   min-height: 0;
-  padding: 0 10px 10px;
+  padding: 10px;
 }
 
 /* 响应式：窄屏显示下拉选择器 */
 @media (max-width: 768px) {
   .detail-header-narrow {
-    display: block;
+    display: flex;
   }
   .detail-header-wide {
     display: none;
   }
-}
-
-.carrier-form-label {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--foreground);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 </style>

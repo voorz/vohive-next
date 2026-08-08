@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useCarrierStore } from '../stores/carrier'
@@ -11,14 +11,45 @@ import {
   Search24Regular
 } from '@vicons/fluent'
 import CarrierIcon from './CarrierIcon.vue'
-import { downloadIcon } from '../composables/useOperatorIcon'
+import CountryFlag from './CountryFlag.vue'
+import { downloadIcon, getCachedIcon } from '../composables/useOperatorIcon'
+import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
+
+const emit = defineEmits<{
+  'open-search': []
+}>()
+
 const store = useCarrierStore()
 const { carriers, selectedKey, loading } = storeToRefs(store)
 
 const searchText = ref('')
-const addDialogOpen = ref(false)
 
-const addForm = ref({ name: '', mcc: '', mnc: '', ike_addr: '', device_ims_tac: 0, device_ims_cell_id: 0 })
+// PLMN 索引信息
+const plmnInfoMap = ref<Record<string, PlmnInfoEntry | null>>({})
+const plmInfoLoaded = ref(false)
+
+onMounted(async () => {
+  await loadPlmnInfo()
+  plmInfoLoaded.value = true
+})
+
+// 同步刷新 plmnInfoMap
+watch([carriers, plmInfoLoaded], () => {
+  const map: Record<string, PlmnInfoEntry | null> = {}
+  for (const c of carriers.value) {
+    // 子品牌 key 如 "234-33__cmlink" 需取主网 PLMN 查找
+    const baseKey = c.key.split('__')[0]
+    map[c.key] = getPlmnInfo(baseKey)
+  }
+  plmnInfoMap.value = map
+}, { immediate: true })
+
+function getCountryIso(key: string): string {
+  return plmnInfoMap.value[key]?.country?.iso || ''
+}
+function getCountryCode(key: string): string {
+  return plmnInfoMap.value[key]?.country?.code || ''
+}
 
 const filteredCarriers = computed(() => {
   const q = searchText.value.trim().toLowerCase()
@@ -35,35 +66,28 @@ function handleSelect(key: string) {
   store.selectCarrier(key)
 }
 
-async function handleAdd() {
-  const form = addForm.value
-  if (!form.name.trim() || !form.mcc.trim() || !form.mnc.trim()) {
-    ElMessage.warning('请填写运营商名称、MCC 和 MNC')
-    return
+async function handleAddCarriers(plmns: string[]) {
+  const ok = await store.addCarriersFromIndex(plmns)
+  if (ok) {
+    ElMessage.success(`已添加 ${plmns.length} 个运营商`)
+    // 后台批量下载图标
+    for (const c of store.carriers) {
+      if (plmns.includes(c.key) || plmns.includes(`${c.mcc}-${c.mnc}`)) {
+        if (!getCachedIcon(c.mcc, c.mnc, c.name)) {
+          downloadIcon(c.mcc, c.mnc, c.name).then(result => {
+            if (result) {
+              window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc: c.mcc, mnc: c.mnc } }))
+            }
+          })
+        }
+      }
+    }
   }
-  const ok = await store.addCarrier(
-    form.name.trim(),
-    form.mcc.trim(),
-    form.mnc.trim(),
-    form.ike_addr.trim(),
-    form.device_ims_tac,
-    form.device_ims_cell_id
-  )
-if (ok) {
-ElMessage.success('运营商已添加')
-addDialogOpen.value = false
-// 后台自动下载运营商图标
-const mcc = form.mcc.trim(), mnc = form.mnc.trim()
-downloadIcon(mcc, mnc, form.name.trim()).then(() => {
-window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc, mnc } }))
-})
-addForm.value = { name: '', mcc: '', mnc: '', ike_addr: '', device_ims_tac: 0, device_ims_cell_id: 0 }
-}
 }
 
 async function handleDelete(key: string, name: string) {
   const confirmed = await ElMessageBox.confirm(
-    `确定移除运营商「${name}」(${key})？\n该操作会同时删除其用户配置模板。`,
+    `确定移除运营商「${name}」(${key})？\n该操作仅从列表移除，不删除模板，可重新添加。`,
     '确认移除运营商',
     { confirmButtonText: '移除', cancelButtonText: '取消', type: 'warning' }
   ).then(() => true).catch(() => false)
@@ -75,7 +99,7 @@ async function handleDelete(key: string, name: string) {
 
 <template>
   <div class="carrier-list-panel">
-    <!-- 搜索栏 -->
+    <!-- 搜索栏 + 添加按钮 -->
     <div class="list-search">
       <el-input
         v-model="searchText"
@@ -87,11 +111,7 @@ async function handleDelete(key: string, name: string) {
           <el-icon><Search24Regular /></el-icon>
         </template>
       </el-input>
-    </div>
-
-    <!-- 操作按钮 -->
-    <div class="list-actions">
-      <el-button size="small" type="primary" @click="addDialogOpen = true" class="!border-0">
+      <el-button size="small" type="primary" @click="emit('open-search')" class="!border-0 add-btn">
         <el-icon class="mr-1"><Add24Regular /></el-icon>
         <span>添加</span>
       </el-button>
@@ -104,7 +124,7 @@ async function handleDelete(key: string, name: string) {
       <EmptyState
         v-else-if="filteredCarriers.length === 0"
         title="暂无运营商"
-        subtitle="点击「添加」创建运营商配置"
+        subtitle="点击「添加」搜索并添加运营商"
       />
 
       <div v-else class="carrier-cards">
@@ -118,16 +138,20 @@ async function handleDelete(key: string, name: string) {
           <CarrierIcon :mcc="item.mcc" :mnc="item.mnc" :name="item.name" :size="28" />
           <div class="carrier-card-info">
             <div class="carrier-card-name">{{ item.name }}</div>
-            <div class="carrier-card-plmn">{{ item.mcc }}:{{ item.mnc }}</div>
+            <div class="carrier-card-meta">
+              <span class="carrier-card-plmn">{{ item.mcc }}:{{ item.mnc }}</span>
+              <span v-if="getCountryCode(item.key)" class="carrier-card-code">+{{ getCountryCode(item.key) }}</span>
+              <CountryFlag v-if="getCountryIso(item.key)" :iso="getCountryIso(item.key)" :size="14" class="carrier-card-flag" />
+              <span v-if="getCountryIso(item.key)" class="carrier-card-iso">{{ getCountryIso(item.key) }}</span>
+            </div>
           </div>
           <div class="carrier-card-badges">
-            <span v-if="item.active" class="badge-dot active" title="用户配置启用中" />
-            <span v-else-if="item.has_user_config" class="badge-dot idle" title="有用户配置（未启用）" />
-            <span v-if="item.has_system_default" class="badge-dot system" title="有系统默认" />
+            <span v-if="item.active" class="badge-dot active" title="用户自定义模板生效" />
+            <span v-else-if="item.has_system_default" class="badge-dot system" title="系统默认模板生效" />
+            <span v-else class="badge-dot none" title="无模板配置" />
           </div>
           <div class="carrier-card-actions">
             <button
-              v-if="!item.has_system_default"
               class="carrier-card-delete"
               title="移除运营商"
               @click.stop="handleDelete(item.key, item.name)"
@@ -139,43 +163,6 @@ async function handleDelete(key: string, name: string) {
       </div>
     </div>
 
-    <!-- 添加运营商对话框 -->
-    <el-dialog v-model="addDialogOpen" title="添加运营商" width="460px" :close-on-click-modal="false">
-      <div class="space-y-4">
-        <div class="space-y-1">
-          <label class="carrier-form-label">运营商名称</label>
-          <el-input v-model="addForm.name" placeholder="例如 giffgaff UK" />
-        </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div class="space-y-1">
-            <label class="carrier-form-label">MCC</label>
-            <el-input v-model="addForm.mcc" placeholder="例如 234" />
-          </div>
-          <div class="space-y-1">
-            <label class="carrier-form-label">MNC</label>
-            <el-input v-model="addForm.mnc" placeholder="例如 10" />
-          </div>
-        </div>
-        <div class="space-y-1">
-          <label class="carrier-form-label">ePDG 地址（可选）</label>
-          <el-input v-model="addForm.ike_addr" placeholder="空则自动生成 3GPP FQDN" />
-        </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div class="space-y-1">
-            <label class="carrier-form-label">LTE TAC</label>
-            <el-input-number v-model="addForm.device_ims_tac" :min="0" class="!w-full" />
-          </div>
-          <div class="space-y-1">
-            <label class="carrier-form-label">LTE Cell ID</label>
-            <el-input-number v-model="addForm.device_ims_cell_id" :min="0" class="!w-full" />
-          </div>
-        </div>
-      </div>
-      <template #footer>
-        <el-button @click="addDialogOpen = false">取消</el-button>
-        <el-button type="primary" @click="handleAdd" class="!border-0">添加</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -192,21 +179,20 @@ async function handleDelete(key: string, name: string) {
 }
 
 .list-search {
-  height: 60px;
   display: flex;
   align-items: center;
+  gap: 8px;
+  height: 60px;
   padding: 0 12px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 
-.list-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 44px;
-  padding: 0 12px;
-  border-bottom: 1px solid var(--border);
+.list-search .el-input {
+  flex: 1;
+}
+
+.add-btn {
   flex-shrink: 0;
 }
 
@@ -261,7 +247,31 @@ async function handleDelete(key: string, name: string) {
   font-size: 11px;
   color: var(--muted-foreground);
   font-family: var(--oomol-font-mono);
+}
+
+.carrier-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin-top: 1px;
+}
+
+.carrier-card-code {
+  font-size: 11px;
+  font-family: var(--oomol-font-mono);
+  color: var(--brand);
+  opacity: 0.8;
+}
+
+.carrier-card-flag {
+  opacity: 0.9;
+}
+
+.carrier-card-iso {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  opacity: 0.7;
+  font-family: var(--oomol-font-mono);
 }
 
 .carrier-card-badges {
@@ -278,17 +288,16 @@ async function handleDelete(key: string, name: string) {
 }
 
 .badge-dot.active {
-  background: var(--success);
-}
-
-.badge-dot.idle {
-  background: var(--warning);
-  opacity: 0.6;
+  background: var(--brand);
 }
 
 .badge-dot.system {
-  background: var(--info);
-  opacity: 0.5;
+  background: var(--warning);
+}
+
+.badge-dot.none {
+  background: var(--muted-foreground);
+  opacity: 0.3;
 }
 
 .carrier-card-actions {
