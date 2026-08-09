@@ -44,7 +44,7 @@
   /* 语义色 */
   --brand: rgb(0, 188, 125);
   --brand-foreground: rgb(255, 255, 255);
-  --destructive: rgb(226, 0, 89);
+  --destructive: rgb(255, 59, 48);
   --info: rgb(59, 99, 251);
   --reward: rgb(252, 125, 0);
   --success: rgb(0, 188, 125);
@@ -159,7 +159,7 @@ html.dark {
   /* 语义色 — 暗色 */
   --brand: rgb(0, 188, 125);
   --brand-foreground: rgb(255, 255, 255);
-  --destructive: rgb(226, 0, 89);
+  --destructive: rgb(255, 59, 48);
   --info: rgb(64, 105, 253);
   --reward: rgb(218, 159, 0);
   --success: rgb(0, 188, 125);

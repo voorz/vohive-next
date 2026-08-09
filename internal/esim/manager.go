@@ -239,6 +239,10 @@ type ProfileItem struct {
 	State               int    `json:"state"` // 0=disabled, 1=enabled
 	StateText           string `json:"state_text"`
 	ClassText           string `json:"class_text,omitempty"`
+	MCC                 string `json:"mcc,omitempty"`
+	MNC                 string `json:"mnc,omitempty"`
+	GID1                string `json:"gid1,omitempty"`
+	GID2                string `json:"gid2,omitempty"`
 }
 
 // EUICCProfiles 按 eUICC 分组的 profile 列表
@@ -398,6 +402,7 @@ var basicProfileTags = []bertlv.Tag{
 	sgp22.TagServiceProviderName,
 	sgp22.TagProfileName,
 	sgp22.TagProfileClass,
+	sgp22.TagProfileOwner,
 }
 
 func listBasicProfiles(client *lpa.Client) ([]*sgp22.ProfileInfo, error) {
@@ -1656,6 +1661,10 @@ func buildProfileGroup(eidStr string, aid []byte, profiles []*sgp22.ProfileInfo)
 			State:               int(p.ProfileState),
 			StateText:           stateText,
 			ClassText:           p.ProfileClass.String(),
+			MCC:                 p.ProfileOwner.MCC(),
+			MNC:                 p.ProfileOwner.MNC(),
+			GID1:                hex.EncodeToString(p.ProfileOwner.GID1),
+			GID2:                hex.EncodeToString(p.ProfileOwner.GID2),
 		})
 	}
 	return group

@@ -1,0 +1,377 @@
+/*
+<!-- https://uiverse.io/pharmacist-sabot/fluffy-chicken-82 --> 
+<div class="winamp-player-container">
+  <div class="player-header">
+    <div class="header-bars"></div>
+    <span class="header-title">PREFERENCES // AUDIO_MODE</span>
+  </div>
+
+  <div class="radio-stack">
+    <label class="track-select" for="track-1">
+      <input type="radio" id="track-1" name="winamp-mode" checked="" />
+      <div class="led-indicator">
+        <div class="led-glass"></div>
+        <div class="led-light"></div>
+        <div class="led-reflection"></div>
+      </div>
+      <div class="track-info">
+        <span class="track-title">WINAMP CLASSIC</span>
+        <span class="track-kbps">128kbps</span>
+      </div>
+      <div class="equalizer-mini">
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+      </div>
+    </label>
+
+    <label class="track-select" for="track-2">
+      <input type="radio" id="track-2" name="winamp-mode" />
+      <div class="led-indicator">
+        <div class="led-glass"></div>
+        <div class="led-light"></div>
+        <div class="led-reflection"></div>
+      </div>
+      <div class="track-info">
+        <span class="track-title">XMMS RETRO</span>
+        <span class="track-kbps">192kbps</span>
+      </div>
+      <div class="equalizer-mini">
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+      </div>
+    </label>
+
+    <label class="track-select" for="track-3">
+      <input type="radio" id="track-3" name="winamp-mode" />
+      <div class="led-indicator">
+        <div class="led-glass"></div>
+        <div class="led-light"></div>
+        <div class="led-reflection"></div>
+      </div>
+      <div class="track-info">
+        <span class="track-title">MEDIA PLAYER</span>
+        <span class="track-kbps">320kbps</span>
+      </div>
+      <div class="equalizer-mini">
+        <div class="bar"></div>
+        <div class="bar"></div>
+        <div class="bar"></div>
+      </div>
+    </label>
+  </div>
+
+  <div class="screen-overlay"></div>
+</div>
+
+*/
+
+/* From Uiverse.io by pharmacist-sabot */ 
+/* Component Scoped Variables & Base */
+.winamp-player-container {
+  --base-metal: #2a2a2e;
+  --base-dark: #1a1a1d;
+  --accent-gold: #ffb700;
+  --neon-green: #00ff00;
+  --neon-green-dim: #004d00;
+  --glass-reflection: rgba(255, 255, 255, 0.15);
+  --font-main: "Courier New", monospace;
+
+  position: relative;
+  width: 320px;
+  background-color: var(--base-metal);
+  background-image: linear-gradient(
+      90deg,
+      transparent 50%,
+      rgba(0, 0, 0, 0.2) 50%
+    ),
+    linear-gradient(0deg, #333 0%, #222 100%);
+  background-size:
+    4px 4px,
+    100% 100%;
+  border: 2px solid #555;
+  border-bottom: 2px solid #111;
+  border-right: 2px solid #111;
+  border-radius: 6px;
+  padding: 6px;
+  box-shadow:
+    inset 1px 1px 0 rgba(255, 255, 255, 0.2),
+    0 10px 20px rgba(0, 0, 0, 0.5);
+  font-family: var(--font-main);
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Header Section */
+.player-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #000;
+  padding: 4px 8px;
+  margin-bottom: 8px;
+  border-radius: 2px;
+  border: 1px solid #444;
+}
+
+.header-bars {
+  width: 12px;
+  height: 8px;
+  background: repeating-linear-gradient(
+    90deg,
+    #666 0,
+    #666 2px,
+    transparent 2px,
+    transparent 4px
+  );
+}
+
+.header-title {
+  font-size: 10px;
+  color: #888;
+  letter-spacing: 1px;
+  font-weight: bold;
+}
+
+/* Radio Stack Layout */
+.radio-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: #111;
+  padding: 4px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.8);
+}
+
+/* Individual Track (Label) */
+.track-select {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  cursor: pointer;
+  background: linear-gradient(180deg, #222 0%, #1a1a1a 100%);
+  border: 1px solid #333;
+  transition: all 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.track-select:hover {
+  background: linear-gradient(180deg, #2a2a2a 0%, #202020 100%);
+  border-color: #555;
+}
+
+.track-select:active {
+  transform: translateY(1px);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.5);
+  border-top-color: #111;
+}
+
+/* Hidden Input */
+.track-select input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+/* LED Indicator Design */
+.led-indicator {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  background: #000;
+  border-radius: 50%;
+  box-shadow:
+    inset 0 1px 3px rgba(0, 0, 0, 1),
+    0 1px 0 rgba(255, 255, 255, 0.1);
+  border: 1px solid #333;
+}
+
+.led-light {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 8px;
+  height: 8px;
+  background-color: var(--neon-green-dim);
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  box-shadow: inset 0 0 2px rgba(0, 0, 0, 0.5);
+}
+
+.led-glass {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 30% 30%,
+    rgba(255, 255, 255, 0.2),
+    transparent 60%
+  );
+  z-index: 2;
+}
+
+/* Checked State for LED */
+.track-select input:checked ~ .led-indicator .led-light {
+  background-color: var(--neon-green);
+  box-shadow:
+    0 0 5px var(--neon-green),
+    0 0 10px var(--neon-green),
+    inset 0 0 2px rgba(255, 255, 255, 0.5);
+  animation: led-flicker 0.4s ease-out forwards;
+}
+
+/* Track Info Typography */
+.track-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+}
+
+.track-title {
+  color: #666;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-shadow: 1px 1px 0 #000;
+  transition: color 0.3s;
+}
+
+.track-kbps {
+  font-size: 9px;
+  color: #444;
+}
+
+/* Checked State for Text */
+.track-select input:checked ~ .track-info .track-title {
+  color: var(--neon-green);
+  text-shadow: 0 0 8px rgba(0, 255, 0, 0.4);
+}
+
+.track-select input:checked ~ .track-info .track-title::after {
+  content: "_";
+  display: inline-block;
+  animation: cursor-blink 1s step-end infinite;
+}
+
+.track-select input:checked ~ .track-info .track-kbps {
+  color: var(--accent-gold);
+}
+
+/* Mini Equalizer Animation */
+.equalizer-mini {
+  display: flex;
+  gap: 2px;
+  align-items: flex-end;
+  height: 12px;
+  opacity: 0.2;
+  transition: opacity 0.3s;
+}
+
+.bar {
+  width: 3px;
+  background: var(--neon-green);
+  height: 20%;
+}
+
+.track-select input:checked ~ .equalizer-mini {
+  opacity: 1;
+}
+
+.track-select input:checked ~ .equalizer-mini .bar:nth-child(1) {
+  animation: eq-bounce 0.8s infinite ease-in-out;
+}
+.track-select input:checked ~ .equalizer-mini .bar:nth-child(2) {
+  animation: eq-bounce 1.1s infinite ease-in-out 0.2s;
+}
+.track-select input:checked ~ .equalizer-mini .bar:nth-child(3) {
+  animation: eq-bounce 0.9s infinite ease-in-out 0.4s;
+}
+
+/* Focus State Accessibility */
+.track-select:has(input:focus-visible) {
+  outline: 2px solid var(--accent-gold);
+  outline-offset: -2px;
+  z-index: 10;
+}
+
+/* Overlay Effects */
+.screen-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+  background-size: 100% 4px;
+  z-index: 50;
+  opacity: 0.6;
+}
+
+.winamp-player-container::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(
+    circle,
+    rgba(255, 255, 255, 0) 60%,
+    rgba(0, 0, 0, 0.4) 100%
+  );
+  pointer-events: none;
+  z-index: 51;
+}
+
+/* Keyframe Animations */
+@keyframes cursor-blink {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes led-flicker {
+  0% {
+    opacity: 0.5;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  20% {
+    opacity: 1;
+  }
+  40% {
+    opacity: 0.2;
+  }
+  60% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes eq-bounce {
+  0%,
+  100% {
+    height: 20%;
+  }
+  50% {
+    height: 100%;
+    background: var(--accent-gold);
+  }
+}

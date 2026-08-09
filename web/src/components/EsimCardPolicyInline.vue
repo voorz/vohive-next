@@ -21,7 +21,6 @@ const policy = ref<CardPolicy | null>(null)
 const loadFailed = ref(false)
 const loading = ref(false)
 
-// 激活卡 + 设备在线 → live 热切换；否则 stored 存储（激活/上线后生效）
 const mode = computed<'live' | 'stored'>(() =>
   props.isActiveCard && props.deviceOnline ? 'live' : 'stored'
 )
@@ -56,7 +55,6 @@ async function loadPolicy() {
 
 onMounted(loadPolicy)
 
-// stored 执行器：PUT 互斥后的完整三元组
 async function putTriple(next: PolicyMirror): Promise<{ ok: boolean }> {
   const r = await cardsService.putPolicy(props.iccid, {
     network_enabled: next.network_enabled,
@@ -107,57 +105,144 @@ const {
 </script>
 
 <template>
-  <div class="px-4 py-3 bg-gray-50/60 dark:bg-white/5 rounded-lg space-y-3">
-    <div v-if="loading" class="text-xs text-gray-400 flex items-center gap-1">
-      <el-icon class="animate-spin"><Loading /></el-icon> 正在加载策略...
+  <div class="policy-inline">
+    <div v-if="loading" class="policy-loading">
+      <el-icon class="animate-spin"><Loading /></el-icon>
+      <span>正在加载策略...</span>
     </div>
-    <div v-else-if="loadFailed" class="text-xs text-orange-500 flex items-center gap-2">
-      策略加载失败
+    <div v-else-if="loadFailed" class="policy-failed">
+      <span>策略加载失败</span>
       <el-button size="small" text @click="loadPolicy">重试</el-button>
     </div>
     <template v-else>
-      <div v-if="hint" class="text-[11px] text-amber-600 dark:text-amber-400">{{ hint }}</div>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-        <!-- 网络 -->
-        <div class="flex items-center justify-between rounded-lg px-3 py-2 bg-white dark:bg-white/5">
-          <span class="text-sm text-gray-700 dark:text-gray-200">网络</span>
-          <div class="flex items-center gap-2">
-            <span v-if="networkFailed" class="text-xs text-orange-500">未生效</span>
-            <el-icon v-if="networkPending" class="animate-spin text-gray-400"><Loading /></el-icon>
-            <el-switch
-              v-model="local.network_enabled"
-              :disabled="local.vowifi_enabled || local.airplane_enabled || networkPending"
-              @change="onNetworkToggle"
-            />
-          </div>
+      <div v-if="hint" class="policy-hint">{{ hint }}</div>
+      <!-- 网络 -->
+      <div class="form-switch-row">
+        <div>
+          <div class="switch-title">网络</div>
+          <div class="switch-desc">启用蜂窝数据连接</div>
         </div>
-        <!-- VoWiFi -->
-        <div class="flex items-center justify-between rounded-lg px-3 py-2 bg-white dark:bg-white/5">
-          <span class="text-sm text-gray-700 dark:text-gray-200">VoWiFi</span>
-          <div class="flex items-center gap-2">
-            <span v-if="vowifiFailed" class="text-xs text-orange-500">未生效</span>
-            <el-icon v-if="vowifiPending" class="animate-spin text-gray-400"><Loading /></el-icon>
-            <el-switch
-              v-model="local.vowifi_enabled"
-              :disabled="vowifiPending"
-              @change="onVoWiFiToggle"
-            />
-          </div>
+        <div class="switch-action">
+          <span v-if="networkFailed" class="switch-failed">未生效</span>
+          <el-icon v-if="networkPending" class="animate-spin switch-pending"><Loading /></el-icon>
+          <el-switch
+            v-model="local.network_enabled"
+            :disabled="local.vowifi_enabled || local.airplane_enabled || networkPending"
+            :class="{ 'is-failed': networkFailed }"
+            @change="onNetworkToggle"
+          />
         </div>
-        <!-- 飞行 -->
-        <div class="flex items-center justify-between rounded-lg px-3 py-2 bg-white dark:bg-white/5">
-          <span class="text-sm text-gray-700 dark:text-gray-200">飞行</span>
-          <div class="flex items-center gap-2">
-            <span v-if="airplaneFailed" class="text-xs text-orange-500">未生效</span>
-            <el-icon v-if="airplanePending" class="animate-spin text-gray-400"><Loading /></el-icon>
-            <el-switch
-              v-model="local.airplane_enabled"
-              :disabled="local.vowifi_enabled || airplanePending"
-              @change="onAirplaneToggle"
-            />
-          </div>
+      </div>
+      <!-- VoWiFi -->
+      <div class="form-switch-row">
+        <div>
+          <div class="switch-title">VoWiFi</div>
+          <div class="switch-desc">通过 WiFi 网络进行语音通话</div>
+        </div>
+        <div class="switch-action">
+          <span v-if="vowifiFailed" class="switch-failed">未生效</span>
+          <el-icon v-if="vowifiPending" class="animate-spin switch-pending"><Loading /></el-icon>
+          <el-switch
+            v-model="local.vowifi_enabled"
+            :disabled="vowifiPending"
+            :class="{ 'is-failed': vowifiFailed }"
+            @change="onVoWiFiToggle"
+          />
+        </div>
+      </div>
+      <!-- 飞行模式 -->
+      <div class="form-switch-row">
+        <div>
+          <div class="switch-title">飞行模式</div>
+          <div class="switch-desc">断开所有无线连接</div>
+        </div>
+        <div class="switch-action">
+          <span v-if="airplaneFailed" class="switch-failed">未生效</span>
+          <el-icon v-if="airplanePending" class="animate-spin switch-pending"><Loading /></el-icon>
+          <el-switch
+            v-model="local.airplane_enabled"
+            :disabled="local.vowifi_enabled || airplanePending"
+            :class="{ 'is-failed': airplaneFailed }"
+            @change="onAirplaneToggle"
+          />
         </div>
       </div>
     </template>
   </div>
 </template>
+
+<style scoped>
+.policy-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.policy-loading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+
+.policy-failed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  font-size: 12px;
+  color: #f59e0b;
+}
+
+.policy-hint {
+  font-size: 11px;
+  color: #f59e0b;
+  padding: 0 2px;
+}
+
+/* switch-row — 参照 ModuleCardPolicy .form-switch-row */
+.form-switch-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+
+.switch-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.switch-desc {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  margin-top: 1px;
+}
+
+.switch-action {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.switch-failed {
+  font-size: 10px;
+  color: #f59e0b;
+}
+
+.switch-pending {
+  color: var(--muted-foreground);
+}
+
+.is-failed :deep(.el-switch__core) {
+  border-color: var(--destructive) !important;
+}
+</style>
