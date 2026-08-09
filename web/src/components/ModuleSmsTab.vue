@@ -492,24 +492,37 @@ onMounted(() => {
             </div>
           </template>
         </template>
-      </div>
 
-      <!-- 输入栏 -->
-      <div class="sms-input-bar">
+      <!-- 浮动输入框 -->
+      <div class="sms-message-box">
         <input
           v-model="composer"
-          class="sms-input-field"
-          placeholder="输入消息"
+          class="sms-message-input"
+          placeholder="Message..."
           @keydown="handleKeydown"
           :disabled="sending"
+          required
         />
         <button
-          class="sms-send-btn"
+          class="sms-message-send"
           :disabled="!composer.trim() || sending || (view === 'new' && !newPeer.trim())"
           @click="handleSend"
         >
-          <span>发送</span>
+          <svg viewBox="0 0 664 663" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M646.293 331.888L17.7538 17.6187L155.245 331.888M646.293 331.888L17.753 646.157L155.245 331.888M646.293 331.888L318.735 330.228L155.245 331.888"
+              fill="none"
+            ></path>
+            <path
+              d="M646.293 331.888L17.7538 17.6187L155.245 331.888M646.293 331.888L17.753 646.157L155.245 331.888M646.293 331.888L318.735 330.228L155.245 331.888"
+              stroke="currentColor"
+              stroke-width="33.67"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            ></path>
+          </svg>
         </button>
+      </div>
       </div>
     </template>
   </div>
@@ -839,7 +852,7 @@ onMounted(() => {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 12px 14px;
+  padding: 12px 14px 8px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1042,5 +1055,81 @@ onMounted(() => {
 .sms-send-btn:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+/* 浮动输入框 (big-goose-56 style) */
+.sms-message-box {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--muted);
+  padding: 0 15px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  height: 40px;
+  margin: auto 0 0;
+  flex-shrink: 0;
+  transition: border-color 0.2s;
+}
+
+.sms-message-box:focus-within {
+  border-color: var(--brand);
+}
+
+.sms-message-input {
+  flex: 1;
+  height: 100%;
+  background-color: transparent;
+  outline: none;
+  border: none;
+  padding-left: 10px;
+  color: var(--foreground);
+  font-size: 13px;
+}
+
+.sms-message-input::placeholder {
+  color: var(--muted-foreground);
+}
+
+.sms-message-input:focus ~ .sms-message-send svg path,
+.sms-message-input:valid ~ .sms-message-send svg path {
+  fill: var(--accent);
+  stroke: var(--foreground);
+}
+
+.sms-message-send {
+  width: fit-content;
+  height: 100%;
+  background-color: transparent;
+  outline: none;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s;
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+}
+
+.sms-message-send svg {
+  height: 18px;
+  transition: all 0.3s;
+}
+
+.sms-message-send svg path {
+  transition: all 0.3s;
+}
+
+.sms-message-send:not(:disabled):hover svg path {
+  fill: var(--brand);
+  stroke: var(--foreground);
+}
+
+.sms-message-send:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
 }
 </style>

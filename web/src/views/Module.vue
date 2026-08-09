@@ -49,6 +49,9 @@ onMounted(async () => {
 watch(selectedId, async (id) => {
   if (id) {
     await store.fetchDetail(id)
+  } else {
+    // 清空选中时也需要清空详情
+    detail.value = null
   }
 })
 
@@ -66,6 +69,11 @@ async function handleAddDevices(deviceIds: string[]) {
     selectedId.value = list.value[0].id
   }
 }
+
+function handleDeviceDeleted() {
+  selectedId.value = ''
+  void store.fetchList()
+}
 </script>
 
 <template>
@@ -79,7 +87,7 @@ async function handleAddDevices(deviceIds: string[]) {
 
       <!-- 中栏：详情页 -->
       <div class="module-col-detail">
-        <ModuleDetailPanel :selected-id="selectedId" />
+        <ModuleDetailPanel :selected-id="selectedId" @device-deleted="handleDeviceDeleted" />
 
         <!-- 预览按钮（中窄屏浮动） -->
         <button

@@ -13,6 +13,10 @@ const props = defineProps<{
   device?: DeviceOverviewItem
 }>()
 
+const emit = defineEmits<{
+  'device-deleted': []
+}>()
+
 const devicesStore = useDevicesStore()
 const { config: storeConfig } = storeToRefs(devicesStore)
 
@@ -110,6 +114,7 @@ async function handleDelete() {
     const result = await devicesService.deleteManaged(props.deviceId)
     if (!result.ok) throw new Error(result.error.message || '删除失败')
     ElMessage.success('设备已删除')
+    emit('device-deleted')
   } catch (e: unknown) {
     ElMessage.error(e instanceof Error ? e.message : '删除失败')
   } finally {

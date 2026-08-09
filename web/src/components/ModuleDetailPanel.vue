@@ -25,6 +25,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'open-search': []
   'select': [id: string]
+  'device-deleted': []
 }>()
 
 const store = useDevicesStore()
@@ -154,6 +155,10 @@ const tabs = [
 function initials(name: string): string {
   return name.charAt(0).toUpperCase()
 }
+
+function onDeviceDeleted() {
+  emit('device-deleted')
+}
 </script>
 
 <template>
@@ -277,7 +282,7 @@ function initials(name: string): string {
 
         <!-- 配置 -->
         <div v-else-if="activeTab === 'config'" class="tab-pane">
-          <ModuleConfigForm :device-id="detail.id" :device="detail" />
+          <ModuleConfigForm :device-id="detail.id" :device="detail" @device-deleted="onDeviceDeleted" />
         </div>
       </div>
         </div>
