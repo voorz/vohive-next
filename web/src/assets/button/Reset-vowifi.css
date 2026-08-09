@@ -1,0 +1,65 @@
+/* From Uiverse.io by mrhyddenn
+   重启 VoWiFi 倾斜按钮
+   使用示例:
+   <button class="vowifi-reset-btn">
+     <span class="vr-text">重启 VoWiFi</span>
+   </button>
+*/
+
+.vowifi-reset-btn {
+  position: relative;
+  background: #fff;
+  color: #000;
+  border: none;
+  padding: 7px 16px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  cursor: pointer;
+  transform: skew(-21deg);
+  overflow: hidden;
+  border-radius: 2px;
+}
+
+.vowifi-reset-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.vr-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transform: skew(21deg);
+  white-space: nowrap;
+}
+
+.vowifi-reset-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 100%;
+  left: 0;
+  background: rgb(20, 20, 20);
+  opacity: 0;
+  z-index: 0;
+  transition: all 0.5s;
+}
+
+.vr-text > * {
+  position: relative;
+  z-index: 1;
+}
+
+.vowifi-reset-btn:not(:disabled):hover {
+  color: #fff;
+}
+
+.vowifi-reset-btn:not(:disabled):hover::before {
+  left: 0;
+  right: 0;
+  opacity: 1;
+}

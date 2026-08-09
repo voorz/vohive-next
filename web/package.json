@@ -17,6 +17,7 @@
     "@vicons/fluent": "^0.13.0",
     "@vicons/ionicons5": "^0.13.0",
     "@vicons/material": "^0.13.0",
+    "@vicons/tabler": "^0.13.0",
     "axios": "^1.13.2",
     "codemirror": "^6.0.2",
     "echarts": "^6.0.0",

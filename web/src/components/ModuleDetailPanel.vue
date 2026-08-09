@@ -6,8 +6,14 @@ import ListSkeleton from './ListSkeleton.vue'
 import EmptyState from './EmptyState.vue'
 import CountryFlag from './CountryFlag.vue'
 import CarrierIcon from './CarrierIcon.vue'
+import ModuleAtTerminal from './ModuleAtTerminal.vue'
+import ModuleUssdTerminal from './ModuleUssdTerminal.vue'
+import ModuleCardPolicy from './ModuleCardPolicy.vue'
+import ModuleConfigForm from './ModuleConfigForm.vue'
 import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
-import { ArrowSync24Regular, Board24Regular, WindowConsole20Regular, Chat24Regular, Sim24Regular, Settings24Regular } from '@vicons/fluent'
+import { ArrowSync24Regular } from '@vicons/fluent'
+import { cardsService } from '../services/cards'
+import type { CardPolicy } from '../types/api'
 
 const props = defineProps<{
   selectedId?: string
@@ -54,16 +60,36 @@ const countryIso = computed(() => plmnInfo.value?.country?.iso || '')
 const countryCode = computed(() => plmnInfo.value?.country?.code || '')
 const nativeSpn = computed(() => detail.value?.modem?.native_spn || '')
 
+// 卡策略
+const cardPolicy = ref<CardPolicy | null>(null)
+
+async function fetchCardPolicy(iccid: string | undefined) {
+  if (!iccid) {
+    cardPolicy.value = null
+    return
+  }
+  const result = await cardsService.getPolicy(iccid)
+  if (result.ok) {
+    cardPolicy.value = result.data
+  }
+}
+
+watch(() => detail.value?.modem?.iccid, (iccid) => { void fetchCardPolicy(iccid) }, { immediate: true })
+
+async function onCardPolicyChanged() {
+  await fetchCardPolicy(detail.value?.modem?.iccid)
+}
+
 // 当前 Tab
 const activeTab = ref('overview')
 
 // Tab 列表
 const tabs = [
-  { name: 'overview', label: '概览', icon: Board24Regular },
-  { name: 'at', label: 'AT终端', icon: WindowConsole20Regular },
-  { name: 'ussd', label: 'USSD', icon: Chat24Regular },
-  { name: 'card', label: '卡策略', icon: Sim24Regular },
-  { name: 'config', label: '配置', icon: Settings24Regular }
+  { name: 'overview', label: '概览' },
+  { name: 'at', label: 'AT终端' },
+  { name: 'ussd', label: 'USSD' },
+  { name: 'card', label: '卡策略' },
+  { name: 'config', label: '配置' }
 ]
 
 function initials(name: string): string {
@@ -124,10 +150,12 @@ function initials(name: string): string {
           <span class="vowifi-status-dot" :class="{ on: detail.vowifi_enabled }" />
           <span class="vowifi-status-text">{{ detail.vowifi_enabled ? '已启用' : '未启用' }}</span>
         </div>
-        <el-button size="small" :disabled="!detail.vowifi_enabled">
-          <el-icon class="mr-1"><ArrowSync24Regular /></el-icon>
-          <span>重启 VoWiFi</span>
-        </el-button>
+        <button class="vowifi-reset-btn" :disabled="!detail.vowifi_enabled">
+          <span class="vr-text">
+            <el-icon size="14"><ArrowSync24Regular /></el-icon>
+            <span>重启 VoWiFi</span>
+          </span>
+        </button>
       </div>
 
       <!-- Tab 切换 -->
@@ -139,7 +167,6 @@ function initials(name: string): string {
           :class="{ active: activeTab === tab.name }"
           @click="activeTab = tab.name"
         >
-          <el-icon size="14"><component :is="tab.icon" /></el-icon>
           <span>{{ tab.label }}</span>
         </button>
       </div>
@@ -155,30 +182,36 @@ function initials(name: string): string {
 
         <!-- AT 终端 -->
         <div v-else-if="activeTab === 'at'" class="tab-pane">
-          <div class="content-placeholder">
-            AT 终端
-          </div>
+          <ModuleAtTerminal
+            :device-id="detail.id"
+            :backend-mode="detail.backend_mode"
+            :at-port="detail.at_port"
+            :running="detail.running"
+          />
         </div>
 
         <!-- USSD -->
         <div v-else-if="activeTab === 'ussd'" class="tab-pane">
-          <div class="content-placeholder">
-            USSD 终端
-          </div>
+          <ModuleUssdTerminal
+            :device-id="detail.id"
+            :vowifi-active="detail.vowifi_enabled"
+          />
         </div>
 
         <!-- 卡策略 -->
         <div v-else-if="activeTab === 'card'" class="tab-pane">
-          <div class="content-placeholder">
-            卡策略
-          </div>
+          <ModuleCardPolicy
+            :device-id="detail.id"
+            :iccid="detail.modem?.iccid"
+            :policy="cardPolicy"
+            :device-online="detail.running"
+            @policy-changed="onCardPolicyChanged"
+          />
         </div>
 
         <!-- 配置 -->
         <div v-else-if="activeTab === 'config'" class="tab-pane">
-          <div class="content-placeholder">
-            设备配置
-          </div>
+          <ModuleConfigForm :device-id="detail.id" :device="detail" />
         </div>
       </div>
         </div>
@@ -196,6 +229,8 @@ function initials(name: string): string {
 </template>
 
 <style scoped>
+@import '../assets/button/Reset-vowifi.css';
+
 .module-detail-panel {
   display: flex;
   flex-direction: column;
@@ -433,6 +468,8 @@ function initials(name: string): string {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  height: 100%;
+  min-height: 0;
 }
 
 .content-placeholder {

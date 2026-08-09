@@ -1,0 +1,690 @@
+/*
+<!-- From Uiverse.io by code-town3 --> 
+<div class="stat-card">
+  <div class="stat-card-header">
+    <div class="stat-card-title">Monthly Revenue</div>
+    <div class="menu-wrapper">
+      <input class="menu-toggle" id="menu-toggle" type="checkbox" />
+      <label class="menu-dots" for="menu-toggle">
+        <span></span>
+        <span></span>
+        <span></span>
+      </label>
+      <div class="menu-select">
+        <div>View</div>
+        <div>Edit</div>
+        <div>Delete</div>
+      </div>
+    </div>
+  </div>
+  <div class="stat-card-chart">
+    <svg class="linechart" viewBox="0 0 360 120">
+      <defs>
+        <linearGradient y2="1" x2="0" y1="0" x1="0" id="lineGradient">
+          <stop stop-color="#3d8bff" offset="0%"></stop>
+          <stop stop-color="#1ecb6b" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient y2="1" x2="0" y1="0" x1="0" id="areaGradient">
+          <stop stop-opacity="0.3" stop-color="#3d8bff" offset="0%"></stop>
+          <stop stop-opacity="0" stop-color="#1ecb6b" offset="100%"></stop>
+        </linearGradient>
+        <linearGradient y2="1" x2="0" y1="0" x1="0" id="tooltipGradient">
+          <stop stop-opacity="0.95" stop-color="#3d8bff" offset="0%"></stop>
+          <stop stop-opacity="0.95" stop-color="#1ecb6b" offset="100%"></stop>
+        </linearGradient>
+        <filter height="140%" width="140%" y="-20%" x="-20%" id="glow">
+          <feGaussianBlur
+            result="coloredBlur"
+            stdDeviation="3"
+          ></feGaussianBlur>
+          <feMerge>
+            <feMergeNode in="coloredBlur"></feMergeNode>
+            <feMergeNode in="SourceGraphic"></feMergeNode>
+          </feMerge>
+        </filter>
+      </defs>
+      s
+
+      <path
+        fill="url(#areaGradient)"
+        d="M15,90 L45,40 L75,60 L105,35 L135,60 L165,80 L195,60 L225,70 L255,40 L285,60 L315,50 L345,70 L345,120 L15,120 Z"
+      ></path>
+
+      <polyline
+        filter="url(#glow)"
+        points="15,90 45,40 75,60 105,35 135,60 165,80 195,60 225,70 255,40 285,60 315,50 345,70"
+        stroke-width="4"
+        stroke="url(#lineGradient)"
+        fill="none"
+      ></polyline>
+
+      <g class="dot-group">
+        <circle fill="#3d8bff" r="6" cy="90" cx="15"></circle>
+        <g class="tooltip">
+          <rect
+            opacity="0.92"
+            fill="#232733"
+            rx="8"
+            height="32"
+            width="70"
+            y="54"
+            x="5"
+          ></rect>
+          <text
+            font-weight="500"
+            font-size="15"
+            fill="#fff"
+            text-anchor="middle"
+            y="74"
+            x="40"
+          >
+            Jan: 12
+          </text>
+        </g>
+      </g>
+      <g class="dot-group">
+        <circle fill="#3d8bff" r="6" cy="40" cx="45"></circle>
+        <g class="tooltip">
+          <rect
+            opacity="0.92"
+            fill="#232733"
+            rx="8"
+            height="32"
+            width="70"
+            y="4"
+            x="10"
+          ></rect>
+          <text
+            font-weight="500"
+            font-size="15"
+            fill="#fff"
+            text-anchor="middle"
+            y="24"
+            x="45"
+          >
+            Feb: 40
+          </text>
+        </g>
+      </g>
+      <g class="dot-group">
+        <circle fill="#3d8bff" r="6" cy="60" cx="75"></circle>
+        <g class="tooltip">
+          <rect
+            opacity="0.92"
+            fill="#232733"
+            rx="8"
+            height="32"
+            width="70"
+            y="24"
+            x="40"
+          ></rect>
+          <text
+            font-weight="500"
+            font-size="15"
+            fill="#fff"
+            text-anchor="middle"
+            y="44"
+            x="75"
+          >
+            Mar: 28
+          </text>
+        </g>
+      </g>
+      <g class="dot-group">
+        <circle fill="#3d8bff" r="6" cy="35" cx="105"></circle>
+        <g class="tooltip">
+          <rect
+            opacity="0.92"
+            fill="#232733"
+            rx="8"
+            height="32"
+            width="70"
+            y="-5"
+            x="70"
+          ></rect>
+          <text
+            font-weight="500"
+            font-size="15"
+            fill="#fff"
+            text-anchor="middle"
+            y="15"
+            x="105"
+          >
+            Apr: 50
+          </text>
+        </g>
+      </g>
+      <g class="dot-group">
+        <circle fill="#3d8bff" r="6" cy="60" cx="135"></circle>
+        <g class="tooltip">
+          <rect
+            opacity="0.92"
+            fill="#232733"
+            rx="8"
+            height="32"
+            width="70"
+            y="24"
+            x="100"
+          ></rect>
+          <text
+            font-weight="500"
+            font-size="15"
+            fill="#fff"
+            text-anchor="middle"
+            y="44"
+            x="135"
+          >
+            May: 30
+          </text>
+        </g>
+      </g>
+      <g class="dot-group">
+        <circle fill="#1ecb6b" r="6" cy="80" cx="165"></circle>
+        <g class="tooltip">
+          <rect
+            opacity="0.92"
+            fill="#232733"
+            rx="8"
+            height="32"
+            width="70"
+            y="44"
+            x="130"
+          ></rect>
+          <text
+            font-weight="500"
+            font-size="15"
+            fill="#fff"
+            text-anchor="middle"
+            y="64"
+            x="165"
+          >
+            Jun: 18
+          </text>
+        </g>
+      </g>
+      <g class="dot-group">
+        <circle fill="#1ecb6b" r="6" cy="60" cx="195"></circle>
+        <g class="tooltip">
+          <rect
+            opacity="0.92"
+            fill="#232733"
+            rx="8"
+            height="32"
+            width="70"
+            y="24"
+            x="160"
+          ></rect>
+          <text
+            font-weight="500"
+            font-size="15"
+            fill="#fff"
+            text-anchor="middle"
+            y="44"
+            x="195"
+          >
+            Jul: 22
+          </text>
+        </g>
+      </g>
+      <g class="dot-group">
+        <circle fill="#1ecb6b" r="6" cy="70" cx="225"></circle>
+        <g class="tooltip">
+          <rect
+            opacity="0.92"
+            fill="#232733"
+            rx="8"
+            height="32"
+            width="70"
+            y="34"
+            x="190"
+          ></rect>
+          <text
+            font-weight="500"
+            font-size="15"
+            fill="#fff"
+            text-anchor="middle"
+            y="54"
+            x="225"
+          >
+            Aug: 25
+          </text>
+        </g>
+      </g>
+      <g class="dot-group">
+        <circle fill="#1ecb6b" r="6" cy="40" cx="255"></circle>
+        <g class="tooltip">
+          <rect
+            opacity="0.92"
+            fill="#232733"
+            rx="8"
+            height="32"
+            width="70"
+            y="4"
+            x="220"
+          ></rect>
+          <text
+            font-weight="500"
+            font-size="15"
+            fill="#fff"
+            text-anchor="middle"
+            y="24"
+            x="255"
+          >
+            Sep: 38
+          </text>
+        </g>
+      </g>
+      <g class="dot-group">
+        <circle fill="#1ecb6b" r="6" cy="60" cx="285"></circle>
+        <g class="tooltip">
+          <rect
+            opacity="0.92"
+            fill="#232733"
+            rx="8"
+            height="32"
+            width="70"
+            y="24"
+            x="250"
+          ></rect>
+          <text
+            font-weight="500"
+            font-size="15"
+            fill="#fff"
+            text-anchor="middle"
+            y="44"
+            x="285"
+          >
+            Oct: 27
+          </text>
+        </g>
+      </g>
+      <g class="dot-group">
+        <circle fill="#1ecb6b" r="6" cy="50" cx="315"></circle>
+        <g class="tooltip">
+          <rect
+            opacity="0.92"
+            fill="#232733"
+            rx="8"
+            height="32"
+            width="70"
+            y="14"
+            x="280"
+          ></rect>
+          <text
+            font-weight="500"
+            font-size="15"
+            fill="#fff"
+            text-anchor="middle"
+            y="34"
+            x="315"
+          >
+            Nov: 32
+          </text>
+        </g>
+      </g>
+      <g class="dot-group">
+        <circle fill="#1ecb6b" r="6" cy="70" cx="345"></circle>
+        <g class="tooltip">
+          <rect
+            opacity="0.92"
+            fill="#232733"
+            rx="8"
+            height="32"
+            width="70"
+            y="34"
+            x="285"
+          ></rect>
+          <text
+            font-weight="500"
+            font-size="15"
+            fill="#fff"
+            text-anchor="middle"
+            y="54"
+            x="320"
+          >
+            Dec: 20
+          </text>
+        </g>
+      </g>
+
+      <g fill="#b0b6c3" font-size="12" class="x-labels">
+        <text text-anchor="middle" y="115" x="15">Jan</text>
+        <text text-anchor="middle" y="115" x="45">Feb</text>
+        <text text-anchor="middle" y="115" x="75">Mar</text>
+        <text text-anchor="middle" y="115" x="105">Apr</text>
+        <text text-anchor="middle" y="115" x="135">May</text>
+        <text text-anchor="middle" y="115" x="165">Jun</text>
+        <text text-anchor="middle" y="115" x="195">Jul</text>
+        <text text-anchor="middle" y="115" x="225">Aug</text>
+        <text text-anchor="middle" y="115" x="255">Sep</text>
+        <text text-anchor="middle" y="115" x="285">Oct</text>
+        <text text-anchor="middle" y="115" x="315">Nov</text>
+        <text text-anchor="middle" y="115" x="345">Dec</text>
+      </g>
+    </svg>
+  </div>
+  <div class="stat-card-legend">
+    <div class="legend-item">
+      <span>Avrage monthly sale for every author</span>
+    </div>
+    <div class="legend-item">
+      <span class="legend-value">68.9%</span>
+      <span class="legend-change">▲ 34.5%</span>
+    </div>
+  </div>
+</div>
+
+*/
+
+/* From Uiverse.io by code-town3 */ 
+.stat-card {
+  background: #232733;
+  border-radius: 18px;
+  box-shadow: 0 4px 24px 0 rgba(0, 0, 0, 0.18);
+  padding: 2rem 1.5rem 1.5rem 1.5rem;
+  width: 340px;
+  color: #f3f6fa;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.stat-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stat-card-header h2 {
+  font-family: "Inter", sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #f3f6fa;
+  letter-spacing: 0.01em;
+  margin: 0;
+  line-height: 1.2;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(90deg, #fff 0%, #f3f6fa 50%, #e3e8ef 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.stat-card-title {
+  font-family: "Inter", sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: #f3f6fa;
+  letter-spacing: 0.01em;
+  margin: 0;
+  line-height: 1.2;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: linear-gradient(90deg, #fff 0%, #f3f6fa 50%, #e3e8ef 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.stat-card-menu {
+  font-size: 1.3rem;
+  color: #6c7383;
+  cursor: pointer;
+}
+
+.stat-card-chart {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.donut {
+  width: 170px;
+  height: 170px;
+}
+
+.donut-bg {
+  fill: none;
+  stroke: #232733;
+  stroke-width: 14;
+}
+
+.donut-segment.sales {
+  stroke: #3d8bff;
+}
+
+.donut-segment.product {
+  stroke: #ff6a3d;
+}
+
+.donut-segment.income {
+  stroke: #1ecb6b;
+}
+
+.donut-segment {
+  fill: none;
+  stroke-width: 14;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.3s;
+}
+
+.donut-segment2 {
+  fill: none;
+  stroke: #1ecb6b;
+  stroke-width: 14;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.3s;
+}
+
+.donut-segment3 {
+  fill: none;
+  stroke: #3d8bff;
+  stroke-width: 14;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.3s;
+}
+
+.donut-text-main {
+  font-size: 2.1rem;
+  font-weight: 600;
+  fill: #f3f6fa;
+}
+
+.donut-text-sub {
+  font-size: 1rem;
+  fill: #b0b6c3;
+}
+
+.stat-card-legend {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 1rem;
+  color: #b0b6c3;
+}
+
+.legend-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+  margin-right: 0.5rem;
+}
+
+.legend-dot.sales {
+  background: #3d8bff;
+}
+
+.legend-dot.product {
+  background: #ff6a3d;
+}
+
+.legend-dot.income {
+  background: #1ecb6b;
+}
+
+.legend-value {
+  font-size: 2rem;
+  color: #3d8bff;
+  font-weight: 600;
+  margin-left: 0.5rem;
+}
+
+.legend-change {
+  color: #1ecb6b;
+  font-weight: 600;
+  margin-left: 10px;
+}
+
+.linechart {
+  width: 100%;
+  max-width: 360px;
+  height: 120px;
+  display: block;
+}
+
+.linechart .x-labels text {
+  font-family: "Inter", sans-serif;
+  font-size: 12px;
+  fill: #b0b6c3;
+}
+
+.dot-group .tooltip {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+}
+
+.dot-group:hover .tooltip {
+  opacity: 1;
+}
+
+.dot-group .tooltip rect {
+  fill: #232733;
+  stroke: #232733;
+  stroke-width: 1.2;
+  filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.22));
+  rx: 8;
+  opacity: 0.92;
+}
+
+.dot-group .tooltip text {
+  font-family: "Inter", sans-serif;
+  font-size: 15px;
+  font-weight: 500;
+  fill: #fff;
+  letter-spacing: 0.2px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+}
+
+.menu-wrapper {
+  position: relative;
+  display: inline-block;
+  margin-right: 4px;
+}
+
+.menu-dots {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  cursor: pointer;
+  width: 18px;
+  align-items: center;
+  margin: 0 8px;
+}
+
+.menu-dots span {
+  display: block;
+  width: 5px;
+  height: 5px;
+  background: #6c7383;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+
+.menu-toggle {
+  display: none;
+}
+
+.menu-select {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: 30px;
+  min-width: 110px;
+  z-index: 10;
+  padding: 8px 0;
+  border-radius: 18px;
+  border: 1.5px solid rgba(80, 90, 120, 0.18);
+  background: rgba(30, 34, 44, 0.72);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition:
+    opacity 0.25s cubic-bezier(0.4, 2, 0.6, 1),
+    transform 0.25s cubic-bezier(0.4, 2, 0.6, 1);
+  opacity: 0;
+  transform: scale(0.95) translateY(-8px);
+  pointer-events: none;
+}
+
+.menu-toggle:checked + .menu-dots + .menu-select {
+  display: block;
+  opacity: 1;
+  transform: scale(1) translateY(0);
+  pointer-events: auto;
+}
+
+.menu-select div {
+  padding: 10px 20px 10px 16px;
+  color: #f3f6fa;
+  cursor: pointer;
+  font-size: 15px;
+  font-family: "Inter", sans-serif;
+  border-left: 3px solid transparent;
+  margin-bottom: 2px;
+  border-radius: 8px;
+  transition:
+    background 0.18s,
+    color 0.18s,
+    border-left 0.18s;
+}
+
+.menu-select div:nth-child(1) {
+  border-left: 3px solid #3d8bff;
+}
+.menu-select div:nth-child(2) {
+  border-left: 3px solid #ff6a3d;
+}
+.menu-select div:nth-child(3) {
+  border-left: 3px solid #1ecb6b;
+}
+
+.menu-select div:hover {
+  background: rgba(61, 139, 255, 0.08);
+  color: #3d8bff;
+  border-left: 3px solid #3d8bff;
+}
+.menu-select div:nth-child(2):hover {
+  background: rgba(255, 106, 61, 0.08);
+  color: #ff6a3d;
+  border-left: 3px solid #ff6a3d;
+}
+.menu-select div:nth-child(3):hover {
+  background: rgba(30, 203, 107, 0.08);
+  color: #1ecb6b;
+  border-left: 3px solid #1ecb6b;
+}
+
+.stat-card-legend .legend-item:first-child {
+  font-size: 0.95rem;
+  color: #b8c0cc;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
