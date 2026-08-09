@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Terminal } from '@vicons/tabler'
-import { WindowConsole20Regular } from '@vicons/fluent'
+import { WindowConsole20Regular, Warning24Regular } from '@vicons/fluent'
 import { AT_TEMPLATES } from '../constants/atTemplates'
 import { devicesService } from '../services/devices'
 
@@ -18,9 +18,43 @@ const atTimeoutMs = ref(10000)
 const atSending = ref(false)
 const atHistory = ref<Array<{ ts: number; cmd: string; ok: boolean; response: string }>>([])
 
+const STORAGE_KEY = `vohive:at-history:${props.deviceId}`
+const MAX_RECORDS = 50
+
+// 从 localStorage 加载历史
+try {
+  const saved = localStorage.getItem(STORAGE_KEY)
+  if (saved) atHistory.value = JSON.parse(saved).slice(-MAX_RECORDS)
+} catch { /* ignore */ }
+
+function saveHistory() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(atHistory.value.slice(-MAX_RECORDS)))
+  } catch { /* ignore quota */ }
+}
+
 const atTemplates = AT_TEMPLATES
 const hasATPort = computed(() => String(props.atPort || '').trim().length > 0)
 const canUseATTerminal = computed(() => Boolean(props.running) && hasATPort.value)
+
+const unavailableTitle = computed(() => {
+  if (!props.running) return '当前设备未运行'
+  if (!hasATPort.value) return '当前设备没有可用 AT 口'
+  return 'AT 终端暂不可用'
+})
+
+const unavailableDescription = computed(() => {
+  if (!props.running) {
+    return '设备当前未启动，AT 终端暂时不可用。待设备运行后，如果存在可用的 AT 口，即可在这里直接发送 AT 指令。'
+  }
+  if (!hasATPort.value && props.backendMode === 'qmi') {
+    return '设备当前处于纯 QMI 模式，但没有解析到可用的 AT 口，因此无法提供 AT 串口终端。'
+  }
+  if (!hasATPort.value) {
+    return '设备当前没有可用的 AT 口，因此无法提供 AT 串口终端。'
+  }
+  return '当前设备暂时无法提供 AT 串口终端，请稍后重试。'
+})
 
 const statusText = computed(() => atSending.value ? '发送中...' : '空闲')
 
@@ -49,6 +83,7 @@ async function sendAT() {
       ok: result.data.ok,
       response: result.data.response
     })
+    saveHistory()
   } catch (e: unknown) {
     atHistory.value.push({
       ts: Date.now(),
@@ -56,6 +91,7 @@ async function sendAT() {
       ok: false,
       response: e instanceof Error ? e.message : '请求异常'
     })
+    saveHistory()
   } finally {
     atSending.value = false
   }
@@ -63,6 +99,7 @@ async function sendAT() {
 
 function clearATHistory() {
   atHistory.value = []
+  try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
 }
 </script>
 
@@ -82,9 +119,9 @@ function clearATHistory() {
 
     <!-- 不可用提示 -->
     <div v-if="!canUseATTerminal" class="terminal-unavailable">
-      <span class="terminal-unavailable-text">
-        {{ !running ? '设备未运行' : !hasATPort ? '无可用 AT 口' : 'AT 终端暂不可用' }}
-      </span>
+      <el-icon size="48" class="terminal-unavailable-icon"><Warning24Regular /></el-icon>
+      <div class="terminal-unavailable-title">{{ unavailableTitle }}</div>
+      <div class="terminal-unavailable-desc">{{ unavailableDescription }}</div>
     </div>
 
     <!-- 终端 -->
@@ -209,14 +246,32 @@ function clearATHistory() {
 /* 不可用提示 */
 .terminal-unavailable {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 48px 24px;
   text-align: center;
+  flex: 1;
+  min-height: 200px;
 }
 
-.terminal-unavailable-text {
+.terminal-unavailable-icon {
+  color: var(--warning);
+  margin-bottom: 16px;
+}
+
+.terminal-unavailable-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--warning);
+  margin-bottom: 8px;
+}
+
+.terminal-unavailable-desc {
   font-size: 13px;
   color: var(--muted-foreground);
+  max-width: 400px;
+  line-height: 1.5;
+  font-family: var(--oomol-font-sans);
 }
 </style>

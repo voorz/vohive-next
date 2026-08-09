@@ -10,10 +10,13 @@ import ModuleAtTerminal from './ModuleAtTerminal.vue'
 import ModuleUssdTerminal from './ModuleUssdTerminal.vue'
 import ModuleCardPolicy from './ModuleCardPolicy.vue'
 import ModuleConfigForm from './ModuleConfigForm.vue'
+import ModuleSmsTab from './ModuleSmsTab.vue'
 import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
 import { ArrowSync24Regular } from '@vicons/fluent'
 import { cardsService } from '../services/cards'
 import type { CardPolicy } from '../types/api'
+import { devicesService } from '../services/devices'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const props = defineProps<{
   selectedId?: string
@@ -80,12 +83,68 @@ async function onCardPolicyChanged() {
   await fetchCardPolicy(detail.value?.modem?.iccid)
 }
 
+const reconnectingVoWiFi = ref(false)
+const rebooting = ref(false)
+
+async function rebootModem() {
+  if (!detail.value?.id) return
+  const id = detail.value.id
+  const confirmed = await ElMessageBox.confirm(
+    `确定对设备 ${id} 发送重启模组指令？设备将在此期间脱网和失联数秒。`,
+    '确认重启',
+    { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+  ).then(() => true).catch(() => false)
+  if (!confirmed) return
+
+  rebooting.value = true
+  try {
+    const result = await devicesService.rebootModem(id)
+    if (!result.ok) throw new Error(result.error.message || '指令下发失败')
+    ElMessage.success('重启指令已送达，设备正在重新启动')
+    void store.fetchDetail(id).catch(() => {})
+    setTimeout(() => { void store.fetchDetail(id).catch(() => {}) }, 5000)
+  } catch (e: unknown) {
+    if (e !== 'cancel' && e !== undefined) {
+      ElMessage.error(e instanceof Error ? e.message : '指令下发失败')
+    }
+  } finally {
+    rebooting.value = false
+  }
+}
+
+async function reconnectVoWiFi() {
+  if (!detail.value?.id) return
+  const id = detail.value.id
+  const confirmed = await ElMessageBox.confirm(
+    `确定对设备 ${id} 发起 VoWiFi 环境的重新连接拨号？这将在后台重新注册 IMS 链路。`,
+    '重连 VoWiFi',
+    { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+  ).then(() => true).catch(() => false)
+  if (!confirmed) return
+
+  reconnectingVoWiFi.value = true
+  try {
+    const result = await devicesService.reconnectVoWiFi(id)
+    if (!result.ok) throw new Error(result.error.message || '重连请求失败')
+    ElMessage.success('已触发重连指令，VoWiFi 服务正在重启...')
+    void store.fetchDetail(id).catch(() => {})
+    setTimeout(() => { void store.fetchDetail(id).catch(() => {}) }, 4000)
+  } catch (e: unknown) {
+    if (e !== 'cancel' && e !== undefined) {
+      ElMessage.error(e instanceof Error ? e.message : '重连请求失败')
+    }
+  } finally {
+    reconnectingVoWiFi.value = false
+  }
+}
+
 // 当前 Tab
 const activeTab = ref('overview')
 
 // Tab 列表
 const tabs = [
   { name: 'overview', label: '概览' },
+  { name: 'sms', label: '短信' },
   { name: 'at', label: 'AT终端' },
   { name: 'ussd', label: 'USSD' },
   { name: 'card', label: '卡策略' },
@@ -150,12 +209,14 @@ function initials(name: string): string {
           <span class="vowifi-status-dot" :class="{ on: detail.vowifi_enabled }" />
           <span class="vowifi-status-text">{{ detail.vowifi_enabled ? '已启用' : '未启用' }}</span>
         </div>
-        <button class="vowifi-reset-btn" :disabled="!detail.vowifi_enabled">
-          <span class="vr-text">
-            <el-icon size="14"><ArrowSync24Regular /></el-icon>
-            <span>重启 VoWiFi</span>
-          </span>
-        </button>
+        <div class="vr-btn-group">
+          <button class="vowifi-reset-btn" :disabled="!detail.running || rebooting" @click="rebootModem">
+            <span class="vr-text"><span>重启模组</span></span>
+          </button>
+          <button class="vowifi-reset-btn" :disabled="!detail.vowifi_enabled || reconnectingVoWiFi" @click="reconnectVoWiFi">
+            <span class="vr-text"><span>重启 VoWiFi</span></span>
+          </button>
+        </div>
       </div>
 
       <!-- Tab 切换 -->
@@ -178,6 +239,11 @@ function initials(name: string): string {
           <div class="content-placeholder">
             运行状态（单卡片纵向排列）
           </div>
+        </div>
+
+        <!-- 短信 -->
+        <div v-else-if="activeTab === 'sms'" class="tab-pane">
+          <ModuleSmsTab :device-id="detail.id" />
         </div>
 
         <!-- AT 终端 -->

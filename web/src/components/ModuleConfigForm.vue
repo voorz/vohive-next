@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Settings24Regular, Save24Regular, Delete24Regular } from '@vicons/fluent'
+import { Settings24Regular } from '@vicons/fluent'
 import { devicesService } from '../services/devices'
 import { useDevicesStore } from '../stores/devices'
 import { storeToRefs } from 'pinia'
@@ -164,14 +164,12 @@ async function handleDelete() {
 
     <!-- 底部操作栏 -->
     <div v-if="editConfig" class="config-footer">
-      <el-button type="primary" :loading="saving" :disabled="!editDirty" @click="handleSave">
-        <el-icon class="mr-1"><Save24Regular /></el-icon>
-        保存
-      </el-button>
-      <el-button type="danger" plain :loading="deleting" @click="handleDelete">
-        <el-icon class="mr-1"><Delete24Regular /></el-icon>
-        删除设备
-      </el-button>
+      <button class="cfg-btn cfg-btn-save" :disabled="saving || !editDirty" @click="handleSave">
+        {{ saving ? '保存中...' : '保存' }}
+      </button>
+      <button class="cfg-btn cfg-btn-delete" :disabled="deleting" @click="handleDelete">
+        {{ deleting ? '删除中...' : '删除设备' }}
+      </button>
     </div>
   </div>
 </template>
@@ -219,10 +217,41 @@ async function handleDelete() {
 .config-footer {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
   padding: 10px 14px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+.cfg-btn {
+  padding: 5px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--foreground);
+  white-space: nowrap;
+}
+
+.cfg-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.cfg-btn-save:not(:disabled):hover {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+
+.cfg-btn-delete:not(:disabled):hover {
+  background: var(--destructive);
+  border-color: var(--destructive);
+  color: #fff;
 }
 
 .config-body {

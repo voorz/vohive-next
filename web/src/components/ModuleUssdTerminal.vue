@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { Chat24Regular } from '@vicons/fluent'
+import { Terminal } from '@vicons/tabler'
 import { devicesService } from '../services/devices'
 
 const props = defineProps<{
@@ -14,6 +15,21 @@ const sending = ref(false)
 const sessionId = ref('')
 const sessionChannel = ref('')
 const history = ref<Array<{ ts: number; type: 'req' | 'res' | 'err' | 'sys'; content: string; dcs?: number; channel?: string }>>([])
+
+const STORAGE_KEY = `vohive:ussd-history:${props.deviceId}`
+const MAX_RECORDS = 50
+
+// 从 localStorage 加载历史
+try {
+  const saved = localStorage.getItem(STORAGE_KEY)
+  if (saved) history.value = JSON.parse(saved).slice(-MAX_RECORDS)
+} catch { /* ignore */ }
+
+function saveHistory() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(history.value.slice(-MAX_RECORDS)))
+  } catch { /* ignore quota */ }
+}
 
 const isMultiRound = computed(() => !!sessionId.value)
 const inputPlaceholder = computed(() => isMultiRound.value ? '输入菜单选项数字' : '例如 *100# 或菜单回复数字')
@@ -29,6 +45,7 @@ async function sendUSSD() {
   if (!cmd) return
 
   history.value.push({ ts: Date.now(), type: 'req', content: cmd })
+  saveHistory()
   sending.value = true
   ussdCmd.value = ''
 
@@ -62,6 +79,7 @@ async function sendUSSD() {
         dcs: d.dcs,
         channel: d.channel
       })
+      saveHistory()
       endSession()
     } else if (d.status === 2) {
       history.value.push({
@@ -71,6 +89,7 @@ async function sendUSSD() {
         dcs: d.dcs,
         channel: d.channel
       })
+      saveHistory()
       endSession()
     } else {
       history.value.push({
@@ -80,6 +99,7 @@ async function sendUSSD() {
         dcs: d.dcs,
         channel: d.channel
       })
+      saveHistory()
       if (d.status === 1 && d.sessionId) {
         sessionId.value = d.sessionId
       } else {
@@ -92,6 +112,7 @@ async function sendUSSD() {
       type: 'err',
       content: e instanceof Error ? e.message : '请求异常'
     })
+    saveHistory()
     endSession()
   } finally {
     sending.value = false
@@ -107,6 +128,7 @@ async function cancelSession() {
       type: 'sys',
       content: '会话已手动取消'
     })
+    saveHistory()
   } catch {
     // 忽略取消错误
   }
@@ -120,6 +142,7 @@ function endSession() {
 
 function clearHistory() {
   history.value = []
+  try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
   endSession()
 }
 </script>
@@ -183,7 +206,7 @@ function clearHistory() {
 
     <!-- 命令输入栏 -->
     <div class="terminal-input-bar">
-      <span class="terminal-input-prompt">&gt;</span>
+        <el-icon size="14" class="terminal-input-prompt"><Terminal /></el-icon>
       <el-input
         v-model="ussdCmd"
         :placeholder="inputPlaceholder"
