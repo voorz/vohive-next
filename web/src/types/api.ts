@@ -240,6 +240,10 @@ export type EsimProfileItem = {
   state: number
   state_text: string
   class_text?: string
+  mcc?: string
+  mnc?: string
+  gid1?: string
+  gid2?: string
 }
 
 export type EsimEUICCProfiles = {

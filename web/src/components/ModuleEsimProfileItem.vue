@@ -5,7 +5,7 @@ import { Settings24Regular } from '@vicons/fluent'
 import CountryFlag from './CountryFlag.vue'
 import CarrierIcon from './CarrierIcon.vue'
 import { phoneToIso } from '../utils/phone-flag'
-import { providerToMccMnc, useProviderLogo, autoDownloadIcon } from '../composables/useProviderLogo'
+import { useProviderLogo, autoDownloadIcon } from '../composables/useProviderLogo'
 
 const props = defineProps<{
   profile: EsimProfileItem
@@ -22,15 +22,15 @@ const emit = defineEmits<{
 const flagIso = computed(() => phoneToIso(props.profile.name))
 const isActive = computed(() => props.profile.state === 1)
 
-// 运营商 LOGO — 等待 catalog 加载完成后反查 service_provider_name
+// 运营商 LOGO — 使用 profile 自带的 MCC/MNC（来自 profileOwner），等待 catalog 加载
 const { ready: logoReady } = useProviderLogo()
 const plmn = computed(() => {
   if (!logoReady.value) return null
-  const name = props.profile.service_provider_name || props.profile.name || ''
-  return providerToMccMnc(name)
+  if (!props.profile.mcc || !props.profile.mnc) return null
+  return { mcc: props.profile.mcc, mnc: props.profile.mnc }
 })
 
-// 反查成功时自动下载图标（不触及反查失败的 profile，避免下载错误的父运营商图标）
+// 有 PLMN 时自动下载图标
 watch(plmn, (val) => {
   if (val) {
     autoDownloadIcon(val.mcc, val.mnc, props.profile.service_provider_name)
