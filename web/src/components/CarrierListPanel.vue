@@ -73,8 +73,8 @@ async function handleAddCarriers(plmns: string[]) {
     // 后台批量下载图标
     for (const c of store.carriers) {
       if (plmns.includes(c.key) || plmns.includes(`${c.mcc}-${c.mnc}`)) {
-        if (!getCachedIcon(c.mcc, c.mnc, c.name)) {
-          downloadIcon(c.mcc, c.mnc, c.name).then(result => {
+        if (!getCachedIcon(c.mcc, c.mnc, c.name, c.key)) {
+          downloadIcon(c.mcc, c.mnc, c.name, c.key).then(result => {
             if (result) {
               window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc: c.mcc, mnc: c.mnc } }))
             }
@@ -135,7 +135,7 @@ async function handleDelete(key: string, name: string) {
           :class="{ selected: item.key === selectedKey }"
           @click="handleSelect(item.key)"
         >
-          <CarrierIcon :mcc="item.mcc" :mnc="item.mnc" :name="item.name" :size="28" />
+          <CarrierIcon :mcc="item.mcc" :mnc="item.mnc" :name="item.name" :carrier-key="item.key" :size="28" />
           <div class="carrier-card-info">
             <div class="carrier-card-name">{{ item.name }}</div>
             <div class="carrier-card-meta">

@@ -91,10 +91,10 @@ export function useProviderLogo(): { ready: Ref<boolean> } {
  * 自动下载运营商图标（如果尚未缓存）
  * 下载成功后派发 vohive-icon-updated 事件，触发 CarrierIcon 刷新
  */
-export function autoDownloadIcon(mcc: string, mnc: string, name?: string) {
+export function autoDownloadIcon(mcc: string, mnc: string, name?: string, carrierKey?: string) {
   if (!mcc || !mnc) return
-  if (getCachedIcon(mcc, mnc, name)) return
-  downloadIcon(mcc, mnc, name).then(result => {
+  if (getCachedIcon(mcc, mnc, name, carrierKey)) return
+  downloadIcon(mcc, mnc, name, carrierKey).then(result => {
     if (result) {
       window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc, mnc } }))
     }

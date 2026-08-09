@@ -10,12 +10,14 @@ import {
   downloadIcon,
   getIconInfo,
   getCachedIcon,
+  MIRROR_BASE,
 } from '../composables/useOperatorIcon'
 
 const props = defineProps<{
   mcc: string
   mnc: string
   name?: string
+  carrierKey?: string
 }>()
 
 const emit = defineEmits<{
@@ -34,12 +36,12 @@ const availableIcons = computed(() => {
 
 const currentOverride = computed(() => {
   if (!props.mcc || !props.mnc) return null
-  return getIconOverride(props.mcc, props.mnc)
+  return getIconOverride(props.mcc, props.mnc, props.carrierKey)
 })
 
 const defaultIcon = computed(() => {
   if (!props.mcc || !props.mnc) return null
-  return getIconInfo(props.mcc, props.mnc, props.name)
+  return getIconInfo(props.mcc, props.mnc, props.name, props.carrierKey)
 })
 
 function refreshState() {
@@ -54,10 +56,10 @@ function refreshState() {
     selectedIcon.value = ''
     selectedScope.value = ''
   }
-  previewSrc.value = props.mcc && props.mnc ? getCachedIcon(props.mcc, props.mnc, props.name) : null
+  previewSrc.value = props.mcc && props.mnc ? getCachedIcon(props.mcc, props.mnc, props.name, props.carrierKey) : null
 }
 
-watch(() => [props.mcc, props.mnc, props.name], refreshState, { immediate: true })
+watch(() => [props.mcc, props.mnc, props.name, props.carrierKey], refreshState, { immediate: true })
 
 function onSelectIcon(icon: string, scope: string) {
   selectedIcon.value = icon
@@ -66,9 +68,9 @@ function onSelectIcon(icon: string, scope: string) {
     // 如果选的不是默认图标，设置 override
     const def = defaultIcon.value
     if (!def || def.iconName !== icon || def.iconScope !== scope) {
-      setIconOverride(props.mcc, props.mnc, icon, scope)
+      setIconOverride(props.mcc, props.mnc, icon, scope, props.carrierKey)
     } else {
-      clearIconOverride(props.mcc, props.mnc)
+      clearIconOverride(props.mcc, props.mnc, props.carrierKey)
     }
     emit('change')
   }
@@ -76,7 +78,7 @@ function onSelectIcon(icon: string, scope: string) {
 
 function clearOverride() {
   if (props.mcc && props.mnc) {
-    clearIconOverride(props.mcc, props.mnc)
+    clearIconOverride(props.mcc, props.mnc, props.carrierKey)
     refreshState()
     emit('change')
     ElMessage.success('已恢复默认图标')
@@ -87,7 +89,7 @@ async function handleDownload() {
   if (!props.mcc || !props.mnc) return
   downloading.value = true
   try {
-    const result = await downloadIcon(props.mcc, props.mnc, props.name)
+    const result = await downloadIcon(props.mcc, props.mnc, props.name, props.carrierKey)
     if (result) {
       previewSrc.value = result
       ElMessage.success('图标下载成功')
@@ -138,12 +140,12 @@ const isOverridden = computed(() => !!currentOverride.value)
           @click="onSelectIcon(entry.icon, entry.scope)"
         >
           <img
-            :src="`https://cdn.jsdelivr.net/gh/NekokoLPA/operator-icons@master/icons/${entry.scope}/${entry.icon}.png`"
+            :src="`${MIRROR_BASE}/${entry.scope}/${entry.icon}.png`"
             class="icon-picker-option-img"
             loading="lazy"
             @error="($event.target as HTMLImageElement).style.display = 'none'"
           />
-          <span class="icon-picker-option-label">{{ entry.icon }}</span>
+          <span class="icon-picker-option-label">{{ entry.label || entry.icon }}</span>
         </div>
       </div>
     </div>
