@@ -60,6 +60,7 @@ const activationStatus = computed(() => {
           :mcc="selectedCarrier?.mcc || ''"
           :mnc="selectedCarrier?.mnc || ''"
           :name="selectedCarrier?.name"
+          :carrier-key="selectedCarrier?.key"
           :size="38"
           class="narrow-logo"
         />
@@ -83,7 +84,7 @@ const activationStatus = computed(() => {
       </div>
       <!-- 宽屏：图标盒子 + 运营商名 + 详细信息 -->
       <div class="detail-header-wide">
-        <CarrierIcon :mcc="selectedCarrier?.mcc || ''" :mnc="selectedCarrier?.mnc || ''" :name="selectedCarrier?.name" :size="38" />
+        <CarrierIcon :mcc="selectedCarrier?.mcc || ''" :mnc="selectedCarrier?.mnc || ''" :name="selectedCarrier?.name" :carrier-key="selectedCarrier?.key" :size="38" />
         <div class="detail-header-info">
           <div class="detail-header-name">{{ selectedCarrier?.name || '未选择' }}</div>
           <div class="detail-header-meta">

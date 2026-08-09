@@ -20,6 +20,7 @@ export interface IconCatalogEntry {
   mnc: string
   icon: string
   scope: string
+  brand?: string
   subs?: IconSubOperator[]
 }
 
@@ -49,29 +50,28 @@ function convertAllJson(data: Record<string, PlmnEntry>): Record<string, IconCat
   for (const entry of Object.values(data)) {
     const mcc = entry.mcc
     if (!mcc) continue
-    // 找第一个有 icon 的 operator
-    const op = entry.operators?.find(o => o.icon)
-    if (!op) continue
-    const item: IconCatalogEntry = {
-      mnc: entry.mnc,
-      icon: op.icon!,
-      scope: op.icon_scope || mcc,
-    }
-    // 提取有 icon 的 subs
-    const subs: IconSubOperator[] = []
-    for (const sub of op.subs || []) {
-      if (sub.names && sub.names.length > 0) {
-        subs.push({
-          names: sub.names,
-          icon: sub.icon || op.icon!,
-          scope: sub.icon_scope || op.icon_scope || mcc,
-        })
+    // 保留所有有 icon 的 operator（不再只取第一个）
+    for (const op of entry.operators || []) {
+      if (!op.icon) continue
+      const item: IconCatalogEntry = {
+        mnc: entry.mnc,
+        icon: op.icon!,
+        scope: op.icon_scope || mcc,
+        brand: op.brand,
       }
-    }
-    if (subs.length > 0) item.subs = subs
-    if (!catalog[mcc]) catalog[mcc] = []
-    // 去重：同 MNC 只保留第一个
-    if (!catalog[mcc].some(e => e.mnc === item.mnc)) {
+      // 提取有 names 的 subs（即使没有独立 icon 也保留，用于名称匹配）
+      const subs: IconSubOperator[] = []
+      for (const sub of op.subs || []) {
+        if (sub.names && sub.names.length > 0) {
+          subs.push({
+            names: sub.names,
+            icon: sub.icon || op.icon!,
+            scope: sub.icon_scope || op.icon_scope || mcc,
+          })
+        }
+      }
+      if (subs.length > 0) item.subs = subs
+      if (!catalog[mcc]) catalog[mcc] = []
       catalog[mcc].push(item)
     }
   }

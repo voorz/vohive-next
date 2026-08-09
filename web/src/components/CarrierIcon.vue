@@ -7,6 +7,7 @@ const props = defineProps<{
   mnc: string
   name?: string
   size?: number
+  carrierKey?: string
 }>()
 
 const cachedSrc = ref<string | null>(null)
@@ -14,10 +15,10 @@ const enabled = ref(true)
 
 function refresh() {
   enabled.value = isPersonalizationEnabled()
-  cachedSrc.value = enabled.value ? getCachedIcon(props.mcc, props.mnc, props.name) : null
+  cachedSrc.value = enabled.value ? getCachedIcon(props.mcc, props.mnc, props.name, props.carrierKey) : null
 }
 
-watch(() => [props.mcc, props.mnc, props.name], refresh, { immediate: true })
+watch(() => [props.mcc, props.mnc, props.name, props.carrierKey], refresh, { immediate: true })
 
 // 监听图标下载完成事件，刷新缓存
 function onIconUpdated(e: Event) {

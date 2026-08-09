@@ -5,6 +5,8 @@ import { Search24Regular, Add24Regular } from '@vicons/fluent'
 import CarrierIcon from './CarrierIcon.vue'
 import CountryFlag from './CountryFlag.vue'
 import carrierPresets from '../data/carrier-presets.json'
+import { loadPlmnCatalog } from '../composables/plmn-catalog'
+import { downloadIcon, getCachedIcon } from '../composables/useOperatorIcon'
 
 // plmn-index 条目结构
 interface PlmnOperator {
@@ -240,10 +242,20 @@ watch(searchQuery, () => {
   searchTimer = setTimeout(doSearch, 200)
 })
 
-// 搜索结果变化时清空选中
+// 搜索结果变化时清空选中 + 下载图标
 watch(searchResults, () => {
   selectedCount.value = 0
   nextTick(() => treeRef.value?.setCheckedKeys([]))
+  // 下载前 30 个搜索结果的图标
+  for (const item of searchResults.value.slice(0, 30)) {
+    if (!getCachedIcon(item.mcc, item.mnc, item.brand)) {
+      downloadIcon(item.mcc, item.mnc, item.brand).then(result => {
+        if (result) {
+          window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc: item.mcc, mnc: item.mnc } }))
+        }
+      })
+    }
+  }
 })
 
 // 弹窗打开时加载数据 + 聚焦输入框
@@ -262,6 +274,18 @@ watch(() => props.modelValue, async (open) => {
         ElMessage.error('加载运营商索引失败，请检查网络')
       }
     }
+    // 确保 catalog 已加载并下载 preset 图标
+    loadPlmnCatalog().then(() => {
+      for (const p of presets) {
+        if (!getCachedIcon(p.mcc, p.mnc, p.name)) {
+          downloadIcon(p.mcc, p.mnc, p.name).then(result => {
+            if (result) {
+              window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc: p.mcc, mnc: p.mnc } }))
+            }
+          })
+        }
+      }
+    })
   }
 })
 
@@ -363,8 +387,8 @@ function handleQuickAdd(preset: PresetItem) {
       </el-input>
     </div>
 
-    <!-- 快捷添加胶囊 -->
-    <div class="presets-bar">
+    <!-- 快捷添加胶囊（搜索时隐藏） -->
+    <div v-show="!searchQuery.trim()" class="presets-bar">
       <button
         v-for="preset in presets"
         :key="preset.key"

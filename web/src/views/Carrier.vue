@@ -46,8 +46,8 @@ onMounted(async () => {
   await loadPlmnCatalog()
   // 页面加载时批量下载缺失的运营商图标（仅一次，失败不重试）
   for (const c of store.carriers) {
-    if (!getCachedIcon(c.mcc, c.mnc, c.name)) {
-      downloadIcon(c.mcc, c.mnc, c.name).then(result => {
+    if (!getCachedIcon(c.mcc, c.mnc, c.name, c.key)) {
+      downloadIcon(c.mcc, c.mnc, c.name, c.key).then(result => {
         if (result) {
           window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc: c.mcc, mnc: c.mnc } }))
         }
@@ -62,8 +62,8 @@ async function handleAddCarriers(plmns: string[]) {
     ElMessage.success(`已添加 ${plmns.length} 个运营商`)
     for (const c of store.carriers) {
       if (plmns.includes(c.key) || plmns.includes(`${c.mcc}-${c.mnc}`)) {
-        if (!getCachedIcon(c.mcc, c.mnc, c.name)) {
-          downloadIcon(c.mcc, c.mnc, c.name).then(result => {
+        if (!getCachedIcon(c.mcc, c.mnc, c.name, c.key)) {
+          downloadIcon(c.mcc, c.mnc, c.name, c.key).then(result => {
             if (result) {
               window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc: c.mcc, mnc: c.mnc } }))
             }
