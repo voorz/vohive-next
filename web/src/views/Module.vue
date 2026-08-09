@@ -102,7 +102,7 @@ function handleDeviceDeleted() {
 
       <!-- 右栏：预览（宽屏显示） -->
       <div v-if="showThreeColumn" class="module-col-preview">
-        <ModulePreviewPanel />
+        <ModulePreviewPanel :device-id="selectedId" :device-imei="detail?.modem?.imei" :device-online="detail?.running" />
       </div>
     </div>
 
@@ -113,7 +113,7 @@ function handleDeviceDeleted() {
       size="400px"
       direction="rtl"
     >
-      <ModulePreviewPanel v-if="detail" />
+      <ModulePreviewPanel v-if="detail" :device-id="selectedId" :device-imei="detail?.modem?.imei" :device-online="detail?.running" />
     </el-drawer>
 
     <!-- 搜索添加设备弹窗 -->
