@@ -45,7 +45,7 @@ watch(plmn, (val) => {
       <div class="profile-card-layout">
         <!-- 运营商图标盒子 -->
         <div class="profile-card-logo">
-          <CarrierIcon v-if="plmn" :mcc="plmn.mcc" :mnc="plmn.mnc" :name="profile.service_provider_name" :size="36" />
+          <CarrierIcon v-if="plmn" :mcc="plmn.mcc" :mnc="plmn.mnc" :name="profile.service_provider_name" :size="42" />
           <span v-else class="profile-card-logo-fallback">{{ (profile.service_provider_name || profile.name || '?').charAt(0).toUpperCase() }}</span>
         </div>
 
@@ -115,15 +115,14 @@ watch(plmn, (val) => {
 .profile-card-layout {
   display: flex;
   gap: 10px;
+  align-items: center;
 }
 
 /* 运营商图标盒子 */
 .profile-card-logo {
-  width: 38px;
-  height: 38px;
-  border-radius: 6px;
-  background: var(--muted);
-  border: 1px solid var(--border);
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -143,7 +142,7 @@ watch(plmn, (val) => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 1px;
 }
 
 .profile-card-line1 {
@@ -170,7 +169,6 @@ watch(plmn, (val) => {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 4px;
 }
 
 .profile-card-iccid {
@@ -250,7 +248,6 @@ watch(plmn, (val) => {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-top: 4px;
   font-size: 11px;
   color: var(--muted-foreground);
 }
