@@ -4,6 +4,7 @@ import { Settings24Regular } from '@vicons/fluent'
 import { devicesService } from '../services/devices'
 import { useDevicesStore } from '../stores/devices'
 import { storeToRefs } from 'pinia'
+import { api } from '../stores/auth'
 import type { DeviceConfigDTO, DeviceOverviewItem } from '../types/api'
 import { isWwanQmiControlPath } from '../utils/deviceBackend'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -25,6 +26,28 @@ const editBaseline = ref('')
 const editDirty = ref(false)
 const saving = ref(false)
 const deleting = ref(false)
+
+// PC/SC 读卡器列表
+const pcscReaders = ref<string[]>([])
+const pcscLoading = ref(false)
+
+async function loadPCSCReaders() {
+  pcscLoading.value = true
+  try {
+    const res = await api.get('/pcsc/readers')
+    pcscReaders.value = res.data?.readers || []
+  } catch {
+    // 忽略，PC/SC 可能不可用
+  } finally {
+    pcscLoading.value = false
+  }
+}
+
+watch(() => editConfig.value?.esim_transport, (val) => {
+  if (val === 'pcsc' && pcscReaders.value.length === 0) {
+    loadPCSCReaders()
+  }
+})
 
 // 只读信息来自 device（运行时探测值优先）
 const readonlyInfo = computed(() => [
@@ -162,7 +185,17 @@ async function handleDelete() {
           <el-select v-model="editConfig.esim_transport" class="!w-full">
             <el-option label="AT" value="at" />
             <el-option label="QMI" value="qmi" />
+            <el-option label="PC/SC" value="pcsc" />
           </el-select>
+        </div>
+        <div v-if="editConfig.esim_transport === 'pcsc'" class="field">
+          <label class="form-label">PC/SC 读卡器</label>
+          <div class="flex gap-2">
+            <el-select v-model="editConfig.pcsc_reader" class="!w-full" placeholder="选择读卡器" :loading="pcscLoading">
+              <el-option v-for="r in pcscReaders" :key="r" :label="r" :value="r" />
+            </el-select>
+            <el-button :loading="pcscLoading" @click="loadPCSCReaders">刷新</el-button>
+          </div>
         </div>
       </div>
     </div>

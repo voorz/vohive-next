@@ -86,6 +86,7 @@ export type DeviceOverviewItem = {
   interface?: string
   control_device?: string
   esim_transport?: string
+  pcsc_reader?: string
   at_port?: string
   usb_path?: string
   local_phone?: string
@@ -121,6 +122,7 @@ export type DeviceMgmtListItem = {
   public_ipv6?: string
   interface?: string
   esim_transport?: string
+  pcsc_reader?: string
   sms_enabled: boolean
   network_enabled: boolean
   vowifi_enabled?: boolean
@@ -136,7 +138,8 @@ export type DeviceConfigDTO = {
   usb_path?: string
   apn?: string
   ip_version?: 'v4' | 'v6' | 'v4v6'
-  esim_transport?: 'at' | 'qmi'
+  esim_transport?: 'at' | 'qmi' | 'mbim' | 'pcsc'
+  pcsc_reader?: string
   network_enabled?: boolean
   at_port: string
   control_device: string
@@ -274,22 +277,24 @@ export type EsimNotificationItem = {
 }
 
 export type DiscoveredDevice = {
-  discovery_key: string
-  control_path: string
-  net_interface: string
-  usb_path: string
-  imei?: string
-  vendor_id: number
-  product_id: number
-  driver_name: string
-  at_ports: string[]
-  at_port: string
-  mode?: 'qmi' | 'mbim' | 'ecm' | 'rndis' | 'ncm' | 'unknown'
-  network_capable?: boolean
-  configured: boolean
-  configured_id?: string
-  degraded?: boolean
-  usbnet_mode?: number
+discovery_key: string
+control_path: string
+net_interface: string
+usb_path: string
+imei?: string
+vendor_id: number
+product_id: number
+driver_name: string
+at_ports: string[]
+at_port: string
+mode?: 'qmi' | 'mbim' | 'ecm' | 'rndis' | 'ncm' | 'unknown' | 'pcsc'
+network_capable?: boolean
+configured: boolean
+configured_id?: string
+degraded?: boolean
+usbnet_mode?: number
+type?: 'modem' | 'pcsc'
+pcsc_reader?: string
 }
 
 export type DashboardDevice = {

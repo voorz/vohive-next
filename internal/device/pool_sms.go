@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/voorz/vohive/internal/backend"
+	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/db"
 	"github.com/voorz/vohive/internal/modem"
 	qmicore "github.com/voorz/vohive/internal/qmi"
@@ -398,6 +399,10 @@ func (w *Worker) IsDeviceHealthy() bool {
 }
 
 func (w *Worker) ProbeDeviceHealth() (bool, error) {
+	// PC/SC 读卡器设备无 modem/backend，只要 eSIM 管理器存在即视为健康。
+	if config.NormalizeESIMTransport(w.Config.ESIMTransport) == config.ESIMTransportPCSC {
+		return w.EsimMgr != nil, nil
+	}
 	if w.Backend != nil && w.Backend.Mode() != "at" {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()

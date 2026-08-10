@@ -1660,6 +1660,11 @@ func (p *Pool) rescanAndReconnect(opts rescanReconnectOptions) error {
 	}
 
 	for _, md := range resolved.Offline {
+		// PC/SC 读卡器设备无硬件可被 QMI 扫描匹配，始终落入 Offline，
+		// 但它并非离线 — 跳过清理以保持 Worker 存活。
+		if config.NormalizeESIMTransport(md.ESIMTransport) == config.ESIMTransportPCSC {
+			continue
+		}
 		if !FreeDeviceLimitAllowsConfiguredDevice(managed, md.ID) {
 			continue
 		}
@@ -1966,6 +1971,7 @@ func newESIMManagerForWorker(
 		Modem:                w.Modem,
 		Backend:              w.Backend,
 		QMITransport:         qmiTransport,
+		PCSCReader:           w.Config.PCSCReader,
 		OnBeforeSwitch:       beforeWithOperation,
 		OnAfterSwitch:        afterWithOperation,
 		OnSwitchFailed:       failedWithOperation,

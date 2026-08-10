@@ -19,6 +19,7 @@ import (
 
 	"github.com/damonto/euicc-go/bertlv"
 	"github.com/damonto/euicc-go/driver"
+	"github.com/damonto/euicc-go/driver/ccid"
 	"github.com/damonto/euicc-go/lpa"
 	sgp22 "github.com/damonto/euicc-go/v2"
 	"github.com/voorz/vohive/internal/apduarbiter"
@@ -325,6 +326,7 @@ type ManagerOptions struct {
 	Modem                *modem.Manager
 	Backend              backendpkg.DeviceBackend
 	QMITransport         QMIAPDUTransport
+	PCSCReader           string // PC/SC 读卡器名称（仅 transport=pcsc 时有效）
 	IMEIProvider         func(ctx context.Context) (string, error)
 	OnBeforeSwitch       func(SwitchOperation, string) uint64
 	OnAfterSwitch        func(SwitchOperation, uint64)
@@ -377,6 +379,7 @@ const (
 	transportAT     = "at"
 	transportQMI    = "qmi"
 	transportMBIM   = "mbim"
+	transportPCSC   = "pcsc"
 	transportCustom = "custom"
 )
 
@@ -435,6 +438,8 @@ func normalizeTransport(in string) string {
 		return transportQMI
 	case transportMBIM:
 		return transportMBIM
+	case transportPCSC:
+		return transportPCSC
 	default:
 		return strings.ToLower(strings.TrimSpace(in))
 	}
@@ -520,6 +525,18 @@ func NewManager(opts ManagerOptions) (*Manager, error) {
 			// 使底层 APDU 传输能够直接继承该 ctx 的超时/取消语义。
 			if p := mgr.downloadCtx.Load(); p != nil {
 				ch.SetContext(*p)
+			}
+			return ch, nil
+		}
+	case transportPCSC:
+		readerName := strings.TrimSpace(opts.PCSCReader)
+		if readerName == "" {
+			return nil, fmt.Errorf("PC/SC 传输需要指定读卡器名称")
+		}
+		mgr.smartCardChannelFactory = func() (driver.SmartCardChannel, error) {
+			ch, err := ccid.NewWithReader(readerName)
+			if err != nil {
+				return nil, fmt.Errorf("创建 PC/SC 通道失败: %w", err)
 			}
 			return ch, nil
 		}

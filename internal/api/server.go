@@ -383,6 +383,9 @@ func (s *Server) newRouter() *gin.Engine {
 		api.PATCH("/devices/:device_id/esim/profiles/:iccid", s.handleEsimRenameProfile)                          // 修改 profile 名称
 		api.DELETE("/devices/:device_id/esim/profiles/:iccid", s.handleEsimDeleteProfile)                         // 删除 eSIM profile
 
+		// ===== eSIM PC/SC =====
+		api.GET("/pcsc/readers", s.handlePCSCListReaders) // 列出可用 PC/SC 读卡器
+
 		// ===== VoWiFi =====
 		api.PATCH("/devices/:device_id/vowifi", s.handleDeviceVoWiFiPatch)                          // 启用/禁用 VoWiFi
 		api.POST("/devices/:device_id/vowifi/actions/reconnect", s.handleDeviceMgmtReconnectVoWiFi) // 重连 VoWiFi

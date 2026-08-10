@@ -11,6 +11,7 @@ const (
 	ESIMTransportAT            = "at"
 	ESIMTransportQMI           = "qmi"
 	ESIMTransportMBIM          = "mbim"
+	ESIMTransportPCSC          = "pcsc"
 	MBIMTransportAuto          = "auto"
 	MBIMTransportProxy         = "proxy"
 	MBIMTransportDirect        = "direct"
@@ -25,6 +26,8 @@ func NormalizeESIMTransport(in string) string {
 		return ESIMTransportQMI
 	case ESIMTransportMBIM:
 		return ESIMTransportMBIM
+	case ESIMTransportPCSC:
+		return ESIMTransportPCSC
 	default:
 		return strings.ToLower(strings.TrimSpace(in))
 	}
@@ -32,7 +35,7 @@ func NormalizeESIMTransport(in string) string {
 
 func ValidateESIMTransport(in string) error {
 	switch NormalizeESIMTransport(in) {
-	case ESIMTransportAT, ESIMTransportQMI, ESIMTransportMBIM:
+	case ESIMTransportAT, ESIMTransportQMI, ESIMTransportMBIM, ESIMTransportPCSC:
 		return nil
 	default:
 		return fmt.Errorf("invalid esim transport: %q", strings.TrimSpace(in))
@@ -228,7 +231,8 @@ type DeviceConfig struct {
 	// 可选：qmi-proxy abstract socket 名称和可执行文件路径。留空使用 quectel-qmi-go 默认值。
 	QMIProxyPath       string `mapstructure:"qmi_proxy_path"`
 	QMIProxyExecutable string `mapstructure:"qmi_proxy_executable"`
-	ESIMTransport      string `mapstructure:"esim_transport"` // eSIM 传输通道: at|qmi|mbim，默认 at
+	ESIMTransport      string `mapstructure:"esim_transport"` // eSIM 传输通道: at|qmi|mbim|pcsc，默认 at
+	PCSCReader         string `mapstructure:"pcsc_reader"`      // PC/SC 读卡器名称（仅 esim_transport=pcsc 时有效）
 	DeviceBackend      string `mapstructure:"device_backend"` // 设备后端模式: at|qmi|mbim|auto，默认 at
 	USBNetMode         *int   `mapstructure:"usbnet_mode"`    // 可选：用于校验/设置 Quectel USBNET 模式
 	// ESIMSwitch controls deterministic eSIM switch behavior. Zero values preserve current behavior.

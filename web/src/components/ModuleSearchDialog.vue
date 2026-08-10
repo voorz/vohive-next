@@ -53,6 +53,9 @@ const deviceName = ref('')
 // 运行模式
 const deviceBackend = ref<'at' | 'qmi' | 'mbim'>('at')
 
+// 是否 PC/SC 设备
+const isPCSC = computed(() => selectedDevice.value?.type === 'pcsc')
+
 // 正在添加
 const adding = ref(false)
 
@@ -114,6 +117,15 @@ function selectDevice(d: DiscoveredDevice) {
   }
   if (d.configured) return
   selectedKey.value = d.discovery_key
+  // PC/SC 设备 ID 生成
+  if (d.type === 'pcsc') {
+    const readerName = d.pcsc_reader || 'reader'
+    // 取读卡器名称的末尾部分，去除空格和特殊字符
+    const tail = readerName.replace(/[^a-zA-Z0-9]/g, '').slice(-6) || 'reader'
+    deviceId.value = `pcsc-${tail}`
+    deviceName.value = readerName
+    return
+  }
   deviceId.value = d.imei ? `modem-${d.imei.slice(-4)}` : (d.net_interface || d.at_port.split('/').pop() || d.at_port)
   deviceName.value = ''
 
@@ -140,14 +152,15 @@ async function handleAdd() {
   const config: DeviceConfigDTO = {
     id: deviceId.value,
     name: deviceName.value || deviceId.value,
-    interface: d.net_interface,
-    at_port: d.at_port,
-    control_device: d.control_path,
-    modem_imei: d.imei,
-    usb_path: d.usb_path,
-    device_backend: deviceBackend.value,
-    esim_transport: 'at',
-    network_enabled: true,
+    interface: d.net_interface || '',
+    at_port: d.at_port || '',
+    control_device: d.control_path || '',
+    modem_imei: d.imei || '',
+    usb_path: d.usb_path || '',
+    device_backend: isPCSC.value ? 'at' : deviceBackend.value,
+    esim_transport: isPCSC.value ? 'pcsc' : 'at',
+    pcsc_reader: isPCSC.value ? (d.pcsc_reader || '') : undefined,
+    network_enabled: !isPCSC.value,
     vowifi_enabled: false
   }
 
@@ -183,6 +196,7 @@ function modeText(mode?: string): string {
   const m = String(mode || 'unknown').toLowerCase()
   if (m === 'qmi') return 'QMI'
   if (m === 'mbim') return 'MBIM'
+  if (m === 'pcsc') return 'PC/SC'
   if (m === 'ecm') return 'ECM'
   if (m === 'rndis') return 'RNDIS'
   if (m === 'ncm') return 'NCM'
@@ -192,6 +206,7 @@ function modeText(mode?: string): string {
 function modeColor(mode?: string): string {
   if (mode === 'qmi') return 'qmi'
   if (mode === 'mbim') return 'mbim'
+  if (mode === 'pcsc') return 'qmi'
   return 'other'
 }
 
@@ -267,18 +282,24 @@ function vidPid(d: DiscoveredDevice): string {
           @click="selectDevice(d)"
         >
           <!-- 图标 -->
-          <div class="discovered-card-icon">{{ driverInitial(d.driver_name) }}</div>
+          <div class="discovered-card-icon">{{ d.type === 'pcsc' ? 'P' : driverInitial(d.driver_name) }}</div>
 
           <!-- 信息 -->
           <div class="discovered-card-info">
             <div class="discovered-card-name">
-              {{ d.net_interface || '--' }} · {{ d.driver_name || '--' }}
+              <template v-if="d.type === 'pcsc'">{{ d.pcsc_reader || 'PC/SC Reader' }}</template>
+              <template v-else>{{ d.net_interface || '--' }} · {{ d.driver_name || '--' }}</template>
               <span class="meta-mode" :class="modeColor(d.mode)">{{ modeText(d.mode) }}</span>
             </div>
             <div class="discovered-card-meta">
-              <span v-if="d.imei" class="meta-item">IMEI: {{ d.imei }}</span>
-              <span class="meta-item">AT: {{ d.at_port || '--' }}</span>
-              <span class="meta-item">{{ vidPid(d) }}</span>
+              <template v-if="d.type === 'pcsc'">
+                <span class="meta-item">PC/SC 智能卡读卡器</span>
+              </template>
+              <template v-else>
+                <span v-if="d.imei" class="meta-item">IMEI: {{ d.imei }}</span>
+                <span class="meta-item">AT: {{ d.at_port || '--' }}</span>
+                <span class="meta-item">{{ vidPid(d) }}</span>
+              </template>
               <span v-if="d.degraded" class="meta-degraded">降级</span>
             </div>
           </div>
@@ -303,7 +324,16 @@ function vidPid(d: DiscoveredDevice): string {
         <div class="config-label">设备名称<span class="config-label-optional">可选</span></div>
         <el-input v-model="deviceName" size="small" placeholder="留空则使用ID" class="config-input" />
       </div>
-      <div class="config-row">
+      <!-- PC/SC 设备提示 -->
+      <div v-if="isPCSC" class="config-row">
+        <div class="config-label">类型</div>
+        <div class="config-input">
+          <el-tag size="small" type="success">PC/SC 读卡器</el-tag>
+          <span class="ml-2 text-xs text-gray-500">纯 eSIM 管理设备，无 modem 功能</span>
+        </div>
+      </div>
+      <!-- Modem 后端模式选择 -->
+      <div v-if="!isPCSC" class="config-row">
         <div class="config-label">
           <div class="config-label-title">运行模式</div>
           <div class="config-label-hint">{{ backendHint }}</div>

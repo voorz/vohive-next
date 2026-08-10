@@ -28,6 +28,11 @@ func deriveESIMTransport(cfg config.DeviceConfig) string {
 	backend := strings.ToLower(strings.TrimSpace(cfg.DeviceBackend))
 	legacy := strings.ToLower(strings.TrimSpace(cfg.ESIMTransport))
 
+	// PC/SC 是显式配置，不依赖 device_backend
+	if legacy == config.ESIMTransportPCSC {
+		return config.ESIMTransportPCSC
+	}
+
 	switch backend {
 	case "qmi":
 		return config.ESIMTransportQMI
@@ -38,7 +43,7 @@ func deriveESIMTransport(cfg config.DeviceConfig) string {
 	}
 
 	switch legacy {
-	case config.ESIMTransportQMI, config.ESIMTransportMBIM:
+	case config.ESIMTransportQMI, config.ESIMTransportMBIM, config.ESIMTransportPCSC:
 		return legacy
 	default:
 		return config.ESIMTransportAT
@@ -222,6 +227,11 @@ func (p *Pool) AddWorkerFromConfig(devCfg config.DeviceConfig) (*Worker, error) 
 		close(watchdogStop)
 		p.endRebuildAttemptIfCurrent(devCfg.ID, attempt)
 	}()
+
+	// PC/SC 读卡器设备：不需要 modem/QMI/MBIM/backend，仅创建 eSIM 管理器
+	if config.NormalizeESIMTransport(devCfg.ESIMTransport) == config.ESIMTransportPCSC {
+		return p.addPCSCWorker(devCfg)
+	}
 
 	needsQMICore := requiresQMICore(devCfg)
 	if p.lifecycle != nil && needsQMICore {
@@ -729,5 +739,37 @@ func (p *Pool) AddWorkerFromConfig(devCfg config.DeviceConfig) (*Worker, error) 
 
 	p.persistDeviceAttachmentsIfChanged(devCfg)
 
+	return w, nil
+}
+
+// addPCSCWorker 创建一个纯 PC/SC 读卡器 worker（无 modem/QMI/MBIM/backend）。
+func (p *Pool) addPCSCWorker(devCfg config.DeviceConfig) (*Worker, error) {
+	w := &Worker{
+		ID:          devCfg.ID,
+		Config:      devCfg,
+		Pool:        p,
+		stop:        make(chan struct{}),
+		reassembler: smscodec.NewReassembler(),
+	}
+	p.assignWorkerGeneration(w)
+
+	mgr, err := esim.NewManager(esim.ManagerOptions{
+		DeviceID:   devCfg.ID,
+		Transport:  config.ESIMTransportPCSC,
+		PCSCReader: devCfg.PCSCReader,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("初始化 PC/SC eSIM 管理器失败: %w", err)
+	}
+	w.EsimMgr = mgr
+
+	if err := p.registerWorkerStarting(w); err != nil {
+		return nil, err
+	}
+	w.uimIndicationsReady.Store(true)
+
+	p.persistDeviceAttachmentsIfChanged(devCfg)
+
+	logger.Info(fmt.Sprintf("[%s] PC/SC 读卡器设备已启动 (reader: %s)", devCfg.ID, devCfg.PCSCReader))
 	return w, nil
 }
