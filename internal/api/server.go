@@ -277,6 +277,7 @@ func (s *Server) newRouter() *gin.Engine {
 
 		// ===== 仪表盘 =====
 		api.GET("/dashboard/devices", s.handleListDevices)          // 获取所有设备概览（仪表盘卡片用）
+		api.GET("/dashboard/overview/stream", s.handleDashboardOverviewStream) // SSE 仪表盘聚合实时流量
 		api.GET("/devices/:device_id/status", s.handleStatusDetail) // 获取单个设备详细状态
 		api.GET("/health", s.handleHealth)                          // 健康检查（外部监控用）
 		api.GET("/traffic/analysis", s.handleTrafficAnalysis)       // 流量分析统计
