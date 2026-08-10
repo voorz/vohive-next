@@ -11,12 +11,14 @@ import ModuleUssdTerminal from './ModuleUssdTerminal.vue'
 import ModuleCardPolicy from './ModuleCardPolicy.vue'
 import ModuleConfigForm from './ModuleConfigForm.vue'
 import ModuleSmsTab from './ModuleSmsTab.vue'
+import ModuleOverviewTab from './ModuleOverviewTab.vue'
 import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
 import { ArrowSync24Regular } from '@vicons/fluent'
 import { cardsService } from '../services/cards'
 import type { CardPolicy } from '../types/api'
 import { devicesService } from '../services/devices'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useOverviewStream } from '../composables/useOverviewStream'
 
 const props = defineProps<{
   selectedId?: string
@@ -146,9 +148,9 @@ const activeTab = ref('overview')
 const tabs = [
   { name: 'overview', label: '概览' },
   { name: 'sms', label: '短信' },
-  { name: 'at', label: 'AT终端' },
+  { name: 'at', label: 'AT' },
   { name: 'ussd', label: 'USSD' },
-  { name: 'card', label: '卡策略' },
+  { name: 'card', label: '策略' },
   { name: 'config', label: '配置' }
 ]
 
@@ -159,6 +161,12 @@ function initials(name: string): string {
 function onDeviceDeleted() {
   emit('device-deleted')
 }
+
+// ---- SSE Overview Stream + 实时流量 ----
+const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = useOverviewStream({
+  deviceId: () => props.selectedId,
+  detail,
+})
 </script>
 
 <template>
@@ -241,9 +249,13 @@ function onDeviceDeleted() {
       <div class="tab-content">
         <!-- 概览 -->
         <div v-if="activeTab === 'overview'" class="tab-pane">
-          <div class="content-placeholder">
-            运行状态（单卡片纵向排列）
-          </div>
+          <ModuleOverviewTab
+            :device="detail"
+            :traffic-speed-rx="trafficSpeedRx"
+            :traffic-speed-tx="trafficSpeedTx"
+            :traffic-minute-rx="rollingMinuteRx"
+            :traffic-minute-tx="rollingMinuteTx"
+          />
         </div>
 
         <!-- 短信 -->
