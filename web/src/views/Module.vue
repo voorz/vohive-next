@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useRoute } from 'vue-router'
 import { useDevicesStore } from '../stores/devices'
 import ModuleListPanel from '../components/ModuleListPanel.vue'
 import ModuleDetailPanel from '../components/ModuleDetailPanel.vue'
@@ -9,6 +10,7 @@ import ModuleSearchDialog from '../components/ModuleSearchDialog.vue'
 import { Eye24Regular } from '@vicons/fluent'
 
 const store = useDevicesStore()
+const route = useRoute()
 const { list, detail } = storeToRefs(store)
 
 // 选中设备
@@ -39,8 +41,11 @@ onMounted(async () => {
   syncWidth()
   window.addEventListener('resize', syncWidth, { passive: true })
   await store.fetchList()
-  // 自动选中第一个设备
-  if (list.value.length > 0) {
+  // 优先从路由 query 选中指定设备，否则自动选中第一个
+  const queryId = String(route.query.device || '').trim()
+  if (queryId && list.value.some(d => d.id === queryId)) {
+    selectedId.value = queryId
+  } else if (list.value.length > 0) {
     selectedId.value = list.value[0].id
   }
 })

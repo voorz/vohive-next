@@ -121,7 +121,7 @@ function copyVal(val: string | undefined) {
         </div>
         <div v-if="activeEsimProfile" class="device-field">
           <span class="device-field-label">当前 eSIM</span>
-          <span class="device-field-value copyable" @click="copyVal(activeEsimProfile)">{{ activeEsimProfile }}</span>
+          <span class="device-field-value copyable" :class="{ masked: !showSensitive }" @click="copyVal(activeEsimProfile)">{{ activeEsimProfile }}</span>
         </div>
         <div v-if="device?.e911_setup_available" class="device-field full">
           <span class="device-field-label">E911 地址</span>
