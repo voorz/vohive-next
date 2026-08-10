@@ -7,9 +7,12 @@ import (
 	"github.com/voorz/vohive/internal/config"
 )
 
-const DefaultFreeDeviceLimit = 5
+const DefaultFreeDeviceLimit = 0 // 0 表示无限制
 
 func FreeDeviceLimitReached(count int) bool {
+	if DefaultFreeDeviceLimit <= 0 {
+		return false
+	}
 	return count >= DefaultFreeDeviceLimit
 }
 
@@ -24,6 +27,9 @@ func FreeDeviceWorkerLimitMessage() string {
 func FreeDeviceLimitAllowsConfiguredDevice(devices []config.DeviceConfig, deviceID string) bool {
 	deviceID = strings.TrimSpace(deviceID)
 	if deviceID == "" {
+		return true
+	}
+	if DefaultFreeDeviceLimit <= 0 {
 		return true
 	}
 	seen := 0

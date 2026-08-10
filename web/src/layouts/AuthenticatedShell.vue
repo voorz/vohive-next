@@ -60,8 +60,7 @@ function syncScreenSize() {
 
 const menuItems = [
   { path: '/', label: '仪表盘', icon: Board24Regular },
-  { path: '/devices', label: '设备管理', icon: Phone24Regular },
-  { path: '/module', label: '模块管理', icon: HardwareChipOutline },
+  { path: '/module', label: '设备管理', icon: HardwareChipOutline },
   { path: '/carrier', label: '模板配置', icon: Sim24Regular },
   { path: '/proxy', label: '代理配置', icon: Globe24Regular },
   { path: '/sms', label: '短信中心', icon: Mail24Regular },
