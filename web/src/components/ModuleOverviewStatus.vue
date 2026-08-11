@@ -4,6 +4,7 @@ import type { DeviceOverviewItem } from '../types/api'
 import { isControlOnline, isRadioRegistered, isRecoveryPhase, lifecycleStatusLabel } from '../utils/deviceLifecycle'
 import { Pulse24Regular, Settings24Regular, ChevronDown24Regular } from '@vicons/fluent'
 import OperatorSelectionDialog from './ModuleOperatorSelectionDialog.vue'
+import ModuleOverviewActivity from './ModuleOverviewActivity.vue'
 import { useDevicesStore } from '../stores/devices'
 
 const props = defineProps<{
@@ -16,7 +17,7 @@ const showOperatorSelection = ref(false)
 // VoWiFi 详情折叠
 const showVowifiDetail = ref(false)
 const hasError = computed(() =>
-  !!(props.device?.vowifi_runtime?.last_error_class || props.device?.vowifi_runtime?.last_reason)
+  !!(props.device?.vowifi_runtime?.last_error_class || props.device?.vowifi_runtime?.last_error)
 )
 
 // ---- VoWiFi 状态 ----
@@ -141,6 +142,9 @@ const networkModeDisplay = computed(() =>
             :class="{ fail: item.ready === false }"
           >{{ item.key }}</span>
         </div>
+
+        <!-- 实时活动（嵌入运行状态卡片内部） -->
+        <ModuleOverviewActivity :device="device" />
 
         <div class="vowifi-detail-collapse">
           <button class="vowifi-detail-header" @click="showVowifiDetail = !showVowifiDetail">
