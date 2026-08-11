@@ -67,6 +67,14 @@ func (m *Manager) ScheduleDesiredRecover(ctx context.Context, req DesiredRecover
 		})
 		if req.OnResult != nil {
 			req.OnResult(deviceID, reason, err)
+		} else if err != nil {
+			m.MarkDesiredRecoverFailed(deviceID, time.Now(), err)
+			logger.Warn("VoWiFi 目标态恢复失败，已设置退避", "event", "VOWIFI_DESIRED_RECOVER_FAILED", "device", deviceID, "reason", reason, "err", err)
+		} else {
+			// Recover returned nil but the tunnel has not yet been confirmed
+			// (runtimehost.Start is async). Set a cooldown to prevent tight
+			// recover loops when the tunnel immediately fails.
+			m.SetDesiredRecoverCooldown(deviceID, 10*time.Second)
 		}
 	}()
 	return true

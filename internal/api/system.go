@@ -80,6 +80,60 @@ func (s *Server) handleDeleteUpdateRepo(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
+// handleGetVoWiFiBehavior 返回当前 VoWiFi 行为配置
+func (s *Server) handleGetVoWiFiBehavior(c *gin.Context) {
+	b := s.fullCfg.VoWiFi.Behavior
+	c.JSON(http.StatusOK, gin.H{
+		"ike_retry_count": b.IKERetryCount,
+		"override_rf_off": b.OverrideRFOff,
+		"rf_off_delay":    b.RFOffDelay,
+	})
+}
+
+// handleUpdateVoWiFiBehavior 更新 VoWiFi 行为配置并热加载
+func (s *Server) handleUpdateVoWiFiBehavior(c *gin.Context) {
+	var req struct {
+		IKERetryCount int  `json:"ike_retry_count"`
+		OverrideRFOff bool `json:"override_rf_off"`
+		RFOffDelay    int  `json:"rf_off_delay"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "参数错误"})
+		return
+	}
+	if req.IKERetryCount < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "IKE 重传次数不能为负数"})
+		return
+	}
+	if req.RFOffDelay < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "RFOff 延迟不能为负数"})
+		return
+	}
+	configPath := config.GetConfigPath()
+	if configPath == "" {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "配置文件路径未初始化"})
+		return
+	}
+	if err := config.UpdateVoWiFiBehaviorInFile(configPath, req.IKERetryCount, req.OverrideRFOff, req.RFOffDelay); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
+	if err := config.ReloadFromFile(); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "热加载配置失败: " + err.Error()})
+		return
+	}
+	// 热更新 IKE 重传次数到运行时
+	if s.pool != nil {
+		s.pool.UpdateVoWiFiBehavior(req.IKERetryCount)
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"status":          "ok",
+		"ike_retry_count": req.IKERetryCount,
+		"override_rf_off": req.OverrideRFOff,
+		"rf_off_delay":    req.RFOffDelay,
+	})
+}
+
 // handleGetSMSRateLimit 返回当前短信限速配置
 func (s *Server) handleGetSMSRateLimit(c *gin.Context) {
 	hourly, daily := s.smsRateLimiter().Limits()
@@ -579,4 +633,3 @@ func (s *Server) handleApplyUpdate(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "正在后台下载更新，系统稍后将自动重启..."})
 }
-

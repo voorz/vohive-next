@@ -114,10 +114,10 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 	// RegisterProfile 必须在此注入，否则 Normalized() 的通用默认值会
 	// 覆盖 carrier 特定的 REGISTER header 配置。
 	var (
-		registerProfile  voiceclient.RegisterProfile
-		sipInstanceURN   string
-		registerExpiry   time.Duration
-		pcscfAddr        string
+		registerProfile voiceclient.RegisterProfile
+		sipInstanceURN  string
+		registerExpiry  time.Duration
+		pcscfAddr       string
 	)
 	if mcc != "" && mnc != "" {
 		if p, err := profiles.Lookup(mcc, mnc); err == nil && p != nil {
@@ -129,25 +129,26 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 	}
 
 	inst, err := m.runtimeStarter()(ctx, runtimehost.StartRequest{
-		Mode:          runtimehost.StartModeMain,
-		DeviceID:      deviceID,
-		TraceID:       strings.TrimSpace(req.TraceID),
-		Profile:       profile,
-		CellID:        cellID,
-		Prepared:      &prepared,
-		NetworkMode:   networkMode,
-		VoiceGateway:  req.VoiceGateway,
-		SIM:           buildVoWiFiSIMAdapter(req.Prepared.SIM, req.Modem, prepared.Profile.IMSI),
-		Access:        runtimehost.NewModemAccessAdapter(req.Modem),
-		Dataplane:     req.Dataplane,
-		Proxy:         req.Prepared.Proxy,
-		PCSCFAddr:     pcscfAddr,
+		Mode:            runtimehost.StartModeMain,
+		DeviceID:        deviceID,
+		TraceID:         strings.TrimSpace(req.TraceID),
+		Profile:         profile,
+		CellID:          cellID,
+		Prepared:        &prepared,
+		NetworkMode:     networkMode,
+		VoiceGateway:    req.VoiceGateway,
+		SIM:             buildVoWiFiSIMAdapter(req.Prepared.SIM, req.Modem, prepared.Profile.IMSI),
+		Access:          runtimehost.NewModemAccessAdapter(req.Modem),
+		Dataplane:       req.Dataplane,
+		Proxy:           req.Prepared.Proxy,
+		PCSCFAddr:       pcscfAddr,
 		RegisterProfile: registerProfile,
 		SIPInstanceURN:  sipInstanceURN,
 		RegisterExpiry:  registerExpiry,
 		DeliveryStore:   req.DeliveryStore,
-		Dispatch:      req.Dispatch,
-		BeforeStart:   req.BeforeStart,
+		Dispatch:        req.Dispatch,
+		BeforeStart:     req.BeforeStart,
+		IKERetryCount:   m.ikeRetryCount,
 		ShouldRun: func() bool {
 			return ctx.Err() == nil && m.ShouldRun(deviceID, req.Epoch)
 		},
@@ -162,6 +163,18 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 					select {
 					case <-time.After(backoff):
 					case <-ctx.Done():
+						return
+					}
+					// Stop and remove the old instance from the RuntimeStore
+					// so DesiredRecoverable returns true. This handles both
+					// initial tunnel connection failure and unexpected teardown.
+					m.StopInstanceForTeardown(context.Background(), downDeviceID, "tunnel_down_auto_recover")
+					// Check if VoWiFi has been disabled by the user (card policy).
+					// If so, do not trigger auto-recovery.
+					if adapter := m.hostAdapter(); adapter != nil && !adapter.IsVoWiFiDesired(downDeviceID) {
+						logger.Info("VoWiFi 已被用户禁用，跳过隧道自动恢复",
+							"event", "VOWIFI_AUTO_RECOVER_DISABLED",
+							"device", downDeviceID)
 						return
 					}
 					if m.DesiredRecoverable(downDeviceID) {
@@ -192,9 +205,9 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 					LocalIP:   vc.LocalIP().String(),
 					UserAgent: "vowifi-core",
 				},
-				Domain:     vc.HomeDomain(),
-				UserAgent:  "vowifi-core",
-				LocalTag:   "vowifi-core",
+				Domain:    vc.HomeDomain(),
+				UserAgent: "vowifi-core",
+				LocalTag:  "vowifi-core",
 			}
 			if m.voiceGateway != nil {
 				m.voiceGateway.RegisterAgent(imsDeviceID, agent)

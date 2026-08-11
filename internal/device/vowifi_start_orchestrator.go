@@ -267,6 +267,9 @@ func (p *Pool) prepareVoWiFiStartContext(deviceID, traceID, runtimeEPDGOverride 
 			// hang before reconnection succeeds).
 			// Delay is configurable per carrier profile (default 5s).
 			rfOffDelay := prepared.EffectiveCarrier.RFOffDelay
+			if p.cfg != nil && p.cfg.VoWiFi.Behavior.OverrideRFOff && p.cfg.VoWiFi.Behavior.RFOffDelay > 0 {
+				rfOffDelay = p.cfg.VoWiFi.Behavior.RFOffDelay
+			}
 			if rfOffDelay <= 0 {
 				rfOffDelay = 5
 			}

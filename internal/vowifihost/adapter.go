@@ -24,6 +24,7 @@ type Adapter interface {
 	Context() context.Context
 	IsSwitching(deviceID string) bool
 	WorkerExists(deviceID string) bool
+	IsVoWiFiDesired(deviceID string) bool
 	WaitQMICoreReady(deviceID string, timeout time.Duration) error
 	WaitWorkerReady(deviceID string, timeout time.Duration) error
 	PrepareStart(deviceID, traceID, runtimeEPDGOverride string) (PreparedStart, error)
