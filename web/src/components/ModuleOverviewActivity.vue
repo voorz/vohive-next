@@ -118,6 +118,12 @@ const showSIPStatus = computed(() => (rt.value?.last_sip_status ?? 0) > 0)
         <span class="activity-row-label">SIP Reason</span>
         <span class="activity-row-value reason-text">{{ rt?.last_sip_reason }}</span>
       </div>
+      <div class="activity-row">
+        <span class="activity-row-label">语音 Agent</span>
+        <span class="activity-row-value" :class="{ ok: rt?.call_ready, danger: !rt?.call_ready }">
+          {{ rt?.call_ready ? '已注册' : '未注册' }}
+        </span>
+      </div>
     </div>
   </div>
 </template>
@@ -185,6 +191,7 @@ const showSIPStatus = computed(() => (rt.value?.last_sip_status ?? 0) > 0)
 }
 .activity-row-value.fail { color: var(--destructive); }
 .activity-row-value.danger { color: var(--destructive); }
+.activity-row-value.ok { color: var(--brand); }
 .activity-elapsed {
   font-size: 11px;
   color: var(--muted-foreground);

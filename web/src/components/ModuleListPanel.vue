@@ -169,7 +169,6 @@ function initials(name: string): string {
       <el-input
         v-model="searchText"
         placeholder="搜索设备 / IMEI"
-        size="small"
         clearable
       >
         <template #prefix>

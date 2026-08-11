@@ -104,7 +104,6 @@ async function handleDelete(key: string, name: string) {
       <el-input
         v-model="searchText"
         placeholder="搜索运营商 / MCC:MNC"
-        size="small"
         clearable
       >
         <template #prefix>

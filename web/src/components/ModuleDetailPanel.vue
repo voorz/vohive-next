@@ -218,9 +218,7 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
     <div class="detail-header">
       <!-- 窄屏下拉选择器 + 添加按钮 -->
       <div class="detail-header-narrow">
-        <div class="detail-header-icon-box">
-          {{ initials(operatorName) }}
-        </div>
+        <CarrierIcon :mcc="detail?.modem?.native_mcc || ''" :mnc="detail?.modem?.native_mnc || ''" :name="nativeSpn" :size="38" class="narrow-logo" />
         <el-select
           :model-value="props.selectedId"
           @change="(v: string) => emit('select', v)"
