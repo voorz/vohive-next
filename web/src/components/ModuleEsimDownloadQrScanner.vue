@@ -132,7 +132,7 @@ onBeforeUnmount(() => stopCamera())
       @drop="handleDrop"
       @click="fileInput?.click()"
     >
-      <span class="qr-drop-text">拽上传二维码开始安装<br /><span class="qr-drop-hint">(单个识别)</span></span>
+      <span class="qr-drop-text">拽上传eSIM QR<br /><span class="qr-drop-hint">(单个识别,支持JPG/PNG)</span></span>
       <input
         ref="fileInput"
         type="file"
