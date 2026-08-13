@@ -17,6 +17,7 @@ import {
 import { WifiCalling3Round } from '@vicons/material'
 import { loadPlmnCatalog } from '../composables/plmn-catalog'
 import { downloadIcon, getCachedIcon } from '../composables/useOperatorIcon'
+import { useEventStream } from '../composables/useEventStream'
 import ModemIcon from '../assets/svgs/modem.svg'
 import ReaderIcon from '../assets/svgs/reader.svg'
 
@@ -34,12 +35,21 @@ const { list, loading } = storeToRefs(store)
 
 const searchText = ref('')
 
-// 定时刷新设备列表（5秒）
-let refreshTimer: ReturnType<typeof setInterval> | null = null
+// SSE 实时设备列表流
+const { connect: connectStream, disconnect: disconnectStream } = useEventStream<{ devices: DeviceMgmtListItem[] }>({
+  path: '/devices/stream',
+  eventName: 'devices',
+  parse: (payload: string) => JSON.parse(payload),
+  onEvent: (data) => {
+    if (data.devices) {
+      store.setList(data.devices)
+    }
+  }
+})
+
 onMounted(() => {
-  refreshTimer = setInterval(() => {
-    store.fetchList()
-  }, 5000)
+  // SSE 实时订阅设备列表
+  connectStream()
   // 加载 PLMN catalog 并下载运营商图标
   loadPlmnCatalog().then(() => {
     for (const d of list.value) {
@@ -56,7 +66,7 @@ onMounted(() => {
   })
 })
 onUnmounted(() => {
-  if (refreshTimer) clearInterval(refreshTimer)
+  disconnectStream()
 })
 
 const filteredDevices = computed(() => {

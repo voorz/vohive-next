@@ -326,8 +326,9 @@ func (s *Server) newRouter() *gin.Engine {
 		// MCP Streamable HTTP（需鉴权，复用 authMiddleware）
 		api.POST("/mcp", s.handleMcpRequest)
 
-		api.GET("/devices", s.handleDeviceMgmtList)                                            // 获取设备列表（管理页用）
-		api.POST("/devices", s.handleDeviceMgmtAddDevice)                                      // 添加新设备
+api.GET("/devices", s.handleDeviceMgmtList)                                            // 获取设备列表（管理页用）
+api.GET("/devices/stream", s.handleDeviceMgmtListStream)                              // SSE 设备列表实时状态流
+api.POST("/devices", s.handleDeviceMgmtAddDevice)                                      // 添加新设备
 		api.GET("/devices/discovered", s.handleDeviceMgmtDiscovered)                           // 获取已发现的硬件设备
 		api.POST("/devices/actions/rescan", s.handleDeviceRescan)                              // 手动触发设备重扫描
 		api.GET("/devices/:device_id/overview/stream", s.handleDeviceMgmtOverviewStreamSingle) // SSE 单体深层实时流
