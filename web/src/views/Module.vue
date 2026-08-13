@@ -92,7 +92,7 @@ function handleDeviceDeleted() {
 
       <!-- 中栏：详情页 -->
       <div class="module-col-detail">
-        <ModuleDetailPanel :selected-id="selectedId" @device-deleted="handleDeviceDeleted" />
+        <ModuleDetailPanel :selected-id="selectedId" @device-deleted="handleDeviceDeleted" @open-search="searchDialogOpen = true" />
 
         <!-- 预览按钮（中窄屏浮动） -->
         <button

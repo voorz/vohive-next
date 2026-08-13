@@ -439,8 +439,9 @@ type deviceMgmtListItem struct {
 	PCSCReader             string              `json:"pcsc_reader,omitempty"`
 	SMSEnabled             bool                `json:"sms_enabled"`
 	NetworkEnabled         bool                `json:"network_enabled"`
-	VoWiFiEnabled          bool                `json:"vowifi_enabled"`
-	VoWiFiRuntime          *voWiFiRuntimeDTO   `json:"vowifi_runtime,omitempty"`
+VoWiFiEnabled          bool               `json:"vowifi_enabled"`
+VoWiFiActive           bool               `json:"vowifi_active"`
+VoWiFiRuntime          *voWiFiRuntimeDTO   `json:"vowifi_runtime,omitempty"`
 	Modem                  deviceMgmtListModem `json:"modem"`
 	NetworkConnected       bool                `json:"network_connected"`
 	RegistrationStateLabel string              `json:"registration_state_label"`
@@ -797,7 +798,8 @@ func (s *Server) handleDeviceMgmtList(c *gin.Context) {
 		PCSCReader:             cfg.PCSCReader,
 		SMSEnabled:             cfg.SMSEnabled,
 			NetworkEnabled:         cfg.NetworkEnabled,
-			VoWiFiEnabled:          s.pool.IsVoWiFiActive(w.ID), // 使用多设备状态查询
+			VoWiFiEnabled:          cardPolicyVoWiFiEnabled(strings.TrimSpace(status.ICCID), cfg.VoWiFiEnabled),
+		VoWiFiActive:           s.pool.IsVoWiFiActive(w.ID),
 			VoWiFiRuntime:          s.getVoWiFiRuntimeDTO(w.ID),
 			NetworkConnected:       w.NetworkConnected(),
 			RegistrationStateLabel: registrationStateLabel(status.RegStatus),

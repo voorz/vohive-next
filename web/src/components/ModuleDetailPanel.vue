@@ -14,7 +14,7 @@ import ModuleConfigForm from './ModuleConfigForm.vue'
 import ModuleSmsTab from './ModuleSmsTab.vue'
 import ModuleOverviewTab from './ModuleOverviewTab.vue'
 import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
-import { ArrowSync24Regular } from '@vicons/fluent'
+import { ArrowSync24Regular, Add24Regular } from '@vicons/fluent'
 import { cardsService } from '../services/cards'
 import type { CardPolicy } from '../types/api'
 import { devicesService } from '../services/devices'
@@ -250,7 +250,7 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
   <div class="module-detail-panel">
     <!-- 详情头部 (60px) -->
     <div class="detail-header">
-      <!-- 窄屏下拉选择器 + 添加按钮 -->
+      <!-- 窄屏下拉选择器 + 添加按钮 + 重启模组 -->
       <div class="detail-header-narrow">
         <img :src="detail?.esim_transport === 'pcsc' ? ReaderIcon : ModemIcon" :alt="detail?.esim_transport === 'pcsc' ? 'reader' : 'modem'" class="device-icon-svg narrow-logo" />
         <el-select
@@ -267,11 +267,15 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
           />
         </el-select>
         <el-button size="small" type="primary" @click="emit('open-search')" class="!border-0 add-btn-narrow">
-          <el-icon class="mr-1"><ArrowSync24Regular /></el-icon>
+          <el-icon class="mr-1"><Add24Regular /></el-icon>
           <span>添加</span>
         </el-button>
+        <el-button size="small" type="primary" :disabled="rebooting || isPCSC" @click="rebootModem" class="!border-0 reboot-btn-narrow">
+          <el-icon class="mr-1"><ArrowSync24Regular /></el-icon>
+          <span>重启模组</span>
+        </el-button>
       </div>
-      <!-- 宽屏：图标盒子 + 设备名 + 详细信息 -->
+      <!-- 宽屏：图标盒子 + 设备名 + 详细信息 + 重启模组 -->
       <div class="detail-header-wide">
         <img :src="detail?.esim_transport === 'pcsc' ? ReaderIcon : ModemIcon" :alt="detail?.esim_transport === 'pcsc' ? 'reader' : 'modem'" class="device-icon-svg" />
         <div class="detail-header-info">
@@ -283,6 +287,10 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
             <span v-if="countryName" class="detail-header-country">{{ countryName }}</span>
           </div>
         </div>
+        <el-button size="small" type="primary" :disabled="rebooting || isPCSC" @click="rebootModem" class="!border-0 reboot-btn">
+          <el-icon class="mr-1"><ArrowSync24Regular /></el-icon>
+          <span>重启模组</span>
+        </el-button>
       </div>
     </div>
 
@@ -298,9 +306,6 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
           <span class="vowifi-status-text">{{ detail.vowifi_enabled ? '已启用' : '未启用' }}</span>
         </div>
         <div class="vr-btn-group">
-          <button class="vowifi-reset-btn" :disabled="rebooting || isPCSC" @click="rebootModem">
-            <span class="vr-text"><span>重启模组</span></span>
-          </button>
           <button v-if="detail.vowifi_enabled" class="vowifi-reset-btn" :disabled="reconnectingVoWiFi" @click="reconnectVoWiFi">
             <span class="vr-text"><span>重连 VoWiFi</span></span>
           </button>
@@ -396,7 +401,6 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
 
 <style scoped>
 @import '../assets/button/Reset-vowifi.css';
-
 .module-detail-panel {
   display: flex;
   flex-direction: column;
@@ -442,6 +446,15 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
   gap: 10px;
   flex: 1;
   min-width: 0;
+}
+
+.reboot-btn {
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.reboot-btn-narrow {
+  flex-shrink: 0;
 }
 
 /* 图标盒子 */
