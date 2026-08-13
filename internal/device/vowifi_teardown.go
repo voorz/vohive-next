@@ -28,6 +28,14 @@ func (p *Pool) restoreSMSModeAfterVoWiFiTeardown(w *Worker) {
 		return
 	}
 
+	// PC/SC 设备：释放 AKA provider 持有的 PC/SC 通道锁，防止下次启动阻塞
+	if isPCSCDevice(w) {
+		if adapter := w.pcscActiveAdapter.Swap(nil); adapter != nil {
+			adapter.Stop()
+			logger.Info("PC/SC adapter 已释放", "device", w.ID)
+		}
+	}
+
 	if w.Backend != nil && w.Backend.Mode() != "at" {
 		w.smsMode = smsModeQMI
 		if w.Modem != nil {

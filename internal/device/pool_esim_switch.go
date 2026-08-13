@@ -386,6 +386,14 @@ func (p *Pool) refreshPostSwitchIdentityWithPolling(deviceID string, worker *Wor
 
 	reader, ok := worker.Backend.(liveSIMIdentityReader)
 	if !ok {
+		// PC/SC 设备没有 Backend，通过 pcscModemAdapter 读取新卡身份
+		if isPCSCDevice(worker) {
+			identityReady, err := p.refreshPostSwitchIdentityPCSC(deviceID, worker, snapshot, pollTimeout, pollInterval)
+			if err != nil {
+				worker.MarkSIMIdentityDegraded("post_switch_finalize", err)
+			}
+			return identityReady, err
+		}
 		err := fmt.Errorf("live_identity_not_supported")
 		worker.MarkSIMIdentityDegraded("post_switch_finalize", err)
 		logger.Warn("切卡后 live 身份读取能力不可用，将按严格门控处理",
@@ -542,6 +550,114 @@ func (p *Pool) refreshPostSwitchIdentityWithPolling(deviceID string, worker *Wor
 		"target_iccid", targetICCID,
 		"old_iccid", oldICCID,
 		"old_imsi", oldIMSI,
+		"new_iccid", newICCID,
+		"new_imsi", newIMSI,
+		"identity_ready", identityReady,
+		"iccid_changed", iccidChanged,
+		"imsi_changed", imsiChanged)
+	return identityReady, nil
+}
+
+// refreshPostSwitchIdentityPCSC 通过 PC/SC 读卡器读取切卡后的新 SIM 身份。
+// 逻辑与 refreshPostSwitchIdentityWithPolling 对齐，但使用 pcscModemAdapter 而非 Backend。
+func (p *Pool) refreshPostSwitchIdentityPCSC(deviceID string, worker *Worker, snapshot esimSwitchContext, pollTimeout, pollInterval time.Duration) (bool, error) {
+	oldICCID := normalizeSIMIdentity(snapshot.ICCIDBefore)
+	oldIMSI := normalizeSIMIdentity(snapshot.IMSIBefore)
+	targetICCID := normalizeSIMIdentity(snapshot.TargetICCID)
+	targetICCIDKey := normalizeSIMIdentityForCompare(targetICCID)
+	oldICCIDKey := normalizeSIMIdentityForCompare(oldICCID)
+
+	if pollTimeout <= 0 {
+		pollTimeout = 10 * time.Second
+	}
+	if pollInterval <= 0 {
+		pollInterval = 500 * time.Millisecond
+	}
+
+	var newICCID, newIMSI string
+	pollDeadline := time.Now().Add(pollTimeout)
+	for {
+		adapter, err := newPCSCModemAdapter(worker.ID, worker.Config.PCSCReader, worker.pcscAccessMu)
+		if err != nil {
+			logger.Debug("切卡后 PC/SC 创建适配器失败", "device", deviceID, "err", err)
+		} else {
+			imsi, iccid, mcc, mnc, readErr := adapter.ReadSIMIdentity()
+			adapter.Stop()
+			if readErr == nil {
+				newICCID = normalizeSIMIdentity(iccid)
+				newIMSI = normalizeSIMIdentity(imsi)
+				newICCIDKey := normalizeSIMIdentityForCompare(newICCID)
+				if targetICCIDKey != "" && newICCIDKey == targetICCIDKey {
+					if newIMSI != "" {
+						cacheVoWiFiProfileMCCMNC(worker, strings.TrimSpace(mcc), strings.TrimSpace(mnc))
+						break
+					}
+				}
+				if targetICCIDKey == "" && (oldICCIDKey == "" || (newICCIDKey != "" && newICCIDKey != oldICCIDKey)) {
+					cacheVoWiFiProfileMCCMNC(worker, strings.TrimSpace(mcc), strings.TrimSpace(mnc))
+					break
+				}
+			}
+		}
+		if time.Now().After(pollDeadline) {
+			logger.Warn("切卡后 PC/SC 等待新卡身份生效超时",
+				"device", deviceID,
+				"target_iccid", targetICCID,
+				"old_iccid", oldICCID,
+				"current_iccid", newICCID,
+				"poll_timeout", pollTimeout.String())
+			break
+		}
+		time.Sleep(pollInterval)
+	}
+
+	newICCIDKey := normalizeSIMIdentityForCompare(newICCID)
+	if targetICCIDKey != "" && newICCIDKey != targetICCIDKey {
+		err := fmt.Errorf("post_switch_pcsc_target_iccid_not_active")
+		worker.MarkSIMIdentityDegraded("post_switch_finalize", err)
+		logger.Warn("切卡后 PC/SC 目标 ICCID 未生效",
+			"device", deviceID,
+			"target_iccid", targetICCID,
+			"old_iccid", oldICCID,
+			"new_iccid", newICCID,
+			"err", err)
+		return false, err
+	}
+
+	identityChangedForSPN := oldICCIDKey != "" && newICCIDKey != "" && oldICCIDKey != newICCIDKey
+	if !identityChangedForSPN {
+		identityChangedForSPN = oldIMSI != "" && newIMSI != "" && oldIMSI != newIMSI
+	}
+
+	now := time.Now()
+	worker.cacheMu.Lock()
+	worker.state.Identity.ICCID = newICCID
+	worker.state.Identity.IMSI = newIMSI
+	worker.state.Meta.IdentityUpdatedAt = now
+	worker.state.Meta.UpdatedAt = now
+	if identityChangedForSPN {
+		worker.state.Identity.NativeSPN = ""
+		worker.clearSIMMetadataLocked()
+	}
+	worker.state.Identity.Ready = newICCID != "" || newIMSI != ""
+	if worker.state.Identity.Ready {
+		worker.state.Identity.Phase = simIdentityPhaseReady
+		worker.state.Identity.TargetICCID = ""
+		worker.state.Identity.LastReason = "post_switch_pcsc_finalize"
+		worker.state.Identity.LastError = ""
+	}
+	worker.cacheMu.Unlock()
+	p.PersistIdentityState(worker)
+
+	identityReady := newICCID != ""
+	iccidChanged := oldICCIDKey != "" && newICCIDKey != "" && oldICCIDKey != newICCIDKey
+	imsiChanged := oldIMSI != "" && newIMSI != "" && oldIMSI != newIMSI
+
+	logger.Info("切卡后 PC/SC 身份刷新完成",
+		"device", deviceID,
+		"reason", "post_switch_pcsc_finalize",
+		"target_iccid", targetICCID,
+		"old_iccid", oldICCID,
 		"new_iccid", newICCID,
 		"new_imsi", newIMSI,
 		"identity_ready", identityReady,

@@ -62,6 +62,21 @@ const activeControlDevice = computed(() => props.device?.control_device || editC
 const isQMIBackendOnly = computed(() => isWwanQmiControlPath(activeControlDevice.value))
 const isMBIMBackendOnly = computed(() => String(editConfig.value?.device_backend || '').toLowerCase() === 'mbim')
 
+// 设备类型判断：esim_transport 为 pcsc 即为读卡器设备
+const isPCSCDevice = computed(() => String(editConfig.value?.esim_transport || '').toLowerCase() === 'pcsc')
+
+// eSIM 传输可选项：读卡器只有 PC/SC，模组有 AT/QMI/MBIM（不含 PC/SC）
+const esimTransportOptions = computed(() => {
+  if (isPCSCDevice.value) {
+    return [{ label: 'PC/SC', value: 'pcsc' }]
+  }
+  return [
+    { label: 'AT', value: 'at' },
+    { label: 'QMI', value: 'qmi' },
+    { label: 'MBIM', value: 'mbim' }
+  ]
+})
+
 async function loadConfig() {
   const id = props.deviceId
   if (!id) {
@@ -182,19 +197,17 @@ async function handleDelete() {
         </div>
         <div class="field">
           <label class="form-label">eSIM 传输</label>
-          <el-select v-model="editConfig.esim_transport" class="!w-full">
-            <el-option label="AT" value="at" />
-            <el-option label="QMI" value="qmi" />
-            <el-option label="PC/SC" value="pcsc" />
+          <el-select v-model="editConfig.esim_transport" class="!w-full" :disabled="isPCSCDevice">
+            <el-option v-for="opt in esimTransportOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </div>
         <div v-if="editConfig.esim_transport === 'pcsc'" class="field">
           <label class="form-label">PC/SC 读卡器</label>
           <div class="flex gap-2">
-            <el-select v-model="editConfig.pcsc_reader" class="!w-full" placeholder="选择读卡器" :loading="pcscLoading">
+            <el-select v-model="editConfig.pcsc_reader" class="!w-full" placeholder="选择读卡器" :loading="pcscLoading" disabled>
               <el-option v-for="r in pcscReaders" :key="r" :label="r" :value="r" />
             </el-select>
-            <el-button :loading="pcscLoading" @click="loadPCSCReaders">刷新</el-button>
+            <el-button :loading="pcscLoading" disabled>刷新</el-button>
           </div>
         </div>
       </div>

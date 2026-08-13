@@ -82,8 +82,23 @@ func (a *pcscModemAdapter) ExecuteATSilent(cmd string, timeout time.Duration) (s
 }
 
 func (a *pcscModemAdapter) ensureConnected() error {
-	if a.connected {
+	if a.connected && a.channel != nil && !a.channel.IsClosed() {
 		return nil
+	}
+	// 通道已关闭（如上次 AKA 完成后自动断开），需要重建
+	if a.channel == nil || a.channel.IsClosed() {
+		var ch *esim.PCSCExclusiveChannel
+		var err error
+		if a.accessMu != nil {
+			ch, err = esim.NewPCSCSharedChannelWithMutex(a.readerName, a.accessMu)
+		} else {
+			ch, err = esim.NewPCSCSharedChannel(a.readerName)
+		}
+		if err != nil {
+			return fmt.Errorf("重建 PC/SC 通道失败: %w", err)
+		}
+		a.channel = ch
+		a.connected = false
 	}
 	if err := a.channel.Connect(); err != nil {
 		return fmt.Errorf("PC/SC 连接失败: %w", err)
@@ -178,7 +193,15 @@ func (a *pcscModemAdapter) discoverAIDFromEFDIR(prefix []byte) (string, error) {
 }
 
 func (a *pcscModemAdapter) CloseLogicalChannel(channel int) error {
-	return a.channel.CloseLogicalChannel(byte(channel))
+	err := a.channel.CloseLogicalChannel(byte(channel))
+	// AKA 认证完成后（defer CloseLogicalChannel）立即断开 PC/SC 物理连接，
+	// 释放 accessMu 锁，让 eSIM 操作可以访问读卡器。
+	// 下次操作时 ensureConnected() 会检测通道已关闭并重建。
+	if a.connected {
+		_ = a.channel.Disconnect()
+		a.connected = false
+	}
+	return err
 }
 
 func (a *pcscModemAdapter) TransmitAPDU(channel int, hexAPDU string) (string, error) {

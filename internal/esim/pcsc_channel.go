@@ -143,6 +143,13 @@ func NewPCSCSharedChannelWithMutex(reader string, mu *sync.Mutex) (*PCSCExclusiv
 	return ch, nil
 }
 
+// IsClosed 返回通道是否已关闭（不可重用）。
+func (c *PCSCExclusiveChannel) IsClosed() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.closed
+}
+
 // CurrentChannel 返回当前打开的逻辑通道号（0 表示无），供调用方做清理。
 func (c *PCSCExclusiveChannel) CurrentChannel() byte {
 	c.mu.Lock()
@@ -222,6 +229,15 @@ func (c *PCSCExclusiveChannel) releaseAccessMuLocked() {
 		c.accessMu.Unlock()
 		c.muHeld = false
 	}
+}
+
+// ReleaseAccessMu 释放跨通道共享的读卡器访问锁，但不关闭通道。
+// 用于 VoWiFi AKA 认证完成后提前释放锁，让 eSIM 操作可以并行访问读卡器。
+// 通道仍保持 connected 状态，后续 Transmit 可正常使用（但需重新获取锁）。
+func (c *PCSCExclusiveChannel) ReleaseAccessMu() {
+	c.mu.Lock()
+	c.releaseAccessMuLocked()
+	c.mu.Unlock()
 }
 
 // releaseLocked 释放卡片与上下文（调用方需持有 c.mu）。

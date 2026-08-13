@@ -159,6 +159,9 @@ type Worker struct {
 	// pcscAccessMu 序列化 PC/SC 读卡器访问（eSIM 操作与 VoWiFi AKA 认证共享）。
 	// 仅 PC/SC 设备使用，modem 设备为 nil。
 	pcscAccessMu *sync.Mutex
+	// pcscActiveAdapter 保存当前活跃的 PC/SC modem adapter 引用。
+	// VoWiFi teardown 时调用其 Stop() 释放 PC/SC 通道锁，防止锁泄漏。
+	pcscActiveAdapter atomic.Pointer[pcscModemAdapter]
 }
 
 type Pool struct {

@@ -298,27 +298,18 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
           <span class="vowifi-status-text">{{ detail.vowifi_enabled ? '已启用' : '未启用' }}</span>
         </div>
         <div class="vr-btn-group">
-          <template v-if="isPCSC">
-            <el-switch
-              :model-value="detail.vowifi_enabled"
-              :loading="togglingVoWiFi"
-              @update:model-value="toggleVoWiFi"
-            />
-            <button v-if="detail.vowifi_enabled" class="vowifi-reset-btn" :disabled="reconnectingVoWiFi" @click="reconnectVoWiFi">
-              <span class="vr-text"><span>重连</span></span>
-            </button>
-          </template>
-          <template v-else>
-            <button class="vowifi-reset-btn" :disabled="rebooting" @click="rebootModem">
-              <span class="vr-text"><span>重启模组</span></span>
-            </button>
-            <button v-if="detail.vowifi_enabled" class="vowifi-reset-btn" :disabled="reconnectingVoWiFi" @click="reconnectVoWiFi">
-              <span class="vr-text"><span>重连 VoWiFi</span></span>
-            </button>
-            <button v-else class="vowifi-reset-btn" :disabled="!detail.network_connected || rotating" @click="rotateIP">
-              <span class="vr-text"><span>切换 IP</span></span>
-            </button>
-          </template>
+          <button class="vowifi-reset-btn" :disabled="rebooting || isPCSC" @click="rebootModem">
+            <span class="vr-text"><span>重启模组</span></span>
+          </button>
+          <button v-if="detail.vowifi_enabled" class="vowifi-reset-btn" :disabled="reconnectingVoWiFi" @click="reconnectVoWiFi">
+            <span class="vr-text"><span>重连 VoWiFi</span></span>
+          </button>
+          <button v-else-if="isPCSC" class="vowifi-reset-btn" disabled>
+            <span class="vr-text"><span>重连 VoWiFi</span></span>
+          </button>
+          <button v-else class="vowifi-reset-btn" :disabled="!detail.network_connected || rotating" @click="rotateIP">
+            <span class="vr-text"><span>切换 IP</span></span>
+          </button>
         </div>
       </div>
 
@@ -378,6 +369,7 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
             :iccid="detail.modem?.iccid"
             :policy="cardPolicy"
             :device-online="detail.running"
+            :is-p-c-s-c="isPCSC"
             @policy-changed="onCardPolicyChanged"
           />
         </div>

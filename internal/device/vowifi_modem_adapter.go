@@ -26,6 +26,8 @@ func newVoWiFiModemInterface(w *Worker, deviceID string) (runtimehost.Modem, err
 		if err != nil {
 			return nil, fmt.Errorf("创建 PC/SC modem 适配器失败: %w", err)
 		}
+		// 保存引用供 teardown 时释放
+		w.pcscActiveAdapter.Store(adapter)
 		return adapter, nil
 	}
 	if w.Backend != nil {

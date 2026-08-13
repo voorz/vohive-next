@@ -312,8 +312,16 @@ func effectivePostSwitchReinitWindow(cfg config.ESIMSwitchConfig) time.Duration 
 }
 
 func (p *Pool) runPostSwitchConvergence(deviceID string, token uint64, worker *Worker, snapshot esimSwitchContext) postSwitchConvergenceResult {
-	if worker == nil || worker.Backend == nil {
-		return postSwitchConvergenceResult{Degraded: true, Reason: "worker_or_backend_missing"}
+	if worker == nil {
+		return postSwitchConvergenceResult{Degraded: true, Reason: "worker_missing"}
+	}
+	// PC/SC 设备没有 Backend/QMI，不涉及 UIM 收敛，直接跳过
+	if isPCSCDevice(worker) {
+		p.resolveAndApplyPolicy(worker, "esim_switched_pcsc")
+		return postSwitchConvergenceResult{Ready: true, Reason: "pcsc_skip_convergence"}
+	}
+	if worker.Backend == nil {
+		return postSwitchConvergenceResult{Degraded: true, Reason: "backend_missing"}
 	}
 	readiness, ok := worker.Backend.(postSwitchReadinessProvider)
 	if !ok {
