@@ -309,6 +309,7 @@ degraded?: boolean
 usbnet_mode?: number
 type?: 'modem' | 'pcsc'
 pcsc_reader?: string
+display_name?: string
 }
 
 export type DashboardDevice = {

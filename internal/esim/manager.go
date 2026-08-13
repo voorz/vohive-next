@@ -19,7 +19,6 @@ import (
 
 	"github.com/damonto/euicc-go/bertlv"
 	"github.com/damonto/euicc-go/driver"
-	"github.com/damonto/euicc-go/driver/ccid"
 	"github.com/damonto/euicc-go/lpa"
 	sgp22 "github.com/damonto/euicc-go/v2"
 	"github.com/voorz/vohive/internal/apduarbiter"
@@ -482,9 +481,13 @@ func NewManager(opts ManagerOptions) (*Manager, error) {
 		switchSignal:         make(chan string, 16),
 		switchUseRefreshTrue: opts.SwitchUseRefreshTrue,
 		opDone:               make(chan struct{}),
-		apduArbiter:          opts.APDUArbiter,
 		postSwitchMinDelay:   defaultPostSwitchMinDelay,
 		readQueueWaitTimeout: defaultReadQueueWaitTimeout,
+	}
+	// 仅在非 nil 时赋值，避免 typed-nil 指针进入 interface 字段后
+	// 绕过 == nil 判断（PC/SC 设备无 APDUArbiter，会传入 nil 指针）
+	if opts.APDUArbiter != nil {
+		mgr.apduArbiter = opts.APDUArbiter
 	}
 	if opts.PostSwitchMinDelay > 0 {
 		mgr.postSwitchMinDelay = opts.PostSwitchMinDelay
@@ -534,7 +537,9 @@ func NewManager(opts ManagerOptions) (*Manager, error) {
 			return nil, fmt.Errorf("PC/SC 传输需要指定读卡器名称")
 		}
 		mgr.smartCardChannelFactory = func() (driver.SmartCardChannel, error) {
-			ch, err := ccid.NewWithReader(readerName)
+			// 独占模式通道（对齐 lpac）：部分 eUICC 在共享模式下
+			// EnableProfile 恒定返回 910B，独占 + T=0 + 断开下电可避免
+			ch, err := NewPCSCExclusiveChannel(readerName)
 			if err != nil {
 				return nil, fmt.Errorf("创建 PC/SC 通道失败: %w", err)
 			}
@@ -2514,6 +2519,20 @@ func isExpectedCardResetSignal(err error) bool {
 	return errors.Is(err, ErrQMIUIMCardReset) || errors.Is(err, ErrMBIMUICCInvalidChannel)
 }
 
+// isEUICCBusyTransient 判断错误是否为瞬态"eUICC 忙碌"信号。
+// SGP.22 规定 ES10b 命令返回 SW=910B 表示 eUICC 忙碌，终端应等待后
+// 重发同一命令；euicc-go 会把该 SW 直接报为普通错误（无哨兵值），
+// 故按错误文本识别。
+func isEUICCBusyTransient(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, sgp22.ErrCatBusy) {
+		return true
+	}
+	return strings.Contains(err.Error(), "status 910B")
+}
+
 func (m *Manager) finalizeEnableProfileResult(targetICCID string, enableErr error) error {
 	if enableErr == nil {
 		return nil
@@ -2654,21 +2673,25 @@ func (m *Manager) SwitchProfileWithResult(ctx context.Context, targetICCID strin
 	// 4. 启用目标 profile（refresh=true 会自动禁用当前活跃的 profile）。
 	// refresh=true 时 UIM card reset（QMI: ErrQMIUIMCardReset / MBIM: ErrMBIMUICCInvalidChannel）
 	// 是预期信号，后续 finalize 已处理，见 isExpectedCardResetSignal。
-	// CatBusy (result=5) 是瞬态错误：飞行模式切换等操作会导致卡片 CAT 忙碌，
-	// 等待短暂间隔后重试即可恢复。最多重试 3 次，间隔 800ms。
+	// CatBusy (result=5) 与 SW=910B (eUICC busy) 都是瞬态错误：卡片忙碌时
+	// 等待后重试即可恢复。最多重试 3 次，间隔递增（1.5s/3s/6s）：
+	// SGP.22 要求收到 910B 后等待并重发同一命令，递增间隔给卡片
+	// 足够的内部事务完成时间。
 	var enableErr error
+	busyBackoff := []time.Duration{1500 * time.Millisecond, 3 * time.Second, 6 * time.Second}
 	const maxCatBusyRetries = 3
 	for attempt := 0; attempt <= maxCatBusyRetries; attempt++ {
 		enableErr = client.EnableProfile(iccid, m.switchUseRefreshTrue)
-		if enableErr == nil || !errors.Is(enableErr, sgp22.ErrCatBusy) {
+		if enableErr == nil || !isEUICCBusyTransient(enableErr) {
 			break
 		}
 		if attempt < maxCatBusyRetries {
-			logger.Warn("EnableProfile 返回 CatBusy，卡片 CAT 忙碌中，等待后重试",
+			logger.Warn("EnableProfile 遇到 eUICC 忙碌 (CatBusy/910B)，等待后重试",
 				"device", m.deviceID,
 				"target", targetICCID,
+				"err", enableErr,
 				"attempt", fmt.Sprintf("%d/%d", attempt+1, maxCatBusyRetries))
-			time.Sleep(800 * time.Millisecond)
+			time.Sleep(busyBackoff[attempt])
 		}
 	}
 

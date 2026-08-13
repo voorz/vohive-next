@@ -31,6 +31,8 @@ require (
 )
 
 require (
+	github.com/ElMostafaIdrassi/goscard v1.0.0 // indirect
+	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8 // indirect

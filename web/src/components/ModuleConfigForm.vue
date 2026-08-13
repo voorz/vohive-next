@@ -172,7 +172,7 @@ async function handleDelete() {
           <label class="form-label">设备名称</label>
           <el-input v-model="editConfig.name" placeholder="显示名称" />
         </div>
-        <div class="field">
+        <div v-if="editConfig.esim_transport !== 'pcsc'" class="field">
           <label class="form-label">设备后端</label>
           <el-select v-model="editConfig.device_backend" class="!w-full" :disabled="isQMIBackendOnly || isMBIMBackendOnly">
             <el-option v-if="!isMBIMBackendOnly" label="AT (串口)" value="at" />

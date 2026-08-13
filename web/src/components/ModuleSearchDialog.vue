@@ -123,7 +123,7 @@ function selectDevice(d: DiscoveredDevice) {
     // 取读卡器名称的末尾部分，去除空格和特殊字符
     const tail = readerName.replace(/[^a-zA-Z0-9]/g, '').slice(-6) || 'reader'
     deviceId.value = `pcsc-${tail}`
-    deviceName.value = readerName
+    deviceName.value = d.display_name || readerName
     return
   }
   deviceId.value = d.imei ? `modem-${d.imei.slice(-4)}` : (d.net_interface || d.at_port.split('/').pop() || d.at_port)
@@ -287,7 +287,7 @@ function vidPid(d: DiscoveredDevice): string {
           <!-- 信息 -->
           <div class="discovered-card-info">
             <div class="discovered-card-name">
-              <template v-if="d.type === 'pcsc'">{{ d.pcsc_reader || 'PC/SC Reader' }}</template>
+              <template v-if="d.type === 'pcsc'">{{ d.display_name || d.pcsc_reader || 'PC/SC Reader' }}</template>
               <template v-else>{{ d.net_interface || '--' }} · {{ d.driver_name || '--' }}</template>
               <span class="meta-mode" :class="modeColor(d.mode)">{{ modeText(d.mode) }}</span>
             </div>

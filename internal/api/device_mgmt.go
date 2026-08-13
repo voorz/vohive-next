@@ -113,6 +113,16 @@ func deviceConfigFromDTOWithBase(d deviceConfigDTO, base *config.DeviceConfig) c
 	if d.QMIProxyExecutable != nil {
 		qmiProxyExecutable = strings.TrimSpace(*d.QMIProxyExecutable)
 	}
+	esimTransport := strings.TrimSpace(d.ESIMTransport)
+	pcscReader := strings.TrimSpace(d.PCSCReader)
+	if base != nil {
+		if esimTransport == "" {
+			esimTransport = base.ESIMTransport
+		}
+		if pcscReader == "" {
+			pcscReader = base.PCSCReader
+		}
+	}
 	return config.DeviceConfig{
 		ID:                    id,
 		Name:                  strings.TrimSpace(d.Name),
@@ -125,8 +135,8 @@ func deviceConfigFromDTOWithBase(d deviceConfigDTO, base *config.DeviceConfig) c
 		QMIUseProxy:           qmiUseProxy,
 		QMIProxyPath:          qmiProxyPath,
 		QMIProxyExecutable:    qmiProxyExecutable,
-		ESIMTransport:         config.NormalizeESIMTransport(d.ESIMTransport),
-		PCSCReader:            strings.TrimSpace(d.PCSCReader),
+		ESIMTransport:         config.NormalizeESIMTransport(esimTransport),
+		PCSCReader:            pcscReader,
 		BaudRate:              d.BaudRate,
 		DataBits:              d.DataBits,
 		StopBits:              d.StopBits,
@@ -1051,6 +1061,7 @@ type discoveredDevice struct {
 	Degraded       bool     `json:"degraded,omitempty"` // 探不到 IMEI,无法确立身份,不可直接添加
 	Type           string   `json:"type,omitempty"`    // modem/pcsc
 	PCSCReader     string   `json:"pcsc_reader,omitempty"`
+	DisplayName    string   `json:"display_name,omitempty"` // PC/SC 读卡器的 USB 可读名称
 }
 
 var discoverQMIForMgmtFn = device.DiscoverQMIDevices
@@ -1167,6 +1178,7 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 		defer pcscReaders.Disconnect() //nolint:errcheck
 		readerNames, listErr := pcscReaders.ListReaders()
 		if listErr == nil {
+			usbIdentities := device.ListUSBIdentities()
 			configuredDevices := managed
 			for _, r := range readerNames {
 				configuredID := ""
@@ -1182,6 +1194,7 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 					Mode:         "pcsc",
 					Type:         "pcsc",
 					PCSCReader:   r,
+					DisplayName:  device.ResolvePCSCReaderDisplayName(r, usbIdentities),
 					Configured:   configuredID != "",
 					ConfiguredID: configuredID,
 				})

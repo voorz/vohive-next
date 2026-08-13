@@ -52,6 +52,16 @@ func UpdateDeviceInFile(path string, deviceID string, newDevice DeviceConfig) er
 		} else {
 			deleteMapKey(n, "qmi_proxy_executable")
 		}
+		if newDevice.ESIMTransport != "" && newDevice.ESIMTransport != ESIMTransportAT {
+			setMapScalar(n, "esim_transport", newDevice.ESIMTransport)
+		} else {
+			deleteMapKey(n, "esim_transport")
+		}
+		if newDevice.PCSCReader != "" {
+			setMapScalar(n, "pcsc_reader", newDevice.PCSCReader)
+		} else {
+			deleteMapKey(n, "pcsc_reader")
+		}
 
 		if newDevice.ProxyPort > 0 {
 			setMapInt(n, "proxy_port", newDevice.ProxyPort)
@@ -180,6 +190,12 @@ func deviceConfigToNode(d DeviceConfig) *yaml.Node {
 	}
 	if d.QMIProxyExecutable != "" {
 		appendMapScalar(m, "qmi_proxy_executable", d.QMIProxyExecutable)
+	}
+	if d.ESIMTransport != "" && d.ESIMTransport != ESIMTransportAT {
+		appendMapScalar(m, "esim_transport", d.ESIMTransport)
+	}
+	if d.PCSCReader != "" {
+		appendMapScalar(m, "pcsc_reader", d.PCSCReader)
 	}
 	if d.ProxyPort > 0 {
 		appendMapInt(m, "proxy_port", d.ProxyPort)

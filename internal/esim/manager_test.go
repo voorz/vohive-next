@@ -949,7 +949,8 @@ func TestSwitchProfileCustomAPDUErrorFailsWithoutConfirmationRead(t *testing.T) 
 	}
 
 	transmitter := fakeProfileOperationTransmitter{
-		err:       errors.New("returned an unexpected response with status 910B"),
+		// 非瞬态 SW（910B 会被重试，不属于本用例覆盖范围）
+		err:       errors.New("returned an unexpected response with status 6A80"),
 		calls:     &enableCalls,
 		listCalls: &listCalls,
 		eid:       eid,
@@ -979,7 +980,7 @@ func TestSwitchProfileCustomAPDUErrorFailsWithoutConfirmationRead(t *testing.T) 
 	if err == nil {
 		t.Fatal("SwitchProfile() error=nil, want EnableProfile APDU error")
 	}
-	if !strings.Contains(err.Error(), "returned an unexpected response with status 910B") {
+	if !strings.Contains(err.Error(), "returned an unexpected response with status 6A80") {
 		t.Fatalf("SwitchProfile() error=%v, want original APDU status", err)
 	}
 	if enableCalls.Load() != 1 {
