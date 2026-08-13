@@ -1089,8 +1089,9 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 
 	list, err := discoverCompatibleModemsFromQMIFn(discoveredQMI)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"devices": []discoveredDevice{}})
-		return
+		// 调制解调器发现失败不阻断流程，PC/SC 读卡器仍可能在后面被发现
+		logger.Debug(fmt.Sprintf("设备发现: 调制解调器发现失败或未发现: %v", err))
+		list = nil
 	}
 
 	withIMEI := strings.TrimSpace(c.Query("with_imei")) == "1"
@@ -1173,6 +1174,7 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 
 	// 追加 PC/SC 读卡器到发现列表（使用 goscard 避免与已初始化的 PC/SC 通道冲突）
 	readerNames, pcscErr := esim.ListPCSCReaders()
+	logger.Debug(fmt.Sprintf("设备发现: ListPCSCReaders readers=%d err=%v", len(readerNames), pcscErr))
 	if pcscErr == nil {
 		usbIdentities := device.ListUSBIdentities()
 		configuredDevices := managed
