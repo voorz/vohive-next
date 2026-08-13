@@ -228,6 +228,11 @@ func cardPolicyVoWiFiEnabled(iccid string, fallback bool) bool {
 	if err != nil {
 		return fallback
 	}
+	// 防御：卡策略表 vowifi_enabled=false 但实际 VoWiFi 已在线时，
+	// 以运行时状态为准（修复 PC/SC 设备启动时 ICCID 尚未刷新导致卡策略未写入的场景）。
+	if !pol.VoWiFiEnabled && fallback {
+		return true
+	}
 	return pol.VoWiFiEnabled
 }
 
@@ -1066,8 +1071,8 @@ type discoveredDevice struct {
 	Degraded       bool     `json:"degraded,omitempty"` // 探不到 IMEI,无法确立身份,不可直接添加
 	Type           string   `json:"type,omitempty"`    // modem/pcsc
 	PCSCReader     string   `json:"pcsc_reader,omitempty"`
-	DisplayName    string   `json:"display_name,omitempty"` // PC/SC 读卡器的 USB Product 名称
-	Manufacturer  string   `json:"manufacturer,omitempty"`  // PC/SC 读卡器的 USB Manufacturer
+	DisplayName    string   `json:"display_name,omitempty"` // USB Product 名称（modem 和 pcsc 通用）
+	Manufacturer  string   `json:"manufacturer,omitempty"`  // USB Manufacturer
 }
 
 var discoverQMIForMgmtFn = device.DiscoverQMIDevices
@@ -1243,6 +1248,8 @@ func buildDiscoveredDevice(hw device.CompatibleModem, configured bool, configure
 		Configured:     configured,
 		ConfiguredID:   configuredID,
 		Degraded:       degraded,
+		DisplayName:    strings.TrimSpace(hw.USBProduct),
+		Manufacturer:   strings.TrimSpace(hw.USBManufacturer),
 	}
 }
 

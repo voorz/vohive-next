@@ -17,19 +17,21 @@ import (
 
 // CompatibleModem 描述可接管的 modem（QMI + 非QMI）。
 type CompatibleModem struct {
-	ControlPath    string
-	NetInterface   string
-	USBPath        string
-	IMEI           string
-	VendorID       uint16
-	ProductID      uint16
-	DriverName     string
-	ATPorts        []string
-	ATPort         string
-	AudioDevice    string
-	Mode           string
-	TransportType  string
-	NetworkCapable bool
+	ControlPath      string
+	NetInterface     string
+	USBPath          string
+	IMEI             string
+	VendorID         uint16
+	ProductID        uint16
+	DriverName       string
+	ATPorts          []string
+	ATPort           string
+	AudioDevice      string
+	Mode             string
+	TransportType    string
+	NetworkCapable   bool
+	USBProduct       string // USB 描述符 product 字段
+	USBManufacturer  string // USB 描述符 manufacturer 字段
 }
 
 var discoverFallbackModemsFn = discoverFallbackModems
@@ -127,19 +129,22 @@ func discoverFallbackModems() ([]CompatibleModem, error) {
 
 func compatibleModemFromQMIStaticDevice(d QMIDevice) CompatibleModem {
 	mode := classifyMode(strings.TrimSpace(d.ControlPath), strings.TrimSpace(d.DriverName))
+	usbProduct, usbManuf := readUSBProductManufacturer(strings.TrimSpace(d.USBPath))
 	return CompatibleModem{
-		ControlPath:    strings.TrimSpace(d.ControlPath),
-		NetInterface:   strings.TrimSpace(d.NetInterface),
-		USBPath:        strings.TrimSpace(d.USBPath),
-		VendorID:       d.VendorID,
-		ProductID:      d.ProductID,
-		DriverName:     strings.TrimSpace(d.DriverName),
-		ATPorts:        dedupSortedNonEmpty(d.ATPorts),
-		ATPort:         strings.TrimSpace(d.ATPort),
-		AudioDevice:    strings.TrimSpace(d.AudioDevice),
-		Mode:           mode,
-		TransportType:  mode,
-		NetworkCapable: mode == "qmi" || mode == "mbim",
+		ControlPath:     strings.TrimSpace(d.ControlPath),
+		NetInterface:    strings.TrimSpace(d.NetInterface),
+		USBPath:         strings.TrimSpace(d.USBPath),
+		VendorID:        d.VendorID,
+		ProductID:       d.ProductID,
+		DriverName:      strings.TrimSpace(d.DriverName),
+		ATPorts:         dedupSortedNonEmpty(d.ATPorts),
+		ATPort:          strings.TrimSpace(d.ATPort),
+		AudioDevice:     strings.TrimSpace(d.AudioDevice),
+		Mode:            mode,
+		TransportType:   mode,
+		NetworkCapable:  mode == "qmi" || mode == "mbim",
+		USBProduct:      usbProduct,
+		USBManufacturer: usbManuf,
 	}
 }
 
@@ -152,40 +157,46 @@ func discoverFallbackOne(usbPath string) (CompatibleModem, bool) {
 		atPorts := findATPortsInUSBPath(scanUSBPath)
 		atPort, imei := selectBestATPort(atPorts)
 		mode := classifyMode(capability.ControlPath, capability.DriverName)
+		usbProduct, usbManuf := readUSBProductManufacturer(scanUSBPath)
 		return CompatibleModem{
-			ControlPath:    capability.ControlPath,
-			NetInterface:   capability.NetInterface,
-			USBPath:        usbPath,
-			IMEI:           imei,
-			VendorID:       vid,
-			ProductID:      pid,
-			DriverName:     capability.DriverName,
-			ATPorts:        atPorts,
-			ATPort:         atPort,
-			AudioDevice:    "",
-			Mode:           mode,
-			TransportType:  mode,
-			NetworkCapable: mode == "qmi" || mode == "mbim",
+			ControlPath:     capability.ControlPath,
+			NetInterface:    capability.NetInterface,
+			USBPath:         usbPath,
+			IMEI:            imei,
+			VendorID:        vid,
+			ProductID:       pid,
+			DriverName:      capability.DriverName,
+			ATPorts:          atPorts,
+			ATPort:           atPort,
+			AudioDevice:     "",
+			Mode:            mode,
+			TransportType:   mode,
+			NetworkCapable:  mode == "qmi" || mode == "mbim",
+			USBProduct:      usbProduct,
+			USBManufacturer: usbManuf,
 		}, true
 	}
 	if capability, ok := detectMBIMUSBCapability(scanUSBPath); ok {
 		atPorts := findATPortsInUSBPath(scanUSBPath)
 		atPort, imei := selectBestATPort(atPorts)
 		mode := classifyMode(capability.ControlPath, capability.DriverName)
+		usbProduct, usbManuf := readUSBProductManufacturer(scanUSBPath)
 		return CompatibleModem{
-			ControlPath:    capability.ControlPath,
-			NetInterface:   capability.NetInterface,
-			USBPath:        usbPath,
-			IMEI:           imei,
-			VendorID:       vid,
-			ProductID:      pid,
-			DriverName:     capability.DriverName,
-			ATPorts:        atPorts,
-			ATPort:         atPort,
-			AudioDevice:    "",
-			Mode:           mode,
-			TransportType:  mode,
-			NetworkCapable: mode == "qmi" || mode == "mbim",
+			ControlPath:     capability.ControlPath,
+			NetInterface:    capability.NetInterface,
+			USBPath:         usbPath,
+			IMEI:            imei,
+			VendorID:        vid,
+			ProductID:       pid,
+			DriverName:      capability.DriverName,
+			ATPorts:          atPorts,
+			ATPort:           atPort,
+			AudioDevice:     "",
+			Mode:            mode,
+			TransportType:   mode,
+			NetworkCapable:  mode == "qmi" || mode == "mbim",
+			USBProduct:      usbProduct,
+			USBManufacturer: usbManuf,
 		}, true
 	}
 
@@ -204,20 +215,23 @@ func discoverFallbackOne(usbPath string) (CompatibleModem, bool) {
 	controlPath := findCDCWDMInUSBPath(scanUSBPath)
 	mode := classifyMode(controlPath, driver)
 
+	usbProduct, usbManuf := readUSBProductManufacturer(scanUSBPath)
 	return CompatibleModem{
-		ControlPath:    controlPath,
-		NetInterface:   iface,
-		USBPath:        usbPath,
-		IMEI:           imei,
-		VendorID:       vid,
-		ProductID:      pid,
-		DriverName:     driver,
-		ATPorts:        atPorts,
-		ATPort:         atPort,
-		AudioDevice:    "",
-		Mode:           mode,
-		TransportType:  mode,
-		NetworkCapable: mode == "qmi" || mode == "mbim",
+		ControlPath:     controlPath,
+		NetInterface:    iface,
+		USBPath:         usbPath,
+		IMEI:            imei,
+		VendorID:        vid,
+		ProductID:       pid,
+		DriverName:      driver,
+		ATPorts:          atPorts,
+		ATPort:           atPort,
+		AudioDevice:     "",
+		Mode:            mode,
+		TransportType:   mode,
+		NetworkCapable:  mode == "qmi" || mode == "mbim",
+		USBProduct:      usbProduct,
+		USBManufacturer: usbManuf,
 	}, true
 }
 
@@ -226,7 +240,7 @@ func classifyMode(controlPath, driver string) string {
 	d := strings.ToLower(strings.TrimSpace(driver))
 	switch {
 	case strings.Contains(d, "mbim"), strings.Contains(c, "mbim"):
-		return "mbim"
+		return "mbim" 
 	case strings.Contains(d, "qmi"), strings.Contains(d, "gobinet"), strings.Contains(d, "qcqmi"), strings.Contains(c, "qmi"):
 		return "qmi"
 	case strings.Contains(d, "rndis"):
@@ -272,6 +286,17 @@ func readDriverName(ifPath string) string {
 
 func findCDCWDMInUSBPath(usbPath string) string {
 	return findCDCWDMInUSB(usbPath)
+}
+
+// readUSBProductManufacturer 从 sysfs 读取 USB 设备的 product 和 manufacturer 字段。
+func readUSBProductManufacturer(usbPath string) (product, manufacturer string) {
+	p := strings.TrimSpace(usbPath)
+	if p == "" {
+		return
+	}
+	product = readSysfsAttr(p, "product")
+	manufacturer = readSysfsAttr(p, "manufacturer")
+	return
 }
 
 func resolveUSBPathForScan(usbPath string) string {
