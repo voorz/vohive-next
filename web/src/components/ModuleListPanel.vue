@@ -15,9 +15,10 @@ import {
   WifiWarning24Filled
 } from '@vicons/fluent'
 import { WifiCalling3Round } from '@vicons/material'
-import CarrierIcon from './CarrierIcon.vue'
 import { loadPlmnCatalog } from '../composables/plmn-catalog'
 import { downloadIcon, getCachedIcon } from '../composables/useOperatorIcon'
+import ModemIcon from '../assets/svgs/modem.svg'
+import ReaderIcon from '../assets/svgs/reader.svg'
 
 const props = defineProps<{
   selectedId?: string
@@ -202,7 +203,7 @@ function initials(name: string): string {
           ]"
           @click="handleSelect(item.id)"
         >
-          <CarrierIcon :mcc="item.modem?.native_mcc || ''" :mnc="item.modem?.native_mnc || ''" :name="item.modem?.native_spn" :size="38" />
+          <img :src="item.esim_transport === 'pcsc' ? ReaderIcon : ModemIcon" :alt="item.esim_transport === 'pcsc' ? 'reader' : 'modem'" class="device-card-icon-svg" />
           <div class="device-card-info">
             <!-- 第一行：WiFi图标 + 设备名 + 状态标签 -->
             <div class="device-card-name-row">
@@ -379,18 +380,10 @@ html.dark .device-card.tone-neutral.selected {
   border-color: #4b5563;
 }
 
-.device-card-icon {
+.device-card-icon-svg {
   width: 38px;
   height: 38px;
-  border-radius: 6px;
-  background: var(--background);
-  border: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--foreground);
+  object-fit: contain;
   flex-shrink: 0;
 }
 

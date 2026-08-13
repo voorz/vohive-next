@@ -5,7 +5,8 @@ import { useDevicesStore } from '../stores/devices'
 import ListSkeleton from './ListSkeleton.vue'
 import EmptyState from './EmptyState.vue'
 import CountryFlag from './CountryFlag.vue'
-import CarrierIcon from './CarrierIcon.vue'
+import ModemIcon from '../assets/svgs/modem.svg'
+import ReaderIcon from '../assets/svgs/reader.svg'
 import ModuleAtTerminal from './ModuleAtTerminal.vue'
 import ModuleUssdTerminal from './ModuleUssdTerminal.vue'
 import ModuleCardPolicy from './ModuleCardPolicy.vue'
@@ -251,7 +252,7 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
     <div class="detail-header">
       <!-- 窄屏下拉选择器 + 添加按钮 -->
       <div class="detail-header-narrow">
-        <CarrierIcon :mcc="detail?.modem?.native_mcc || ''" :mnc="detail?.modem?.native_mnc || ''" :name="nativeSpn" :size="38" class="narrow-logo" />
+        <img :src="detail?.esim_transport === 'pcsc' ? ReaderIcon : ModemIcon" :alt="detail?.esim_transport === 'pcsc' ? 'reader' : 'modem'" class="device-icon-svg narrow-logo" />
         <el-select
           :model-value="props.selectedId"
           @change="(v: string) => emit('select', v)"
@@ -272,7 +273,7 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
       </div>
       <!-- 宽屏：图标盒子 + 设备名 + 详细信息 -->
       <div class="detail-header-wide">
-        <CarrierIcon :mcc="detail?.modem?.native_mcc || ''" :mnc="detail?.modem?.native_mnc || ''" :name="nativeSpn" :size="38" />
+        <img :src="detail?.esim_transport === 'pcsc' ? ReaderIcon : ModemIcon" :alt="detail?.esim_transport === 'pcsc' ? 'reader' : 'modem'" class="device-icon-svg" />
         <div class="detail-header-info">
           <div class="detail-header-name">{{ operatorName }}</div>
           <div class="detail-header-meta">
@@ -451,19 +452,11 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
 }
 
 /* 图标盒子 */
-.detail-header-icon-box {
+.device-icon-svg {
   width: 38px;
   height: 38px;
-  border-radius: 6px;
-  background: var(--background);
-  border: 1px solid var(--border);
-  color: var(--foreground);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  object-fit: contain;
   flex-shrink: 0;
-  font-weight: 700;
-  font-size: 16px;
 }
 
 .detail-header-info {

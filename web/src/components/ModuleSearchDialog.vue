@@ -127,7 +127,7 @@ function selectDevice(d: DiscoveredDevice) {
     return
   }
   deviceId.value = d.imei ? `modem-${d.imei.slice(-4)}` : (d.net_interface || d.at_port.split('/').pop() || d.at_port)
-  deviceName.value = ''
+  deviceName.value = d.display_name || ''
 
   // 自动选择后端模式
   const mode = String(d.mode || '').toLowerCase()
@@ -203,18 +203,6 @@ function modeText(mode?: string): string {
   return 'UNKNOWN'
 }
 
-function modeColor(mode?: string): string {
-  if (mode === 'qmi') return 'qmi'
-  if (mode === 'mbim') return 'mbim'
-  if (mode === 'pcsc') return 'qmi'
-  return 'other'
-}
-
-// 驱动名首字母
-function driverInitial(driver: string): string {
-  return driver.charAt(0).toUpperCase()
-}
-
 // VID:PID 格式化
 function vidPid(d: DiscoveredDevice): string {
   return `0x${d.vendor_id.toString(16).padStart(4, '0')}:0x${d.product_id.toString(16).padStart(4, '0')}`
@@ -282,15 +270,15 @@ function vidPid(d: DiscoveredDevice): string {
           @click="selectDevice(d)"
         >
           <!-- 图标 -->
-          <div class="discovered-card-icon">{{ d.type === 'pcsc' ? 'P' : driverInitial(d.driver_name) }}</div>
+          <img v-if="d.type === 'pcsc'" src="../assets/svgs/reader.svg" alt="reader" class="discovered-card-icon-svg" />
+          <img v-else src="../assets/svgs/modem.svg" alt="modem" class="discovered-card-icon-svg" />
 
           <!-- 信息 -->
           <div class="discovered-card-info">
 <!-- 名称行 -->
 <div class="discovered-card-name">
-<template v-if="d.type === 'pcsc'">{{ d.display_name || d.pcsc_reader || 'PC/SC Reader' }} · Smartcard Reader</template>
-<template v-else>{{ d.net_interface || '--' }} · {{ d.driver_name || '--' }}</template>
-<span class="meta-mode" :class="modeColor(d.mode)">{{ modeText(d.mode) }}</span>
+<template v-if="d.type === 'pcsc'">{{ d.display_name || d.pcsc_reader || 'PC/SC Reader' }} · {{ modeText(d.mode) }}</template>
+<template v-else>{{ d.display_name || d.net_interface || '--' }} · {{ modeText(d.mode) }}</template>
 </div>
 <!-- 副标题 -->
 <div class="discovered-card-meta">
@@ -301,6 +289,7 @@ function vidPid(d: DiscoveredDevice): string {
 </template>
 <template v-else>
 <span v-if="d.imei" class="meta-item">IMEI: {{ d.imei }}</span>
+<span v-if="d.manufacturer" class="meta-item">{{ d.manufacturer }}</span>
 <span class="meta-item">AT: {{ d.at_port || '--' }}</span>
 <span class="meta-item">{{ vidPid(d) }}</span>
 </template>
@@ -458,20 +447,11 @@ function vidPid(d: DiscoveredDevice): string {
   cursor: not-allowed;
 }
 
-.discovered-card-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  background: var(--background);
-  border: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--foreground);
+.discovered-card-icon-svg {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
   flex-shrink: 0;
-  margin-top: 2px;
 }
 
 .discovered-card-info {
@@ -510,29 +490,6 @@ function vidPid(d: DiscoveredDevice): string {
 
 .meta-item {
   font-family: var(--oomol-font-mono);
-}
-
-.meta-mode {
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-weight: 600;
-  text-transform: uppercase;
-  font-size: 10px;
-}
-
-.meta-mode.qmi {
-  background: color-mix(in oklab, var(--brand) 15%, transparent);
-  color: var(--brand);
-}
-
-.meta-mode.mbim {
-  background: color-mix(in oklab, var(--warning) 15%, transparent);
-  color: var(--warning);
-}
-
-.meta-mode.other {
-  background: var(--muted);
-  color: var(--muted-foreground);
 }
 
 .meta-degraded {
