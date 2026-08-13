@@ -10,6 +10,7 @@ defineProps<{
   trafficSpeedTx?: string
   trafficMinuteRx?: string
   trafficMinuteTx?: string
+  isPCSC?: boolean
 }>()
 </script>
 
@@ -18,6 +19,7 @@ defineProps<{
     <ModuleOverviewStatus :device="device" />
     <ModuleOverviewDevice :device="device" />
     <ModuleOverviewNetwork
+      v-if="!isPCSC"
       :device="device"
       :traffic-speed-rx="trafficSpeedRx"
       :traffic-speed-tx="trafficSpeedTx"

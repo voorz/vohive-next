@@ -91,6 +91,8 @@ function primaryStatusText(d: DeviceMgmtListItem): string {
 // 次要状态文本（如 WiFi-Calling / 运营商·网络模式）
 function secondaryStatusText(d: DeviceMgmtListItem): string {
   if (d?.vowifi_enabled) return 'WiFi-Calling'
+  // PC/SC 读卡器无 modem，不具备驻网能力
+  if (d?.esim_transport === 'pcsc') return '未启用'
   if (isRadioRegistered(d)) {
     const op = d?.modem?.operator || '--'
     const mode = [d?.modem?.network_duplex, d?.modem?.network_mode].filter(Boolean).join(' ') || '--'
@@ -117,14 +119,19 @@ function cardToneClass(d: DeviceMgmtListItem): string {
 }
 
 // 信号强度格式化
-function signalText(dbm?: number): string {
+function signalText(d: DeviceMgmtListItem): string {
+  const dbm = d?.modem?.signal_dbm
   if (dbm === undefined || dbm === null) return ''
+  // PC/SC 读卡器无 modem，信号为 0 时显示“No Modem”
+  if (d?.esim_transport === 'pcsc' && dbm === 0) return 'No Modem'
   return `${dbm}dBm`
 }
 
 // 信号强度颜色
-function signalClass(dbm?: number): string {
+function signalClass(d: DeviceMgmtListItem): string {
+  const dbm = d?.modem?.signal_dbm
   if (dbm === undefined || dbm === null) return ''
+  if (d?.esim_transport === 'pcsc' && dbm === 0) return 'no-modem'
   if (dbm >= -70) return 'good'
   if (dbm >= -90) return 'fair'
   return 'poor'
@@ -232,8 +239,8 @@ function initials(name: string): string {
               <span
                 v-if="item.modem?.signal_dbm !== undefined && item.modem?.signal_dbm !== null"
                 class="device-card-signal"
-                :class="signalClass(item.modem?.signal_dbm)"
-              >{{ signalText(item.modem?.signal_dbm) }}</span>
+                :class="signalClass(item)"
+              >{{ signalText(item) }}</span>
             </div>
             <!-- 第三行：次要状态 -->
             <div class="device-card-meta2">
@@ -524,6 +531,11 @@ html.dark .device-card.tone-neutral.selected {
 .device-card-signal.poor {
   color: var(--destructive);
   opacity: 0.7;
+}
+
+.device-card-signal.no-modem {
+  color: var(--muted-foreground);
+  opacity: 0.6;
 }
 
 .device-card-meta2 {

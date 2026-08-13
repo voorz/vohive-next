@@ -217,7 +217,7 @@ const allTabs = [
   { name: 'sms', label: '短信' },
   { name: 'at', label: 'AT' },
   { name: 'ussd', label: 'USSD' },
-  { name: 'card', label: '策略' },
+  { name: 'card', label: '控制' },
   { name: 'config', label: '配置' }
 ]
 const tabs = computed(() =>
@@ -336,6 +336,7 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
             :traffic-speed-tx="trafficSpeedTx"
             :traffic-minute-rx="rollingMinuteRx"
             :traffic-minute-tx="rollingMinuteTx"
+            :is-p-c-s-c="isPCSC"
           />
         </div>
 

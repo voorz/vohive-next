@@ -768,11 +768,31 @@ func (p *Pool) addPCSCWorker(devCfg config.DeviceConfig) (*Worker, error) {
 		w.state.Identity.IMEI = devCfg.ModemIMEI
 	}
 
+	// 对齐普通 Modem Worker：创建切卡回调，使 PC/SC 设备切卡时也能自动
+	// 清理旧 VoWiFi 实例（SwitchBegin）并在切卡后恢复新 VoWiFi 实例（SwitchEnd）。
+	// newESIMSwitchCallbacks 返回的回调签名不带 SwitchOperation 参数，
+	// 需要包装为 ManagerOptions 要求的 func(SwitchOperation, ...) 签名。
+	onBefore, onAfter, onFailed, onDegraded, onPhase := p.newESIMSwitchCallbacks(devCfg.ID)
 	mgr, err := esim.NewManager(esim.ManagerOptions{
 		DeviceID:     devCfg.ID,
 		Transport:    config.ESIMTransportPCSC,
 		PCSCReader:   devCfg.PCSCReader,
 		PCSCAccessMu: w.pcscAccessMu,
+		OnBeforeSwitch: func(op esim.SwitchOperation, targetICCID string) uint64 {
+			return onBefore(op, targetICCID)
+		},
+		OnAfterSwitch: func(op esim.SwitchOperation, token uint64) {
+			onAfter(token)
+		},
+		OnSwitchFailed: func(op esim.SwitchOperation, token uint64, err error) {
+			onFailed(token, err)
+		},
+		OnSwitchDegraded: func(op esim.SwitchOperation, token uint64, phase esim.SwitchPhase, err error) {
+			onDegraded(token, phase, err)
+		},
+		OnSwitchPhase: func(op esim.SwitchOperation, token uint64, phase esim.SwitchPhase) {
+			onPhase(token, phase)
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("初始化 PC/SC eSIM 管理器失败: %w", err)

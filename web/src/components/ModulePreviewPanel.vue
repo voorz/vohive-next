@@ -17,6 +17,7 @@ const props = defineProps<{
   deviceId?: string
   deviceImei?: string
   deviceOnline?: boolean
+  isPCSC?: boolean
 }>()
 
 // Tab
@@ -258,6 +259,7 @@ onBeforeUnmount(() => {
       :aid-hex="settingsTarget?.aidHex || ''"
       :device-id="deviceId || ''"
       :device-online="deviceOnline"
+      :is-p-c-s-c="isPCSC"
       @renamed="onSettingsChanged"
       @deleted="onSettingsChanged"
       @policy-changed="onSettingsChanged"

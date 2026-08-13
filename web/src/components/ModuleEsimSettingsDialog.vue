@@ -13,6 +13,7 @@ const props = defineProps<{
   aidHex: string
   deviceId: string
   deviceOnline?: boolean
+  isPCSC?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -140,11 +141,13 @@ function close() {
       <!-- 卡策略 -->
       <div class="settings-section">
         <div class="settings-section-label">指定 eSIM 策略</div>
+        <div class="settings-section-hint">设置此 eSIM 的启动方式，改动将在下一次激活时持续生效</div>
         <EsimCardPolicyInline
           :device-id="deviceId"
           :iccid="profile.iccid"
           :is-active-card="profile.state === 1"
           :device-online="deviceOnline === true"
+          :is-p-c-s-c="isPCSC"
           @policy-changed="emit('policy-changed')"
         />
       </div>
@@ -189,6 +192,13 @@ function close() {
   color: var(--muted-foreground);
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+
+.settings-section-hint {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+  padding: 0 2px;
 }
 
 /* Name 行 */
