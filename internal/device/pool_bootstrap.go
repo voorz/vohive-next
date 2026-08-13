@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -750,13 +751,15 @@ func (p *Pool) addPCSCWorker(devCfg config.DeviceConfig) (*Worker, error) {
 		Pool:        p,
 		stop:        make(chan struct{}),
 		reassembler: smscodec.NewReassembler(),
+		pcscAccessMu: &sync.Mutex{},
 	}
 	p.assignWorkerGeneration(w)
 
 	mgr, err := esim.NewManager(esim.ManagerOptions{
-		DeviceID:   devCfg.ID,
-		Transport:  config.ESIMTransportPCSC,
-		PCSCReader: devCfg.PCSCReader,
+		DeviceID:     devCfg.ID,
+		Transport:    config.ESIMTransportPCSC,
+		PCSCReader:   devCfg.PCSCReader,
+		PCSCAccessMu: w.pcscAccessMu,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("初始化 PC/SC eSIM 管理器失败: %w", err)

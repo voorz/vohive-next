@@ -14,6 +14,9 @@ const props = defineProps<{
 const store = useDevicesStore()
 const showOperatorSelection = ref(false)
 
+// PC/SC 读卡器设备：无 modem，始终以 VoWiFi 模式展示
+const isPCSC = computed(() => props.device?.esim_transport === 'pcsc')
+
 // VoWiFi 详情折叠
 const showVowifiDetail = ref(false)
 const hasError = computed(() =>
@@ -109,8 +112,8 @@ const networkModeDisplay = computed(() =>
     </div>
     <div class="ov-card-body">
 
-      <!-- VoWiFi 模式 -->
-      <template v-if="vowifiEnabled">
+      <!-- VoWiFi 模式（PC/SC 设备始终进入此分支） -->
+      <template v-if="vowifiEnabled || isPCSC">
         <div class="status-hero" :class="vowifiStatus">
           <div class="status-pulse" :class="vowifiStatus"></div>
           <div class="status-hero-text">

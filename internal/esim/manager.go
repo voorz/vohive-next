@@ -326,6 +326,7 @@ type ManagerOptions struct {
 	Backend              backendpkg.DeviceBackend
 	QMITransport         QMIAPDUTransport
 	PCSCReader           string // PC/SC 读卡器名称（仅 transport=pcsc 时有效）
+	PCSCAccessMu         *sync.Mutex // 可选：PC/SC 读卡器访问互斥锁（跨 eSIM/VoWiFi 共享）
 	IMEIProvider         func(ctx context.Context) (string, error)
 	OnBeforeSwitch       func(SwitchOperation, string) uint64
 	OnAfterSwitch        func(SwitchOperation, uint64)
@@ -539,7 +540,13 @@ func NewManager(opts ManagerOptions) (*Manager, error) {
 		mgr.smartCardChannelFactory = func() (driver.SmartCardChannel, error) {
 			// 独占模式通道（对齐 lpac）：部分 eUICC 在共享模式下
 			// EnableProfile 恒定返回 910B，独占 + T=0 + 断开下电可避免
-			ch, err := NewPCSCExclusiveChannel(readerName)
+			var ch *PCSCExclusiveChannel
+			var err error
+			if opts.PCSCAccessMu != nil {
+				ch, err = NewPCSCExclusiveChannelWithMutex(readerName, opts.PCSCAccessMu)
+			} else {
+				ch, err = NewPCSCExclusiveChannel(readerName)
+			}
 			if err != nil {
 				return nil, fmt.Errorf("创建 PC/SC 通道失败: %w", err)
 			}

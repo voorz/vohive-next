@@ -66,6 +66,9 @@ const countryIso = computed(() => plmnInfo.value?.country?.iso || '')
 const countryCode = computed(() => plmnInfo.value?.country?.code || '')
 const nativeSpn = computed(() => detail.value?.modem?.native_spn || '')
 
+// PC/SC 读卡器设备：无 modem 控制面
+const isPCSC = computed(() => detail.value?.esim_transport === 'pcsc')
+
 // 卡策略
 const cardPolicy = ref<CardPolicy | null>(null)
 
@@ -89,6 +92,26 @@ async function onCardPolicyChanged() {
 const reconnectingVoWiFi = ref(false)
 const rebooting = ref(false)
 const rotating = ref(false)
+const togglingVoWiFi = ref(false)
+
+async function toggleVoWiFi(val: string | number | boolean) {
+  if (!detail.value?.id) return
+  const id = detail.value.id
+  const enabled = !!val
+  togglingVoWiFi.value = true
+  try {
+    const result = enabled
+      ? await devicesService.enableVoWiFi(id)
+      : await devicesService.disableVoWiFi(id)
+    if (!result.ok) throw new Error(result.error.message || '操作失败')
+    void store.fetchDetail(id).catch(() => {})
+    void store.fetchList().catch(() => {})
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : '操作失败')
+  } finally {
+    togglingVoWiFi.value = false
+  }
+}
 
 async function rotateIP() {
   if (!detail.value?.id) return
@@ -187,8 +210,8 @@ async function reconnectVoWiFi() {
 // 当前 Tab
 const activeTab = ref('overview')
 
-// Tab 列表
-const tabs = [
+// Tab 列表（PC/SC 设备隐藏 AT/USSD）
+const allTabs = [
   { name: 'overview', label: '概览' },
   { name: 'sms', label: '短信' },
   { name: 'at', label: 'AT' },
@@ -196,6 +219,16 @@ const tabs = [
   { name: 'card', label: '策略' },
   { name: 'config', label: '配置' }
 ]
+const tabs = computed(() =>
+  isPCSC.value ? allTabs.filter(t => t.name !== 'at' && t.name !== 'ussd') : allTabs
+)
+
+// 切换设备时若当前 Tab 已被隐藏，回退到概览
+watch([tabs, () => detail.value?.id], () => {
+  if (!tabs.value.some(t => t.name === activeTab.value)) {
+    activeTab.value = 'overview'
+  }
+})
 
 function initials(name: string): string {
   return name.charAt(0).toUpperCase()
@@ -264,15 +297,27 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
           <span class="vowifi-status-text">{{ detail.vowifi_enabled ? '已启用' : '未启用' }}</span>
         </div>
         <div class="vr-btn-group">
-          <button class="vowifi-reset-btn" :disabled="rebooting" @click="rebootModem">
-            <span class="vr-text"><span>重启模组</span></span>
-          </button>
-          <button v-if="detail.vowifi_enabled" class="vowifi-reset-btn" :disabled="reconnectingVoWiFi" @click="reconnectVoWiFi">
-            <span class="vr-text"><span>重连 VoWiFi</span></span>
-          </button>
-          <button v-else class="vowifi-reset-btn" :disabled="!detail.network_connected || rotating" @click="rotateIP">
-            <span class="vr-text"><span>切换 IP</span></span>
-          </button>
+          <template v-if="isPCSC">
+            <el-switch
+              :model-value="detail.vowifi_enabled"
+              :loading="togglingVoWiFi"
+              @update:model-value="toggleVoWiFi"
+            />
+            <button v-if="detail.vowifi_enabled" class="vowifi-reset-btn" :disabled="reconnectingVoWiFi" @click="reconnectVoWiFi">
+              <span class="vr-text"><span>重连</span></span>
+            </button>
+          </template>
+          <template v-else>
+            <button class="vowifi-reset-btn" :disabled="rebooting" @click="rebootModem">
+              <span class="vr-text"><span>重启模组</span></span>
+            </button>
+            <button v-if="detail.vowifi_enabled" class="vowifi-reset-btn" :disabled="reconnectingVoWiFi" @click="reconnectVoWiFi">
+              <span class="vr-text"><span>重连 VoWiFi</span></span>
+            </button>
+            <button v-else class="vowifi-reset-btn" :disabled="!detail.network_connected || rotating" @click="rotateIP">
+              <span class="vr-text"><span>切换 IP</span></span>
+            </button>
+          </template>
         </div>
       </div>
 

@@ -1,13 +1,15 @@
 package device
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
-	"github.com/damonto/euicc-go/driver/ccid"
 	"github.com/voorz/vohive/internal/config"
+	"github.com/voorz/vohive/internal/esim"
 	"github.com/voorz/vohive/pkg/logger"
 	"github.com/voorz/vowifi-core/runtimehost"
 	"github.com/voorz/vowifi-core/runtimehost/identity"
@@ -27,14 +29,22 @@ var (
 type pcscModemAdapter struct {
 	deviceID   string
 	readerName string
-	channel    *ccid.CCIDReader
+	channel    *esim.PCSCExclusiveChannel
 	connected  bool
+	accessMu   *sync.Mutex // 可选：与 eSIM 管理器共享的读卡器访问锁
 }
 
 var _ runtimehost.Modem = (*pcscModemAdapter)(nil)
 
-func newPCSCModemAdapter(deviceID, readerName string) (*pcscModemAdapter, error) {
-	ch, err := ccid.NewWithReader(readerName)
+func newPCSCModemAdapter(deviceID, readerName string, mu *sync.Mutex) (*pcscModemAdapter, error) {
+	var ch *esim.PCSCExclusiveChannel
+	var err error
+	if mu != nil {
+		// VoWiFi USIM 访问用共享模式 (ShareShared + ProtocolAny)
+		ch, err = esim.NewPCSCSharedChannelWithMutex(readerName, mu)
+	} else {
+		ch, err = esim.NewPCSCSharedChannel(readerName)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("创建 PC/SC 通道失败: %w", err)
 	}
@@ -42,6 +52,7 @@ func newPCSCModemAdapter(deviceID, readerName string) (*pcscModemAdapter, error)
 		deviceID:   deviceID,
 		readerName: readerName,
 		channel:    ch,
+		accessMu:   mu,
 	}, nil
 }
 
@@ -97,18 +108,73 @@ func (a *pcscModemAdapter) OpenLogicalChannel(aid string) (int, error) {
 	return int(ch), nil
 }
 
-// ResolveLogicalChannelAID 返回 USIM/ISIM 的 AID。
-// PC/SC 模式下直接使用 fallback AID，不做运行时探测。
+// ResolveLogicalChannelAID 返回 USIM/ISIM 的完整 AID。
+// PC/SC 模式下通过 EF_DIR 发现完整 AID（eUICC 上标准 7 字节 AID 不够）。
 func (a *pcscModemAdapter) ResolveLogicalChannelAID(app string, fallbackAID string) (string, string, error) {
 	app = strings.TrimSpace(strings.ToLower(app))
+	if err := a.ensureConnected(); err != nil {
+		logger.Warn(fmt.Sprintf("[%s] ResolveLogicalChannelAID: 连接失败，使用 fallback: %v", a.deviceID, err))
+		return fallbackAID, "pcsc_fallback", nil // 连接失败则退回 fallback
+	}
+
+	// 确定 AID 前缀
+	var prefix []byte
 	switch app {
 	case "usim":
-		return fallbackAID, "pcsc_fallback", nil
+		prefix = []byte{0xA0, 0x00, 0x00, 0x00, 0x87, 0x10, 0x02}
 	case "isim":
-		return fallbackAID, "pcsc_fallback", nil
+		prefix = []byte{0xA0, 0x00, 0x00, 0x00, 0x87, 0x10, 0x11}
 	default:
 		return fallbackAID, "pcsc_fallback", nil
 	}
+
+	// 从 EF_DIR 发现完整 AID
+	aidHex, err := a.discoverAIDFromEFDIR(prefix)
+	if err != nil {
+		logger.Warn(fmt.Sprintf("[%s] EF_DIR 发现 %s AID 失败，使用 fallback", a.deviceID, app), "err", err)
+		return fallbackAID, "pcsc_fallback", nil
+	}
+	logger.Info(fmt.Sprintf("[%s] EF_DIR 发现 %s 完整 AID: %s", a.deviceID, app, aidHex))
+	return aidHex, "pcsc_efdir", nil
+}
+
+// discoverAIDFromEFDIR 从 EF_DIR (0x2F00) 扫描记录，返回匹配 prefix 的完整 AID (hex)。
+func (a *pcscModemAdapter) discoverAIDFromEFDIR(prefix []byte) (string, error) {
+	// SELECT MF by FID
+	resp, err := a.transmitOnChannel(0, selectByFIDCmd(efMF))
+	if err != nil || checkSW(resp) != nil {
+		return "", fmt.Errorf("SELECT MF 失败: %w", err)
+	}
+	// SELECT EF_DIR (0x2F00) by FID, P2=04 (FCI), Le=00
+	// transmitOnChannel 自动处理 61XX (GET RESPONSE)
+	resp, err = a.transmitOnChannel(0, []byte{0x00, 0xA4, 0x00, 0x04, 0x02, 0x2F, 0x00, 0x00})
+	if err != nil || checkSW(resp) != nil || len(resp) < 8 {
+		return "", fmt.Errorf("SELECT EF_DIR 失败: err=%v resp=%X", err, resp)
+	}
+	recLen := resp[7]
+	if recLen == 0 {
+		return "", fmt.Errorf("EF_DIR record length = 0")
+	}
+
+	// 扫描 EF_DIR 记录
+	for rec := 1; rec <= 10; rec++ {
+		cmd := []byte{0x00, 0xB2, byte(rec), 0x04, recLen}
+		resp, err = a.transmitOnChannel(0, cmd)
+		if err != nil || checkSW(resp) != nil || len(resp) < 5 {
+			break
+		}
+		if resp[0] != 0x61 || resp[2] != 0x4F {
+			break
+		}
+		aidLen := int(resp[3])
+		if aidLen > 0 && len(resp) >= 4+aidLen {
+			aid := resp[4 : 4+aidLen]
+			if bytes.HasPrefix(aid, prefix) {
+				return strings.ToUpper(hex.EncodeToString(aid)), nil
+			}
+		}
+	}
+	return "", fmt.Errorf("EF_DIR 未发现匹配前缀 % X 的应用", prefix)
 }
 
 func (a *pcscModemAdapter) CloseLogicalChannel(channel int) error {
@@ -165,19 +231,45 @@ func isPCSCDevice(w *Worker) bool {
 
 // --- PC/SC SIM 身份读取 (参照 3GPP TS 31.102 / vowifi-sms imsi.go) ---
 
-// transmitRaw 通过基本通道直接发送 APDU 字节。
-func (a *pcscModemAdapter) transmitRaw(apdu []byte) ([]byte, error) {
+// transmitOnChannel 在指定逻辑通道上发送 APDU（通道号编码进 CLA）。
+func (a *pcscModemAdapter) transmitOnChannel(channel byte, apdu []byte) ([]byte, error) {
 	if err := a.ensureConnected(); err != nil {
 		return nil, err
+	}
+	if len(apdu) == 0 {
+		return nil, fmt.Errorf("空 APDU")
+	}
+	cla := apdu[0]
+	if channel > 0 {
+		if channel < 4 {
+			apdu[0] = (cla & 0x9C) | channel
+		} else if channel < 20 {
+			apdu[0] = (cla & 0xB0) | 0x40 | (channel - 4)
+		}
 	}
 	resp, err := a.channel.Transmit(apdu)
 	if err != nil {
 		return nil, err
 	}
+	// 处理 Wrong Le (SW1=0x6C): 用正确长度重试
+	if len(resp) >= 2 && resp[len(resp)-2] == 0x6C && len(apdu) > 0 {
+		apdu[len(apdu)-1] = resp[len(resp)-1]
+		resp, err = a.channel.Transmit(apdu)
+		if err != nil {
+			return nil, err
+		}
+	}
 	// 处理 GET RESPONSE (SW1=0x61)
 	if len(resp) >= 2 && resp[len(resp)-2] == 0x61 {
 		le := resp[len(resp)-1]
 		getResp := []byte{0x00, 0xC0, 0x00, 0x00, le}
+		if channel > 0 {
+			if channel < 4 {
+				getResp[0] = channel
+			} else if channel < 20 {
+				getResp[0] = 0x40 | (channel - 4)
+			}
+		}
 		resp2, err := a.channel.Transmit(getResp)
 		if err != nil {
 			return nil, err
@@ -185,13 +277,6 @@ func (a *pcscModemAdapter) transmitRaw(apdu []byte) ([]byte, error) {
 		return resp2, nil
 	}
 	return resp, nil
-}
-
-func selectByAIDCmd(aid []byte) []byte {
-	cmd := make([]byte, 0, 5+len(aid))
-	cmd = append(cmd, 0x00, 0xA4, 0x04, 0x00, byte(len(aid)))
-	cmd = append(cmd, aid...)
-	return cmd
 }
 
 func selectByFIDCmd(fid []byte) []byte {
@@ -216,19 +301,122 @@ func checkSW(resp []byte) error {
 	return nil
 }
 
-// ReadIMSI 通过 PC/SC 读取 EF_IMSI 并解析 IMSI 字符串。
-func (a *pcscModemAdapter) ReadIMSI() (string, error) {
-	// SELECT ADF USIM
-	resp, err := a.transmitRaw(selectByAIDCmd(usimAID))
-	if err != nil {
-		return "", fmt.Errorf("SELECT ADF USIM 失败: %w", err)
+// openUSIMChannel 尝试多种方式打开 USIM 应用通道。
+// 返回通道号（0 表示基本通道）和清理函数。
+func (a *pcscModemAdapter) openUSIMChannel() (byte, func(), error) {
+	// 方式 1: 基本通道 + SELECT AID (P1=04, P2=04) — vowifi-sms 验证可行
+	cmd := append([]byte{0x00, 0xA4, 0x04, 0x04, byte(len(usimAID))}, usimAID...)
+	resp, err := a.transmitOnChannel(0, cmd)
+	if err == nil {
+		// 处理 GET RESPONSE
+		if len(resp) >= 2 && resp[len(resp)-2] == 0x61 {
+			le := resp[len(resp)-1]
+			resp, err = a.transmitOnChannel(0, []byte{0x00, 0xC0, 0x00, 0x00, le})
+		}
+		if err == nil && checkSW(resp) == nil {
+			return 0, func() {}, nil
+		}
 	}
-	if err := checkSW(resp); err != nil {
-		return "", fmt.Errorf("SELECT ADF USIM: %w", err)
+	logger.Warn(fmt.Sprintf("[%s] 基本通道 SELECT AID 失败 (%v, %X)，尝试 EF_DIR 发现", a.deviceID, err, resp))
+
+	// 方式 2: EF_DIR 发现 — vowifi_gateway 验证可行
+	if ch, ok := a.openUSIMViaEFDIR(); ok {
+		return ch, func() {
+			if ch > 0 {
+				_ = a.channel.CloseLogicalChannel(ch)
+			}
+		}, nil
 	}
 
+	// 方式 3: 逻辑通道 + 标准 USIM AID (fallback)
+	ch, err := a.channel.OpenLogicalChannel(usimAID)
+	if err == nil {
+		return ch, func() { _ = a.channel.CloseLogicalChannel(ch) }, nil
+	}
+
+	return 0, nil, fmt.Errorf("打开 USIM 通道失败 (基本通道 AID: %v, EF_DIR: 无匹配, 逻辑通道: %v)", err, err)
+}
+
+// openUSIMViaEFDIR 通过 EF_DIR (0x2F00) 发现 USIM AID 并选择。
+// 返回通道号（0 表示基本通道）和是否成功。
+func (a *pcscModemAdapter) openUSIMViaEFDIR() (byte, bool) {
+	// SELECT MF by FID
+	resp, err := a.transmitOnChannel(0, selectByFIDCmd(efMF))
+	if err != nil || checkSW(resp) != nil {
+		logger.Warn(fmt.Sprintf("[%s] EF_DIR: SELECT MF 失败 (%v)", a.deviceID, err))
+		return 0, false
+	}
+	// SELECT EF_DIR (0x2F00) by FID, P2=04 (FCI), Le=00
+	resp, err = a.transmitOnChannel(0, []byte{0x00, 0xA4, 0x00, 0x04, 0x02, 0x2F, 0x00, 0x00})
+	if err != nil || checkSW(resp) != nil || len(resp) < 8 {
+		return 0, false
+	}
+	recLen := resp[7] // FCP 第 8 字节 = record length
+	if recLen == 0 {
+		return 0, false
+	}
+
+	// 扫描 EF_DIR 记录查找 USIM AID
+	usimAIDPrefix := []byte{0xA0, 0x00, 0x00, 0x00, 0x87, 0x10, 0x02}
+	var foundAID []byte
+	for rec := 1; rec <= 10; rec++ {
+		cmd := []byte{0x00, 0xB2, byte(rec), 0x04, recLen}
+		resp, err = a.transmitOnChannel(0, cmd)
+		if err != nil || checkSW(resp) != nil || len(resp) < 5 {
+			break
+		}
+		// 记录格式: 61 <len> 4F <aidlen> <AID...> [50 <len> label]
+		if resp[0] != 0x61 || resp[2] != 0x4F {
+			break
+		}
+		aidLen := int(resp[3])
+		if aidLen > 0 && len(resp) >= 4+aidLen {
+			aid := resp[4 : 4+aidLen]
+			if bytes.HasPrefix(aid, usimAIDPrefix) {
+				foundAID = aid
+				break
+			}
+		}
+	}
+
+	if foundAID == nil {
+		logger.Warn(fmt.Sprintf("[%s] EF_DIR: 未找到 USIM AID", a.deviceID))
+		return 0, false
+	}
+
+	logger.Info(fmt.Sprintf("[%s] EF_DIR 发现 USIM AID: % X", a.deviceID, foundAID))
+
+	// SELECT AID (P1=04, P2=04)
+	cmd := append([]byte{0x00, 0xA4, 0x04, 0x04, byte(len(foundAID))}, foundAID...)
+	resp, err = a.transmitOnChannel(0, cmd)
+	if err != nil {
+		return 0, false
+	}
+	if len(resp) >= 2 && resp[len(resp)-2] == 0x61 {
+		le := resp[len(resp)-1]
+		_, _ = a.transmitOnChannel(0, []byte{0x00, 0xC0, 0x00, 0x00, le})
+	}
+	// 重新检查最终 SW
+	if len(resp) >= 2 && resp[len(resp)-2] == 0x90 {
+		return 0, true // 基本通道
+	}
+	return 0, false
+}
+
+// ReadIMSI 通过 PC/SC 读取 EF_IMSI 并解析 IMSI 字符串。
+// 使用逻辑通道打开 USIM 应用（eUICC 上基本通道 SELECT ADF 可能返回 6A82）。
+func (a *pcscModemAdapter) ReadIMSI() (string, error) {
+	if err := a.ensureConnected(); err != nil {
+		return "", err
+	}
+	ch, cleanup, err := a.openUSIMChannel()
+	if err != nil {
+		return "", fmt.Errorf("打开 USIM 逻辑通道失败: %w", err)
+	}
+	defer cleanup()
+
 	// SELECT EF_IMSI
-	resp, err = a.transmitRaw(selectByFIDCmd(efIMSI))
+	resp, err := a.transmitOnChannel(ch, selectByFIDCmd(efIMSI))
 	if err != nil {
 		return "", fmt.Errorf("SELECT EF_IMSI 失败: %w", err)
 	}
@@ -237,7 +425,7 @@ func (a *pcscModemAdapter) ReadIMSI() (string, error) {
 	}
 
 	// READ BINARY
-	resp, err = a.transmitRaw(readBinaryCmd(0x10))
+	resp, err = a.transmitOnChannel(ch, readBinaryCmd(0x10))
 	if err != nil {
 		return "", fmt.Errorf("READ EF_IMSI 失败: %w", err)
 	}
@@ -245,7 +433,6 @@ func (a *pcscModemAdapter) ReadIMSI() (string, error) {
 		return "", fmt.Errorf("READ EF_IMSI: %w", err)
 	}
 
-	// resp 包含数据 + SW(9000)，裁剪最后 2 字节
 	data := resp[:len(resp)-2]
 	imsi, _, _, _, perr := parseIMSI(data)
 	if perr != nil {
@@ -256,18 +443,17 @@ func (a *pcscModemAdapter) ReadIMSI() (string, error) {
 
 // ReadICCID 通过 PC/SC 读取 EF_ICCID 并解析 ICCID 字符串。
 func (a *pcscModemAdapter) ReadICCID() (string, error) {
-	// SELECT MF (回到根目录)
-	resp, err := a.transmitRaw(selectByFIDCmd(efMF))
+	// SELECT MF (回到根目录) — 基本通道
+	resp, err := a.transmitOnChannel(0, selectByFIDCmd(efMF))
 	if err != nil {
 		return "", fmt.Errorf("SELECT MF 失败: %w", err)
 	}
-	// MF 可能返回 61xx，transmitRaw 已处理 GET RESPONSE
 	if err := checkSW(resp); err != nil {
 		return "", fmt.Errorf("SELECT MF: %w", err)
 	}
 
 	// SELECT EF_ICCID
-	resp, err = a.transmitRaw(selectByFIDCmd(efICCID))
+	resp, err = a.transmitOnChannel(0, selectByFIDCmd(efICCID))
 	if err != nil {
 		return "", fmt.Errorf("SELECT EF_ICCID 失败: %w", err)
 	}
@@ -276,7 +462,7 @@ func (a *pcscModemAdapter) ReadICCID() (string, error) {
 	}
 
 	// READ BINARY (10 字节)
-	resp, err = a.transmitRaw(readBinaryCmd(0x0A))
+	resp, err = a.transmitOnChannel(0, readBinaryCmd(0x0A))
 	if err != nil {
 		return "", fmt.Errorf("READ EF_ICCID 失败: %w", err)
 	}
@@ -284,24 +470,23 @@ func (a *pcscModemAdapter) ReadICCID() (string, error) {
 		return "", fmt.Errorf("READ EF_ICCID: %w", err)
 	}
 
-	// resp 包含数据 + SW(9000)，裁剪最后 2 字节
 	data := resp[:len(resp)-2]
 	return parseICCID(data), nil
 }
 
 // ReadMNCLength 通过 PC/SC 读取 EF_AD 并解析 MNC 长度。
 func (a *pcscModemAdapter) ReadMNCLength() (int, error) {
-	// SELECT ADF USIM
-	resp, err := a.transmitRaw(selectByAIDCmd(usimAID))
+	if err := a.ensureConnected(); err != nil {
+		return 0, err
+	}
+	ch, cleanup, err := a.openUSIMChannel()
 	if err != nil {
-		return 0, fmt.Errorf("SELECT ADF USIM 失败: %w", err)
+		return 0, fmt.Errorf("打开 USIM 逻辑通道失败: %w", err)
 	}
-	if err := checkSW(resp); err != nil {
-		return 0, fmt.Errorf("SELECT ADF USIM: %w", err)
-	}
+	defer cleanup()
 
 	// SELECT EF_AD
-	resp, err = a.transmitRaw(selectByFIDCmd(efAD))
+	resp, err := a.transmitOnChannel(ch, selectByFIDCmd(efAD))
 	if err != nil {
 		return 0, fmt.Errorf("SELECT EF_AD 失败: %w", err)
 	}
@@ -310,7 +495,7 @@ func (a *pcscModemAdapter) ReadMNCLength() (int, error) {
 	}
 
 	// READ BINARY (4 字节)
-	resp, err = a.transmitRaw(readBinaryCmd(0x04))
+	resp, err = a.transmitOnChannel(ch, readBinaryCmd(0x04))
 	if err != nil {
 		return 0, fmt.Errorf("READ EF_AD 失败: %w", err)
 	}
@@ -318,15 +503,13 @@ func (a *pcscModemAdapter) ReadMNCLength() (int, error) {
 		return 0, fmt.Errorf("READ EF_AD: %w", err)
 	}
 
-	// resp 包含数据 + SW(9000)，裁剪最后 2 字节
 	data := resp[:len(resp)-2]
 	if len(data) < 4 {
-		return 2, nil // 默认 2 位
+		return 2, nil
 	}
-	// EF_AD 第 4 字节 (index 3) 低 4 位 = MNC 长度
 	mncLen := int(data[3] & 0x0F)
 	if mncLen != 2 && mncLen != 3 {
-		mncLen = 2 // 默认
+		mncLen = 2
 	}
 	return mncLen, nil
 }

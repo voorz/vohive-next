@@ -155,6 +155,10 @@ type Worker struct {
 	uimIndicationsReady atomic.Bool  // worker 完成启动注册后才处理 UIM 事件触发的重扫/重载
 	// switchEvents receives UIM indications for the active eSIM switch; nil outside switch convergence.
 	switchEvents atomic.Pointer[switchEventSource]
+
+	// pcscAccessMu 序列化 PC/SC 读卡器访问（eSIM 操作与 VoWiFi AKA 认证共享）。
+	// 仅 PC/SC 设备使用，modem 设备为 nil。
+	pcscAccessMu *sync.Mutex
 }
 
 type Pool struct {

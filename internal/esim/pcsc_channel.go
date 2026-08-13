@@ -57,6 +57,22 @@ func releaseGoscard() {
 	}
 }
 
+// ListPCSCReaders 列出系统可用的 PC/SC 读卡器名称。
+// 使用 goscard 库（与 PCSCExclusiveChannel 共享初始化），避免与 ccid/scard 库冲突。
+func ListPCSCReaders() ([]string, error) {
+	if err := acquireGoscard(); err != nil {
+		return nil, err
+	}
+	defer releaseGoscard()
+	ctx, _, err := goscard.NewContext(goscard.SCardScopeSystem, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("创建 PC/SC 上下文失败: %w", err)
+	}
+	defer ctx.Release()
+	readers, _, err := ctx.ListReaders(nil)
+	return readers, err
+}
+
 // PCSCExclusiveChannel 是以独占模式访问读卡器的 driver.SmartCardChannel 实现。
 type PCSCExclusiveChannel struct {
 	mu     sync.Mutex
@@ -69,6 +85,14 @@ type PCSCExclusiveChannel struct {
 	channel      byte
 	connected    bool
 	closed       bool
+
+	accessMu *sync.Mutex // 可选：跨通道共享的读卡器访问互斥锁
+	muHeld   bool        // 当前是否持有 accessMu
+
+	// 连接参数
+	shareMode   goscard.SCardShareMode
+	protocol    goscard.SCardProtocol
+	sendTermCap bool // 是否发送终端能力 APDU
 }
 
 // NewPCSCExclusiveChannel 创建指定读卡器的独占通道（此时尚未连接）。
@@ -76,7 +100,47 @@ func NewPCSCExclusiveChannel(reader string) (*PCSCExclusiveChannel, error) {
 	if reader == "" {
 		return nil, errors.New("PC/SC 独占通道需要指定读卡器名称")
 	}
-	return &PCSCExclusiveChannel{reader: reader}, nil
+	return &PCSCExclusiveChannel{
+		reader:      reader,
+		shareMode:   goscard.SCardShareExclusive,
+		protocol:    goscard.SCardProtocolT0,
+		sendTermCap: true,
+	}, nil
+}
+
+// NewPCSCSharedChannel 创建共享模式通道（用于 USIM 访问）。
+// 使用 SCardShareShared + SCardProtocolAny，不发送终端能力 APDU。
+func NewPCSCSharedChannel(reader string) (*PCSCExclusiveChannel, error) {
+	if reader == "" {
+		return nil, errors.New("PC/SC 通道需要指定读卡器名称")
+	}
+	return &PCSCExclusiveChannel{
+		reader:      reader,
+		shareMode:   goscard.SCardShareShared,
+		protocol:    goscard.SCardProtocolAny,
+		sendTermCap: false,
+	}, nil
+}
+
+// NewPCSCExclusiveChannelWithMutex 创建带共享互斥锁的独占通道。
+// 多个通道共享同一 mutex 时，同一时刻只有一个通道能连接读卡器。
+func NewPCSCExclusiveChannelWithMutex(reader string, mu *sync.Mutex) (*PCSCExclusiveChannel, error) {
+	ch, err := NewPCSCExclusiveChannel(reader)
+	if err != nil {
+		return nil, err
+	}
+	ch.accessMu = mu
+	return ch, nil
+}
+
+// NewPCSCSharedChannelWithMutex 创建带共享互斥锁的共享模式通道。
+func NewPCSCSharedChannelWithMutex(reader string, mu *sync.Mutex) (*PCSCExclusiveChannel, error) {
+	ch, err := NewPCSCSharedChannel(reader)
+	if err != nil {
+		return nil, err
+	}
+	ch.accessMu = mu
+	return ch, nil
 }
 
 // CurrentChannel 返回当前打开的逻辑通道号（0 表示无），供调用方做清理。
@@ -97,7 +161,14 @@ func (c *PCSCExclusiveChannel) Connect() error {
 		return nil
 	}
 
+	// 获取跨通道共享的读卡器访问锁
+	if c.accessMu != nil {
+		c.accessMu.Lock()
+		c.muHeld = true
+	}
+
 	if err := acquireGoscard(); err != nil {
+		c.releaseAccessMuLocked()
 		return err
 	}
 	ctx, _, err := goscard.NewContext(goscard.SCardScopeSystem, nil, nil)
@@ -108,10 +179,10 @@ func (c *PCSCExclusiveChannel) Connect() error {
 	c.ctx = &ctx
 	c.pcscAcquired = true
 
-	card, _, err := ctx.Connect(c.reader, goscard.SCardShareExclusive, goscard.SCardProtocolT0)
+	card, _, err := ctx.Connect(c.reader, c.shareMode, c.protocol)
 	if err != nil {
 		c.releaseLocked()
-		return fmt.Errorf("独占连接读卡器 %q 失败: %w", c.reader, err)
+		return fmt.Errorf("连接读卡器 %q 失败: %w", c.reader, err)
 	}
 	ioSend, err := pcscIORequestForProtocol(card.ActiveProtocol())
 	if err != nil {
@@ -123,7 +194,9 @@ func (c *PCSCExclusiveChannel) Connect() error {
 	c.ioSend = ioSend
 
 	// 终端能力握手：与 lpac 行为一致，忽略响应与错误。
-	_, _, _ = card.Transmit(ioSend, pcscTerminalCapabilitiesAPDU, nil)
+	if c.sendTermCap {
+		_, _, _ = card.Transmit(ioSend, pcscTerminalCapabilitiesAPDU, nil)
+	}
 
 	c.connected = true
 	return nil
@@ -141,6 +214,14 @@ func (c *PCSCExclusiveChannel) Disconnect() error {
 	c.channel = 0
 	err := c.releaseLocked()
 	return err
+}
+
+// releaseAccessMuLocked 释放跨通道共享的读卡器访问锁（调用方需持有 c.mu）。
+func (c *PCSCExclusiveChannel) releaseAccessMuLocked() {
+	if c.muHeld && c.accessMu != nil {
+		c.accessMu.Unlock()
+		c.muHeld = false
+	}
 }
 
 // releaseLocked 释放卡片与上下文（调用方需持有 c.mu）。
@@ -163,6 +244,7 @@ func (c *PCSCExclusiveChannel) releaseLocked() error {
 		c.pcscAcquired = false
 		releaseGoscard()
 	}
+	c.releaseAccessMuLocked()
 	return errors.Join(errs...)
 }
 

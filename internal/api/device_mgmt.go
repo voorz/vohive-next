@@ -11,7 +11,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/damonto/euicc-go/driver/ccid"
 	"github.com/voorz/vohive/internal/apduarbiter"
 	"github.com/voorz/vohive/internal/backend"
 	"github.com/voorz/vohive/internal/config"
@@ -1172,33 +1171,29 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 		out = append(out, buildDiscoveredDevice(hw, false, "", true))
 	}
 
-	// 追加 PC/SC 读卡器到发现列表
-	pcscReaders, pcscErr := ccid.New()
+	// 追加 PC/SC 读卡器到发现列表（使用 goscard 避免与已初始化的 PC/SC 通道冲突）
+	readerNames, pcscErr := esim.ListPCSCReaders()
 	if pcscErr == nil {
-		defer pcscReaders.Disconnect() //nolint:errcheck
-		readerNames, listErr := pcscReaders.ListReaders()
-		if listErr == nil {
-			usbIdentities := device.ListUSBIdentities()
-			configuredDevices := managed
-			for _, r := range readerNames {
-				configuredID := ""
-				for _, d := range configuredDevices {
-					if config.NormalizeESIMTransport(d.ESIMTransport) == config.ESIMTransportPCSC && d.PCSCReader == r {
-						configuredID = d.ID
-						break
-					}
+		usbIdentities := device.ListUSBIdentities()
+		configuredDevices := managed
+		for _, r := range readerNames {
+			configuredID := ""
+			for _, d := range configuredDevices {
+				if config.NormalizeESIMTransport(d.ESIMTransport) == config.ESIMTransportPCSC && d.PCSCReader == r {
+					configuredID = d.ID
+					break
 				}
-				out = append(out, discoveredDevice{
-					DiscoveryKey: "pcsc:" + r,
-					DriverName:   "PC/SC Reader",
-					Mode:         "pcsc",
-					Type:         "pcsc",
-					PCSCReader:   r,
-					DisplayName:  device.ResolvePCSCReaderDisplayName(r, usbIdentities),
-					Configured:   configuredID != "",
-					ConfiguredID: configuredID,
-				})
 			}
+			out = append(out, discoveredDevice{
+				DiscoveryKey: "pcsc:" + r,
+				DriverName:   "PC/SC Reader",
+				Mode:         "pcsc",
+				Type:         "pcsc",
+				PCSCReader:   r,
+				DisplayName:  device.ResolvePCSCReaderDisplayName(r, usbIdentities),
+				Configured:   configuredID != "",
+				ConfiguredID: configuredID,
+			})
 		}
 	}
 
@@ -2849,14 +2844,7 @@ func resolveOfflineBackendMode(cfg config.DeviceConfig) string {
 
 // handlePCSCListReaders 列出系统可用的 PC/SC 智能卡读卡器
 func (s *Server) handlePCSCListReaders(c *gin.Context) {
-	reader, err := ccid.New()
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("初始化 PC/SC 失败: %v", err)})
-		return
-	}
-	defer reader.Disconnect() //nolint:errcheck
-
-	readers, err := reader.ListReaders()
+	readers, err := esim.ListPCSCReaders()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("枚举读卡器失败: %v", err)})
 		return
