@@ -140,24 +140,39 @@ func pcscReaderSerial(reader string) string {
 // ResolvePCSCReaderDisplayName 通过序列号把 pcscd 读卡器匹配到 USB 设备，
 // 返回 "Product · Manufacturer · vid:pid" 格式的可读名称；匹配失败返回空串。
 func ResolvePCSCReaderDisplayName(reader string, identities []USBIdentity) string {
+	product, manufacturer, vid, pid := ResolvePCSCReaderUSBInfo(reader, identities)
+	if product == "" && manufacturer == "" && vid == "" {
+		return ""
+	}
+	parts := make([]string, 0, 3)
+	if product != "" {
+		parts = append(parts, product)
+	}
+	if manufacturer != "" {
+		parts = append(parts, manufacturer)
+	}
+	if vid != "" && pid != "" {
+		parts = append(parts, vid+":"+pid)
+	}
+	return strings.Join(parts, " · ")
+}
+
+// ResolvePCSCReaderUSBInfo 通过序列号把 pcscd 读卡器匹配到 USB 设备，
+// 返回结构化的 product, manufacturer, vid, pid（全为字符串小写形式）；
+// 匹配失败返回空值。
+func ResolvePCSCReaderUSBInfo(reader string, identities []USBIdentity) (product, manufacturer, vid, pid string) {
 	serial := pcscReaderSerial(reader)
 	if serial == "" {
-		return ""
+		return
 	}
 	for _, id := range identities {
 		if id.Serial != "" && strings.EqualFold(id.Serial, serial) {
-			parts := make([]string, 0, 3)
-			if id.Product != "" {
-				parts = append(parts, id.Product)
-			}
-			if id.Manufacturer != "" {
-				parts = append(parts, id.Manufacturer)
-			}
-			if id.VendorID != "" && id.ProductID != "" {
-				parts = append(parts, id.VendorID+":"+id.ProductID)
-			}
-			return strings.Join(parts, " · ")
+			product = id.Product
+			manufacturer = id.Manufacturer
+			vid = id.VendorID
+			pid = id.ProductID
+			return
 		}
 	}
-	return ""
+	return
 }

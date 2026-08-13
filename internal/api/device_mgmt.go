@@ -306,6 +306,9 @@ func (s *Server) handleDeviceMgmtOverview(c *gin.Context) {
 				if w.Backend != nil {
 					return w.Backend.Mode()
 				}
+				if config.NormalizeESIMTransport(w.Config.ESIMTransport) == config.ESIMTransportPCSC {
+					return "pcsc"
+				}
 				return "at"
 			}(),
 		}
@@ -652,6 +655,9 @@ func (s *Server) buildOverviewLiteItemFromWorkerWithModem(w *device.Worker, cfg 
 		BackendMode: func() string {
 			if w.Backend != nil {
 				return w.Backend.Mode()
+			}
+			if config.NormalizeESIMTransport(w.Config.ESIMTransport) == config.ESIMTransportPCSC {
+				return "pcsc"
 			}
 			return "at"
 		}(),
@@ -1060,7 +1066,8 @@ type discoveredDevice struct {
 	Degraded       bool     `json:"degraded,omitempty"` // 探不到 IMEI,无法确立身份,不可直接添加
 	Type           string   `json:"type,omitempty"`    // modem/pcsc
 	PCSCReader     string   `json:"pcsc_reader,omitempty"`
-	DisplayName    string   `json:"display_name,omitempty"` // PC/SC 读卡器的 USB 可读名称
+	DisplayName    string   `json:"display_name,omitempty"` // PC/SC 读卡器的 USB Product 名称
+	Manufacturer  string   `json:"manufacturer,omitempty"`  // PC/SC 读卡器的 USB Manufacturer
 }
 
 var discoverQMIForMgmtFn = device.DiscoverQMIDevices
@@ -1186,16 +1193,32 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 					break
 				}
 			}
+			// 从 USB 设备中提取结构化信息
+			product, manufacturer, vid, pid := device.ResolvePCSCReaderUSBInfo(r, usbIdentities)
+			// 从已配置设备中读取虚拟 IMEI
+			imei := ""
+			if configuredID != "" {
+				for _, d := range configuredDevices {
+					if d.ID == configuredID {
+						imei = strings.TrimSpace(d.ModemIMEI)
+						break
+					}
+				}
+			}
 			out = append(out, discoveredDevice{
-				DiscoveryKey: "pcsc:" + r,
-				DriverName:   "PC/SC Reader",
-				Mode:         "pcsc",
-				Type:         "pcsc",
-				PCSCReader:   r,
-				DisplayName:  device.ResolvePCSCReaderDisplayName(r, usbIdentities),
-				Configured:   configuredID != "",
-				ConfiguredID: configuredID,
-			})
+			DiscoveryKey: "pcsc:" + r,
+			DriverName:   "PC/SC Reader",
+			Mode:         "pcsc",
+			Type:         "pcsc",
+			PCSCReader:   r,
+			DisplayName:  product,
+			Manufacturer: manufacturer,
+			VendorID:     parseHexUint16(vid),
+			ProductID:    parseHexUint16(pid),
+			IMEI:         imei,
+			Configured:   configuredID != "",
+			ConfiguredID: configuredID,
+		})
 		}
 	}
 
@@ -1221,6 +1244,19 @@ func buildDiscoveredDevice(hw device.CompatibleModem, configured bool, configure
 		ConfiguredID:   configuredID,
 		Degraded:       degraded,
 	}
+}
+
+// parseHexUint16 将十六进制字符串转为 uint16，解析失败返回 0。
+func parseHexUint16(s string) uint16 {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0
+	}
+	v, err := strconv.ParseUint(s, 16, 16)
+	if err != nil {
+		return 0
+	}
+	return uint16(v)
 }
 
 func containsDiscoveredATPort(ports []string, target string) bool {
@@ -2834,6 +2870,10 @@ func overviewRealtimeTrafficEnabled(item deviceMgmtOverviewLiteItem) bool {
 }
 
 func resolveOfflineBackendMode(cfg config.DeviceConfig) string {
+	// PC/SC 设备无 modem backend
+	if config.NormalizeESIMTransport(cfg.ESIMTransport) == config.ESIMTransportPCSC {
+		return "pcsc"
+	}
 	m := strings.ToLower(strings.TrimSpace(cfg.DeviceBackend))
 	if m == "" && strings.TrimSpace(cfg.ControlDevice) != "" {
 		return "qmi"

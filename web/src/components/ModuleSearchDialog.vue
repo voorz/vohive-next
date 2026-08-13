@@ -286,22 +286,26 @@ function vidPid(d: DiscoveredDevice): string {
 
           <!-- 信息 -->
           <div class="discovered-card-info">
-            <div class="discovered-card-name">
-              <template v-if="d.type === 'pcsc'">{{ d.display_name || d.pcsc_reader || 'PC/SC Reader' }}</template>
-              <template v-else>{{ d.net_interface || '--' }} · {{ d.driver_name || '--' }}</template>
-              <span class="meta-mode" :class="modeColor(d.mode)">{{ modeText(d.mode) }}</span>
-            </div>
-            <div class="discovered-card-meta">
-              <template v-if="d.type === 'pcsc'">
-                <span class="meta-item">PC/SC 智能卡读卡器</span>
-              </template>
-              <template v-else>
-                <span v-if="d.imei" class="meta-item">IMEI: {{ d.imei }}</span>
-                <span class="meta-item">AT: {{ d.at_port || '--' }}</span>
-                <span class="meta-item">{{ vidPid(d) }}</span>
-              </template>
-              <span v-if="d.degraded" class="meta-degraded">降级</span>
-            </div>
+<!-- 名称行 -->
+<div class="discovered-card-name">
+<template v-if="d.type === 'pcsc'">{{ d.display_name || d.pcsc_reader || 'PC/SC Reader' }} · Smartcard Reader</template>
+<template v-else>{{ d.net_interface || '--' }} · {{ d.driver_name || '--' }}</template>
+<span class="meta-mode" :class="modeColor(d.mode)">{{ modeText(d.mode) }}</span>
+</div>
+<!-- 副标题 -->
+<div class="discovered-card-meta">
+<template v-if="d.type === 'pcsc'">
+<span v-if="d.imei" class="meta-item">IMEI: {{ d.imei }}</span>
+<span v-if="d.manufacturer" class="meta-item">{{ d.manufacturer }}</span>
+<span v-if="d.vendor_id" class="meta-item">USB: {{ vidPid(d) }}</span>
+</template>
+<template v-else>
+<span v-if="d.imei" class="meta-item">IMEI: {{ d.imei }}</span>
+<span class="meta-item">AT: {{ d.at_port || '--' }}</span>
+<span class="meta-item">{{ vidPid(d) }}</span>
+</template>
+<span v-if="d.degraded" class="meta-degraded">降级</span>
+</div>
           </div>
 
           <!-- 状态 -->

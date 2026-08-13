@@ -745,6 +745,14 @@ func (p *Pool) AddWorkerFromConfig(devCfg config.DeviceConfig) (*Worker, error) 
 
 // addPCSCWorker 创建一个纯 PC/SC 读卡器 worker（无 modem/QMI/MBIM/backend）。
 func (p *Pool) addPCSCWorker(devCfg config.DeviceConfig) (*Worker, error) {
+	// PC/SC 设备无真实 IMEI，生成虚拟 IMEI 用于数据库同步
+	if strings.TrimSpace(devCfg.ModemIMEI) == "" {
+		devCfg.ModemIMEI = GenerateIMEIForDevice(devCfg.ID)
+		if devCfg.ModemIMEI != "" {
+			logger.Info(fmt.Sprintf("[%s] 为 PC/SC 设备生成虚拟 IMEI: %s", devCfg.ID, devCfg.ModemIMEI))
+		}
+	}
+
 	w := &Worker{
 		ID:          devCfg.ID,
 		Config:      devCfg,
@@ -754,6 +762,11 @@ func (p *Pool) addPCSCWorker(devCfg config.DeviceConfig) (*Worker, error) {
 		pcscAccessMu: &sync.Mutex{},
 	}
 	p.assignWorkerGeneration(w)
+
+	// 设置虚拟 IMEI 到设备身份状态
+	if strings.TrimSpace(devCfg.ModemIMEI) != "" {
+		w.state.Identity.IMEI = devCfg.ModemIMEI
+	}
 
 	mgr, err := esim.NewManager(esim.ManagerOptions{
 		DeviceID:     devCfg.ID,

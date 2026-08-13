@@ -19,11 +19,12 @@ const showSensitive = useSensitiveVisibility()
 const activeEsimProfile = computed(() => activeEsimProfileDisplayName(props.device))
 
 const backendModeDisplay = computed(() => {
-  const m = props.device?.backend_mode
-  if (m === 'qmi') return 'QMI'
-  if (m === 'mbim') return 'MBIM'
-  if (m === 'at') return 'AT'
-  return m || '--'
+const m = props.device?.backend_mode
+if (m === 'qmi') return 'QMI'
+if (m === 'mbim') return 'MBIM'
+if (m === 'at') return 'AT'
+if (m === 'pcsc') return 'PC/SC'
+return m || '--'
 })
 
 // 原运营商（SIM 卡原始运营商）
