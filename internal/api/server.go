@@ -276,10 +276,11 @@ func (s *Server) newRouter() *gin.Engine {
 		api.GET("/openapi.json", s.handleOpenAPIJSON)
 
 		// ===== 仪表盘 =====
-		api.GET("/dashboard/devices", s.handleListDevices)          // 获取所有设备概览（仪表盘卡片用）
-		api.GET("/devices/:device_id/status", s.handleStatusDetail) // 获取单个设备详细状态
-		api.GET("/health", s.handleHealth)                          // 健康检查（外部监控用）
-		api.GET("/traffic/analysis", s.handleTrafficAnalysis)       // 流量分析统计
+		api.GET("/dashboard/devices", s.handleListDevices)                     // 获取所有设备概览（仪表盘卡片用）
+		api.GET("/dashboard/overview/stream", s.handleDashboardOverviewStream) // SSE 仪表盘聚合实时流量
+		api.GET("/devices/:device_id/status", s.handleStatusDetail)            // 获取单个设备详细状态
+		api.GET("/health", s.handleHealth)                                     // 健康检查（外部监控用）
+		api.GET("/traffic/analysis", s.handleTrafficAnalysis)                  // 流量分析统计
 
 		// ===== 短信 =====
 		api.POST("/sms/send", s.handleSendSMS)                    // 发送短信（自动选择 AT 或 VoWiFi）
@@ -307,6 +308,8 @@ func (s *Server) newRouter() *gin.Engine {
 		api.DELETE("/settings/update-repo", s.handleDeleteUpdateRepo)      // 删除 release 源配置
 		api.GET("/settings/sms-limit", s.handleGetSMSRateLimit)            // 获取短信限速配置
 		api.PUT("/settings/sms-limit", s.handleUpdateSMSRateLimit)         // 更新短信限速配置
+		api.GET("/settings/vowifi-behavior", s.handleGetVoWiFiBehavior)    // 获取 VoWiFi 行为配置
+		api.PUT("/settings/vowifi-behavior", s.handleUpdateVoWiFiBehavior) // 更新 VoWiFi 行为配置
 		api.GET("/settings/security", s.handleGetSecurity)                 // 获取安全配置
 		api.PUT("/settings/security", s.handleUpdateSecurity)              // 更新安全配置
 		api.GET("/settings/api-tokens", s.handleListAPITokens)             // 列出全部 API Token
@@ -405,9 +408,9 @@ func (s *Server) newRouter() *gin.Engine {
 		api.POST("/carrier/:mcc/:mnc/deactivate", s.handleDeactivateCarrier) // 禁用用户配置
 
 		// ===== 运营商可见列表（新架构：plmn-index → visible） =====
-		api.POST("/carriers/visible/batch", s.handleBatchAddVisible)         // 批量添加运营商到可见列表
-		api.DELETE("/carriers/visible/:plmn", s.handleRemoveVisible)         // 从可见列表移除运营商
-		api.GET("/carriers/search", s.handleSearchCarrierIndex)              // 搜索 plmn-index
+		api.POST("/carriers/visible/batch", s.handleBatchAddVisible) // 批量添加运营商到可见列表
+		api.DELETE("/carriers/visible/:plmn", s.handleRemoveVisible) // 从可见列表移除运营商
+		api.GET("/carriers/search", s.handleSearchCarrierIndex)      // 搜索 plmn-index
 	}
 	return r
 }

@@ -316,6 +316,22 @@ export const systemService = {
       return true
     })
   },
+  getVoWiFiBehavior() {
+    return callService(async () => {
+      const res = await api.get<{ ike_retry_count: number; override_rf_off: boolean; rf_off_delay: number }>('/settings/vowifi-behavior')
+      return res.data
+    })
+  },
+  saveVoWiFiBehavior(ikeRetryCount: number, overrideRFOff: boolean, rfOffDelay: number) {
+    return callService(async () => {
+      const res = await api.put<{ status: string }>('/settings/vowifi-behavior', {
+        ike_retry_count: ikeRetryCount,
+        override_rf_off: overrideRFOff,
+        rf_off_delay: rfOffDelay
+      })
+      return res.data
+    })
+  },
   getSMSRateLimit() {
     return callService(async () => {
       const res = await api.get<{ hourly_limit: number; daily_limit: number }>('/settings/sms-limit')

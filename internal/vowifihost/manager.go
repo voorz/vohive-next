@@ -25,16 +25,19 @@ type inboundDialogInfo struct {
 }
 
 type Manager struct {
-	runtimeStore RuntimeStore
-	stateHub     *StateHub
-	recoverStore *DesiredRecoverStore
-	lifecycle    *LifecycleController
+	runtimeStore  RuntimeStore
+	stateHub      *StateHub
+	recoverStore  *DesiredRecoverStore
+	lifecycle     *LifecycleController
 	runtimeStart  runtimeStartFunc
 	adapter       Adapter
 	voiceGateway  *voicehost.Gateway
 	sipRegistrar  *sipgw.Registrar
 	deliveryStore messaging.DeliveryStore
 	dispatcher    eventhost.Dispatcher
+
+	// ikeRetryCount controls IKE retransmission count (0 = default 5).
+	ikeRetryCount int
 
 	inboundDialogsMu sync.Mutex
 	inboundDialogs   map[string]*inboundDialogInfo
@@ -61,6 +64,13 @@ func NewManagerWithRuntimeStore(store RuntimeStore) *Manager {
 		Run:      m.runLifecycleCommand,
 	})
 	return m
+}
+
+func (m *Manager) SetIKERetryCount(n int) {
+	if m == nil {
+		return
+	}
+	m.ikeRetryCount = n
 }
 
 func (m *Manager) RuntimeStore() RuntimeStore {

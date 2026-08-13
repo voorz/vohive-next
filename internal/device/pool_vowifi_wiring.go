@@ -17,6 +17,19 @@ func (p *Pool) SetVoiceGateway(g *voicehost.Gateway) {
 	p.voWiFiHost().ConfigureRuntimeDependencies(g, vowifiDeliveryStore{}, poolVoWiFiRuntimeDispatcher{pool: p})
 }
 
+// UpdateVoWiFiBehavior 热更新 VoWiFi 行为参数到运行时。
+func (p *Pool) UpdateVoWiFiBehavior(ikeRetryCount int) {
+	if p == nil {
+		return
+	}
+	p.mu.RLock()
+	host := p.vowifiHost
+	p.mu.RUnlock()
+	if host != nil {
+		host.SetIKERetryCount(ikeRetryCount)
+	}
+}
+
 // SetVoWiFiSIPRegistrar 注入 sipgw.Registrar，用于 VoWiFi 来电转发到 Linphone。
 func (p *Pool) SetVoWiFiSIPRegistrar(r *sipgw.Registrar) {
 	if p == nil {

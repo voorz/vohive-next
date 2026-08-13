@@ -199,13 +199,13 @@ func TestDesiredVoWiFiRecoverBacksOffAfterFailure(t *testing.T) {
 
 	waitUntilDesiredVoWiFiTest(t, time.Second, func() bool {
 		st, ok := p.voWiFiHost().DesiredRecoverState("dev-1")
-		return ok && !st.InFlight && st.Attempt == 1 && !st.NextAt.Before(now.Add(30*time.Second))
+		return ok && !st.InFlight && st.Attempt == 1 && !st.NextAt.Before(now.Add(3*time.Second))
 	})
 
-	p.reconcileDesiredVoWiFiOnce(now.Add(29 * time.Second))
+	p.reconcileDesiredVoWiFiOnce(now.Add(2 * time.Second))
 	assertNoRecoverCommand(t, commands)
 
-	p.reconcileDesiredVoWiFiOnce(now.Add(31 * time.Second))
+	p.reconcileDesiredVoWiFiOnce(now.Add(4 * time.Second))
 	_ = waitForRecoverCommand(t, commands)
 }
 
@@ -354,9 +354,9 @@ func TestVoWiFiDesiredRecoverDelayCapsAtTwoMinutes(t *testing.T) {
 		vowifihost.DesiredRecoverDelay(10),
 	}
 	want := []time.Duration{
+		3 * time.Second,
+		10 * time.Second,
 		30 * time.Second,
-		time.Minute,
-		2 * time.Minute,
 		2 * time.Minute,
 	}
 	if !reflect.DeepEqual(got, want) {

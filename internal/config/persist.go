@@ -163,6 +163,44 @@ func UpdateSMSRateLimitInFile(path string, hourly, daily int) error {
 	return nil
 }
 
+// UpdateVoWiFiBehaviorInFile 更新配置文件中的 vowifi.behavior 节点
+func UpdateVoWiFiBehaviorInFile(path string, ikeRetryCount int, overrideRFOff bool, rfOffDelay int) error {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("读取配置文件失败: %w", err)
+	}
+
+	root := make(map[string]any)
+	if err := yaml.Unmarshal(data, &root); err != nil {
+		return fmt.Errorf("解析配置文件失败: %w", err)
+	}
+
+	vowifi, _ := root["vowifi"].(map[string]any)
+	if vowifi == nil {
+		vowifi = make(map[string]any)
+	}
+	vowifi["behavior"] = map[string]any{
+		"ike_retry_count": ikeRetryCount,
+		"override_rf_off": overrideRFOff,
+		"rf_off_delay":    rfOffDelay,
+	}
+	root["vowifi"] = vowifi
+
+	out, err := yaml.Marshal(root)
+	if err != nil {
+		return fmt.Errorf("序列化配置文件失败: %w", err)
+	}
+
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, out, 0o600); err != nil {
+		return fmt.Errorf("写入临时配置文件失败: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		return fmt.Errorf("替换配置文件失败: %w", err)
+	}
+	return nil
+}
+
 // DeleteUpdateRepoInFile 从配置文件中删除 update_repo 节点
 func DeleteUpdateRepoInFile(path string) error {
 	data, err := os.ReadFile(path)

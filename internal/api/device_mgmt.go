@@ -448,6 +448,22 @@ type voWiFiRuntimeDTO struct {
 	LastError      string    `json:"last_error"`
 	LastReason     string    `json:"last_reason"`
 	UpdatedAt      time.Time `json:"updated_at"`
+
+	// —— 实时进度 ——
+	Generation     uint64    `json:"generation,omitempty"`
+	Stage          string    `json:"stage,omitempty"`
+	StageLabel     string    `json:"stage_label,omitempty"`
+	StageStartedAt time.Time `json:"stage_started_at,omitempty"`
+	AttemptIndex   int       `json:"attempt_index,omitempty"`
+	MaxAttempts    int       `json:"max_attempts,omitempty"`
+
+	// —— IMS REGISTER 细节 ——
+	RegisterVariantIndex int    `json:"register_variant_index,omitempty"`
+	RegisterVariantTotal int    `json:"register_variant_total,omitempty"`
+	RegisterRound        int    `json:"register_round,omitempty"`
+	MaxChallengeRounds   int    `json:"max_challenge_rounds,omitempty"`
+	LastSIPStatus        int    `json:"last_sip_status,omitempty"`
+	LastSIPReason        string `json:"last_sip_reason,omitempty"`
 }
 
 func runtimeStateToDTO(st runtimehost.State, status modem.DeviceStatus) *voWiFiRuntimeDTO {
@@ -470,6 +486,22 @@ func runtimeStateToDTO(st runtimehost.State, status modem.DeviceStatus) *voWiFiR
 		LastError:      st.LastError,
 		LastReason:     st.LastReason,
 		UpdatedAt:      st.UpdatedAt,
+
+		// 实时进度
+		Generation:     st.Generation,
+		Stage:          st.Stage,
+		StageLabel:     st.StageLabel,
+		StageStartedAt: st.StageStartedAt,
+		AttemptIndex:   st.AttemptIndex,
+		MaxAttempts:    st.MaxAttempts,
+
+		// IMS REGISTER 细节
+		RegisterVariantIndex: st.RegisterVariantIndex,
+		RegisterVariantTotal: st.RegisterVariantTotal,
+		RegisterRound:        st.RegisterRound,
+		MaxChallengeRounds:   st.MaxChallengeRounds,
+		LastSIPStatus:        st.LastSIPStatus,
+		LastSIPReason:        st.LastSIPReason,
 	}
 }
 
@@ -638,6 +670,10 @@ type overviewStreamEmitVersion struct {
 	IMSReady        bool
 	SMSReady        bool
 	LastErrorClass  string
+	Stage           string
+	AttemptIndex    int
+	RegisterRound   int
+	Generation      uint64
 }
 
 func newOverviewStreamEmitVersion(item deviceMgmtOverviewLiteItem) overviewStreamEmitVersion {
@@ -653,6 +689,10 @@ func newOverviewStreamEmitVersion(item deviceMgmtOverviewLiteItem) overviewStrea
 		v.IMSReady = item.VoWiFiRuntime.IMSReady
 		v.SMSReady = item.VoWiFiRuntime.SMSReady
 		v.LastErrorClass = item.VoWiFiRuntime.LastErrorClass
+		v.Stage = item.VoWiFiRuntime.Stage
+		v.AttemptIndex = item.VoWiFiRuntime.AttemptIndex
+		v.RegisterRound = item.VoWiFiRuntime.RegisterRound
+		v.Generation = item.VoWiFiRuntime.Generation
 	}
 	return v
 }

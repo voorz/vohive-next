@@ -33,7 +33,7 @@ const totalCapacity = computed(() => '')
       <span class="chip-card-name">{{ chipName }}</span>
       <div class="chip-card-actions">
         <button class="chip-icon-btn" :disabled="refreshing" title="刷新" @click="emit('refresh')">
-          <el-icon size="16"><ArrowSync24Regular /></el-icon>
+          <el-icon size="16" :class="{ 'spin': refreshing }"><ArrowSync24Regular /></el-icon>
         </button>
         <button class="chip-icon-btn" :disabled="notificationsLoading" title="通知" @click="emit('open-notifications')">
           <el-icon size="16"><Alert24Regular /></el-icon>
@@ -117,6 +117,14 @@ const totalCapacity = computed(() => '')
 .chip-icon-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.chip-icon-btn .spin {
+  animation: chip-spin 0.8s linear infinite;
+}
+
+@keyframes chip-spin {
+  to { transform: rotate(360deg); }
 }
 
 .chip-card-body {

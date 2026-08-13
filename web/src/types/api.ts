@@ -52,6 +52,20 @@ export type VoWiFiRuntimeState = {
   last_error?: string
   last_reason?: string
   updated_at?: string
+  // 实时进度
+  generation?: number
+  stage?: string
+  stage_label?: string
+  stage_started_at?: string
+  attempt_index?: number
+  max_attempts?: number
+  // IMS REGISTER 细节
+  register_variant_index?: number
+  register_variant_total?: number
+  register_round?: number
+  max_challenge_rounds?: number
+  last_sip_status?: number
+  last_sip_reason?: string
 }
 
 export type DeviceLifecyclePhase =

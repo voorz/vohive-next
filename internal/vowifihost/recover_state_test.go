@@ -22,13 +22,13 @@ func TestManagerDesiredRecoverBackoffLifecycle(t *testing.T) {
 	if snapshot.Attempt != 1 {
 		t.Fatalf("attempt = %d, want 1", snapshot.Attempt)
 	}
-	if snapshot.Delay != 30*time.Second {
-		t.Fatalf("delay = %s, want 30s", snapshot.Delay)
+	if snapshot.Delay != 3*time.Second {
+		t.Fatalf("delay = %s, want 3s", snapshot.Delay)
 	}
-	if manager.BeginDesiredRecover(deviceID, now.Add(29*time.Second)) {
+	if manager.BeginDesiredRecover(deviceID, now.Add(2*time.Second)) {
 		t.Fatal("BeginDesiredRecover() before nextAt = true, want false")
 	}
-	if !manager.BeginDesiredRecover(deviceID, now.Add(31*time.Second)) {
+	if !manager.BeginDesiredRecover(deviceID, now.Add(4*time.Second)) {
 		t.Fatal("BeginDesiredRecover() after nextAt = false, want true")
 	}
 

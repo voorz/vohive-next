@@ -231,6 +231,9 @@ func NewPool(cfg *config.Config) *Pool {
 	p.transportRecovery = NewTransportRecoveryController(p)
 	p.voWiFiHost().ConfigureAdapter(p)
 	p.voWiFiHost().ConfigureRuntimeDependencies(p.GetVoiceGateway(), vowifiDeliveryStore{}, poolVoWiFiRuntimeDispatcher{pool: p})
+	if cfg != nil {
+		p.voWiFiHost().SetIKERetryCount(cfg.VoWiFi.Behavior.IKERetryCount)
+	}
 
 	return p
 }
@@ -279,7 +282,6 @@ func (p *Pool) assignWorkerGeneration(worker *Worker) uint64 {
 	}
 	return generation
 }
-
 
 func (p *Pool) registerWorkerStarting(worker *Worker) error {
 	if p == nil || worker == nil || strings.TrimSpace(worker.ID) == "" {

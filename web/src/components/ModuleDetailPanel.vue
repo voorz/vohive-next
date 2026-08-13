@@ -11,12 +11,14 @@ import ModuleUssdTerminal from './ModuleUssdTerminal.vue'
 import ModuleCardPolicy from './ModuleCardPolicy.vue'
 import ModuleConfigForm from './ModuleConfigForm.vue'
 import ModuleSmsTab from './ModuleSmsTab.vue'
+import ModuleOverviewTab from './ModuleOverviewTab.vue'
 import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
 import { ArrowSync24Regular } from '@vicons/fluent'
 import { cardsService } from '../services/cards'
 import type { CardPolicy } from '../types/api'
 import { devicesService } from '../services/devices'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useOverviewStream } from '../composables/useOverviewStream'
 
 const props = defineProps<{
   selectedId?: string
@@ -86,6 +88,41 @@ async function onCardPolicyChanged() {
 
 const reconnectingVoWiFi = ref(false)
 const rebooting = ref(false)
+const rotating = ref(false)
+
+async function rotateIP() {
+  if (!detail.value?.id) return
+  const id = detail.value.id
+  if (!detail.value?.network_connected) {
+    ElMessage.warning('设备网络未连接，请先启动网络')
+    return
+  }
+  const confirmed = await ElMessageBox.confirm(
+    `确定对设备 ${id} 发起 IP 轮换？这将断开当前网络并重新获取 IP。`,
+    '确认轮换 IP',
+    { confirmButtonText: '立即轮换', cancelButtonText: '取消', type: 'warning' }
+  ).then(() => true).catch(() => false)
+  if (!confirmed) return
+
+  rotating.value = true
+  try {
+    const result = await devicesService.rotateIP(id)
+    if (!result.ok) throw new Error(result.error.message || '轮换失败')
+    ElMessage.success('轮换请求已发送')
+    void store.fetchDetail(id).catch(() => {})
+    void store.fetchList().catch(() => {})
+    setTimeout(() => {
+      void store.fetchDetail(id).catch(() => {})
+      void store.fetchList().catch(() => {})
+    }, 1500)
+  } catch (e: unknown) {
+    if (e !== 'cancel' && e !== undefined) {
+      ElMessage.error(e instanceof Error ? e.message : '轮换失败')
+    }
+  } finally {
+    rotating.value = false
+  }
+}
 
 async function rebootModem() {
   if (!detail.value?.id) return
@@ -93,7 +130,7 @@ async function rebootModem() {
   const confirmed = await ElMessageBox.confirm(
     `确定对设备 ${id} 发送重启模组指令？设备将在此期间脱网和失联数秒。`,
     '确认重启',
-    { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+    { confirmButtonText: '立即重启', cancelButtonText: '取消', type: 'warning' }
   ).then(() => true).catch(() => false)
   if (!confirmed) return
 
@@ -103,7 +140,11 @@ async function rebootModem() {
     if (!result.ok) throw new Error(result.error.message || '指令下发失败')
     ElMessage.success('重启指令已送达，设备正在重新启动')
     void store.fetchDetail(id).catch(() => {})
-    setTimeout(() => { void store.fetchDetail(id).catch(() => {}) }, 5000)
+    void store.fetchList().catch(() => {})
+    setTimeout(() => {
+      void store.fetchDetail(id).catch(() => {})
+      void store.fetchList().catch(() => {})
+    }, 5000)
   } catch (e: unknown) {
     if (e !== 'cancel' && e !== undefined) {
       ElMessage.error(e instanceof Error ? e.message : '指令下发失败')
@@ -119,7 +160,7 @@ async function reconnectVoWiFi() {
   const confirmed = await ElMessageBox.confirm(
     `确定对设备 ${id} 发起 VoWiFi 环境的重新连接拨号？这将在后台重新注册 IMS 链路。`,
     '重连 VoWiFi',
-    { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+    { confirmButtonText: '确定重连', cancelButtonText: '取消', type: 'info' }
   ).then(() => true).catch(() => false)
   if (!confirmed) return
 
@@ -129,7 +170,11 @@ async function reconnectVoWiFi() {
     if (!result.ok) throw new Error(result.error.message || '重连请求失败')
     ElMessage.success('已触发重连指令，VoWiFi 服务正在重启...')
     void store.fetchDetail(id).catch(() => {})
-    setTimeout(() => { void store.fetchDetail(id).catch(() => {}) }, 4000)
+    void store.fetchList().catch(() => {})
+    setTimeout(() => {
+      void store.fetchDetail(id).catch(() => {})
+      void store.fetchList().catch(() => {})
+    }, 4000)
   } catch (e: unknown) {
     if (e !== 'cancel' && e !== undefined) {
       ElMessage.error(e instanceof Error ? e.message : '重连请求失败')
@@ -146,9 +191,9 @@ const activeTab = ref('overview')
 const tabs = [
   { name: 'overview', label: '概览' },
   { name: 'sms', label: '短信' },
-  { name: 'at', label: 'AT终端' },
+  { name: 'at', label: 'AT' },
   { name: 'ussd', label: 'USSD' },
-  { name: 'card', label: '卡策略' },
+  { name: 'card', label: '策略' },
   { name: 'config', label: '配置' }
 ]
 
@@ -159,6 +204,12 @@ function initials(name: string): string {
 function onDeviceDeleted() {
   emit('device-deleted')
 }
+
+// ---- SSE Overview Stream + 实时流量 ----
+const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = useOverviewStream({
+  deviceId: () => props.selectedId,
+  detail,
+})
 </script>
 
 <template>
@@ -167,9 +218,7 @@ function onDeviceDeleted() {
     <div class="detail-header">
       <!-- 窄屏下拉选择器 + 添加按钮 -->
       <div class="detail-header-narrow">
-        <div class="detail-header-icon-box">
-          {{ initials(operatorName) }}
-        </div>
+        <CarrierIcon :mcc="detail?.modem?.native_mcc || ''" :mnc="detail?.modem?.native_mnc || ''" :name="nativeSpn" :size="38" class="narrow-logo" />
         <el-select
           :model-value="props.selectedId"
           @change="(v: string) => emit('select', v)"
@@ -215,11 +264,14 @@ function onDeviceDeleted() {
           <span class="vowifi-status-text">{{ detail.vowifi_enabled ? '已启用' : '未启用' }}</span>
         </div>
         <div class="vr-btn-group">
-          <button class="vowifi-reset-btn" :disabled="!detail.running || rebooting" @click="rebootModem">
+          <button class="vowifi-reset-btn" :disabled="rebooting" @click="rebootModem">
             <span class="vr-text"><span>重启模组</span></span>
           </button>
-          <button class="vowifi-reset-btn" :disabled="!detail.vowifi_enabled || reconnectingVoWiFi" @click="reconnectVoWiFi">
-            <span class="vr-text"><span>重启 VoWiFi</span></span>
+          <button v-if="detail.vowifi_enabled" class="vowifi-reset-btn" :disabled="reconnectingVoWiFi" @click="reconnectVoWiFi">
+            <span class="vr-text"><span>重连 VoWiFi</span></span>
+          </button>
+          <button v-else class="vowifi-reset-btn" :disabled="!detail.network_connected || rotating" @click="rotateIP">
+            <span class="vr-text"><span>切换 IP</span></span>
           </button>
         </div>
       </div>
@@ -241,9 +293,13 @@ function onDeviceDeleted() {
       <div class="tab-content">
         <!-- 概览 -->
         <div v-if="activeTab === 'overview'" class="tab-pane">
-          <div class="content-placeholder">
-            运行状态（单卡片纵向排列）
-          </div>
+          <ModuleOverviewTab
+            :device="detail"
+            :traffic-speed-rx="trafficSpeedRx"
+            :traffic-speed-tx="trafficSpeedTx"
+            :traffic-minute-rx="rollingMinuteRx"
+            :traffic-minute-tx="rollingMinuteTx"
+          />
         </div>
 
         <!-- 短信 -->

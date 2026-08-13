@@ -71,19 +71,19 @@ func ResolveIPFamily(in string) (enableV4 bool, enableV6 bool, err error) {
 }
 
 type Config struct {
-	Server    ServerConfig    `mapstructure:"server"`
-	Devices   []DeviceConfig  `mapstructure:"devices"`
-	Telegram  TelegramConfig  `mapstructure:"telegram"`
-	Feishu    FeishuConfig    `mapstructure:"feishu"`
-	QQ        QQConfig        `mapstructure:"qq"`
-	Webhook   WebhookConfig   `mapstructure:"webhook"`
+	Server   ServerConfig   `mapstructure:"server"`
+	Devices  []DeviceConfig `mapstructure:"devices"`
+	Telegram TelegramConfig `mapstructure:"telegram"`
+	Feishu   FeishuConfig   `mapstructure:"feishu"`
+	QQ       QQConfig       `mapstructure:"qq"`
+	Webhook  WebhookConfig  `mapstructure:"webhook"`
 
-	Bark      BarkConfig      `mapstructure:"bark"`
-	Email     EmailConfig     `mapstructure:"email"`
-	Pushplus  PushplusConfig  `mapstructure:"pushplus"`
-	Web       WebConfig       `mapstructure:"web"`
-	Proxy     ProxyConfig     `mapstructure:"proxy"`
-	VoWiFi    VoWiFiConfig    `mapstructure:"vowifi"`
+	Bark         BarkConfig         `mapstructure:"bark"`
+	Email        EmailConfig        `mapstructure:"email"`
+	Pushplus     PushplusConfig     `mapstructure:"pushplus"`
+	Web          WebConfig          `mapstructure:"web"`
+	Proxy        ProxyConfig        `mapstructure:"proxy"`
+	VoWiFi       VoWiFiConfig       `mapstructure:"vowifi"`
 	UpdateRepo   UpdateRepoConfig   `mapstructure:"update_repo"`
 	SMSRateLimit SMSRateLimitConfig `mapstructure:"sms_rate_limit"`
 	Security     SecurityConfig     `mapstructure:"security"`
@@ -136,7 +136,25 @@ type VoWiFiConfig struct {
 	DeviceID string `mapstructure:"device_id"` // 留空则取第一个
 	Mode     string `mapstructure:"mode"`      // vowifi|volte(当前会回退为 vowifi)，默认 vowifi
 
+	Behavior     VoWiFiBehaviorConfig     `mapstructure:"behavior"`
 	VoiceGateway VoWiFiVoiceGatewayConfig `mapstructure:"voice_gateway"`
+}
+
+// VoWiFiBehaviorConfig 控制 VoWiFi 隧道建立行为参数。
+// 这些参数作为系统默认兜底，可通过前端全局设置覆盖。
+
+type VoWiFiBehaviorConfig struct {
+	// IKERetryCount 控制 IKE_SA_INIT 无响应时的重传次数。
+	// 耗尽后触发整个 VoWiFi 拆除重建（等同手动重连）。
+	// 默认 5（对齐 strongSwan retransmit_tries=5），设为 0 则使用默认值。
+	IKERetryCount int `mapstructure:"ike_retry_count"`
+
+	// OverrideRFOff 为 true 时，使用 RFOffDelay 覆盖运营商预设的飞行模式延迟。
+	OverrideRFOff bool `mapstructure:"override_rf_off"`
+
+	// RFOffDelay 是飞行模式后等待网络栈稳定的秒数。
+	// 仅在 OverrideRFOff=true 时生效。默认 5。
+	RFOffDelay int `mapstructure:"rf_off_delay"`
 }
 
 // VoWiFiVoiceGatewayConfig 语音网关配置（支持 Linphone 接打电话）。
@@ -222,10 +240,10 @@ type DeviceConfig struct {
 	USBPath       string `mapstructure:"-"` // Deprecated: 运行时按 IMEI 现解析,绝不从文件读取
 	ATPort        string `mapstructure:"-"` // Deprecated: 运行时解析;AT 终端用 Worker.ResolvedATPort()
 	ProxyPort     int    `mapstructure:"proxy_port"`
-	ManagePort    string `mapstructure:"-"` // Deprecated: 运行时解析,绝不从文件读取
-	Interface     string `mapstructure:"-"` // Deprecated: 运行时解析,绝不从文件读取
-	QMIDevice     string `mapstructure:"-"` // Deprecated: 运行时解析,绝不从文件读取
-	ControlDevice string `mapstructure:"-"` // Deprecated: 运行时按 IMEI 现解析,绝不从文件读取
+	ManagePort    string `mapstructure:"-"`              // Deprecated: 运行时解析,绝不从文件读取
+	Interface     string `mapstructure:"-"`              // Deprecated: 运行时解析,绝不从文件读取
+	QMIDevice     string `mapstructure:"-"`              // Deprecated: 运行时解析,绝不从文件读取
+	ControlDevice string `mapstructure:"-"`              // Deprecated: 运行时按 IMEI 现解析,绝不从文件读取
 	MBIMTransport string `mapstructure:"mbim_transport"` // MBIM 传输: auto|proxy|direct，默认 auto
 	QMIUseProxy   bool   `mapstructure:"qmi_use_proxy"`  // 是否通过 libqmi qmi-proxy 打开 QMI 控制口
 	// 可选：qmi-proxy abstract socket 名称和可执行文件路径。留空使用 quectel-qmi-go 默认值。
@@ -342,6 +360,9 @@ func Load(path string) (*Config, error) {
 	viper.SetDefault("web.password", "admin")
 	viper.SetDefault("vowifi.enabled", false)
 	viper.SetDefault("vowifi.mode", "vowifi")
+	viper.SetDefault("vowifi.behavior.ike_retry_count", 5)
+	viper.SetDefault("vowifi.behavior.override_rf_off", false)
+	viper.SetDefault("vowifi.behavior.rf_off_delay", 5)
 	viper.SetDefault("sms_rate_limit.hourly_limit", 3)
 	viper.SetDefault("sms_rate_limit.daily_limit", 10)
 	viper.SetDefault("imscore.use_sipgo_udp", false)
