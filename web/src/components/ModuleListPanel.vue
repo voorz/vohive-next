@@ -10,6 +10,7 @@ import EmptyState from './EmptyState.vue'
 import {
   Add24Regular,
   Search24Regular,
+  UsbStick20Regular,
   Wifi124Regular,
   WifiOff24Regular,
   WifiWarning24Filled
@@ -225,7 +226,8 @@ function initials(name: string): string {
             <!-- 第一行：WiFi图标 + 设备名 + 状态标签 -->
             <div class="device-card-name-row">
               <span class="device-card-name">{{ item.name }}</span>
-              <div v-if="signalBars(item.modem?.signal_dbm) > 0" class="signal-bars" title="信号强度">
+              <!-- 信号格（模组）-->
+              <div v-if="signalBars(item.modem?.signal_dbm) > 0 && item.esim_transport !== 'pcsc'" class="signal-bars" title="信号强度">
                 <span
                   v-for="i in 4"
                   :key="i"
@@ -236,6 +238,10 @@ function initials(name: string): string {
                   ]"
                 />
               </div>
+              <!-- USB 图标（读卡器，无信号格）-->
+              <el-icon v-else-if="item.esim_transport === 'pcsc'" size="16" class="device-card-usb-icon" :class="{ offline: !item.running || !item.healthy }">
+                <UsbStick20Regular />
+              </el-icon>
               <el-icon size="16" class="device-card-vowifi-icon" :class="vowifiState(item)">
                 <WifiCalling3Round v-if="vowifiState(item) === 'ready'" />
                 <WifiWarning24Filled v-else-if="vowifiState(item) === 'enabled-not-ready'" />
@@ -457,6 +463,15 @@ html.dark .device-card.tone-neutral.selected {
   color: var(--muted-foreground);
   opacity: 0.4;
   flex-shrink: 0;
+}
+
+.device-card-usb-icon {
+  color: var(--brand);
+  flex-shrink: 0;
+}
+
+.device-card-usb-icon.offline {
+  color: var(--destructive);
 }
 
 .device-card-vowifi-icon.ready {
