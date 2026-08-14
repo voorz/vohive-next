@@ -149,7 +149,7 @@ watch(() => props.modelValue, async (open) => {
     searchQuery.value = ''
     selectedKey.value = ''
     await scanDevices(false)
-    await checkPcscDriver()
+    // checkPcscDriver() — 已弃用，Linux 下走 USBFS 内置驱动
   }
 })
 
@@ -280,32 +280,7 @@ function vidPid(d: DiscoveredDevice): string {
       </el-button>
     </div>
 
-    <!-- PC/SC 驱动检测卡片 -->
-    <div v-if="pcscDriverStatus" class="pcsc-driver-card" :class="{ ready: pcscDriverStatus.all_ready, 'not-ready': !pcscDriverStatus.all_ready }">
-      <div class="pcsc-driver-info">
-        <el-icon size="16" class="pcsc-driver-icon" :class="{ 'is-ready': pcscDriverStatus.all_ready }">
-          <UsbStick20Regular />
-        </el-icon>
-        <div class="pcsc-driver-text">
-          <span class="pcsc-driver-title">读卡器驱动</span>
-          <span class="pcsc-driver-detail">
-            <span class="driver-dot" :class="pcscDriverStatus.pcscd_installed ? 'dot-on' : 'dot-off'"></span> pcscd
-            <span class="driver-dot" :class="pcscDriverStatus.libccid_installed ? 'dot-on' : 'dot-off'"></span> libccid
-          </span>
-        </div>
-      </div>
-      <el-button
-        v-if="!pcscDriverStatus.all_ready"
-        size="small"
-        type="primary"
-        :loading="pcscInstalling"
-        @click="installPcscDriver"
-        class="!border-0"
-      >
-        安装驱动
-      </el-button>
-      <span v-else class="pcsc-driver-ready-text">已就绪</span>
-    </div>
+    <!-- PC/SC 驱动检测卡片已移除：Linux 下走 USBFS 内置驱动，无需 pcscd/libccid -->
 
     <!-- 设备列表 -->
     <div class="search-results">

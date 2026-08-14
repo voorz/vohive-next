@@ -1186,7 +1186,7 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 		out = append(out, buildDiscoveredDevice(hw, false, "", true))
 	}
 
-	// 追加 PC/SC 读卡器到发现列表（使用 goscard 避免与已初始化的 PC/SC 通道冲突）
+	// 追加 PC/SC 读卡器到发现列表（使用 wwan-go/ccid 统一枚举读卡器）
 	readerNames, pcscErr := esim.ListPCSCReaders()
 	logger.Debug(fmt.Sprintf("设备发现: ListPCSCReaders readers=%d err=%v", len(readerNames), pcscErr))
 	if pcscErr == nil {

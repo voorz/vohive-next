@@ -1,11 +1,12 @@
 package esim
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
 
-	"github.com/ElMostafaIdrassi/goscard"
+	"github.com/voorz/wwan-go/ccid"
 )
 
 // PC/SC 独占通道参数对齐 lpac（estkme-group/lpac driver/apdu/pcsc.c）：
@@ -19,79 +20,23 @@ const (
 	pcscMaxShortAPDUDataLength = 255
 )
 
-// 连接后发送的终端能力 APDU（与 lpac APDU_TERMINAL_CAPABILITIES 一致），
-// 失败忽略（lpac 亦不检查其响应）。
-var pcscTerminalCapabilitiesAPDU = []byte{
-	0x80, 0xAA, 0x00, 0x00, 0x0A,
-	0xA9, 0x08, 0x81, 0x00, 0x82, 0x01, 0x01, 0x83, 0x01, 0x07,
-}
-
-// goscardInitialize 封装 goscard 库级初始化/释放的引用计数，
-// 与 uicc-go/ccid 的做法保持一致（全局只能 Initialize/Finalize 一次配对）。
-var goscardInitialize struct {
-	mu   sync.Mutex
-	refs int
-}
-
-func acquireGoscard() error {
-	goscardInitialize.mu.Lock()
-	defer goscardInitialize.mu.Unlock()
-	if goscardInitialize.refs == 0 {
-		if err := goscard.Initialize(goscard.NewDefaultLogger(goscard.LogLevelNone)); err != nil {
-			return fmt.Errorf("初始化 PC/SC 库失败: %w", err)
-		}
-	}
-	goscardInitialize.refs++
-	return nil
-}
-
-func releaseGoscard() {
-	goscardInitialize.mu.Lock()
-	defer goscardInitialize.mu.Unlock()
-	if goscardInitialize.refs == 0 {
-		return
-	}
-	goscardInitialize.refs--
-	if goscardInitialize.refs == 0 {
-		goscard.Finalize()
-	}
-}
-
-// ListPCSCReaders 列出系统可用的 PC/SC 读卡器名称。
-// 使用 goscard 库（与 PCSCExclusiveChannel 共享初始化），避免与 ccid/scard 库冲突。
-func ListPCSCReaders() ([]string, error) {
-	if err := acquireGoscard(); err != nil {
-		return nil, err
-	}
-	defer releaseGoscard()
-	ctx, _, err := goscard.NewContext(goscard.SCardScopeSystem, nil, nil)
-	if err != nil {
-		return nil, fmt.Errorf("创建 PC/SC 上下文失败: %w", err)
-	}
-	defer ctx.Release()
-	readers, _, err := ctx.ListReaders(nil)
-	return readers, err
-}
-
 // PCSCExclusiveChannel 是以独占模式访问读卡器的 driver.SmartCardChannel 实现。
+// 底层使用 wwan-go/ccid 包，Linux 下走 USBFS 内置驱动，非 Linux 走 PC/SC (goscard)。
 type PCSCExclusiveChannel struct {
 	mu     sync.Mutex
 	reader string
 
-	pcscAcquired bool
-	ctx          *goscard.Context
-	card         *goscard.Card
-	ioSend       *goscard.SCardIORequest
-	channel      byte
-	connected    bool
-	closed       bool
+	ccidReader  *ccid.Reader
+	channel     byte
+	connected   bool
+	closed      bool
 
 	accessMu *sync.Mutex // 可选：跨通道共享的读卡器访问互斥锁
 	muHeld   bool        // 当前是否持有 accessMu
 
 	// 连接参数
-	shareMode   goscard.SCardShareMode
-	protocol    goscard.SCardProtocol
+	shareMode   ccid.ShareMode
+	protocol    ccid.Protocol
 	sendTermCap bool // 是否发送终端能力 APDU
 }
 
@@ -102,22 +47,22 @@ func NewPCSCExclusiveChannel(reader string) (*PCSCExclusiveChannel, error) {
 	}
 	return &PCSCExclusiveChannel{
 		reader:      reader,
-		shareMode:   goscard.SCardShareExclusive,
-		protocol:    goscard.SCardProtocolT0,
+		shareMode:   ccid.ShareExclusive,
+		protocol:    ccid.ProtocolT0,
 		sendTermCap: true,
 	}, nil
 }
 
 // NewPCSCSharedChannel 创建共享模式通道（用于 USIM 访问）。
-// 使用 SCardShareShared + SCardProtocolAny，不发送终端能力 APDU。
+// 使用 ShareShared + ProtocolAny，不发送终端能力 APDU。
 func NewPCSCSharedChannel(reader string) (*PCSCExclusiveChannel, error) {
 	if reader == "" {
 		return nil, errors.New("PC/SC 通道需要指定读卡器名称")
 	}
 	return &PCSCExclusiveChannel{
 		reader:      reader,
-		shareMode:   goscard.SCardShareShared,
-		protocol:    goscard.SCardProtocolAny,
+		shareMode:   ccid.ShareShared,
+		protocol:    ccid.ProtocolAny,
 		sendTermCap: false,
 	}, nil
 }
@@ -174,37 +119,17 @@ func (c *PCSCExclusiveChannel) Connect() error {
 		c.muHeld = true
 	}
 
-	if err := acquireGoscard(); err != nil {
+	ctx := context.Background()
+	r, err := ccid.OpenWithOptions(ctx, c.reader, ccid.OpenOptions{
+		ShareMode:                c.shareMode,
+		Protocol:                 c.protocol,
+		SendTerminalCapabilities: c.sendTermCap,
+	})
+	if err != nil {
 		c.releaseAccessMuLocked()
-		return err
-	}
-	ctx, _, err := goscard.NewContext(goscard.SCardScopeSystem, nil, nil)
-	if err != nil {
-		releaseGoscard()
-		return fmt.Errorf("创建 PC/SC 上下文失败: %w", err)
-	}
-	c.ctx = &ctx
-	c.pcscAcquired = true
-
-	card, _, err := ctx.Connect(c.reader, c.shareMode, c.protocol)
-	if err != nil {
-		c.releaseLocked()
 		return fmt.Errorf("连接读卡器 %q 失败: %w", c.reader, err)
 	}
-	ioSend, err := pcscIORequestForProtocol(card.ActiveProtocol())
-	if err != nil {
-		_, _ = card.Disconnect(goscard.SCardUnpowerCard)
-		c.releaseLocked()
-		return err
-	}
-	c.card = &card
-	c.ioSend = ioSend
-
-	// 终端能力握手：与 lpac 行为一致，忽略响应与错误。
-	if c.sendTermCap {
-		_, _, _ = card.Transmit(ioSend, pcscTerminalCapabilitiesAPDU, nil)
-	}
-
+	c.ccidReader = r
 	c.connected = true
 	return nil
 }
@@ -243,22 +168,11 @@ func (c *PCSCExclusiveChannel) ReleaseAccessMu() {
 // releaseLocked 释放卡片与上下文（调用方需持有 c.mu）。
 func (c *PCSCExclusiveChannel) releaseLocked() error {
 	var errs []error
-	if c.card != nil {
-		if _, err := c.card.Disconnect(goscard.SCardUnpowerCard); err != nil {
+	if c.ccidReader != nil {
+		if err := c.ccidReader.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("断开卡片失败: %w", err))
 		}
-		c.card = nil
-		c.ioSend = nil
-	}
-	if c.ctx != nil {
-		if _, err := c.ctx.Release(); err != nil {
-			errs = append(errs, fmt.Errorf("释放 PC/SC 上下文失败: %w", err))
-		}
-		c.ctx = nil
-	}
-	if c.pcscAcquired {
-		c.pcscAcquired = false
-		releaseGoscard()
+		c.ccidReader = nil
 	}
 	c.releaseAccessMuLocked()
 	return errors.Join(errs...)
@@ -271,10 +185,10 @@ func (c *PCSCExclusiveChannel) Transmit(command []byte) ([]byte, error) {
 	if c.closed {
 		return nil, errors.New("PC/SC 通道已关闭")
 	}
-	if c.card == nil || c.ioSend == nil {
+	if c.ccidReader == nil {
 		return nil, errors.New("PC/SC 通道未连接")
 	}
-	recv, _, err := c.card.Transmit(c.ioSend, command, nil)
+	recv, err := c.ccidReader.Transmit(context.Background(), command)
 	if err != nil {
 		return nil, fmt.Errorf("发送 APDU %X 失败: %w", command, err)
 	}
@@ -297,7 +211,7 @@ func (c *PCSCExclusiveChannel) OpenLogicalChannel(AID []byte) (byte, error) {
 	if c.closed {
 		return 0, errors.New("PC/SC 通道已关闭")
 	}
-	if c.card == nil || c.ioSend == nil {
+	if c.ccidReader == nil {
 		return 0, errors.New("PC/SC 通道未连接")
 	}
 	if len(AID) > pcscMaxShortAPDUDataLength {
@@ -305,7 +219,7 @@ func (c *PCSCExclusiveChannel) OpenLogicalChannel(AID []byte) (byte, error) {
 	}
 
 	// MANAGE CHANNEL open
-	resp, _, err := c.card.Transmit(c.ioSend, []byte{0x00, 0x70, 0x00, 0x00, 0x01}, nil)
+	resp, err := c.ccidReader.Transmit(context.Background(), []byte{0x00, 0x70, 0x00, 0x00, 0x01})
 	if err != nil {
 		return 0, fmt.Errorf("打开逻辑通道失败: %w", err)
 	}
@@ -335,7 +249,7 @@ func (c *PCSCExclusiveChannel) selectAIDLocked(channel byte, AID []byte) error {
 	command = append(command, cla, 0xA4, 0x04, 0x00, byte(len(AID)))
 	command = append(command, AID...)
 
-	resp, _, err := c.card.Transmit(c.ioSend, command, nil)
+	resp, err := c.ccidReader.Transmit(context.Background(), command)
 	if err != nil {
 		return fmt.Errorf("SELECT AID 失败: %w", err)
 	}
@@ -354,7 +268,7 @@ func (c *PCSCExclusiveChannel) CloseLogicalChannel(channel byte) error {
 	if c.closed {
 		return nil
 	}
-	if c.card == nil || c.ioSend == nil {
+	if c.ccidReader == nil {
 		return errors.New("PC/SC 通道未连接")
 	}
 	return c.closeLogicalChannelLocked(channel)
@@ -364,7 +278,7 @@ func (c *PCSCExclusiveChannel) closeLogicalChannelLocked(channel byte) error {
 	if channel == 0 || channel > pcscMaxLogicalChannel {
 		return fmt.Errorf("无效逻辑通道号 %d", channel)
 	}
-	resp, _, err := c.card.Transmit(c.ioSend, []byte{0x00, 0x70, 0x80, channel, 0x00}, nil)
+	resp, err := c.ccidReader.Transmit(context.Background(), []byte{0x00, 0x70, 0x80, channel, 0x00})
 	if err != nil {
 		return fmt.Errorf("关闭逻辑通道失败: %w", err)
 	}
@@ -377,15 +291,10 @@ func (c *PCSCExclusiveChannel) closeLogicalChannelLocked(channel byte) error {
 	return nil
 }
 
-func pcscIORequestForProtocol(protocol goscard.SCardProtocol) (*goscard.SCardIORequest, error) {
-	switch protocol {
-	case goscard.SCardProtocolT0:
-		return &goscard.SCardIoRequestT0, nil
-	case goscard.SCardProtocolT1:
-		return &goscard.SCardIoRequestT1, nil
-	default:
-		return nil, fmt.Errorf("不支持的 PC/SC 协议: %s", protocol.String())
-	}
+// ListPCSCReaders 列出系统可用的 PC/SC 读卡器名称。
+// 底层使用 wwan-go/ccid 包，Linux 下通过 USBFS 枚举，非 Linux 通过 PC/SC 枚举。
+func ListPCSCReaders() ([]string, error) {
+	return ccid.ListReaders(context.Background())
 }
 
 func pcscClassByteForChannel(cla, channel byte) (byte, error) {

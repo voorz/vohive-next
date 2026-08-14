@@ -18,6 +18,7 @@ require (
 	github.com/voorz/qqbot v1.0.2
 	github.com/voorz/quectel-qmi-go v0.7.0
 	github.com/voorz/vowifi-core v1.1.0
+	github.com/voorz/wwan-go v0.2.1
 	github.com/warthog618/sms v0.3.0
 	go.bug.st/serial v1.6.4
 	go.uber.org/zap v1.27.1
