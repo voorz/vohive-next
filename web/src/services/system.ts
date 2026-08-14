@@ -432,4 +432,31 @@ export const systemService = {
       return res.data
     })
   },
+  getPcscDriverStatus() {
+    return callService(async () => {
+      const res = await api.get<{
+        pcscd_installed: boolean
+        libccid_installed: boolean
+        pcscd_active: boolean
+        all_ready: boolean
+        message: string
+      }>('/system/pcsc-driver')
+      return res.data
+    })
+  },
+  installPcscDriver() {
+    return callService(async () => {
+      const res = await api.post<{
+        status: string
+        result: {
+          pcscd_installed: boolean
+          libccid_installed: boolean
+          pcscd_active: boolean
+          all_ready: boolean
+          message: string
+        }
+      }>('/system/pcsc-driver/install', {})
+      return res.data
+    })
+  },
 }

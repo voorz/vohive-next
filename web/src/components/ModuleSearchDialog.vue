@@ -10,8 +10,10 @@ import {
   ArrowSync24Regular,
   Add24Regular,
   Check24Regular,
-  PortMicroUsb24Regular
+  PortMicroUsb24Regular,
+  UsbStick20Regular
 } from '@vicons/fluent'
+import { systemService } from '../services/system'
 
 const props = defineProps<{
   modelValue: boolean
@@ -58,6 +60,47 @@ const isPCSC = computed(() => selectedDevice.value?.type === 'pcsc')
 
 // 正在添加
 const adding = ref(false)
+
+// PC/SC 驱动检测
+const pcscDriverStatus = ref<{ pcscd_installed: boolean; libccid_installed: boolean; pcscd_active: boolean; all_ready: boolean; message: string } | null>(null)
+const pcscDriverLoading = ref(false)
+const pcscInstalling = ref(false)
+
+async function checkPcscDriver() {
+  pcscDriverLoading.value = true
+  try {
+    const res = await systemService.getPcscDriverStatus()
+    if (res.ok) {
+      pcscDriverStatus.value = res.data
+    } else {
+      pcscDriverStatus.value = null
+    }
+  } catch {
+    pcscDriverStatus.value = null
+  }
+  pcscDriverLoading.value = false
+}
+
+async function installPcscDriver() {
+  pcscInstalling.value = true
+  try {
+    const res = await systemService.installPcscDriver()
+    if (res.ok && res.data.result) {
+      pcscDriverStatus.value = res.data.result
+      if (res.data.result.all_ready) {
+        ElMessage.success('PC/SC 驱动安装成功')
+        await scanDevices(false)
+      } else {
+        ElMessage.warning(res.data.result.message || '安装可能未完成')
+      }
+    } else {
+      ElMessage.error('驱动安装失败')
+    }
+  } catch {
+    ElMessage.error('驱动安装失败')
+  }
+  pcscInstalling.value = false
+}
 
 // 过滤已发现设备
 const filteredDevices = computed(() => {
@@ -106,6 +149,7 @@ watch(() => props.modelValue, async (open) => {
     searchQuery.value = ''
     selectedKey.value = ''
     await scanDevices(false)
+    await checkPcscDriver()
   }
 })
 
@@ -234,6 +278,33 @@ function vidPid(d: DiscoveredDevice): string {
         <el-icon class="mr-1"><ArrowSync24Regular /></el-icon>
         <span>重新扫描</span>
       </el-button>
+    </div>
+
+    <!-- PC/SC 驱动检测卡片 -->
+    <div v-if="pcscDriverStatus" class="pcsc-driver-card" :class="{ ready: pcscDriverStatus.all_ready, 'not-ready': !pcscDriverStatus.all_ready }">
+      <div class="pcsc-driver-info">
+        <el-icon size="16" class="pcsc-driver-icon" :class="{ 'is-ready': pcscDriverStatus.all_ready }">
+          <UsbStick20Regular />
+        </el-icon>
+        <div class="pcsc-driver-text">
+          <span class="pcsc-driver-title">读卡器驱动</span>
+          <span class="pcsc-driver-detail">
+            <span class="driver-dot" :class="pcscDriverStatus.pcscd_installed ? 'dot-on' : 'dot-off'"></span> pcscd
+            <span class="driver-dot" :class="pcscDriverStatus.libccid_installed ? 'dot-on' : 'dot-off'"></span> libccid
+          </span>
+        </div>
+      </div>
+      <el-button
+        v-if="!pcscDriverStatus.all_ready"
+        size="small"
+        type="primary"
+        :loading="pcscInstalling"
+        @click="installPcscDriver"
+        class="!border-0"
+      >
+        安装驱动
+      </el-button>
+      <span v-else class="pcsc-driver-ready-text">已就绪</span>
     </div>
 
     <!-- 设备列表 -->
@@ -584,5 +655,83 @@ function vidPid(d: DiscoveredDevice): string {
 .footer-actions {
   display: flex;
   gap: 8px;
+}
+
+/* PC/SC 驱动检测卡片 */
+.pcsc-driver-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+}
+
+.pcsc-driver-card.ready {
+  background: color-mix(in oklab, var(--brand) 6%, var(--card));
+  border-color: color-mix(in oklab, var(--brand) 20%, var(--border));
+}
+
+.pcsc-driver-card.not-ready {
+  background: color-mix(in oklab, var(--destructive) 5%, var(--card));
+  border-color: color-mix(in oklab, var(--destructive) 20%, var(--border));
+}
+
+.pcsc-driver-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pcsc-driver-icon.is-ready {
+  color: var(--brand);
+}
+
+.pcsc-driver-icon:not(.is-ready) {
+  color: var(--destructive);
+}
+
+.pcsc-driver-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pcsc-driver-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.pcsc-driver-detail {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  font-family: var(--oomol-font-mono);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.driver-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.driver-dot.dot-on {
+  background: var(--brand);
+}
+
+.driver-dot.dot-off {
+  background: var(--destructive);
+}
+
+.pcsc-driver-ready-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand);
 }
 </style>

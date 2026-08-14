@@ -451,10 +451,22 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
 .reboot-btn {
   flex-shrink: 0;
   margin-left: auto;
+  background: #DA9F00 !important;
+}
+
+.reboot-btn:hover {
+  background: #DA9F00 !important;
+  opacity: 0.85;
 }
 
 .reboot-btn-narrow {
   flex-shrink: 0;
+  background: #DA9F00 !important;
+}
+
+.reboot-btn-narrow:hover {
+  background: #DA9F00 !important;
+  opacity: 0.85;
 }
 
 /* 图标盒子 */
