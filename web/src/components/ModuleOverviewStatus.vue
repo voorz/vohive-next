@@ -9,6 +9,13 @@ import { useDevicesStore } from '../stores/devices'
 
 const props = defineProps<{
   device: DeviceOverviewItem | null
+  reconnectingVoWiFi?: boolean
+  rotating?: boolean
+}>()
+
+const emit = defineEmits<{
+  'reconnect-vowifi': []
+  'rotate-ip': []
 }>()
 
 const store = useDevicesStore()
@@ -109,6 +116,22 @@ const networkModeDisplay = computed(() =>
         <el-icon size="14"><Pulse24Regular /></el-icon>
       </div>
       <span class="ov-card-title">运行状态</span>
+      <button
+        v-if="vowifiEnabled || isPCSC"
+        class="ov-reconnect-btn"
+        :disabled="reconnectingVoWiFi || (isPCSC && !vowifiEnabled)"
+        @click="emit('reconnect-vowifi')"
+      >
+        <span>重连 VoWiFi</span>
+      </button>
+      <button
+        v-else
+        class="ov-reconnect-btn"
+        :disabled="!device?.network_connected || rotating"
+        @click="emit('rotate-ip')"
+      >
+        <span>切换 IP</span>
+      </button>
     </div>
     <div class="ov-card-body">
 
@@ -264,6 +287,30 @@ const networkModeDisplay = computed(() =>
   gap: 8px;
   padding: 10px 14px;
   border-bottom: 1px solid var(--border);
+}
+.ov-reconnect-btn {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--muted);
+  color: var(--foreground);
+  cursor: pointer;
+  transition: all 0.12s;
+  flex-shrink: 0;
+}
+.ov-reconnect-btn:not(:disabled):hover {
+  background: var(--foreground);
+  color: var(--background);
+  border-color: var(--foreground);
+}
+.ov-reconnect-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
 }
 .ov-icon-box {
   width: 28px;

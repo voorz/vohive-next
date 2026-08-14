@@ -11,12 +11,25 @@ defineProps<{
   trafficMinuteRx?: string
   trafficMinuteTx?: string
   isPCSC?: boolean
+  reconnectingVoWiFi?: boolean
+  rotating?: boolean
+}>()
+
+defineEmits<{
+  'reconnect-vowifi': []
+  'rotate-ip': []
 }>()
 </script>
 
 <template>
   <div class="ov-overview">
-    <ModuleOverviewStatus :device="device" />
+    <ModuleOverviewStatus
+      :device="device"
+      :reconnecting-vo-wi-fi="reconnectingVoWiFi"
+      :rotating="rotating"
+      @reconnect-vowifi="$emit('reconnect-vowifi')"
+      @rotate-ip="$emit('rotate-ip')"
+    />
     <ModuleOverviewDevice :device="device" />
     <ModuleOverviewNetwork
       v-if="!isPCSC"

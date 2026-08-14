@@ -1,0 +1,90 @@
+/*
+<!-- From Uiverse.io by _7948 --> 
+<div class="di-radio-wrap">
+  <input
+    type="radio"
+    name="di-radio"
+    id="r1"
+    class="di-radio-input"
+    checked=""
+  />
+  <input type="radio" name="di-radio" id="r2" class="di-radio-input" />
+  <input type="radio" name="di-radio" id="r3" class="di-radio-input" />
+
+  <div class="di-radio-island">
+    <label for="r1" class="di-radio-btn">Day</label>
+    <label for="r2" class="di-radio-btn">Week</label>
+    <label for="r3" class="di-radio-btn">Month</label>
+    <div class="di-radio-indicator"></div>
+  </div>
+</div>
+
+*/
+
+
+/* From Uiverse.io by _7948 */ 
+.di-radio-wrap {
+  width: 340px;
+  margin: 120px auto;
+  display: flex;
+  justify-content: center;
+  position: relative;
+}
+
+.di-radio-input {
+  display: none;
+}
+
+.di-radio-island {
+  background: #000;
+  border-radius: 999px;
+  padding: 6px;
+  display: flex;
+  position: relative;
+  gap: 4px;
+}
+
+.di-radio-btn {
+  color: #aaa;
+  font-size: 14px;
+  padding: 10px 18px;
+  border-radius: 999px;
+  cursor: pointer;
+  position: relative;
+  z-index: 2;
+  transition: all 0.3s ease;
+}
+
+.di-radio-indicator {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  width: 64px;
+  height: calc(100% - 12px);
+  background: #222;
+  border-radius: 999px;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+#r1:checked ~ .di-radio-island .di-radio-indicator {
+  transform: translateX(0);
+}
+
+#r2:checked ~ .di-radio-island .di-radio-indicator {
+  transform: translateX(72px);
+}
+
+#r3:checked ~ .di-radio-island .di-radio-indicator {
+  transform: translateX(152px);
+}
+
+#r1:checked ~ .di-radio-island label[for="r1"],
+#r2:checked ~ .di-radio-island label[for="r2"],
+#r3:checked ~ .di-radio-island label[for="r3"] {
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.di-radio-btn:active {
+  transform: scale(0.92);
+}

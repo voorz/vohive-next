@@ -13,6 +13,7 @@ import ModuleCardPolicy from './ModuleCardPolicy.vue'
 import ModuleConfigForm from './ModuleConfigForm.vue'
 import ModuleSmsTab from './ModuleSmsTab.vue'
 import ModuleOverviewTab from './ModuleOverviewTab.vue'
+import ModuleVoiceTab from './ModuleVoiceTab.vue'
 import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
 import { ArrowSync24Regular, Add24Regular } from '@vicons/fluent'
 import { cardsService } from '../services/cards'
@@ -214,6 +215,7 @@ const activeTab = ref('overview')
 // Tab 列表（PC/SC 设备隐藏 AT/USSD）
 const allTabs = [
   { name: 'overview', label: '概览' },
+  { name: 'voice', label: '通话' },
   { name: 'sms', label: '短信' },
   { name: 'at', label: 'AT' },
   { name: 'ussd', label: 'USSD' },
@@ -298,26 +300,6 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
     <div v-if="detail" class="detail-content">
       <div class="edit-area-wrap">
         <div class="detail-inner">
-      <!-- WiFi Calling 行 -->
-      <div class="vowifi-row">
-        <div class="vowifi-row-left">
-          <span class="vowifi-label">WiFi Calling</span>
-          <span class="vowifi-status-dot" :class="{ on: detail.vowifi_enabled }" />
-          <span class="vowifi-status-text">{{ detail.vowifi_enabled ? '已启用' : '未启用' }}</span>
-        </div>
-        <div class="vr-btn-group">
-          <button v-if="detail.vowifi_enabled" class="vowifi-reset-btn" :disabled="reconnectingVoWiFi" @click="reconnectVoWiFi">
-            <span class="vr-text"><span>重连 VoWiFi</span></span>
-          </button>
-          <button v-else-if="isPCSC" class="vowifi-reset-btn" disabled>
-            <span class="vr-text"><span>重连 VoWiFi</span></span>
-          </button>
-          <button v-else class="vowifi-reset-btn" :disabled="!detail.network_connected || rotating" @click="rotateIP">
-            <span class="vr-text"><span>切换 IP</span></span>
-          </button>
-        </div>
-      </div>
-
       <!-- Tab 切换 -->
       <div class="tab-bar">
         <button
@@ -342,7 +324,16 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
             :traffic-minute-rx="rollingMinuteRx"
             :traffic-minute-tx="rollingMinuteTx"
             :is-p-c-s-c="isPCSC"
+            :reconnecting-vo-wi-fi="reconnectingVoWiFi"
+            :rotating="rotating"
+            @reconnect-vowifi="reconnectVoWiFi"
+            @rotate-ip="rotateIP"
           />
+        </div>
+
+        <!-- 通话 -->
+        <div v-else-if="activeTab === 'voice'" class="tab-pane">
+          <ModuleVoiceTab :device-id="detail.id" />
         </div>
 
         <!-- 短信 -->
@@ -383,10 +374,10 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
         <!-- 配置 -->
         <div v-else-if="activeTab === 'config'" class="tab-pane">
           <ModuleConfigForm :device-id="detail.id" :device="detail" @device-deleted="onDeviceDeleted" />
-        </div>
+                </div>
       </div>
-        </div>
-      </div>
+    </div>
+    </div>
     </div>
 
     <!-- 加载/空状态 -->
@@ -400,7 +391,6 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
 </template>
 
 <style scoped>
-@import '../assets/button/Reset-vowifi.css';
 .module-detail-panel {
   display: flex;
   flex-direction: column;
@@ -548,6 +538,8 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
   flex: 1;
   min-height: 0;
   padding: 10px;
+  display: flex;
+  flex-direction: column;
 }
 
 /* 第二层容器 */
@@ -560,47 +552,6 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
   border-radius: 8px;
   background: var(--card);
   overflow: hidden;
-}
-
-/* WiFi Calling 行 */
-.vowifi-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.vowifi-row-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.vowifi-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--foreground);
-}
-
-.vowifi-status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--muted-foreground);
-  opacity: 0.3;
-}
-
-.vowifi-status-dot.on {
-  background: var(--brand);
-  opacity: 1;
-}
-
-.vowifi-status-text {
-  font-size: 12px;
-  color: var(--muted-foreground);
 }
 
 /* Tab 切换 */
