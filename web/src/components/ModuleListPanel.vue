@@ -189,6 +189,7 @@ function initials(name: string): string {
         v-model="searchText"
         placeholder="搜索设备 / IMEI"
         clearable
+        autocomplete="off"
       >
         <template #prefix>
           <el-icon><Search24Regular /></el-icon>

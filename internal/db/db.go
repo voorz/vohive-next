@@ -168,6 +168,7 @@ func Init(dbPath string) error {
 		&CarrierTemplate{},
 		&CarrierActivation{},
 		&VoiceHistory{},
+		&VoiceGateway{},
 	); err != nil {
 		return err
 	}

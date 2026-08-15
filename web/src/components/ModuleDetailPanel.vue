@@ -302,15 +302,15 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
         <div class="detail-inner">
       <!-- Tab 切换 -->
       <div class="tab-bar">
-        <button
-          v-for="tab in tabs"
-          :key="tab.name"
-          class="tab-item"
-          :class="{ active: activeTab === tab.name }"
-          @click="activeTab = tab.name"
-        >
-          <span>{{ tab.label }}</span>
-        </button>
+        <el-radio-group v-model="activeTab" size="default">
+          <el-radio-button
+            v-for="tab in tabs"
+            :key="tab.name"
+            :value="tab.name"
+          >
+            {{ tab.label }}
+          </el-radio-button>
+        </el-radio-group>
       </div>
 
       <!-- Tab 内容区 -->
@@ -557,37 +557,9 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
 /* Tab 切换 */
 .tab-bar {
   display: flex;
-  gap: 2px;
   padding: 6px 14px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-}
-
-.tab-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted-foreground);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.12s;
-}
-
-.tab-item:hover {
-  background: var(--accent);
-  color: var(--foreground);
-}
-
-.tab-item.active {
-  background: var(--background);
-  border-color: var(--border);
-  color: var(--foreground);
-  box-shadow: var(--console-shadow-sm);
 }
 
 /* Tab 内容区 */

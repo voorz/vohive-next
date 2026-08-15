@@ -174,8 +174,8 @@ type VoWiFiVoiceGatewayConfig struct {
 		WSSKeyFile  string `mapstructure:"wss_key_file"`  // WSS 私钥路径
 	} `mapstructure:"sip"`
 
-	// 用户配置
-	Users []VoWiFiVoiceUserConfig `mapstructure:"users"`
+	// 用户配置（单用户）
+	User VoWiFiVoiceUserConfig `mapstructure:"user"`
 
 	// 媒体配置
 	Media struct {
@@ -198,6 +198,8 @@ type VoWiFiVoiceUserConfig struct {
 	DisplayName string `mapstructure:"display_name"`
 	DeviceID    string `mapstructure:"device_id"` // 绑定的设备 ID
 }
+
+// compat: 旧配置可能仍以 users 数组形式存在，读取时自动取第一个元素
 
 // ProxyInstance 定义一个代理实例配置
 type ProxyInstance struct {
@@ -256,7 +258,7 @@ type DeviceConfig struct {
 	QMIProxyPath       string `mapstructure:"qmi_proxy_path"`
 	QMIProxyExecutable string `mapstructure:"qmi_proxy_executable"`
 	ESIMTransport      string `mapstructure:"esim_transport"` // eSIM 传输通道: at|qmi|mbim|pcsc，默认 at
-	PCSCReader         string `mapstructure:"pcsc_reader"`      // PC/SC 读卡器名称（仅 esim_transport=pcsc 时有效）
+	PCSCReader         string `mapstructure:"pcsc_reader"`    // PC/SC 读卡器名称（仅 esim_transport=pcsc 时有效）
 	DeviceBackend      string `mapstructure:"device_backend"` // 设备后端模式: at|qmi|mbim|auto，默认 at
 	USBNetMode         *int   `mapstructure:"usbnet_mode"`    // 可选：用于校验/设置 Quectel USBNET 模式
 	// ESIMSwitch controls deterministic eSIM switch behavior. Zero values preserve current behavior.

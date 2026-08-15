@@ -594,12 +594,10 @@ func (r *Registrar) SubscribeDeviceOnline(deviceID string) <-chan struct{} {
 	return ch
 }
 
-// findUserConfig 查找用户配置
+// findUserConfig 查找用户配置（单用户模式）
 func (r *Registrar) findUserConfig(username string) *UserConfig {
-	for i := range r.cfg.Users {
-		if r.cfg.Users[i].Username == username {
-			return &r.cfg.Users[i]
-		}
+	if r.cfg.User.Username == username {
+		return &r.cfg.User
 	}
 	return nil
 }

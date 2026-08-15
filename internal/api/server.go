@@ -343,6 +343,7 @@ func (s *Server) newRouter() *gin.Engine {
 		api.POST("/settings/site/favicon", s.handleUploadSiteFavicon)      // 上传自定义 favicon
 		api.GET("/settings/voice-gateway", s.handleGetVoiceGateway)        // 获取语音网关配置
 		api.PUT("/settings/voice-gateway", s.handleUpdateVoiceGateway)     // 更新语音网关配置
+		api.POST("/settings/voice-gateway/regenerate-password", s.handleRegenerateVoicePassword) // 重新生成授权码
 
 		// MCP Streamable HTTP（需鉴权，复用 authMiddleware）
 		api.POST("/mcp", s.handleMcpRequest)

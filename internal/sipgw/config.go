@@ -12,7 +12,7 @@ import (
 type Config struct {
 	Enabled      bool               `yaml:"enabled"`
 	SIP          SIPConfig          `yaml:"sip"`
-	Users        []UserConfig       `yaml:"users"`
+	User         UserConfig         `yaml:"user"`
 	Media        MediaConfig        `yaml:"media"`
 	LinphonePush LinphonePushConfig `yaml:"linphone_push"`
 }
@@ -31,10 +31,10 @@ type SIPConfig struct {
 	ExternalIP string `yaml:"external_ip"` // 公网 IP (可选，用于 NAT)
 
 	// WebSocket 监听配置（浏览器 SIP.js 接入）
-	WSListen     string `yaml:"ws_listen"`      // WebSocket 监听地址，如 "0.0.0.0:5060"（留空则不启用）
-	WSSListen    string `yaml:"wss_listen"`     // WSS 监听地址（留空则不启用）
-	WSSCertFile  string `yaml:"wss_cert_file"`  // WSS 证书文件路径
-	WSSKeyFile   string `yaml:"wss_key_file"`   // WSS 私钥文件路径
+	WSListen    string `yaml:"ws_listen"`     // WebSocket 监听地址，如 "0.0.0.0:5060"（留空则不启用）
+	WSSListen   string `yaml:"wss_listen"`    // WSS 监听地址（留空则不启用）
+	WSSCertFile string `yaml:"wss_cert_file"` // WSS 证书文件路径
+	WSSKeyFile  string `yaml:"wss_key_file"`  // WSS 私钥文件路径
 }
 
 // UserConfig 用户配置
@@ -85,7 +85,7 @@ func DefaultConfig() Config {
 			Transport: "udp",
 			Realm:     "vohive.local",
 		},
-		Users: []UserConfig{},
+		User: UserConfig{},
 		Media: MediaConfig{
 			RTPPortMin: 10000,
 			RTPPortMax: 20000,

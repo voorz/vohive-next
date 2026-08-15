@@ -98,9 +98,9 @@ async function loadSipConfigFromBackend(): Promise<{ wsUrl: string; username: st
     } else {
       wsUrl = `${scheme}://${window.location.hostname}:${defaultPort}`
     }
-    // SIP 用户：从配置中获取
-    const user = d.users?.find((u: any) => u.username && u.password)
-    if (user) {
+    // SIP 用户：从配置中获取（单用户模式）
+    const user = d.user
+    if (user && user.username && user.password) {
       return { wsUrl, username: user.username, password: user.password, realm: d.sip?.realm || 'vohive.local' }
     }
     return null

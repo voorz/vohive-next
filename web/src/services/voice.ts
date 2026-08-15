@@ -61,7 +61,8 @@ class VoiceService {
     this.config = config
 
     const sipDomain = config.realm || 'vohive.local'
-    const sipUri = `sip:${config.username}@${sipDomain}`
+    // transport=ws 必须，否则 SIP.js 默认用 UDP 导致连接失败
+    const sipUri = `sip:${config.username}@${sipDomain};transport=ws`
 
     this.ua = new UserAgent({
       uri: UserAgent.makeURI(sipUri),
@@ -150,7 +151,7 @@ class VoiceService {
     await this.ensureMicrophone()
 
     const sipDomain = this.config?.realm || 'vohive.local'
-    const targetUri = UserAgent.makeURI(`sip:${number}@${sipDomain}`)
+    const targetUri = UserAgent.makeURI(`sip:${number}@${sipDomain};transport=ws`)
     if (!targetUri) {
       throw new Error(`无效的号码: ${number}`)
     }
