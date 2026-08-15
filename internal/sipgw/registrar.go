@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/md5"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -234,6 +235,36 @@ func (r *Registrar) Start(ctx context.Context) error {
 			}
 		}
 	}()
+
+	// 启动 WebSocket 监听（浏览器 SIP.js 接入）
+	if r.cfg.SIP.WSListen != "" {
+		wsAddr := r.cfg.SIP.WSListen
+		go func() {
+			if err := srv.ListenAndServe(r.ctx, "ws", wsAddr); err != nil {
+				if r.ctx.Err() == nil {
+					logger.Error("SIP WebSocket 监听失败", "err", err)
+				}
+			}
+		}()
+		logger.Info("SIP WebSocket 监听已启动", "addr", wsAddr)
+	}
+
+	// 启动 WSS 监听（浏览器 SIP.js 加密接入）
+	if r.cfg.SIP.WSSListen != "" && r.cfg.SIP.WSSCertFile != "" && r.cfg.SIP.WSSKeyFile != "" {
+		wssAddr := r.cfg.SIP.WSSListen
+		tlsConf, tlsErr := loadWSSConfig(r.cfg.SIP.WSSCertFile, r.cfg.SIP.WSSKeyFile)
+		if tlsErr != nil {
+			return fmt.Errorf("WSS 证书加载失败: %w", tlsErr)
+		}
+		go func() {
+			if err := srv.ListenAndServeTLS(r.ctx, "ws", wssAddr, tlsConf); err != nil {
+				if r.ctx.Err() == nil {
+					logger.Error("SIP WSS 监听失败", "err", err)
+				}
+			}
+		}()
+		logger.Info("SIP WSS 监听已启动", "addr", wssAddr)
+	}
 
 	// 定期清理过期注册
 	go r.cleanupLoop()
@@ -1125,4 +1156,15 @@ func extractUsername(from *sip.FromHeader) string {
 		return ""
 	}
 	return from.Address.User
+}
+
+// loadWSSConfig 加载 WSS 证书和私钥
+func loadWSSConfig(certFile, keyFile string) (*tls.Config, error) {
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return nil, fmt.Errorf("加载证书 %s/%s: %w", certFile, keyFile, err)
+	}
+	return &tls.Config{
+		Certificates: []tls.Certificate{cert},
+	}, nil
 }

@@ -2188,6 +2188,10 @@ func (s *Server) handleEsimGetOverview(c *gin.Context) {
 				respondEsimBusy(c, "refresh_overview", err)
 				return
 			}
+			if errors.Is(err, esim.ErrNoEUCCFound) {
+				c.JSON(http.StatusOK, gin.H{"chip_info": nil, "profiles": []interface{}{}})
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
@@ -2197,6 +2201,10 @@ func (s *Server) handleEsimGetOverview(c *gin.Context) {
 	if err != nil {
 		if isEsimBusyError(err) {
 			respondEsimBusy(c, "get_overview", err)
+			return
+		}
+		if errors.Is(err, esim.ErrNoEUCCFound) {
+			c.JSON(http.StatusOK, gin.H{"chip_info": nil, "profiles": []interface{}{}})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

@@ -44,6 +44,26 @@ type Manager struct {
 
 	inboundRelaysMu sync.Mutex
 	inboundRelays   map[string]*voicehost.RTPRelaySession
+
+	// callEventPub 发布通话状态事件（可选，用于 SSE 推送和通话记录入库）
+	callEventPub CallEventPublisher
+}
+
+// CallEventPublisher 通话事件发布接口
+// 由 voice.Bus 实现
+type CallEventPublisher interface {
+	OnOutboundInvite(deviceID, callID, number string)
+	OnInboundInvite(deviceID, callID, callerNumber string)
+	OnCallConnected(deviceID, callID string)
+	OnCallEnded(deviceID, callID string)
+}
+
+// SetCallEventPublisher 注入通话事件发布器
+func (m *Manager) SetCallEventPublisher(pub CallEventPublisher) {
+	if m == nil {
+		return
+	}
+	m.callEventPub = pub
 }
 
 func NewManager() *Manager {

@@ -75,11 +75,14 @@ async function fetchOverview(refresh = false) {
     }
     if (!result.ok) throw result.error
     chipInfo.value = result.data.chipInfo
-    profiles.value = result.data.profiles
+    profiles.value = result.data.profiles || []
   } catch (e: unknown) {
     if (result.ok === false && result.error.code === 'ERR_CANCELED') {
       return
     }
+    // 清空旧数据，避免切换设备后残留上一个设备的 eSIM 信息
+    chipInfo.value = null
+    profiles.value = []
     ElMessage.error(errorMessage(e, '获取 eSIM 信息失败'))
   } finally {
     if (shouldResetLoading) {

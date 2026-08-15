@@ -36,6 +36,10 @@ function formatTimer(sec: number): string {
   const s = String(sec % 60).padStart(2, '0')
   return `${m}:${s}`
 }
+
+function onDtmfKey(key: string) {
+  emit('dtmf-key', key)
+}
 </script>
 
 <template>
@@ -50,7 +54,7 @@ function formatTimer(sec: number): string {
     </div>
     <!-- DTMF 拨号盘（展开时在中间） -->
     <div v-if="showDtmf" class="dtmf-panel">
-      <ModuleVoiceDialer :disabled="false" :compact="true" @dial="() => {}" />
+      <ModuleVoiceDialer :disabled="false" :compact="true" @dial="() => {}" @key-press="onDtmfKey" />
     </div>
     <!-- 底部操作区 -->
     <div class="call-bottom-bar">

@@ -9,6 +9,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   dial: [number: string]
+  'key-press': [key: string]
 }>()
 
 const input = ref('')
@@ -33,6 +34,7 @@ const canDial = computed(() => input.value.length > 0 && !props.disabled)
 function pressKey(key: string) {
   if (props.disabled) return
   input.value += key
+  emit('key-press', key)
 }
 
 function backspace() {

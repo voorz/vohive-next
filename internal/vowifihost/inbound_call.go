@@ -40,7 +40,15 @@ func (m *Manager) handleInboundCall(ctx context.Context, req runtimehost.Inbound
 			"device", req.DeviceID,
 			"call_id", req.CallID,
 			"caller", req.CallerURI)
+		if m.callEventPub != nil {
+			m.callEventPub.OnCallEnded(req.DeviceID, req.CallID)
+		}
 		return runtimehost.InboundCallResponse{StatusCode: 480, Reason: "Temporarily Unavailable"}, nil
+	}
+
+	// 发布来电事件
+	if m.callEventPub != nil {
+		m.callEventPub.OnInboundInvite(req.DeviceID, req.CallID, req.CallerURI)
 	}
 
 	// --- RTP relay media bridge ---
@@ -212,6 +220,9 @@ func (m *Manager) handleInboundCall(ctx context.Context, req runtimehost.Inbound
 	if finalResp.StatusCode >= 200 && finalResp.StatusCode < 300 {
 		// Call answered — set Linphone as relay client remote, store
 		// dialog info and relay for BYE/CANCEL forwarding.
+		if m.callEventPub != nil {
+			m.callEventPub.OnCallConnected(req.DeviceID, req.CallID)
+		}
 		if relay != nil && len(finalResp.Body()) > 0 {
 			linphoneSDP, err := voicehost.ParseSDP(finalResp.Body())
 			if err != nil {

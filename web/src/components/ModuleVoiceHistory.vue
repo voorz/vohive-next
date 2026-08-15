@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { ElMessageBox } from 'element-plus'
 import { CallInbound24Regular, CallOutbound24Regular, CallMissed24Regular, Chat24Regular, Delete24Regular } from '@vicons/fluent'
+import { api } from '../stores/auth'
 
 defineEmits<{
   callback: [number: string]
@@ -13,6 +14,7 @@ defineEmits<{
 const props = defineProps<{
   editMode?: boolean
   selectedIds?: Set<number>
+  deviceId?: string
 }>()
 
 type CallType = 'incoming' | 'outgoing' | 'missed'
@@ -25,29 +27,8 @@ interface CallRecord {
   duration: number
 }
 
-// Mock 数据
-const records = ref<CallRecord[]>([
-  { id: 1, number: '+8613800138000', type: 'outgoing', timestamp: '2025-01-15T10:30:00Z', duration: 120 },
-  { id: 2, number: '+8613900001111', type: 'incoming', timestamp: '2025-01-15T09:15:00Z', duration: 45 },
-  { id: 3, number: '+8613700002222', type: 'missed', timestamp: '2025-01-14T18:00:00Z', duration: 0 },
-  { id: 4, number: '+8618800003333', type: 'outgoing', timestamp: '2025-01-14T14:22:00Z', duration: 300 },
-  { id: 5, number: '+8615500004444', type: 'missed', timestamp: '2025-01-13T20:10:00Z', duration: 0 },
-  { id: 6, number: '+8613600005555', type: 'incoming', timestamp: '2025-01-13T16:45:00Z', duration: 90 },
-  { id: 7, number: '+8615800006666', type: 'outgoing', timestamp: '2025-01-13T11:20:00Z', duration: 210 },
-  { id: 8, number: '+8617700007777', type: 'missed', timestamp: '2025-01-12T22:30:00Z', duration: 0 },
-  { id: 9, number: '+8619900008888', type: 'incoming', timestamp: '2025-01-12T19:05:00Z', duration: 60 },
-  { id: 10, number: '+8613300009999', type: 'outgoing', timestamp: '2025-01-12T15:40:00Z', duration: 180 },
-  { id: 11, number: '+8614400000001', type: 'missed', timestamp: '2025-01-11T21:15:00Z', duration: 0 },
-  { id: 12, number: '+8615500000002', type: 'incoming', timestamp: '2025-01-11T17:30:00Z', duration: 75 },
-  { id: 13, number: '+8616600000003', type: 'outgoing', timestamp: '2025-01-11T13:10:00Z', duration: 240 },
-  { id: 14, number: '+8617700000004', type: 'missed', timestamp: '2025-01-10T23:45:00Z', duration: 0 },
-  { id: 15, number: '+8618800000005', type: 'incoming', timestamp: '2025-01-10T20:00:00Z', duration: 105 },
-  { id: 16, number: '+8619900000006', type: 'outgoing', timestamp: '2025-01-10T14:25:00Z', duration: 330 },
-  { id: 17, number: '+8610000000007', type: 'missed', timestamp: '2025-01-09T18:50:00Z', duration: 0 },
-  { id: 18, number: '+8611100000008', type: 'incoming', timestamp: '2025-01-09T16:15:00Z', duration: 55 },
-  { id: 19, number: '+8612200000009', type: 'outgoing', timestamp: '2025-01-09T10:35:00Z', duration: 150 },
-  { id: 20, number: '+8613300000010', type: 'missed', timestamp: '2025-01-08T22:20:00Z', duration: 0 },
-])
+const records = ref<CallRecord[]>([])
+const loading = ref(false)
 
 const typeIcons = {
   incoming: CallInbound24Regular,
@@ -59,6 +40,27 @@ const typeLabels = {
   incoming: '来电',
   outgoing: '去电',
   missed: '未接',
+}
+
+async function fetchHistory() {
+  if (!props.deviceId) return
+  loading.value = true
+  try {
+    const res = await api.get(`/devices/${props.deviceId}/voice/history`, {
+      params: { limit: 50 },
+    })
+    records.value = (res.data?.records || []).map((r: any) => ({
+      id: r.id,
+      number: r.number || r.peer || '',
+      type: r.type as CallType,
+      timestamp: r.timestamp,
+      duration: r.duration || 0,
+    }))
+  } catch {
+    records.value = []
+  } finally {
+    loading.value = false
+  }
 }
 
 function formatTime(ts: string): string {
@@ -77,21 +79,60 @@ function formatDuration(sec: number): string {
   return `${m}m ${s}s`
 }
 
-function confirmDelete(id: number) {
+async function confirmDelete(id: number) {
   ElMessageBox.confirm(
     '确定要删除这条通话记录吗？此操作不可恢复。',
     '删除确认',
     { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' }
-  ).then(() => {
-    // TODO: 接入后端 API 删除单条记录
-    records.value = records.value.filter(r => r.id !== id)
+  ).then(async () => {
+    if (!props.deviceId) return
+    try {
+      await api.delete(`/devices/${props.deviceId}/voice/history/${id}`)
+      records.value = records.value.filter(r => r.id !== id)
+    } catch { /* ignore */ }
   }).catch(() => {})
 }
+
+// SSE 订阅通话状态变更，通话结束时刷新列表
+let eventSource: EventSource | null = null
+
+function setupSSE() {
+  if (!props.deviceId) return
+  if (eventSource) {
+    eventSource.close()
+    eventSource = null
+  }
+  const token = localStorage.getItem('token') || ''
+  // EventSource 不支持自定义 header，用 query 传 token
+  const base = api.defaults.baseURL || ''
+  eventSource = new EventSource(
+    `${base}/devices/${props.deviceId}/voice/stream?token=${token}`
+  )
+  eventSource.addEventListener('call', (e: MessageEvent) => {
+    try {
+      const data = JSON.parse(e.data)
+      // 通话结束时刷新列表
+      if (data.state === 'ended') {
+        fetchHistory()
+      }
+    } catch { /* ignore */ }
+  })
+}
+
+onMounted(() => {
+  fetchHistory()
+  setupSSE()
+})
+
+watch(() => props.deviceId, () => {
+  fetchHistory()
+  setupSSE()
+})
 </script>
 
 <template>
   <div class="voice-history">
-    <el-empty v-if="records.length === 0" description="暂无通话记录" :image-size="60" />
+    <el-empty v-if="records.length === 0 && !loading" description="暂无通话记录" :image-size="60" />
     <div v-else class="history-list">
       <div
         v-for="record in records"

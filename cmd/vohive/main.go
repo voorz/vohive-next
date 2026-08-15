@@ -24,6 +24,7 @@ import (
 	"github.com/voorz/vohive/internal/proxy/traffic"
 	"github.com/voorz/vohive/internal/sipgw"
 	"github.com/voorz/vohive/internal/upstreamproxy"
+	"github.com/voorz/vohive/internal/voice"
 	"github.com/voorz/vowifi-core/runtimehost/carrier"
 	"github.com/voorz/vowifi-core/runtimehost/voicehost"
 
@@ -32,6 +33,21 @@ import (
 
 	"github.com/voorz/sipgo/sip"
 )
+
+// voiceBus 全局变量（在 sipRegistrar 回调中创建，在 apiServer 初始化时注入）
+var _voiceBus *voice.Bus
+
+func sipCalleeFromReq(req *sip.Request) string {
+	if req == nil {
+		return ""
+	}
+	if to := req.To(); to != nil {
+		if user := to.Address.User; user != "" {
+			return user
+		}
+	}
+	return ""
+}
 
 func main() {
 	// sipgo 日志将在主日志系统初始化后接入（见下方 logger.Setup 之后）
@@ -167,8 +183,8 @@ func main() {
 	} else {
 		logger.Info("语音网关已启动")
 
-		// SIP Registrar（Linphone 软电话）：仅在配置了 sip.listen 时启动
-		if cfg.VoWiFi.VoiceGateway.SIP.Listen != "" {
+		// SIP Registrar（软电话）：开箱即用，默认监听 5060
+		{
 			sipgwCfg := sipgw.Config{
 				Enabled: true,
 				SIP: sipgw.SIPConfig{
@@ -176,6 +192,10 @@ func main() {
 					Transport:  cfg.VoWiFi.VoiceGateway.SIP.Transport,
 					Realm:      cfg.VoWiFi.VoiceGateway.SIP.Realm,
 					ExternalIP: cfg.VoWiFi.VoiceGateway.SIP.ExternalIP,
+					WSListen:    cfg.VoWiFi.VoiceGateway.SIP.WSListen,
+					WSSListen:   cfg.VoWiFi.VoiceGateway.SIP.WSSListen,
+					WSSCertFile: cfg.VoWiFi.VoiceGateway.SIP.WSSCertFile,
+					WSSKeyFile:  cfg.VoWiFi.VoiceGateway.SIP.WSSKeyFile,
 				},
 				Media: sipgw.MediaConfig{
 					RTPPortMin: cfg.VoWiFi.VoiceGateway.Media.RTPPortMin,
@@ -195,6 +215,13 @@ func main() {
 					DeviceID:    u.DeviceID,
 				})
 			}
+			// 默认值：开箱即用
+			if sipgwCfg.SIP.Listen == "" {
+				sipgwCfg.SIP.Listen = "0.0.0.0:5060"
+			}
+			if sipgwCfg.SIP.WSListen == "" {
+				sipgwCfg.SIP.WSListen = "0.0.0.0:5061"
+			}
 			if sipgwCfg.SIP.Transport == "" {
 				sipgwCfg.SIP.Transport = "udp"
 			}
@@ -207,18 +234,32 @@ func main() {
 			if sipgwCfg.Media.RTPPortMax == 0 {
 				sipgwCfg.Media.RTPPortMax = 20000
 			}
+			// SIP 用户由用户自行在设置页配置
+			if len(sipgwCfg.Users) == 0 {
+				logger.Info("SIP 网关无用户配置，请在设置页添加 SIP 用户")
+			}
 
 			var err error
 			sipRegistrar, err = sipgw.NewRegistrar(sipgwCfg)
 			if err != nil {
 				logger.Error("Registrar 初始化失败", "err", err)
 			} else {
+				voiceBus := voice.NewBus()
+				_voiceBus = voiceBus
+				pool.SetVoWiFiCallEventPublisher(voiceBus)
+
 				voiceGW.SetClientAdapter(sipRegistrar)
 			pool.SetVoWiFiSIPRegistrar(sipRegistrar)
 
-				sipRegistrar.SetOnInvite(voiceGW.HandleClientInvite)
+				sipRegistrar.SetOnInvite(func(deviceID string, req *sip.Request, tx sip.ServerTransaction) {
+					callID := req.CallID().Value()
+					callee := sipCalleeFromReq(req)
+					voiceBus.OnOutboundInvite(deviceID, callID, callee)
+					voiceGW.HandleClientInvite(deviceID, req, tx)
+				})
 				sipRegistrar.SetOnCancel(func(deviceID string, req *sip.Request, tx sip.ServerTransaction) {
 					callID := req.CallID().Value()
+					voiceBus.OnCallEnded(deviceID, callID)
 					if w := pool.GetWorker(deviceID); w != nil && w.CSCallMgr != nil && w.CSCallMgr.HasCall(callID) {
 						w.CSCallMgr.HandleClientCancel(callID)
 						tx.Respond(sip.NewResponseFromRequest(req, 200, "OK", nil))
@@ -230,6 +271,7 @@ func main() {
 				sipRegistrar.SetOnAck(voiceGW.HandleClientAck)
 				sipRegistrar.SetOnBye(func(deviceID string, req *sip.Request, tx sip.ServerTransaction) {
 					callID := req.CallID().Value()
+					voiceBus.OnCallEnded(deviceID, callID)
 					if w := pool.GetWorker(deviceID); w != nil && w.CSCallMgr != nil && w.CSCallMgr.HasCall(callID) {
 						w.CSCallMgr.HandleClientBye(callID)
 						return
@@ -295,6 +337,39 @@ func main() {
 
 	apiServer := api.New(cfg, pool, staticFS, proxyMgr, voiceGW, notifyMgr, configPath)
 	apiServer.SetRealtimeTraffic(realtimeTraffic)
+
+	// 通话事件总线（在 sipRegistrar 初始化时创建）
+	if _voiceBus != nil {
+		apiServer.SetVoiceBus(_voiceBus)
+
+		// 通话结束时自动写入 voice_history
+		_voiceBus.OnEvent(func(event voice.CallEvent) {
+		if event.State != voice.CallStateEnded {
+			return
+		}
+		if event.Type == voice.CallTypeOutgoing && event.Duration == 0 {
+			// 去电取消，不记录
+			return
+		}
+		now := time.Now()
+		record := &db.VoiceHistory{
+			DeviceID:  event.DeviceID,
+			Peer:      event.Number,
+			Number:    event.Number,
+			Type:      string(event.Type),
+			Direction: string(event.Direction),
+			Duration:  event.Duration,
+			CallID:    event.CallID,
+			Timestamp: now,
+		}
+		if event.EndedAt != nil {
+			record.Timestamp = *event.EndedAt
+		}
+			if err := db.CreateVoiceHistory(record); err != nil {
+				logger.Warn("写入通话记录失败", "err", err, "call_id", event.CallID)
+			}
+		})
+	}
 
 	syncProxyConfigs := func(reason, deviceID string) {
 		if err := apiServer.SyncProxyConfigs(); err != nil {

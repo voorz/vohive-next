@@ -166,6 +166,12 @@ type VoWiFiVoiceGatewayConfig struct {
 		Transport  string `mapstructure:"transport"`   // 传输协议: udp/tcp/tls
 		Realm      string `mapstructure:"realm"`       // SIP 认证域
 		ExternalIP string `mapstructure:"external_ip"` // 公网 IP (可选)
+
+		// WebSocket 监听配置（浏览器 SIP.js 接入）
+		WSListen    string `mapstructure:"ws_listen"`     // WebSocket 监听地址（留空不启用）
+		WSSListen   string `mapstructure:"wss_listen"`    // WSS 监听地址（留空不启用）
+		WSSCertFile string `mapstructure:"wss_cert_file"` // WSS 证书路径
+		WSSKeyFile  string `mapstructure:"wss_key_file"`  // WSS 私钥路径
 	} `mapstructure:"sip"`
 
 	// 用户配置

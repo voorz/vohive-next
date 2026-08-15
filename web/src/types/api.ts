@@ -38,6 +38,7 @@ export type RealtimeTrafficSnapshot = {
 
 export type VoWiFiRuntimeState = {
   device_id?: string
+  phase?: string
   dataplane_mode?: string
   sim_ready?: boolean
   access_ready?: boolean
@@ -104,6 +105,7 @@ export type DeviceOverviewItem = {
   at_port?: string
   usb_path?: string
   local_phone?: string
+  audio_device?: string
   e911_setup_available?: boolean
   active_esim_profile_name?: string
   network_enabled: boolean

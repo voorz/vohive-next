@@ -27,6 +27,7 @@ import (
 	"github.com/voorz/vohive/internal/notify"
 	"github.com/voorz/vohive/internal/proxy/server"
 	proxytraffic "github.com/voorz/vohive/internal/proxy/traffic"
+	"github.com/voorz/vohive/internal/voice"
 	vwebsheet "github.com/voorz/vohive/internal/websheet"
 	"github.com/voorz/vohive/pkg/smscodec"
 	"github.com/voorz/vowifi-core/runtimehost/voicehost"
@@ -77,6 +78,7 @@ type Server struct {
 	proxyRepo   repo.ProxyInstanceRepository
 	proxySyncMu sync.Mutex
 	voiceGW     *voicehost.Gateway
+	voiceBus    *voice.Bus
 	notifyMgr   *notify.Manager
 	websheets   *vwebsheet.Broker
 
@@ -121,9 +123,18 @@ func New(cfg *config.Config, pool *device.Pool, fs http.FileSystem, proxyMgr *se
 		smsLimiter:    newSMSRateLimiter(time.Now(), time.Now),
 		shutdownCh:    make(chan struct{}),
 	}
+
 	s.initMCP()
 
 	return s
+}
+
+// SetVoiceBus 注入通话事件总线
+func (s *Server) SetVoiceBus(bus *voice.Bus) {
+	if s == nil {
+		return
+	}
+	s.voiceBus = bus
 }
 
 func (s *Server) smsRateLimiter() *smsRateLimiter {
@@ -290,6 +301,12 @@ func (s *Server) newRouter() *gin.Engine {
 		api.DELETE("/sms/messages/:id", s.handleDeleteSMSMessage) // 删除单条历史短信
 		api.DELETE("/sms/thread", s.handleDeleteSMSThread)        // 删除指定历史短信会话
 
+		// ===== 语音通话 =====
+		api.GET("/devices/:device_id/voice/stream", s.handleVoiceStream)               // SSE 通话状态实时流
+		api.GET("/devices/:device_id/voice/history", s.handleGetVoiceHistory)           // 获取通话记录列表
+		api.DELETE("/devices/:device_id/voice/history", s.handleDeleteAllVoiceHistory)  // 删除所有通话记录
+		api.DELETE("/devices/:device_id/voice/history/:id", s.handleDeleteVoiceHistory) // 删除单条通话记录
+
 		// ===== 系统设置 =====
 		api.GET("/settings/notifications", s.handleGetNotificationSettings)    // 获取通知设置
 		api.PUT("/settings/notifications", s.handleUpdateNotificationSettings) // 更新通知设置
@@ -324,6 +341,8 @@ func (s *Server) newRouter() *gin.Engine {
 		api.PUT("/settings/site", s.handleUpdateSite)                      // 更新站点名称/副标题
 		api.POST("/settings/site/logo", s.handleUploadSiteLogo)            // 上传自定义 logo
 		api.POST("/settings/site/favicon", s.handleUploadSiteFavicon)      // 上传自定义 favicon
+		api.GET("/settings/voice-gateway", s.handleGetVoiceGateway)        // 获取语音网关配置
+		api.PUT("/settings/voice-gateway", s.handleUpdateVoiceGateway)     // 更新语音网关配置
 
 		// MCP Streamable HTTP（需鉴权，复用 authMiddleware）
 		api.POST("/mcp", s.handleMcpRequest)
