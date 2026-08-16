@@ -281,6 +281,17 @@ func (r *Registrar) Stop() error {
 	return nil
 }
 
+// UpdateUser 热更新 SIP 用户配置（密码、设备绑定等）
+func (r *Registrar) UpdateUser(username, password, deviceID, displayName string) {
+	r.mu.Lock()
+	r.cfg.User.Username = username
+	r.cfg.User.Password = password
+	r.cfg.User.DeviceID = deviceID
+	r.cfg.User.DisplayName = displayName
+	r.mu.Unlock()
+	logger.Info("SIP 用户配置已热更新", "username", username, "device", deviceID)
+}
+
 // handleRegister 处理 REGISTER 请求
 func (r *Registrar) handleRegister(req *sip.Request, tx sip.ServerTransaction) {
 	logger.RunDebug("handleRegister 被调用", "remote", req.Source())
@@ -892,10 +903,9 @@ func (r *Registrar) SendPushNotification(deviceID string, callID string, caller 
 		return fmt.Errorf("该设备没有上报过苹果/安卓推送令牌 (pn-provider=%s, pn-prid=%s)", user.PushProvider, user.PushToken)
 	}
 
-	password := r.cfg.LinphonePush.LinphonePassword
-	fromUser := r.cfg.LinphonePush.LinphoneUser
-	if password == "" || fromUser == "" {
-		return fmt.Errorf("未配置 Linphone 推送凭证 (linphone_password 或 linphone_user 为空)，跳过网络唤醒")
+	apiKey := r.cfg.LinphonePush.LinphonePassword
+	if apiKey == "" {
+		return fmt.Errorf("未配置 Linphone API 密钥，跳过网络唤醒")
 	}
 
 	logger.RunDebug("尝试使用官方PUSH证书发送推送唤醒", "device", deviceID, "call_id", callID)
@@ -914,16 +924,18 @@ func (r *Registrar) SendPushNotification(deviceID string, callID string, caller 
 
 	body, _ := json.Marshal(payload)
 
-	// 在探测请求中不要携带 payload byte reader，避免被单次消费
-	req, err := http.NewRequest("POST", "https://subscribe.linphone.org/api/push_notification", nil)
+	// 使用 API Key 认证发送推送请求
+	req, err := http.NewRequest("POST", "https://subscribe.linphone.org/api/push_notification", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("x-api-key", apiKey)
 
-	// 使用 HTTP DIGEST 发起鉴权并投递
-	resp, err := r.sendPushDigestAuth(req, fromUser, body)
+	// 使用 API Key 直接发送推送请求
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("推送 HTTP 请求失败: %w", err)
 	}

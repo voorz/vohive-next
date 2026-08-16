@@ -12,7 +12,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 	"unicode/utf16"
 
@@ -21,6 +20,7 @@ import (
 	"github.com/voorz/vohive/pkg/logger"
 	"github.com/voorz/vohive/pkg/smscodec"
 	"github.com/warthog618/sms/encoding/gsm7"
+	"golang.org/x/sys/unix"
 
 	"go.bug.st/serial"
 )
@@ -249,7 +249,7 @@ func (m *Manager) forceReleasePort(portPath string) {
 			skipped = append(skipped, pid)
 			continue
 		}
-		if err := syscall.Kill(pid, syscall.SIGTERM); err == nil {
+		if err := unix.Kill(pid, unix.SIGTERM); err == nil {
 			released = append(released, pid)
 		}
 	}
@@ -2230,7 +2230,7 @@ func (m *Manager) EnableUSBAudio() error {
 		return nil
 	}
 
-	_, err = m.ExecuteAT("AT+QPCMV=1,2", 2*time.Second)
+	_, err = m.executeATOrDirect("AT+QPCMV=1,2", 2*time.Second)
 	if err != nil {
 		logger.Error(fmt.Sprintf("[%s] 开启 USB Audio (QPCMV) 失败", m.cfg.ID), "err", err)
 		return err
@@ -2241,7 +2241,7 @@ func (m *Manager) EnableUSBAudio() error {
 
 // DisableUSBAudio 关闭 USB Audio 模式 (AT+QPCMV=0)
 func (m *Manager) DisableUSBAudio() error {
-	_, err := m.ExecuteAT("AT+QPCMV=0", 2*time.Second)
+	_, err := m.executeATOrDirect("AT+QPCMV=0", 2*time.Second)
 	if err != nil {
 		logger.Error(fmt.Sprintf("[%s] 关闭 USB Audio 失败", m.cfg.ID), "err", err)
 		return err
@@ -2252,7 +2252,7 @@ func (m *Manager) DisableUSBAudio() error {
 
 // QueryUSBAudioMode 查询当前 USB Audio 状态
 func (m *Manager) QueryUSBAudioMode() (bool, int, error) {
-	resp, err := m.ExecuteAT("AT+QPCMV?", 2*time.Second)
+	resp, err := m.executeATOrDirect("AT+QPCMV?", 2*time.Second)
 	if err != nil {
 		return false, 0, err
 	}
@@ -2267,4 +2267,95 @@ func (m *Manager) QueryUSBAudioMode() (bool, int, error) {
 		fmt.Sscanf(strings.TrimSpace(parts[1]), "%d", &mode)
 	}
 	return enabled, mode, nil
+}
+
+// executeATOrDirect 尝试通过 AT 管理器执行命令，如果不可用则直接通过串口发送
+func (m *Manager) executeATOrDirect(cmd string, timeout time.Duration) (string, error) {
+	// 优先使用 AT 管理器（有排队的并发控制）
+	if m.CanExecuteAT() {
+		return m.ExecuteATSilent(cmd, timeout)
+	}
+	// AT 管理器不可用（纯 QMI 后端）：直接通过串口发命令
+	port := m.ATPort()
+	if port == "" {
+		return "", errors.New("没有可用 AT 端口")
+	}
+	return m.executeATRawOnPort(cmd, port, timeout)
+}
+
+// executeATRawOnPort 直接打开串口发送 AT 命令（不依赖 AT 管理器）
+func (m *Manager) executeATRawOnPort(cmd, port string, timeout time.Duration) (string, error) {
+	f, err := os.OpenFile(port, os.O_RDWR|os.O_SYNC, 0600)
+	if err != nil {
+		return "", fmt.Errorf("打开串口 %s 失败: %w", port, err)
+	}
+	defer f.Close()
+
+	// 设置串口参数：115200 8N1 raw 模式
+	t, err := unix.IoctlGetTermios(int(f.Fd()), unix.TCGETS)
+	if err != nil {
+		return "", fmt.Errorf("获取串口参数失败: %w", err)
+	}
+	t.Iflag = 0
+	t.Oflag = 0
+	t.Cflag = unix.B115200 | unix.CS8 | unix.CREAD | unix.CLOCAL
+	t.Lflag = 0
+	t.Cc[unix.VMIN] = 0
+	t.Cc[unix.VTIME] = 1 // 100ms 读取超时 (VTIME 单位=0.1s)
+	if err := unix.IoctlSetTermios(int(f.Fd()), unix.TCSETS, t); err != nil {
+		return "", fmt.Errorf("设置串口参数失败: %w", err)
+	}
+
+	// 发送命令前先清空读取缓冲区（非阻塞读取排空）
+	_, _ = f.Read(make([]byte, 4096))
+
+	// 发送命令
+	cmdBytes := []byte(cmd + "\r\n")
+	if _, err := f.Write(cmdBytes); err != nil {
+		return "", fmt.Errorf("写入串口失败: %w", err)
+	}
+
+	// 使用 goroutine + channel 确保可靠超时
+	type readResult struct {
+		data string
+		err  error
+	}
+	ch := make(chan readResult, 1)
+
+	go func() {
+		buf := make([]byte, 1024)
+		var result bytes.Buffer
+		deadline := time.Now().Add(timeout)
+		for time.Now().Before(deadline) {
+			n, err := f.Read(buf)
+			if n > 0 {
+				result.Write(buf[:n])
+				resp := result.String()
+				if strings.Contains(resp, "OK") || strings.Contains(resp, "ERROR") {
+					break
+				}
+			}
+			if err != nil && err.Error() != "EOF" {
+				// VTIME 超时会产生 EAGAIN/EWOULDBLOCK，继续读
+				if errors.Is(err, os.ErrDeadlineExceeded) {
+					continue
+				}
+				// 其他错误也继续尝试直到 deadline
+				continue
+			}
+		}
+		ch <- readResult{data: result.String()}
+	}()
+
+	select {
+	case res := <-ch:
+		// 检查响应是否包含 ERROR
+		if strings.Contains(res.data, "ERROR") {
+			return res.data, fmt.Errorf("AT 命令返回 ERROR: %s", strings.TrimSpace(res.data))
+		}
+		return res.data, nil
+	case <-time.After(timeout + 1*time.Second):
+		// 兜底：如果 goroutine 卡死，超时返回空
+		return "", fmt.Errorf("串口 %s 读取超时 (cmd=%s)", port, cmd)
+	}
 }

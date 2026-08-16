@@ -80,6 +80,7 @@ type Server struct {
 	voiceGW     *voicehost.Gateway
 	voiceBus    *voice.Bus
 	notifyMgr   *notify.Manager
+	pushNotifier PushNotifier // Linphone 推送接口
 	websheets   *vwebsheet.Broker
 
 	httpSrvMu sync.Mutex
@@ -96,6 +97,17 @@ type Server struct {
 
 type realtimeTrafficSubscriber interface {
 	Subscribe(ctx context.Context, deviceID string) (<-chan proxytraffic.RealtimeSnapshot, func())
+}
+
+// PushNotifier 推送通知接口（sipgw.Registrar 实现了此接口）
+type PushNotifier interface {
+	SendPushNotification(deviceID string, callID string, caller string, callee string) error
+	UpdateUser(username, password, deviceID, displayName string)
+}
+
+// SetPushNotifier 设置推送通知器
+func (s *Server) SetPushNotifier(p PushNotifier) {
+	s.pushNotifier = p
 }
 
 // New 创建一个新的 API 服务器实例
@@ -344,6 +356,7 @@ func (s *Server) newRouter() *gin.Engine {
 		api.GET("/settings/voice-gateway", s.handleGetVoiceGateway)        // 获取语音网关配置
 		api.PUT("/settings/voice-gateway", s.handleUpdateVoiceGateway)     // 更新语音网关配置
 		api.POST("/settings/voice-gateway/regenerate-password", s.handleRegenerateVoicePassword) // 重新生成授权码
+	api.POST("/settings/voice-gateway/test-linphone-push", s.handleTestLinphonePush)     // 测试 Linphone 推送账户
 
 		// MCP Streamable HTTP（需鉴权，复用 authMiddleware）
 		api.POST("/mcp", s.handleMcpRequest)

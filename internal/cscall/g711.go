@@ -43,7 +43,7 @@ func UlawToLinear(ulaw byte) int16 {
 	mantissa := int16(ulaw & 0x0F)
 
 	sample := (mantissa<<3 + 0x84) << (exponent + 2)
-	sample -= 0x84 << 2 // 去除 bias
+	sample -= 0x84 << 2 // 去除 bias (0x84 << 2 = 0x210, 对应 bias=0x84 在解码公式中的偏移)
 
 	if sign != 0 {
 		sample = -sample

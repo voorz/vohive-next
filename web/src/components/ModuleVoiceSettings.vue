@@ -38,6 +38,7 @@ const loading = ref(false)
 const saving = ref(false)
 const readonly = ref(true)
 const regenerating = ref(false)
+const testingPush = ref(false)
 const webUsername = ref('')
 const devicesStore = useDevicesStore()
 
@@ -146,6 +147,29 @@ async function regeneratePassword() {
   }
 }
 
+async function testLinphonePush() {
+  const key = form.value.linphone_push.linphone_password?.trim()
+  if (!key) {
+    ElMessage.warning('请先填写 Linphone API 密钥')
+    return
+  }
+  testingPush.value = true
+  try {
+    const res = await api.post('/settings/voice-gateway/test-linphone-push', {
+      linphone_password: key,
+    })
+    if (res.data?.status === 'ok') {
+      ElMessage.success(res.data?.message || '验证通过')
+    } else {
+      ElMessage.error(res.data?.message || '验证失败')
+    }
+  } catch (e: any) {
+    ElMessage.error(e?.response?.data?.message || '测试请求失败')
+  } finally {
+    testingPush.value = false
+  }
+}
+
 function setReadonly(val: boolean) {
   readonly.value = val
 }
@@ -203,7 +227,22 @@ onMounted(async () => {
           <div v-else class="qr-placeholder">配置后显示</div>
         </div>
 
-        <!-- 用户名 + 授权码 -->
+        <!-- Linphone API 密钥 -->
+        <div class="form-item">
+          <label class="form-label">Linphone API 密钥</label>
+          <div class="input-with-action">
+            <el-input v-model="form.linphone_push.linphone_password" placeholder="sip.linphone.org API Key" :disabled="readonly" autocomplete="off" />
+            <el-button @click="testLinphonePush" :loading="testingPush" :disabled="readonly" plain>测试</el-button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SIP 服务 -->
+    <div class="settings-section">
+      <div class="section-title">SIP 服务</div>
+      <div class="section-body">
+        <!-- SIP 凭据：用户 + 授权码 -->
         <div class="form-grid">
           <div class="form-item">
             <label class="form-label">用户</label>
@@ -229,24 +268,6 @@ onMounted(async () => {
           </el-select>
         </div>
 
-        <!-- Linphone 账号 + 密码 -->
-        <div class="form-grid">
-          <div class="form-item">
-            <label class="form-label">Linphone 账号</label>
-            <el-input v-model="form.linphone_push.linphone_user" placeholder="sip.linphone.org 账号" :disabled="readonly" autocomplete="off" />
-          </div>
-          <div class="form-item">
-            <label class="form-label">Linphone 密码</label>
-            <el-input v-model="form.linphone_push.linphone_password" placeholder="sip.linphone.org 密码" :disabled="readonly" autocomplete="off" />
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- SIP 服务 -->
-    <div class="settings-section">
-      <div class="section-title">SIP 服务</div>
-      <div class="section-body">
         <div class="form-grid">
           <div class="form-item">
             <label class="form-label">监听地址</label>
@@ -452,6 +473,16 @@ onMounted(async () => {
 
 .codec-tag {
   margin: 0;
+}
+
+.input-with-action {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.input-with-action .el-input {
+  flex: 1;
 }
 
 .w-full {

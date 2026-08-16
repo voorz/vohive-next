@@ -13,9 +13,13 @@ func (p *Pool) voWiFiHost() *vowifihost.Manager {
 }
 
 // SetVoWiFiCallEventPublisher 注入通话事件发布器给 VoWiFi 管理器
+// 同时保存到 Pool，供 SIP 回调中追踪通话事件
 func (p *Pool) SetVoWiFiCallEventPublisher(pub vowifihost.CallEventPublisher) {
-	if p == nil || p.vowifiHost == nil {
+	if p == nil {
 		return
 	}
-	p.vowifiHost.SetCallEventPublisher(pub)
+	p.callEventPub = pub
+	if p.vowifiHost != nil {
+		p.vowifiHost.SetCallEventPublisher(pub)
+	}
 }

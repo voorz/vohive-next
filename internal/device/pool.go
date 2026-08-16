@@ -189,8 +189,9 @@ type Pool struct {
 	rescanAndReconnectForTest func() error
 
 	// SIP 注册器 (用于 CS 域语音桥接查路由)
-	sipRegistrar *sipgw.Registrar
-	voiceGateway *voicehost.Gateway
+	sipRegistrar   *sipgw.Registrar
+	voiceGateway   *voicehost.Gateway
+	callEventPub   vowifihost.CallEventPublisher
 
 	// VoWiFi host 侧整合（多实例）
 	vowifiHost         *vowifihost.Manager

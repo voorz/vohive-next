@@ -38,18 +38,6 @@ import (
 // voiceBus 全局变量（在 sipRegistrar 回调中创建，在 apiServer 初始化时注入）
 var _voiceBus *voice.Bus
 
-func sipCalleeFromReq(req *sip.Request) string {
-	if req == nil {
-		return ""
-	}
-	if to := req.To(); to != nil {
-		if user := to.Address.User; user != "" {
-			return user
-		}
-	}
-	return ""
-}
-
 func main() {
 	// sipgo 日志将在主日志系统初始化后接入（见下方 logger.Setup 之后）
 	// 绕过 sipgo 底层硬编码的 UDP MTU 限制（默认 1500），
@@ -186,8 +174,8 @@ func main() {
 
 		// SIP Registrar（软电话）：开箱即用，默认监听 5060
 		{
-			// 从 DB 加载语音网关配置
-			vg, _ := db.GetVoiceGateway()
+			// 从 DB 加载语音网关配置（首次启动 db 层自动创建并生成授权码）
+			vg := db.GetOrCreateVoiceGateway(cfg.Web.Username)
 			sipgwCfg := sipgw.Config{
 				Enabled: true,
 				SIP: sipgw.SIPConfig{
@@ -275,33 +263,11 @@ func main() {
 				voiceGW.SetClientAdapter(sipRegistrar)
 				pool.SetVoWiFiSIPRegistrar(sipRegistrar)
 
-				sipRegistrar.SetOnInvite(func(deviceID string, req *sip.Request, tx sip.ServerTransaction) {
-					callID := req.CallID().Value()
-					callee := sipCalleeFromReq(req)
-					voiceBus.OnOutboundInvite(deviceID, callID, callee)
-					voiceGW.HandleClientInvite(deviceID, req, tx)
-				})
-				sipRegistrar.SetOnCancel(func(deviceID string, req *sip.Request, tx sip.ServerTransaction) {
-					callID := req.CallID().Value()
-					voiceBus.OnCallEnded(deviceID, callID)
-					if w := pool.GetWorker(deviceID); w != nil && w.CSCallMgr != nil && w.CSCallMgr.HasCall(callID) {
-						w.CSCallMgr.HandleClientCancel(callID)
-						tx.Respond(sip.NewResponseFromRequest(req, 200, "OK", nil))
-						return
-					}
-					voiceGW.HandleClientCancel(deviceID, req, tx)
-				})
+				// SIP 回调统一由 pool.SetSIPRegistrar 注册：
+				// onInvite/onBye/onCancel 路由逻辑 + voiceBus 事件追踪均在 pool 内处理。
+				// 以下仅注册 pool 不管的 PRACK/ACK 等直接转发到 voiceGW。
 				sipRegistrar.SetOnPrack(voiceGW.HandleClientPrack)
 				sipRegistrar.SetOnAck(voiceGW.HandleClientAck)
-				sipRegistrar.SetOnBye(func(deviceID string, req *sip.Request, tx sip.ServerTransaction) {
-					callID := req.CallID().Value()
-					voiceBus.OnCallEnded(deviceID, callID)
-					if w := pool.GetWorker(deviceID); w != nil && w.CSCallMgr != nil && w.CSCallMgr.HasCall(callID) {
-						w.CSCallMgr.HandleClientBye(callID)
-						return
-					}
-					voiceGW.HandleClientBye(deviceID, req, tx)
-				})
 
 				pool.SetSIPRegistrar(sipRegistrar)
 
@@ -361,6 +327,11 @@ func main() {
 
 	apiServer := api.New(cfg, pool, staticFS, proxyMgr, voiceGW, notifyMgr, configPath)
 	apiServer.SetRealtimeTraffic(realtimeTraffic)
+
+	// Linphone 推送通知器
+	if sipRegistrar != nil {
+		apiServer.SetPushNotifier(sipRegistrar)
+	}
 
 	// 通话事件总线（在 sipRegistrar 初始化时创建）
 	if _voiceBus != nil {

@@ -1,6 +1,7 @@
 package cscall
 
 import (
+	"crypto/rand"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -87,13 +88,20 @@ func NewAudioBridge(alsaDev, deviceID string) (*AudioBridge, error) {
 		return nil, fmt.Errorf("绑定 RTP 端口失败: %w", err)
 	}
 
-	ab := &AudioBridge{
-		alsaDev:  alsaDev,
-		deviceID: deviceID,
-		rtpConn:  conn,
-		ssrc:     0x12345678, // 固定 SSRC
-		stop:     make(chan struct{}),
-	}
+	var ssrcVal uint32
+		b := make([]byte, 4)
+		if _, err := rand.Read(b); err == nil {
+			ssrcVal = binary.BigEndian.Uint32(b) & 0x7FFFFFFF // 随机 SSRC，清除高位
+		} else {
+			ssrcVal = uint32(time.Now().UnixNano()) // 兜底
+		}
+		ab := &AudioBridge{
+			alsaDev:  alsaDev,
+			deviceID: deviceID,
+			rtpConn:  conn,
+			ssrc:     ssrcVal, // 随机 SSRC
+			stop:     make(chan struct{}),
+		}
 	ab.pcmReady.Store(false) // 初始为 false，必须等待 +QPCMV: 1 URC
 	return ab, nil
 }

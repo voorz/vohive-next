@@ -1,11 +1,12 @@
 package api
 
 import (
-	"crypto/rand"
 	"encoding/json"
-	"math/big"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/voorz/vohive/internal/db"
@@ -209,6 +210,11 @@ func (s *Server) handleUpdateVoiceGateway(c *gin.Context) {
 		return
 	}
 
+	// 热更新 SIP Registrar 内存中的用户配置
+	if s.pushNotifier != nil {
+		s.pushNotifier.UpdateUser(vg.Username, vg.Password, vg.DeviceID, "")
+	}
+
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "applied": true})
 }
 
@@ -224,7 +230,7 @@ func (s *Server) handleRegenerateVoicePassword(c *gin.Context) {
 	}
 
 	// 生成 4 位随机码（大写字母 + 数字，排除易混淆字符 I/O/0/1）
-	vg.Password = generateVoicePassword(4)
+	vg.Password = db.GenerateVoicePassword(4)
 	vg.Username = s.auth.Username
 
 	if err := db.SaveVoiceGateway(vg); err != nil {
@@ -234,19 +240,114 @@ func (s *Server) handleRegenerateVoicePassword(c *gin.Context) {
 
 	logger.Info("语音网关授权码已重新生成", "username", vg.Username, "ip", c.ClientIP())
 
+	// 热更新 SIP Registrar 内存中的密码
+	if s.pushNotifier != nil {
+		s.pushNotifier.UpdateUser(vg.Username, vg.Password, vg.DeviceID, "")
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"status":   "ok",
 		"password": vg.Password,
 	})
 }
 
-// generateVoicePassword 生成 n 位随机码（大写字母 + 数字，排除 I/O/0/1）
-func generateVoicePassword(n int) string {
-	const charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-	b := make([]byte, n)
-	for i := range b {
-		idx, _ := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
-		b[i] = charset[idx.Int64()]
+// handleTestLinphonePush POST /api/settings/voice-gateway/test-linphone-push
+// 测试 Linphone 官方推送 API 密钥是否有效（使用 API Key 认证）
+func (s *Server) handleTestLinphonePush(c *gin.Context) {
+	var req struct {
+		LinphonePassword string `json:"linphone_password"`
 	}
-	return string(b)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "参数错误"})
+		return
+	}
+
+	apiKey := strings.TrimSpace(req.LinphonePassword)
+	if apiKey == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "API 密钥不能为空"})
+		return
+	}
+
+	// 使用 API Key 认证，调用 GET /api/accounts/me 验证密钥有效性
+	transport := &http.Transport{
+		ForceAttemptHTTP2:     false,
+		MaxIdleConns:          1,
+		IdleConnTimeout:       10 * time.Second,
+		TLSHandshakeTimeout:  10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+	client := &http.Client{Timeout: 15 * time.Second, Transport: transport}
+	url := "https://subscribe.linphone.org/api/accounts/me"
+
+	httpReq, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "创建请求失败: " + err.Error()})
+		return
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Accept", "application/json")
+	httpReq.Header.Set("x-api-key", apiKey)
+
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"status": "error", "message": "连接 sip.linphone.org 失败: " + err.Error()})
+		return
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, _ := io.ReadAll(resp.Body)
+	logger.Info("Linphone API Key 测试", "status", resp.StatusCode, "body", string(bodyBytes[:min(len(bodyBytes), 300)]))
+
+	if resp.StatusCode == http.StatusUnauthorized {
+		c.JSON(http.StatusOK, gin.H{"status": "error", "message": "API 密钥无效或已过期 (HTTP 401)"})
+		return
+	}
+
+	if resp.StatusCode == http.StatusForbidden {
+		c.JSON(http.StatusOK, gin.H{"status": "error", "message": "API 密钥权限不足 (HTTP 403)"})
+		return
+	}
+
+	if resp.StatusCode >= 400 {
+		c.JSON(http.StatusOK, gin.H{"status": "error", "message": fmt.Sprintf("服务器拒绝 (HTTP %d): %s", resp.StatusCode, string(bodyBytes[:min(len(bodyBytes), 200)]))})
+		return
+	}
+
+	// 解析返回的账户信息
+	var accountInfo struct {
+		Username string `json:"username"`
+		Email    string `json:"email"`
+		SIP      string `json:"sip"`
+	}
+
+	// 如果有已配置的设备，异步尝试发送测试推送
+	pushMsg := ""
+	if s.pushNotifier != nil {
+		vg, _ := db.GetVoiceGateway()
+		if vg != nil && vg.DeviceID != "" {
+			testCallID := fmt.Sprintf("test-push-%d", time.Now().UnixNano())
+			go func() {
+				err := s.pushNotifier.SendPushNotification(vg.DeviceID, testCallID, "test", "test")
+				if err != nil {
+					logger.Warn("Linphone 测试推送发送失败", "device", vg.DeviceID, "err", err)
+				} else {
+					logger.Info("Linphone 测试推送已发送", "device", vg.DeviceID, "call_id", testCallID)
+				}
+			}()
+			pushMsg = "，测试推送已发送"
+		} else {
+			pushMsg = "（未配置设备，跳过测试推送）"
+		}
+	}
+
+	if json.Unmarshal(bodyBytes, &accountInfo) == nil && accountInfo.Username != "" {
+		c.JSON(http.StatusOK, gin.H{
+			"status":  "ok",
+			"message": fmt.Sprintf("验证通过，账户: %s%s", accountInfo.Username, pushMsg),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "Linphone API 密钥验证通过" + pushMsg})
 }
+

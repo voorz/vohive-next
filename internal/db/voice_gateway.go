@@ -1,7 +1,9 @@
 package db
 
 import (
+	"crypto/rand"
 	"errors"
+	"math/big"
 	"time"
 
 	"gorm.io/gorm"
@@ -61,4 +63,38 @@ func SaveVoiceGateway(vg *VoiceGateway) error {
 	vg.ID = 1
 	vg.UpdatedAt = time.Now()
 	return DB.Save(vg).Error
+}
+
+// GetOrCreateVoiceGateway 获取语音网关配置，首次启动自动创建并生成授权码
+func GetOrCreateVoiceGateway(webUsername string) *VoiceGateway {
+	vg, _ := GetVoiceGateway()
+	if vg == nil {
+		vg = &VoiceGateway{
+			SIPListen:    "0.0.0.0:5060",
+			SIPTransport: "udp",
+			SIPRealm:     "vohive.local",
+			WSListen:     "0.0.0.0:5061",
+			RTPPortMin:   10000,
+			RTPPortMax:   20000,
+			Codecs:       `["PCMU/8000","PCMA/8000"]`,
+			Username:     webUsername,
+			Password:     GenerateVoicePassword(4),
+		}
+		_ = SaveVoiceGateway(vg)
+	} else if vg.Password == "" {
+		vg.Password = GenerateVoicePassword(4)
+		_ = SaveVoiceGateway(vg)
+	}
+	return vg
+}
+
+// GenerateVoicePassword 生成 n 位随机码（大写字母 + 数字，排除 I/O/0/1）
+func GenerateVoicePassword(n int) string {
+	const charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	b := make([]byte, n)
+	for i := range b {
+		idx, _ := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		b[i] = charset[idx.Int64()]
+	}
+	return string(b)
 }
