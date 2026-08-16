@@ -302,9 +302,13 @@ func (a *pcscModemAdapter) transmitOnChannel(channel byte, apdu []byte) ([]byte,
 	return resp, nil
 }
 
+// selectByFIDCmd 构建 SELECT (by file ID) APDU。
+// P2=0x04: 通过文件 ID 选择并返回 FCI（ISO 7816-4 标准）。
+// 使用 0x04 而非 0x00 是因为部分 eUICC 读卡器/卡片组合在选中 AID 后
+// 对 P2=0x00 返回 6B00（参数错误），P2=0x04 兼容性更好。
 func selectByFIDCmd(fid []byte) []byte {
 	cmd := make([]byte, 0, 7)
-	cmd = append(cmd, 0x00, 0xA4, 0x00, 0x00, 0x02)
+	cmd = append(cmd, 0x00, 0xA4, 0x00, 0x04, 0x02)
 	cmd = append(cmd, fid...)
 	return cmd
 }
