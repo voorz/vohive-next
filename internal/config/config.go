@@ -284,6 +284,10 @@ type DeviceConfig struct {
 
 	// USB Audio (自动发现，无需手动配置)
 	AudioDevice string `mapstructure:"-"` // Deprecated: 运行时解析,绝不从文件读取
+
+	// USB 描述符元数据（运行时从 sysfs 填充，不持久化）
+	USBManufacturer string `mapstructure:"-"` // USB manufacturer 字段（如 "BAIWANG"）
+	USBProduct      string `mapstructure:"-"` // USB product 字段（如 "Baiwang"）
 }
 
 type TelegramConfig struct {

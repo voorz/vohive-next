@@ -31,6 +31,10 @@ type QMIDevice struct {
 
 	AudioDevice  string
 	AudioCardNum int
+
+	// USB 描述符元数据（从 sysfs 填充）
+	USBManufacturer string
+	USBProduct      string
 }
 
 // ToQMIManagerDevice 将静态发现结果转换为 quectel-qmi-go 的注入式设备描述。
@@ -149,6 +153,12 @@ func discoverQMIDeviceFromSysFS(usbPath string) (*QMIDevice, error) {
 		ControlPath:  capability.ControlPath,
 	}
 
+	// 从 sysfs 填充 USB manufacturer/product（运行时元数据，用于 DJI 模组识别等）
+	if prod, mfr := readUSBProductManufacturer(scanUSBPath); mfr != "" || prod != "" {
+		md.USBManufacturer = mfr
+		md.USBProduct = prod
+	}
+
 	// atIntf 只是一个静态“主候选口”提示，来自常见 Quectel 机型的 interface 经验值；
 	// 真正哪个 AT 口可用，仍由上层在本设备 ATPorts 范围内继续探测确认。
 	atIntf := -1
@@ -185,9 +195,11 @@ func discoverQMIDeviceFromSysFS(usbPath string) (*QMIDevice, error) {
 	}
 	md.ATPort, md.ATPortBackup = chooseStaticATPorts(md.ATPorts, staticPrimary)
 
-	md.AudioDevice, md.AudioCardNum = findAudioDevice(scanUSBPath)
+md.AudioDevice, md.AudioCardNum = findAudioDevice(scanUSBPath)
 
-	return md, nil
+md.USBManufacturer, md.USBProduct = readUSBProductManufacturer(scanUSBPath)
+
+return md, nil
 }
 
 func discoverWWANQMIDevices() ([]QMIDevice, error) {

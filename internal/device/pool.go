@@ -1369,24 +1369,30 @@ func qmiManagedAttachmentChanged(cfg config.DeviceConfig, dev QMIDevice) bool {
 }
 
 func applyQMIManagedAttachment(cfg config.DeviceConfig, dev QMIDevice) config.DeviceConfig {
-	if v := strings.TrimSpace(dev.ControlPath); v != "" {
-		cfg.ControlDevice = v
-		cfg.QMIDevice = v
-	}
-	if v := strings.TrimSpace(dev.NetInterface); v != "" {
-		cfg.Interface = v
-	}
-	if v := strings.TrimSpace(dev.USBPath); v != "" {
-		cfg.USBPath = v
-	}
-	if v := strings.TrimSpace(dev.ATPort); v != "" {
-		cfg.ATPort = v
-		cfg.ManagePort = v
-	}
-	if v := strings.TrimSpace(dev.AudioDevice); v != "" {
-		cfg.AudioDevice = v
-	}
-	return cfg
+if v := strings.TrimSpace(dev.ControlPath); v != "" {
+cfg.ControlDevice = v
+cfg.QMIDevice = v
+}
+if v := strings.TrimSpace(dev.NetInterface); v != "" {
+cfg.Interface = v
+}
+if v := strings.TrimSpace(dev.USBPath); v != "" {
+cfg.USBPath = v
+}
+if v := strings.TrimSpace(dev.ATPort); v != "" {
+cfg.ATPort = v
+cfg.ManagePort = v
+}
+if v := strings.TrimSpace(dev.AudioDevice); v != "" {
+cfg.AudioDevice = v
+}
+if v := strings.TrimSpace(dev.USBManufacturer); v != "" {
+cfg.USBManufacturer = v
+}
+if v := strings.TrimSpace(dev.USBProduct); v != "" {
+cfg.USBProduct = v
+}
+return cfg
 }
 
 func qmiHealthyWorkerAttachmentUpdate(worker *Worker, live QMIDevice) (bool, config.DeviceConfig) {

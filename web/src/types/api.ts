@@ -81,9 +81,11 @@ export type DeviceLifecyclePhase =
   | 'evicting'
 
 export type DeviceOverviewItem = {
-  id: string
-  name: string
-  running: boolean
+id: string
+name: string
+manufacturer?: string
+usb_product?: string
+running: boolean
   healthy: boolean
   control_online?: boolean
   physical_present?: boolean
@@ -121,9 +123,11 @@ export type DeviceOverviewItem = {
 }
 
 export type DeviceMgmtListItem = {
-  id: string
-  name: string
-  running: boolean
+id: string
+name: string
+manufacturer?: string
+usb_product?: string
+running: boolean
   healthy: boolean
   control_online?: boolean
   physical_present?: boolean
@@ -147,9 +151,11 @@ export type DeviceMgmtListItem = {
 }
 
 export type DeviceConfigDTO = {
-  id: string
-  name: string
-  interface: string
+id: string
+name: string
+manufacturer?: string
+usb_product?: string
+interface: string
   modem_imei?: string
   usb_path?: string
   apn?: string

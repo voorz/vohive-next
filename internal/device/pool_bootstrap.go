@@ -279,9 +279,15 @@ func (p *Pool) AddWorkerFromConfig(devCfg config.DeviceConfig) (*Worker, error) 
 				devCfg.ATPort = hw.ATPort
 				devCfg.ManagePort = hw.ATPort
 			}
-			if devCfg.AudioDevice == "" && hw.AudioDevice != "" {
-				devCfg.AudioDevice = hw.AudioDevice
-			}
+if devCfg.AudioDevice == "" && hw.AudioDevice != "" {
+devCfg.AudioDevice = hw.AudioDevice
+}
+if devCfg.USBManufacturer == "" && hw.USBManufacturer != "" {
+devCfg.USBManufacturer = hw.USBManufacturer
+}
+if devCfg.USBProduct == "" && hw.USBProduct != "" {
+devCfg.USBProduct = hw.USBProduct
+}
 			if devCfg.ControlDevice == "" {
 				devCfg.ControlDevice = strings.TrimSpace(hw.ControlPath)
 				devCfg.QMIDevice = strings.TrimSpace(hw.ControlPath)
@@ -302,6 +308,14 @@ func (p *Pool) AddWorkerFromConfig(devCfg config.DeviceConfig) (*Worker, error) 
 			ATPort:       devCfg.ATPort,
 			USBPath:      devCfg.USBPath,
 		}
+		// 控制口存在但跳过发现流程时，仍需从 sysfs 填充 USB 元数据
+		// （USBManufacturer/USBProduct 用于 DJI 模组识别等运行时判定）
+		if controlDeviceReady && strings.TrimSpace(devCfg.USBPath) != "" {
+			if prod, mfr := readUSBProductManufacturer(devCfg.USBPath); mfr != "" || prod != "" {
+				configuredStatic.USBManufacturer = mfr
+				configuredStatic.USBProduct = prod
+			}
+		}
 		selected := configuredStatic
 		selectedByDiscovery := false
 		if !controlDeviceReady && strings.TrimSpace(devCfg.ModemIMEI) != "" {
@@ -312,13 +326,8 @@ func (p *Pool) AddWorkerFromConfig(devCfg config.DeviceConfig) (*Worker, error) 
 				hardware := p.collectRescanHardware(qmiList, liveWorkerIndex)
 				resolved := ResolveDeviceIdentities(hardware, []config.DeviceConfig{devCfg})
 				if len(resolved.Matched) > 0 {
-					hw := resolved.Matched[0].Hardware
-					selected = QMIDevice{
-						ControlPath:  strings.TrimSpace(hw.ControlPath),
-						NetInterface: hw.NetInterface,
-						ATPort:       hw.ATPort,
-						USBPath:      hw.USBPath,
-					}
+hw := resolved.Matched[0].Hardware
+selected = hw.toQMIDeviceWithUSB()
 					selectedByDiscovery = true
 				}
 			}

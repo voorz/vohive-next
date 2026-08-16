@@ -27,9 +27,11 @@ import (
 )
 
 type deviceConfigDTO struct {
-	ID                    string  `json:"id"`
-	Name                  string  `json:"name"`
-	ModemIMEI             string  `json:"modem_imei"`
+ID                    string  `json:"id"`
+Name                  string  `json:"name"`
+Manufacturer          string  `json:"manufacturer,omitempty"`
+USBProduct            string  `json:"usb_product,omitempty"`
+ModemIMEI             string  `json:"modem_imei"`
 	USBPath               string  `json:"usb_path"`
 	ATPort                string  `json:"at_port"`
 	ProxyPort             int     `json:"proxy_port"`
@@ -56,10 +58,12 @@ type deviceConfigDTO struct {
 }
 
 func deviceConfigToDTO(c config.DeviceConfig) deviceConfigDTO {
-	return deviceConfigDTO{
-		ID:                    c.ID,
-		Name:                  c.Name,
-		ModemIMEI:             c.ModemIMEI,
+return deviceConfigDTO{
+ID:                    c.ID,
+Name:                  c.Name,
+Manufacturer:          c.USBManufacturer,
+USBProduct:            c.USBProduct,
+ModemIMEI:             c.ModemIMEI,
 		USBPath:               c.USBPath,
 		ATPort:                c.ATPort,
 		ProxyPort:             c.ProxyPort,
@@ -382,9 +386,11 @@ type deviceMgmtOverviewLiteItem struct {
 	ControlDevice          string             `json:"control_device,omitempty"`
 	ESIMTransport          string             `json:"esim_transport,omitempty"`
 	PCSCReader             string             `json:"pcsc_reader,omitempty"`
-	ATPort                 string             `json:"at_port,omitempty"`
-	USBPath                string             `json:"usb_path,omitempty"`
-	AudioDevice            string             `json:"audio_device,omitempty"`
+ATPort                 string             `json:"at_port,omitempty"`
+USBPath                string             `json:"usb_path,omitempty"`
+AudioDevice            string             `json:"audio_device,omitempty"`
+Manufacturer           string             `json:"manufacturer,omitempty"` // USB manufacturer
+USBProduct             string             `json:"usb_product,omitempty"`     // USB product
 	LocalPhone             string             `json:"local_phone,omitempty"`
 	E911SetupAvailable     bool               `json:"e911_setup_available,omitempty"`
 	ActiveESIMProfileName  string             `json:"active_esim_profile_name,omitempty"`
@@ -421,9 +427,11 @@ type deviceMgmtListModem struct {
 }
 
 type deviceMgmtListItem struct {
-	ID                     string              `json:"id"`
-	Name                   string              `json:"name"`
-	Running                bool                `json:"running"`
+ID                     string              `json:"id"`
+Name                   string              `json:"name"`
+Manufacturer           string              `json:"manufacturer,omitempty"` // USB manufacturer
+USBProduct             string              `json:"usb_product,omitempty"`     // USB product
+Running                bool                `json:"running"`
 	Healthy                bool                `json:"healthy"`
 	ControlOnline          bool                `json:"control_online"`
 	PhysicalPresent        bool                `json:"physical_present"`
@@ -644,9 +652,11 @@ func (s *Server) buildOverviewLiteItemFromWorkerWithModem(w *device.Worker, cfg 
 		ControlDevice:          cfg.ControlDevice,
 		ESIMTransport:          config.NormalizeESIMTransport(cfg.ESIMTransport),
 		PCSCReader:             cfg.PCSCReader,
-		ATPort:                 w.ResolvedATPort(),
-		USBPath:                cfg.USBPath,
-		AudioDevice:            cfg.AudioDevice,
+ATPort:                 w.ResolvedATPort(),
+USBPath:                cfg.USBPath,
+AudioDevice:            cfg.AudioDevice,
+Manufacturer:           cfg.USBManufacturer,
+USBProduct:             cfg.USBProduct,
 		LocalPhone:             overviewLocalPhone(effectiveOverviewIMSI(w, status), strings.TrimSpace(status.ICCID)),
 		E911SetupAvailable:     e911.SetupAvailable(modemStatus),
 		SMSEnabled:             cfg.SMSEnabled,
@@ -785,10 +795,12 @@ func (s *Server) handleDeviceMgmtList(c *gin.Context) {
 		}
 		status := w.GetCachedDeviceStatus()
 		controlOnline := w.GetCachedHealthy()
-		item := deviceMgmtListItem{
-			ID:                     w.ID,
-			Name:                   cfg.Name,
-			Running:                true,
+item := deviceMgmtListItem{
+ID:                     w.ID,
+Name:                   cfg.Name,
+Manufacturer:           cfg.USBManufacturer,
+USBProduct:             cfg.USBProduct,
+Running:                true,
 			Healthy:                controlOnline,
 			ControlOnline:          controlOnline,
 			PublicIP:               w.GetCachedIP(),
@@ -927,18 +939,20 @@ func (s *Server) handleDeviceMgmtOverviewLite(c *gin.Context) {
 
 		if dc, err := config.GetDeviceByID(id); err == nil && dc != nil {
 			pol := resolveOfflineDevicePolicy(id)
-			item := deviceMgmtOverviewLiteItem{
-				ID:                     dc.ID,
-				Name:                   dc.Name,
-				Running:                false,
-				Healthy:                false,
-				ControlOnline:          false,
-				PublicIP:               "",
-				Interface:              dc.Interface,
-				ControlDevice:          dc.ControlDevice,
-				ESIMTransport:          config.NormalizeESIMTransport(dc.ESIMTransport),
-				ATPort:                 dc.ATPort,
-				USBPath:                dc.USBPath,
+item := deviceMgmtOverviewLiteItem{
+ID:                     dc.ID,
+Name:                   dc.Name,
+Running:                false,
+Healthy:                false,
+ControlOnline:          false,
+PublicIP:               "",
+Interface:              dc.Interface,
+ControlDevice:          dc.ControlDevice,
+ESIMTransport:          config.NormalizeESIMTransport(dc.ESIMTransport),
+ATPort:                 dc.ATPort,
+USBPath:                dc.USBPath,
+Manufacturer:           dc.USBManufacturer,
+USBProduct:             dc.USBProduct,
 				SMSEnabled:             pol.SMSEnabled,
 				NetworkEnabled:         pol.NetworkEnabled,
 				VoWiFiEnabled:          pol.VoWiFiEnabled,

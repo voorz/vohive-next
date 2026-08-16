@@ -82,6 +82,11 @@ type AudioBridge struct {
 
 // NewAudioBridge 创建音频桥接器
 func NewAudioBridge(alsaDev, deviceID string) (*AudioBridge, error) {
+// ALSA 设备名为空时由调用方（cscall.Manager）负责解析默认值
+if alsaDev == "" {
+return nil, fmt.Errorf("ALSA 设备名为空")
+}
+
 	// 绑定随机 UDP 端口用于 RTP
 	conn, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
 	if err != nil {
@@ -380,16 +385,20 @@ func (ab *AudioBridge) loopPlayback() {
 			}
 
 			// 检查 RTP Payload Type (PT)
+			// PT=0: G.711 PCMU (μ-law), PT=1: G.711 PCMA (A-law)
 			pt := buf[1] & 0x7F
-			if pt != 0 {
+			var pcmData []byte
+			switch pt {
+			case 0:
+				payload := buf[headerLen:n]
+				pcmData = DecodeUlawToPCM(payload)
+			case 1:
+				payload := buf[headerLen:n]
+				pcmData = DecodeAlawToPCM(payload)
+			default:
 				logger.Warn(fmt.Sprintf("[%s] AudioBridge: 收到不支持的 RTP 载荷类型 %d, 将丢弃", ab.deviceID, pt))
 				continue
 			}
-
-			payload := buf[headerLen:n]
-
-			// G.711μ → PCM
-			pcmData := DecodeUlawToPCM(payload)
 			pcmAccum = append(pcmAccum, pcmData...)
 
 			// 凑够 1600 字节 (100ms) 后写入 aplay

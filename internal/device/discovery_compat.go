@@ -129,7 +129,11 @@ func discoverFallbackModems() ([]CompatibleModem, error) {
 
 func compatibleModemFromQMIStaticDevice(d QMIDevice) CompatibleModem {
 	mode := classifyMode(strings.TrimSpace(d.ControlPath), strings.TrimSpace(d.DriverName))
-	usbProduct, usbManuf := readUSBProductManufacturer(strings.TrimSpace(d.USBPath))
+	// 优先复用 QMIDevice 已携带的 USB 描述符，仅在缺失时才回退读 sysfs
+	usbProduct, usbManuf := strings.TrimSpace(d.USBProduct), strings.TrimSpace(d.USBManufacturer)
+	if usbProduct == "" && usbManuf == "" && strings.TrimSpace(d.USBPath) != "" {
+		usbProduct, usbManuf = readUSBProductManufacturer(strings.TrimSpace(d.USBPath))
+	}
 	return CompatibleModem{
 		ControlPath:     strings.TrimSpace(d.ControlPath),
 		NetInterface:    strings.TrimSpace(d.NetInterface),
@@ -145,6 +149,23 @@ func compatibleModemFromQMIStaticDevice(d QMIDevice) CompatibleModem {
 		NetworkCapable:  mode == "qmi" || mode == "mbim",
 		USBProduct:      usbProduct,
 		USBManufacturer: usbManuf,
+	}
+}
+
+// toQMIDeviceWithUSB 将 CompatibleModem 的 USB 元数据回填到 QMIDevice（用于 bootstrap 路径）
+func (m CompatibleModem) toQMIDeviceWithUSB() QMIDevice {
+	return QMIDevice{
+		ControlPath:     m.ControlPath,
+		NetInterface:    m.NetInterface,
+		USBPath:         m.USBPath,
+		VendorID:        m.VendorID,
+		ProductID:       m.ProductID,
+		DriverName:      m.DriverName,
+		ATPorts:         m.ATPorts,
+		ATPort:          m.ATPort,
+		AudioDevice:     m.AudioDevice,
+		USBManufacturer: m.USBManufacturer,
+		USBProduct:      m.USBProduct,
 	}
 }
 
