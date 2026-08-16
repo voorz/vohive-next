@@ -15,7 +15,7 @@ async function refresh() {
     src.value = null
     return
   }
-  const cached = getCachedFlag(props.iso)
+  const cached = await getCachedFlag(props.iso)
   if (cached) {
     src.value = cached
     return
