@@ -13,9 +13,11 @@ import {
   UsbStick20Regular,
   Wifi124Regular,
   WifiOff24Regular,
-  WifiWarning24Filled
+  WifiWarning24Filled,
+  ArrowSort24Regular
 } from '@vicons/fluent'
 import { WifiCalling3Round } from '@vicons/material'
+import { Airplane } from '@vicons/ionicons5'
 import { loadPlmnCatalog } from '../composables/plmn-catalog'
 import { downloadIcon, getCachedIcon } from '../composables/useOperatorIcon'
 import { useEventStream } from '../composables/useEventStream'
@@ -84,24 +86,18 @@ function handleSelect(id: string) {
   emit('select', id)
 }
 
-// 主要状态文本（如 4G在线 / 5G在线 / 离线）
+// 主要状态文本（设备状态：在线/离线/启动中等，不含网络模式）
 function primaryStatusText(d: DeviceMgmtListItem): string {
-  const status = primaryLifecycleStatus(d)
-  if (status.label === '在线') {
-    const mode = String(d?.modem?.network_mode || '').toUpperCase()
-    let prefix = ''
-    if (mode.includes('5G') || mode.includes('NR')) prefix = '5G'
-    else if (mode.includes('4G') || mode.includes('LTE')) prefix = '4G'
-    else if (mode.includes('3G')) prefix = '3G'
-    else if (mode.includes('2G')) prefix = '2G'
-    return prefix ? `${prefix}在线` : '在线'
-  }
-  return status.label
+  return primaryLifecycleStatus(d).label
 }
 
 // 次要状态文本（如 WiFi-Calling / 运营商·网络模式）
 function secondaryStatusText(d: DeviceMgmtListItem): string {
-  if (d?.vowifi_enabled) return 'WiFi-Calling'
+  if (d?.vowifi_enabled) {
+    const state = vowifiState(d)
+    if (state === 'ready') return 'WiFi-Calling 已就绪'
+    return 'WiFi-Calling 未就绪'
+  }
   // PC/SC 读卡器无 modem，不具备驻网能力
   if (d?.esim_transport === 'pcsc') return '未启用'
   if (isRadioRegistered(d)) {
@@ -148,21 +144,27 @@ function signalClass(d: DeviceMgmtListItem): string {
   return 'poor'
 }
 
-// 信号格数
+// 信号格数（与详情页统一：5 格）
 function signalBars(dbm?: number): number {
   if (dbm === undefined || dbm === null || dbm === 0 || dbm === -999 || !Number.isFinite(dbm)) return 0
-  if (dbm > -70) return 4
-  if (dbm > -85) return 3
-  if (dbm > -100) return 2
+  if (dbm >= -75) return 5
+  if (dbm >= -85) return 4
+  if (dbm >= -95) return 3
+  if (dbm >= -105) return 2
   return 1
 }
 
-// 信号格颜色
+// 信号格颜色（与详情页统一）
 function signalBarColor(dbm?: number): string {
   if (dbm === undefined || dbm === null) return ''
-  if (dbm >= -70) return 'bar-good'
-  if (dbm >= -90) return 'bar-fair'
+  if (dbm >= -85) return 'bar-good'
+  if (dbm >= -100) return 'bar-fair'
   return 'bar-poor'
+}
+
+// 飞行模式
+function isFlightMode(d: DeviceMgmtListItem): boolean {
+  return d?.modem?.operating_mode === 4
 }
 
 // VoWiFi 状态
@@ -227,10 +229,18 @@ function initials(name: string): string {
             <!-- 第一行：WiFi图标 + 设备名 + 状态标签 -->
             <div class="device-card-name-row">
               <span class="device-card-name">{{ item.name }}</span>
+              <!-- 飞行模式图标 -->
+              <el-icon v-if="isFlightMode(item)" size="16" class="device-card-airplane-icon">
+                <Airplane />
+              </el-icon>
+              <!-- 移动数据图标 -->
+              <el-icon v-else-if="item.network_enabled && item.esim_transport !== 'pcsc'" size="16" class="device-card-data-icon" title="移动数据已开启">
+                <ArrowSort24Regular />
+              </el-icon>
               <!-- 信号格（模组）-->
-              <div v-if="signalBars(item.modem?.signal_dbm) > 0 && item.esim_transport !== 'pcsc'" class="signal-bars" title="信号强度">
+              <div v-else-if="signalBars(item.modem?.signal_dbm) > 0 && item.esim_transport !== 'pcsc'" class="signal-bars" title="信号强度">
                 <span
-                  v-for="i in 4"
+                  v-for="i in 5"
                   :key="i"
                   class="signal-bar"
                   :class="[
@@ -438,10 +448,11 @@ html.dark .device-card.tone-neutral.selected {
   transition: all 0.3s;
 }
 
-.signal-bar:nth-child(1) { height: 25%; }
-.signal-bar:nth-child(2) { height: 50%; }
-.signal-bar:nth-child(3) { height: 75%; }
-.signal-bar:nth-child(4) { height: 100%; }
+.signal-bar:nth-child(1) { height: 20%; }
+.signal-bar:nth-child(2) { height: 40%; }
+.signal-bar:nth-child(3) { height: 60%; }
+.signal-bar:nth-child(4) { height: 80%; }
+.signal-bar:nth-child(5) { height: 100%; }
 
 .signal-bar.bar-good {
   background: var(--brand);
@@ -473,6 +484,17 @@ html.dark .device-card.tone-neutral.selected {
 
 .device-card-usb-icon.offline {
   color: var(--destructive);
+}
+
+.device-card-airplane-icon {
+  color: var(--warning);
+  flex-shrink: 0;
+}
+
+.device-card-data-icon {
+  color: var(--brand);
+  opacity: 0.8;
+  flex-shrink: 0;
 }
 
 .device-card-vowifi-icon.ready {
