@@ -251,7 +251,7 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
 <template>
   <div class="module-detail-panel">
     <!-- 详情头部 (60px) -->
-    <div class="detail-header">
+    <div v-if="detail" class="detail-header">
       <!-- 窄屏下拉选择器 + 添加按钮 + 重启模组 -->
       <div class="detail-header-narrow">
         <img :src="detail?.esim_transport === 'pcsc' ? ReaderIcon : ModemIcon" :alt="detail?.esim_transport === 'pcsc' ? 'reader' : 'modem'" class="device-icon-svg narrow-logo" />
@@ -380,10 +380,15 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
     </div>
     </div>
 
+    <!-- 无选中设备时占位头部 -->
+    <div v-else class="detail-header detail-header-empty">
+      <span style="color: var(--muted-foreground); font-size: 13px;">未选择设备</span>
+    </div>
+
     <!-- 加载/空状态 -->
-    <ListSkeleton v-else-if="loading && !detail" :rows="3" />
+    <ListSkeleton v-if="loading && !detail" :rows="3" />
     <EmptyState
-      v-else
+      v-else-if="!detail"
       title="选择一个设备"
       subtitle="从左侧列表选择设备查看详情"
     />
@@ -588,6 +593,10 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--muted);
+}
+
+.detail-header-empty {
+  justify-content: center;
 }
 
 /* 响应式：窄屏显示下拉选择器 */

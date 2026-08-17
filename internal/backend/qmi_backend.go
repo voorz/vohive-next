@@ -274,41 +274,59 @@ func qmiSNRToDB(raw int16) int {
 	return int((raw - 5) / 10)
 }
 
+// signalSnapshotTTL 控制 snapshot 信号缓存的最大有效期。
+// 超过此时间后 GetSignalInfo 会跳过缓存，发实时 IPC 查询并更新 snapshot。
+// 这解决了 VoWiFi 启动（飞行模式）后 NAS indication 不再推送信号更新、
+// 导致前端一直显示旧信号值的问题。
+const signalSnapshotTTL = 10 * time.Second
+
 func (q *QMIBackend) GetSignalInfo(ctx context.Context) (*SignalInfo, error) {
 	info := &SignalInfo{}
 	hasSnapshotData := false
 
 	if snap := q.source.GetDeviceSnapshot(); snap != nil {
-		if sigInfo, _, valid := snap.NASSignalInfo(); valid && sigInfo != nil {
-			if sigInfo.LTERSRP != 0 {
-				info.RSRP = int(sigInfo.LTERSRP)
-			}
-			if sigInfo.LTERSRQ != 0 {
-				info.RSRQ = int(sigInfo.LTERSRQ)
-			}
-			if sigInfo.LTERSSNR != 0 {
-				info.SINR = qmiSNRToDB(sigInfo.LTERSSNR)
-			}
-			if sigInfo.NR5GRSRP != 0 {
-				info.NR5GRSRP = int(sigInfo.NR5GRSRP)
-			}
-			if sigInfo.NR5GRSRQ != 0 {
-				info.NR5GRSRQ = int(sigInfo.NR5GRSRQ)
-			}
-			if sigInfo.NR5GSINR != 0 {
-				info.NR5GSINR = qmiSNRToDB(sigInfo.NR5GSINR)
-			}
-			hasSnapshotData = true
+		// 检查 snapshot 是否过期；过期则跳过缓存，走实时查询
+		_, sigTs := snap.Signal()
+		_, nasTs, _ := snap.NASSignalInfo()
+		fresh := false
+		if !sigTs.IsZero() && time.Since(sigTs) < signalSnapshotTTL {
+			fresh = true
 		}
-		if sig, _ := snap.Signal(); sig != nil {
-			info.RSSI = int(sig.RSSI)
-			if info.RSRP == 0 && sig.RSRP != 0 {
-				info.RSRP = int(sig.RSRP)
+		if !nasTs.IsZero() && time.Since(nasTs) < signalSnapshotTTL {
+			fresh = true
+		}
+		if fresh {
+			if sigInfo, _, valid := snap.NASSignalInfo(); valid && sigInfo != nil {
+				if sigInfo.LTERSRP != 0 {
+					info.RSRP = int(sigInfo.LTERSRP)
+				}
+				if sigInfo.LTERSRQ != 0 {
+					info.RSRQ = int(sigInfo.LTERSRQ)
+				}
+				if sigInfo.LTERSSNR != 0 {
+					info.SINR = qmiSNRToDB(sigInfo.LTERSSNR)
+				}
+				if sigInfo.NR5GRSRP != 0 {
+					info.NR5GRSRP = int(sigInfo.NR5GRSRP)
+				}
+				if sigInfo.NR5GRSRQ != 0 {
+					info.NR5GRSRQ = int(sigInfo.NR5GRSRQ)
+				}
+				if sigInfo.NR5GSINR != 0 {
+					info.NR5GSINR = qmiSNRToDB(sigInfo.NR5GSINR)
+				}
+				hasSnapshotData = true
 			}
-			if info.RSRQ == 0 && sig.RSRQ != 0 {
-				info.RSRQ = int(sig.RSRQ)
+			if sig, _ := snap.Signal(); sig != nil {
+				info.RSSI = int(sig.RSSI)
+				if info.RSRP == 0 && sig.RSRP != 0 {
+					info.RSRP = int(sig.RSRP)
+				}
+				if info.RSRQ == 0 && sig.RSRQ != 0 {
+					info.RSRQ = int(sig.RSRQ)
+				}
+				hasSnapshotData = true
 			}
-			hasSnapshotData = true
 		}
 	}
 
