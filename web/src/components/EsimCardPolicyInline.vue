@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { Loading } from '@element-plus/icons-vue'
 import type { CardPolicy } from '../types/api'
 import { cardsService } from '../services/cards'
-import { devicesService } from '../services/devices'
 import { useCardPolicyToggles, type PolicyMirror } from '../composables/useCardPolicyToggles'
 
 const props = defineProps<{
@@ -11,6 +10,7 @@ const props = defineProps<{
   iccid: string
   isActiveCard: boolean
   deviceOnline: boolean
+  isPCSC?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -21,15 +21,8 @@ const policy = ref<CardPolicy | null>(null)
 const loadFailed = ref(false)
 const loading = ref(false)
 
-const mode = computed<'live' | 'stored'>(() =>
-  props.isActiveCard && props.deviceOnline ? 'live' : 'stored'
-)
-
-const hint = computed(() => {
-  if (mode.value === 'live') return ''
-  if (!props.deviceOnline) return '设备离线，改动已保存，激活/上线后生效'
-  return '改动将在此卡激活后生效'
-})
+// eSIM 设置弹窗始终走 stored 模式：只写 DB，决定卡下次激活时的行为。
+// 当前生效的系统级控制由策略 Tab（ModuleCardPolicy）负责。
 
 const mirror = computed<PolicyMirror | null>(() =>
   policy.value
@@ -55,6 +48,9 @@ async function loadPolicy() {
 
 onMounted(loadPolicy)
 
+// ICCID 变化时重新加载策略（弹窗复用同一组件实例）
+watch(() => props.iccid, loadPolicy)
+
 async function putTriple(next: PolicyMirror): Promise<{ ok: boolean }> {
   const r = await cardsService.putPolicy(props.iccid, {
     network_enabled: next.network_enabled,
@@ -76,27 +72,14 @@ const {
   onVoWiFiToggle,
   onAirplaneToggle
 } = useCardPolicyToggles(mirror, {
-  async applyNetwork(enabled, next) {
-    if (mode.value === 'stored') return putTriple(next)
-    const r = enabled
-      ? await devicesService.startNetwork(props.deviceId, {
-          ip_version: policy.value?.ip_version || 'v4',
-          apn: policy.value?.apn || ''
-        })
-      : await devicesService.stopNetwork(props.deviceId)
-    return { ok: r.ok }
+  async applyNetwork(_enabled, next) {
+    return putTriple(next)
   },
-  async applyVoWiFi(enabled, next) {
-    if (mode.value === 'stored') return putTriple(next)
-    const r = enabled
-      ? await devicesService.enableVoWiFi(props.deviceId)
-      : await devicesService.disableVoWiFi(props.deviceId)
-    return { ok: r.ok }
+  async applyVoWiFi(_enabled, next) {
+    return putTriple(next)
   },
-  async applyAirplane(enabled, next) {
-    if (mode.value === 'stored') return putTriple(next)
-    const r = await devicesService.setFlightMode(props.deviceId, enabled)
-    return { ok: r.ok }
+  async applyAirplane(_enabled, next) {
+    return putTriple(next)
   },
   onChanged() {
     emit('policyChanged')
@@ -115,24 +98,6 @@ const {
       <el-button size="small" text @click="loadPolicy">重试</el-button>
     </div>
     <template v-else>
-      <div v-if="hint" class="policy-hint">{{ hint }}</div>
-      <!-- 网络 -->
-      <div class="form-switch-row">
-        <div>
-          <div class="switch-title">网络</div>
-          <div class="switch-desc">启用蜂窝数据连接</div>
-        </div>
-        <div class="switch-action">
-          <span v-if="networkFailed" class="switch-failed">未生效</span>
-          <el-icon v-if="networkPending" class="animate-spin switch-pending"><Loading /></el-icon>
-          <el-switch
-            v-model="local.network_enabled"
-            :disabled="local.vowifi_enabled || local.airplane_enabled || networkPending"
-            :class="{ 'is-failed': networkFailed }"
-            @change="onNetworkToggle"
-          />
-        </div>
-      </div>
       <!-- VoWiFi -->
       <div class="form-switch-row">
         <div>
@@ -150,8 +115,25 @@ const {
           />
         </div>
       </div>
+      <!-- 网络 -->
+      <div class="form-switch-row" :class="{ 'is-unsupported': isPCSC }">
+        <div>
+          <div class="switch-title">网络</div>
+          <div class="switch-desc">启用蜂窝数据连接</div>
+        </div>
+        <div class="switch-action">
+          <span v-if="networkFailed" class="switch-failed">未生效</span>
+          <el-icon v-if="networkPending" class="animate-spin switch-pending"><Loading /></el-icon>
+          <el-switch
+            v-model="local.network_enabled"
+            :disabled="local.vowifi_enabled || local.airplane_enabled || networkPending || isPCSC"
+            :class="{ 'is-failed': networkFailed }"
+            @change="onNetworkToggle"
+          />
+        </div>
+      </div>
       <!-- 飞行模式 -->
-      <div class="form-switch-row">
+      <div class="form-switch-row" :class="{ 'is-unsupported': isPCSC }">
         <div>
           <div class="switch-title">飞行模式</div>
           <div class="switch-desc">断开所有无线连接</div>
@@ -161,7 +143,7 @@ const {
           <el-icon v-if="airplanePending" class="animate-spin switch-pending"><Loading /></el-icon>
           <el-switch
             v-model="local.airplane_enabled"
-            :disabled="local.vowifi_enabled || airplanePending"
+            :disabled="local.vowifi_enabled || airplanePending || isPCSC"
             :class="{ 'is-failed': airplaneFailed }"
             @change="onAirplaneToggle"
           />
@@ -194,12 +176,6 @@ const {
   padding: 12px;
   font-size: 12px;
   color: #f59e0b;
-}
-
-.policy-hint {
-  font-size: 11px;
-  color: #f59e0b;
-  padding: 0 2px;
 }
 
 /* switch-row — 参照 ModuleCardPolicy .form-switch-row */
@@ -244,5 +220,13 @@ const {
 
 .is-failed :deep(.el-switch__core) {
   border-color: var(--destructive) !important;
+}
+
+/* 被禁用控制块灰度显示 */
+.form-switch-row.is-unsupported .switch-title {
+  opacity: 0.4;
+}
+.form-switch-row.is-unsupported .switch-desc {
+  opacity: 0.4;
 }
 </style>

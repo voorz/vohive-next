@@ -27,12 +27,19 @@ const (
 	CallStateConnected
 )
 
+// atHelper 定义了可选的 AT 命令执行能力（用于 QMI 后端开启 PCM over USB）
+type atHelper interface {
+	EnableUSBAudio() error   // AT+QPCMV=1,2 开启 PCM over USB
+	DisableUSBAudio() error  // AT+QPCMV=0   关闭 PCM over USB
+}
+
 // Manager 负责管理 CS 域的来电并桥接到 SIP/RTP
 type Manager struct {
 	deviceID   string
 	audioDev   string
 	controller Controller
 	registrar  *sipgw.Registrar
+	atHelper   atHelper // 可选：QMI 后端用 AT+QPCMV 开启 PCM over USB
 
 	mu               sync.Mutex
 	state            CallState
@@ -84,6 +91,11 @@ func NewManagerWithController(deviceID, audioDev string, controller Controller, 
 	}
 
 	return mgr
+}
+
+// SetATHelper 注入可选的 AT 命令执行器（QMI 后端用 AT+QPCMV 开启 PCM over USB）
+func (m *Manager) SetATHelper(h atHelper) {
+	m.atHelper = h
 }
 
 // Stop 停止 CS 呼叫管理器（清理内部 goroutine）
@@ -636,7 +648,16 @@ func (m *Manager) HandleOutboundInvite(deviceID string, req *sip.Request, tx sip
 	m.mu.Unlock()
 
 	// 准备 AudioBridge
-	localIP := m.registrar.GetExternalIP()
+	// 探测本机到达 Linphone 客户端的源 IP（避免 fallback 到 127.0.0.1）
+	localIP := ""
+	if src := req.Source(); src != "" {
+		if host, _, err := net.SplitHostPort(src); err == nil {
+			localIP = m.detectLocalIP(host)
+		}
+	}
+	if localIP == "" {
+		localIP = m.registrar.GetExternalIP()
+	}
 	if localIP == "" {
 		localIP = "127.0.0.1"
 	}
@@ -760,7 +781,15 @@ func (m *Manager) HandleOutboundInvite(deviceID string, req *sip.Request, tx sip
 	tx.Respond(res200)
 	logger.Debug(fmt.Sprintf("[%s] CSCall: 已向 Linphone 发送 200 OK (含 SDP, Contact=%s)", m.deviceID, contact.String()))
 
-	// 启动 AudioBridge
+	// QMI 后端：先通过 AT+QPCMV=1,2 开启 PCM over USB，再启动 ALSA
+	// 如果先启动 arecord/aplay 再开 QPCMV，模组音频通道还没切到 USB Audio，会录到空数据
+	if m.atHelper != nil {
+		if err := m.atHelper.EnableUSBAudio(); err != nil {
+			logger.Warn(fmt.Sprintf("[%s] CSCall: 开启 PCM over USB 失败", m.deviceID), "err", err)
+		}
+	}
+
+	// 启动 AudioBridge（QPCMV 开启后，ALSA 设备才有真实音频流）
 	if err := ab.Start(); err != nil {
 		logger.Error(fmt.Sprintf("[%s] CSCall: AudioBridge 启动失败", m.deviceID), "err", err)
 		m.endCallAndHangup(false, true)
@@ -871,6 +900,11 @@ func (m *Manager) endCallAndHangup(sendClientSignal bool, sendATH bool) {
 
 	if m.controller != nil {
 		_ = m.controller.Hangup(context.Background(), m.controllerCallID, HangupOptions{SendModemSignal: sendATH})
+	}
+
+	// QMI 后端：关闭 PCM over USB
+	if m.atHelper != nil {
+		_ = m.atHelper.DisableUSBAudio()
 	}
 
 	if call != nil {

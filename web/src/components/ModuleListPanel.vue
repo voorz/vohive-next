@@ -10,14 +10,17 @@ import EmptyState from './EmptyState.vue'
 import {
   Add24Regular,
   Search24Regular,
+  UsbStick20Regular,
   Wifi124Regular,
   WifiOff24Regular,
   WifiWarning24Filled
 } from '@vicons/fluent'
 import { WifiCalling3Round } from '@vicons/material'
-import CarrierIcon from './CarrierIcon.vue'
 import { loadPlmnCatalog } from '../composables/plmn-catalog'
 import { downloadIcon, getCachedIcon } from '../composables/useOperatorIcon'
+import { useEventStream } from '../composables/useEventStream'
+import ModemIcon from '../assets/svgs/modem.svg'
+import ReaderIcon from '../assets/svgs/reader.svg'
 
 const props = defineProps<{
   selectedId?: string
@@ -33,12 +36,21 @@ const { list, loading } = storeToRefs(store)
 
 const searchText = ref('')
 
-// 定时刷新设备列表（5秒）
-let refreshTimer: ReturnType<typeof setInterval> | null = null
+// SSE 实时设备列表流
+const { connect: connectStream, disconnect: disconnectStream } = useEventStream<{ devices: DeviceMgmtListItem[] }>({
+  path: '/devices/stream',
+  eventName: 'devices',
+  parse: (payload: string) => JSON.parse(payload),
+  onEvent: (data) => {
+    if (data.devices) {
+      store.setList(data.devices)
+    }
+  }
+})
+
 onMounted(() => {
-  refreshTimer = setInterval(() => {
-    store.fetchList()
-  }, 5000)
+  // SSE 实时订阅设备列表
+  connectStream()
   // 加载 PLMN catalog 并下载运营商图标
   loadPlmnCatalog().then(() => {
     for (const d of list.value) {
@@ -55,7 +67,7 @@ onMounted(() => {
   })
 })
 onUnmounted(() => {
-  if (refreshTimer) clearInterval(refreshTimer)
+  disconnectStream()
 })
 
 const filteredDevices = computed(() => {
@@ -90,6 +102,8 @@ function primaryStatusText(d: DeviceMgmtListItem): string {
 // 次要状态文本（如 WiFi-Calling / 运营商·网络模式）
 function secondaryStatusText(d: DeviceMgmtListItem): string {
   if (d?.vowifi_enabled) return 'WiFi-Calling'
+  // PC/SC 读卡器无 modem，不具备驻网能力
+  if (d?.esim_transport === 'pcsc') return '未启用'
   if (isRadioRegistered(d)) {
     const op = d?.modem?.operator || '--'
     const mode = [d?.modem?.network_duplex, d?.modem?.network_mode].filter(Boolean).join(' ') || '--'
@@ -116,14 +130,19 @@ function cardToneClass(d: DeviceMgmtListItem): string {
 }
 
 // 信号强度格式化
-function signalText(dbm?: number): string {
+function signalText(d: DeviceMgmtListItem): string {
+  const dbm = d?.modem?.signal_dbm
   if (dbm === undefined || dbm === null) return ''
+  // PC/SC 读卡器无 modem，信号为 0 时显示“No Modem”
+  if (d?.esim_transport === 'pcsc' && dbm === 0) return 'No Modem'
   return `${dbm}dBm`
 }
 
 // 信号强度颜色
-function signalClass(dbm?: number): string {
+function signalClass(d: DeviceMgmtListItem): string {
+  const dbm = d?.modem?.signal_dbm
   if (dbm === undefined || dbm === null) return ''
+  if (d?.esim_transport === 'pcsc' && dbm === 0) return 'no-modem'
   if (dbm >= -70) return 'good'
   if (dbm >= -90) return 'fair'
   return 'poor'
@@ -169,8 +188,8 @@ function initials(name: string): string {
       <el-input
         v-model="searchText"
         placeholder="搜索设备 / IMEI"
-        size="small"
         clearable
+        autocomplete="off"
       >
         <template #prefix>
           <el-icon><Search24Regular /></el-icon>
@@ -203,12 +222,13 @@ function initials(name: string): string {
           ]"
           @click="handleSelect(item.id)"
         >
-          <CarrierIcon :mcc="item.modem?.native_mcc || ''" :mnc="item.modem?.native_mnc || ''" :name="item.modem?.native_spn" :size="38" />
+          <img :src="item.esim_transport === 'pcsc' ? ReaderIcon : ModemIcon" :alt="item.esim_transport === 'pcsc' ? 'reader' : 'modem'" class="device-card-icon-svg" />
           <div class="device-card-info">
             <!-- 第一行：WiFi图标 + 设备名 + 状态标签 -->
             <div class="device-card-name-row">
               <span class="device-card-name">{{ item.name }}</span>
-              <div v-if="signalBars(item.modem?.signal_dbm) > 0" class="signal-bars" title="信号强度">
+              <!-- 信号格（模组）-->
+              <div v-if="signalBars(item.modem?.signal_dbm) > 0 && item.esim_transport !== 'pcsc'" class="signal-bars" title="信号强度">
                 <span
                   v-for="i in 4"
                   :key="i"
@@ -219,6 +239,10 @@ function initials(name: string): string {
                   ]"
                 />
               </div>
+              <!-- USB 图标（读卡器，无信号格）-->
+              <el-icon v-else-if="item.esim_transport === 'pcsc'" size="16" class="device-card-usb-icon" :class="{ offline: !item.running || !item.healthy }">
+                <UsbStick20Regular />
+              </el-icon>
               <el-icon size="16" class="device-card-vowifi-icon" :class="vowifiState(item)">
                 <WifiCalling3Round v-if="vowifiState(item) === 'ready'" />
                 <WifiWarning24Filled v-else-if="vowifiState(item) === 'enabled-not-ready'" />
@@ -232,8 +256,8 @@ function initials(name: string): string {
               <span
                 v-if="item.modem?.signal_dbm !== undefined && item.modem?.signal_dbm !== null"
                 class="device-card-signal"
-                :class="signalClass(item.modem?.signal_dbm)"
-              >{{ signalText(item.modem?.signal_dbm) }}</span>
+                :class="signalClass(item)"
+              >{{ signalText(item) }}</span>
             </div>
             <!-- 第三行：次要状态 -->
             <div class="device-card-meta2">
@@ -380,18 +404,10 @@ html.dark .device-card.tone-neutral.selected {
   border-color: #4b5563;
 }
 
-.device-card-icon {
+.device-card-icon-svg {
   width: 38px;
   height: 38px;
-  border-radius: 6px;
-  background: var(--background);
-  border: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--foreground);
+  object-fit: contain;
   flex-shrink: 0;
 }
 
@@ -448,6 +464,15 @@ html.dark .device-card.tone-neutral.selected {
   color: var(--muted-foreground);
   opacity: 0.4;
   flex-shrink: 0;
+}
+
+.device-card-usb-icon {
+  color: var(--brand);
+  flex-shrink: 0;
+}
+
+.device-card-usb-icon.offline {
+  color: var(--destructive);
 }
 
 .device-card-vowifi-icon.ready {
@@ -532,6 +557,11 @@ html.dark .device-card.tone-neutral.selected {
 .device-card-signal.poor {
   color: var(--destructive);
   opacity: 0.7;
+}
+
+.device-card-signal.no-modem {
+  color: var(--muted-foreground);
+  opacity: 0.6;
 }
 
 .device-card-meta2 {

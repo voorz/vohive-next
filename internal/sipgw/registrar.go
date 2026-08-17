@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/md5"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -235,6 +236,36 @@ func (r *Registrar) Start(ctx context.Context) error {
 		}
 	}()
 
+	// 启动 WebSocket 监听（浏览器 SIP.js 接入）
+	if r.cfg.SIP.WSListen != "" {
+		wsAddr := r.cfg.SIP.WSListen
+		go func() {
+			if err := srv.ListenAndServe(r.ctx, "ws", wsAddr); err != nil {
+				if r.ctx.Err() == nil {
+					logger.Error("SIP WebSocket 监听失败", "err", err)
+				}
+			}
+		}()
+		logger.Info("SIP WebSocket 监听已启动", "addr", wsAddr)
+	}
+
+	// 启动 WSS 监听（浏览器 SIP.js 加密接入）
+	if r.cfg.SIP.WSSListen != "" && r.cfg.SIP.WSSCertFile != "" && r.cfg.SIP.WSSKeyFile != "" {
+		wssAddr := r.cfg.SIP.WSSListen
+		tlsConf, tlsErr := loadWSSConfig(r.cfg.SIP.WSSCertFile, r.cfg.SIP.WSSKeyFile)
+		if tlsErr != nil {
+			return fmt.Errorf("WSS 证书加载失败: %w", tlsErr)
+		}
+		go func() {
+			if err := srv.ListenAndServeTLS(r.ctx, "ws", wssAddr, tlsConf); err != nil {
+				if r.ctx.Err() == nil {
+					logger.Error("SIP WSS 监听失败", "err", err)
+				}
+			}
+		}()
+		logger.Info("SIP WSS 监听已启动", "addr", wssAddr)
+	}
+
 	// 定期清理过期注册
 	go r.cleanupLoop()
 
@@ -248,6 +279,17 @@ func (r *Registrar) Stop() error {
 	}
 	logger.Info("Linphone 注册服务已停止")
 	return nil
+}
+
+// UpdateUser 热更新 SIP 用户配置（密码、设备绑定等）
+func (r *Registrar) UpdateUser(username, password, deviceID, displayName string) {
+	r.mu.Lock()
+	r.cfg.User.Username = username
+	r.cfg.User.Password = password
+	r.cfg.User.DeviceID = deviceID
+	r.cfg.User.DisplayName = displayName
+	r.mu.Unlock()
+	logger.Info("SIP 用户配置已热更新", "username", username, "device", deviceID)
 }
 
 // handleRegister 处理 REGISTER 请求
@@ -563,12 +605,10 @@ func (r *Registrar) SubscribeDeviceOnline(deviceID string) <-chan struct{} {
 	return ch
 }
 
-// findUserConfig 查找用户配置
+// findUserConfig 查找用户配置（单用户模式）
 func (r *Registrar) findUserConfig(username string) *UserConfig {
-	for i := range r.cfg.Users {
-		if r.cfg.Users[i].Username == username {
-			return &r.cfg.Users[i]
-		}
+	if r.cfg.User.Username == username {
+		return &r.cfg.User
 	}
 	return nil
 }
@@ -863,10 +903,9 @@ func (r *Registrar) SendPushNotification(deviceID string, callID string, caller 
 		return fmt.Errorf("该设备没有上报过苹果/安卓推送令牌 (pn-provider=%s, pn-prid=%s)", user.PushProvider, user.PushToken)
 	}
 
-	password := r.cfg.LinphonePush.LinphonePassword
-	fromUser := r.cfg.LinphonePush.LinphoneUser
-	if password == "" || fromUser == "" {
-		return fmt.Errorf("未配置 Linphone 推送凭证 (linphone_password 或 linphone_user 为空)，跳过网络唤醒")
+	apiKey := r.cfg.LinphonePush.LinphonePassword
+	if apiKey == "" {
+		return fmt.Errorf("未配置 Linphone API 密钥，跳过网络唤醒")
 	}
 
 	logger.RunDebug("尝试使用官方PUSH证书发送推送唤醒", "device", deviceID, "call_id", callID)
@@ -885,16 +924,18 @@ func (r *Registrar) SendPushNotification(deviceID string, callID string, caller 
 
 	body, _ := json.Marshal(payload)
 
-	// 在探测请求中不要携带 payload byte reader，避免被单次消费
-	req, err := http.NewRequest("POST", "https://subscribe.linphone.org/api/push_notification", nil)
+	// 使用 API Key 认证发送推送请求
+	req, err := http.NewRequest("POST", "https://subscribe.linphone.org/api/push_notification", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json")
+	req.Header.Set("x-api-key", apiKey)
 
-	// 使用 HTTP DIGEST 发起鉴权并投递
-	resp, err := r.sendPushDigestAuth(req, fromUser, body)
+	// 使用 API Key 直接发送推送请求
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("推送 HTTP 请求失败: %w", err)
 	}
@@ -1125,4 +1166,15 @@ func extractUsername(from *sip.FromHeader) string {
 		return ""
 	}
 	return from.Address.User
+}
+
+// loadWSSConfig 加载 WSS 证书和私钥
+func loadWSSConfig(certFile, keyFile string) (*tls.Config, error) {
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return nil, fmt.Errorf("加载证书 %s/%s: %w", certFile, keyFile, err)
+	}
+	return &tls.Config{
+		Certificates: []tls.Certificate{cert},
+	}, nil
 }

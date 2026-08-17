@@ -8,6 +8,7 @@ import ListSkeleton from '../components/ListSkeleton.vue'
 import ErrorState from '../components/ErrorState.vue'
 import RefreshButton from '../components/RefreshButton.vue'
 import DashboardStatsCards from '../components/DashboardStatsCards.vue'
+import DashboardChartsCard from '../components/DashboardChartsCard.vue'
 import TrafficAnalysisPanel from '../components/TrafficAnalysisPanel.vue'
 import { usePollingScheduler } from '../composables/usePollingScheduler'
 import { useDashboardStore } from '../stores/dashboard'
@@ -55,10 +56,9 @@ function openDeviceOverview(id: string) {
   const deviceID = String(id || '').trim()
   if (!deviceID) return
   void router.push({
-    name: 'Devices',
+    name: 'Module',
     query: {
-      device: deviceID,
-      tab: 'overview'
+      device: deviceID
     }
   })
 }
@@ -107,6 +107,8 @@ onUnmounted(() => {
         :offline="offlineCount"
         :last-updated-at="lastUpdatedAt"
       />
+
+      <DashboardChartsCard />
 
       <ErrorState
         v-if="devicesError"

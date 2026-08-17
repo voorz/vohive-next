@@ -10,6 +10,7 @@ const props = defineProps<{
   iccid?: string
   policy: CardPolicy | null
   deviceOnline: boolean
+  isPCSC?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -85,13 +86,13 @@ const {
       <div class="terminal-icon-box">
         <el-icon size="14"><Sim24Regular /></el-icon>
       </div>
-      <div class="terminal-header-title">卡策略</div>
+      <div class="terminal-header-title">系统控制</div>
     </div>
 
     <!-- 内容区 -->
     <div class="policy-body">
       <div v-if="!canToggle" class="policy-unavailable">
-        设备离线或无 ICCID，策略暂不可用
+        设备离线或无 ICCID，控制暂不可用
       </div>
       <template v-else>
         <div class="form-grid">
@@ -104,32 +105,32 @@ const {
             <el-switch :model-value="local.vowifi_enabled" :loading="vowifiPending" :disabled="!canToggle || vowifiPending" :class="{ 'is-failed': vowifiFailed }" @update:model-value="onVoWiFiToggle" />
           </div>
           <!-- 飞行模式 -->
-          <div class="field col-span-2 form-switch-row">
+          <div class="field col-span-2 form-switch-row" :class="{ 'is-unsupported': isPCSC }">
             <div>
               <div class="switch-title">飞行模式</div>
               <div class="switch-desc">断开所有无线连接</div>
             </div>
-            <el-switch :model-value="local.airplane_enabled" :loading="airplanePending" :disabled="!canToggle || local.vowifi_enabled || airplanePending" :class="{ 'is-failed': airplaneFailed }" @update:model-value="onAirplaneToggle" />
+            <el-switch :model-value="local.airplane_enabled" :loading="airplanePending" :disabled="!canToggle || local.vowifi_enabled || airplanePending || isPCSC" :class="{ 'is-failed': airplaneFailed }" @update:model-value="onAirplaneToggle" />
           </div>
           <!-- 移动数据（底部） -->
-          <div class="field col-span-2 form-switch-row">
+          <div class="field col-span-2 form-switch-row" :class="{ 'is-unsupported': isPCSC }">
             <div>
               <div class="switch-title">移动数据</div>
               <div class="switch-desc">启用蜂窝数据连接</div>
             </div>
-            <el-switch :model-value="local.network_enabled" :loading="networkPending" :disabled="!canToggle || local.vowifi_enabled || local.airplane_enabled || networkPending" :class="{ 'is-failed': networkFailed }" @update:model-value="onNetworkToggle" />
+            <el-switch :model-value="local.network_enabled" :loading="networkPending" :disabled="!canToggle || local.vowifi_enabled || local.airplane_enabled || networkPending || isPCSC" :class="{ 'is-failed': networkFailed }" @update:model-value="onNetworkToggle" />
           </div>
-          <div class="field">
+          <div class="field" :class="{ 'is-unsupported': isPCSC }">
             <label class="form-label">IP 版本</label>
-            <el-select v-model="ipVersion" class="!w-full">
+            <el-select v-model="ipVersion" class="!w-full" :disabled="isPCSC">
               <el-option label="IPv4" value="v4" />
               <el-option label="IPv6" value="v6" />
               <el-option label="IPv4/IPv6" value="v4v6" />
             </el-select>
           </div>
-          <div class="field">
+          <div class="field" :class="{ 'is-unsupported': isPCSC }">
             <label class="form-label">APN</label>
-            <el-input v-model="apn" placeholder="留空=运营商默认" />
+            <el-input v-model="apn" placeholder="留空=运营商默认" :disabled="isPCSC" />
           </div>
         </div>
       </template>
@@ -244,5 +245,12 @@ const {
 
 .is-failed :deep(.el-switch__core) {
   border-color: var(--destructive) !important;
+}
+
+/* PC/SC 设备不支持的功能灰度显示 */
+.form-switch-row.is-unsupported .switch-title,
+.form-switch-row.is-unsupported .switch-desc,
+.field.is-unsupported .form-label {
+  opacity: 0.4;
 }
 </style>

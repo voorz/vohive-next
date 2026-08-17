@@ -61,7 +61,7 @@ async function clearIconCache() {
   clearing.value = true
   try {
     clearAllIconCache()
-    clearAllFlagCache()
+    await clearAllFlagCache()
     countIconCache()
     ElMessage.success('图标缓存已清除')
   } catch {

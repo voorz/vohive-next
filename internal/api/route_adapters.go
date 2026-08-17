@@ -65,10 +65,15 @@ func (s *Server) handleDeviceVoWiFiPatch(c *gin.Context) {
 	if *req.Enabled {
 		// 落库：仅置 vowifi_enabled=true。不碰 airplane_enabled——它是用户的纯飞行
 		// 意图，作为关闭 VoWiFi 后的回退依据；VoWiFi 接管射频由运行时投影派生。
-		s.patchCardPolicyForDevice(deviceID, vowifiEnablePolicyMutation)
+		_, applied, _ := s.patchCardPolicyForDevice(deviceID, vowifiEnablePolicyMutation)
 		// 同步 w.Config，使概览即时切到 VoWiFi 模式面板（EnableVoWiFi 不碰 Config）。
 		s.pool.SetWorkerVoWiFiPolicy(deviceID, true)
 		s.handleVoWiFiEnable(c)
+		// PC/SC 设备启动 VoWiFi 前 ICCID 可能尚未刷新，导致上面 patchCardPolicyForDevice 跳过。
+		// VoWiFi 启动后 ICCID 已写入 worker 身份缓存，补写一次确保卡策略表一致。
+		if !applied {
+			s.patchCardPolicyForDevice(deviceID, vowifiEnablePolicyMutation)
+		}
 		return
 	}
 

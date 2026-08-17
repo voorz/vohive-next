@@ -27,9 +27,11 @@ import (
 )
 
 type deviceConfigDTO struct {
-	ID                    string  `json:"id"`
-	Name                  string  `json:"name"`
-	ModemIMEI             string  `json:"modem_imei"`
+ID                    string  `json:"id"`
+Name                  string  `json:"name"`
+Manufacturer          string  `json:"manufacturer,omitempty"`
+USBProduct            string  `json:"usb_product,omitempty"`
+ModemIMEI             string  `json:"modem_imei"`
 	USBPath               string  `json:"usb_path"`
 	ATPort                string  `json:"at_port"`
 	ProxyPort             int     `json:"proxy_port"`
@@ -39,6 +41,7 @@ type deviceConfigDTO struct {
 	QMIProxyPath          *string `json:"qmi_proxy_path,omitempty"`
 	QMIProxyExecutable    *string `json:"qmi_proxy_executable,omitempty"`
 	ESIMTransport         string  `json:"esim_transport,omitempty"`
+	PCSCReader            string  `json:"pcsc_reader,omitempty"`
 	BaudRate              int     `json:"baud_rate,omitempty"`
 	DataBits              int     `json:"data_bits,omitempty"`
 	StopBits              int     `json:"stop_bits,omitempty"`
@@ -55,10 +58,12 @@ type deviceConfigDTO struct {
 }
 
 func deviceConfigToDTO(c config.DeviceConfig) deviceConfigDTO {
-	return deviceConfigDTO{
-		ID:                    c.ID,
-		Name:                  c.Name,
-		ModemIMEI:             c.ModemIMEI,
+return deviceConfigDTO{
+ID:                    c.ID,
+Name:                  c.Name,
+Manufacturer:          c.USBManufacturer,
+USBProduct:            c.USBProduct,
+ModemIMEI:             c.ModemIMEI,
 		USBPath:               c.USBPath,
 		ATPort:                c.ATPort,
 		ProxyPort:             c.ProxyPort,
@@ -68,6 +73,7 @@ func deviceConfigToDTO(c config.DeviceConfig) deviceConfigDTO {
 		QMIProxyPath:          stringPtr(c.QMIProxyPath),
 		QMIProxyExecutable:    stringPtr(c.QMIProxyExecutable),
 		ESIMTransport:         config.NormalizeESIMTransport(c.ESIMTransport),
+		PCSCReader:            c.PCSCReader,
 		BaudRate:              c.BaudRate,
 		DataBits:              c.DataBits,
 		StopBits:              c.StopBits,
@@ -110,6 +116,16 @@ func deviceConfigFromDTOWithBase(d deviceConfigDTO, base *config.DeviceConfig) c
 	if d.QMIProxyExecutable != nil {
 		qmiProxyExecutable = strings.TrimSpace(*d.QMIProxyExecutable)
 	}
+	esimTransport := strings.TrimSpace(d.ESIMTransport)
+	pcscReader := strings.TrimSpace(d.PCSCReader)
+	if base != nil {
+		if esimTransport == "" {
+			esimTransport = base.ESIMTransport
+		}
+		if pcscReader == "" {
+			pcscReader = base.PCSCReader
+		}
+	}
 	return config.DeviceConfig{
 		ID:                    id,
 		Name:                  strings.TrimSpace(d.Name),
@@ -122,7 +138,8 @@ func deviceConfigFromDTOWithBase(d deviceConfigDTO, base *config.DeviceConfig) c
 		QMIUseProxy:           qmiUseProxy,
 		QMIProxyPath:          qmiProxyPath,
 		QMIProxyExecutable:    qmiProxyExecutable,
-		ESIMTransport:         config.NormalizeESIMTransport(d.ESIMTransport),
+		ESIMTransport:         config.NormalizeESIMTransport(esimTransport),
+		PCSCReader:            pcscReader,
 		BaudRate:              d.BaudRate,
 		DataBits:              d.DataBits,
 		StopBits:              d.StopBits,
@@ -215,6 +232,11 @@ func cardPolicyVoWiFiEnabled(iccid string, fallback bool) bool {
 	if err != nil {
 		return fallback
 	}
+	// 防御：卡策略表 vowifi_enabled=false 但实际 VoWiFi 已在线时，
+	// 以运行时状态为准（修复 PC/SC 设备启动时 ICCID 尚未刷新导致卡策略未写入的场景）。
+	if !pol.VoWiFiEnabled && fallback {
+		return true
+	}
 	return pol.VoWiFiEnabled
 }
 
@@ -293,6 +315,9 @@ func (s *Server) handleDeviceMgmtOverview(c *gin.Context) {
 				if w.Backend != nil {
 					return w.Backend.Mode()
 				}
+				if config.NormalizeESIMTransport(w.Config.ESIMTransport) == config.ESIMTransportPCSC {
+					return "pcsc"
+				}
 				return "at"
 			}(),
 		}
@@ -360,9 +385,12 @@ type deviceMgmtOverviewLiteItem struct {
 	Interface              string             `json:"interface,omitempty"`
 	ControlDevice          string             `json:"control_device,omitempty"`
 	ESIMTransport          string             `json:"esim_transport,omitempty"`
-	ATPort                 string             `json:"at_port,omitempty"`
-	USBPath                string             `json:"usb_path,omitempty"`
-	AudioDevice            string             `json:"audio_device,omitempty"`
+	PCSCReader             string             `json:"pcsc_reader,omitempty"`
+ATPort                 string             `json:"at_port,omitempty"`
+USBPath                string             `json:"usb_path,omitempty"`
+AudioDevice            string             `json:"audio_device,omitempty"`
+Manufacturer           string             `json:"manufacturer,omitempty"` // USB manufacturer
+USBProduct             string             `json:"usb_product,omitempty"`     // USB product
 	LocalPhone             string             `json:"local_phone,omitempty"`
 	E911SetupAvailable     bool               `json:"e911_setup_available,omitempty"`
 	ActiveESIMProfileName  string             `json:"active_esim_profile_name,omitempty"`
@@ -399,9 +427,11 @@ type deviceMgmtListModem struct {
 }
 
 type deviceMgmtListItem struct {
-	ID                     string              `json:"id"`
-	Name                   string              `json:"name"`
-	Running                bool                `json:"running"`
+ID                     string              `json:"id"`
+Name                   string              `json:"name"`
+Manufacturer           string              `json:"manufacturer,omitempty"` // USB manufacturer
+USBProduct             string              `json:"usb_product,omitempty"`     // USB product
+Running                bool                `json:"running"`
 	Healthy                bool                `json:"healthy"`
 	ControlOnline          bool                `json:"control_online"`
 	PhysicalPresent        bool                `json:"physical_present"`
@@ -414,10 +444,12 @@ type deviceMgmtListItem struct {
 	PublicIPv6             string              `json:"public_ipv6,omitempty"`
 	Interface              string              `json:"interface,omitempty"`
 	ESIMTransport          string              `json:"esim_transport,omitempty"`
+	PCSCReader             string              `json:"pcsc_reader,omitempty"`
 	SMSEnabled             bool                `json:"sms_enabled"`
 	NetworkEnabled         bool                `json:"network_enabled"`
-	VoWiFiEnabled          bool                `json:"vowifi_enabled"`
-	VoWiFiRuntime          *voWiFiRuntimeDTO   `json:"vowifi_runtime,omitempty"`
+VoWiFiEnabled          bool               `json:"vowifi_enabled"`
+VoWiFiActive           bool               `json:"vowifi_active"`
+VoWiFiRuntime          *voWiFiRuntimeDTO   `json:"vowifi_runtime,omitempty"`
 	Modem                  deviceMgmtListModem `json:"modem"`
 	NetworkConnected       bool                `json:"network_connected"`
 	RegistrationStateLabel string              `json:"registration_state_label"`
@@ -442,6 +474,22 @@ type voWiFiRuntimeDTO struct {
 	LastError      string    `json:"last_error"`
 	LastReason     string    `json:"last_reason"`
 	UpdatedAt      time.Time `json:"updated_at"`
+
+	// —— 实时进度 ——
+	Generation     uint64    `json:"generation,omitempty"`
+	Stage          string    `json:"stage,omitempty"`
+	StageLabel     string    `json:"stage_label,omitempty"`
+	StageStartedAt time.Time `json:"stage_started_at,omitempty"`
+	AttemptIndex   int       `json:"attempt_index,omitempty"`
+	MaxAttempts    int       `json:"max_attempts,omitempty"`
+
+	// —— IMS REGISTER 细节 ——
+	RegisterVariantIndex int    `json:"register_variant_index,omitempty"`
+	RegisterVariantTotal int    `json:"register_variant_total,omitempty"`
+	RegisterRound        int    `json:"register_round,omitempty"`
+	MaxChallengeRounds   int    `json:"max_challenge_rounds,omitempty"`
+	LastSIPStatus        int    `json:"last_sip_status,omitempty"`
+	LastSIPReason        string `json:"last_sip_reason,omitempty"`
 }
 
 func runtimeStateToDTO(st runtimehost.State, status modem.DeviceStatus) *voWiFiRuntimeDTO {
@@ -464,6 +512,22 @@ func runtimeStateToDTO(st runtimehost.State, status modem.DeviceStatus) *voWiFiR
 		LastError:      st.LastError,
 		LastReason:     st.LastReason,
 		UpdatedAt:      st.UpdatedAt,
+
+		// 实时进度
+		Generation:     st.Generation,
+		Stage:          st.Stage,
+		StageLabel:     st.StageLabel,
+		StageStartedAt: st.StageStartedAt,
+		AttemptIndex:   st.AttemptIndex,
+		MaxAttempts:    st.MaxAttempts,
+
+		// IMS REGISTER 细节
+		RegisterVariantIndex: st.RegisterVariantIndex,
+		RegisterVariantTotal: st.RegisterVariantTotal,
+		RegisterRound:        st.RegisterRound,
+		MaxChallengeRounds:   st.MaxChallengeRounds,
+		LastSIPStatus:        st.LastSIPStatus,
+		LastSIPReason:        st.LastSIPReason,
 	}
 }
 
@@ -587,9 +651,12 @@ func (s *Server) buildOverviewLiteItemFromWorkerWithModem(w *device.Worker, cfg 
 		Interface:              cfg.Interface,
 		ControlDevice:          cfg.ControlDevice,
 		ESIMTransport:          config.NormalizeESIMTransport(cfg.ESIMTransport),
-		ATPort:                 w.ResolvedATPort(),
-		USBPath:                cfg.USBPath,
-		AudioDevice:            cfg.AudioDevice,
+		PCSCReader:             cfg.PCSCReader,
+ATPort:                 w.ResolvedATPort(),
+USBPath:                cfg.USBPath,
+AudioDevice:            cfg.AudioDevice,
+Manufacturer:           cfg.USBManufacturer,
+USBProduct:             cfg.USBProduct,
 		LocalPhone:             overviewLocalPhone(effectiveOverviewIMSI(w, status), strings.TrimSpace(status.ICCID)),
 		E911SetupAvailable:     e911.SetupAvailable(modemStatus),
 		SMSEnabled:             cfg.SMSEnabled,
@@ -604,6 +671,9 @@ func (s *Server) buildOverviewLiteItemFromWorkerWithModem(w *device.Worker, cfg 
 		BackendMode: func() string {
 			if w.Backend != nil {
 				return w.Backend.Mode()
+			}
+			if config.NormalizeESIMTransport(w.Config.ESIMTransport) == config.ESIMTransportPCSC {
+				return "pcsc"
 			}
 			return "at"
 		}(),
@@ -631,6 +701,10 @@ type overviewStreamEmitVersion struct {
 	IMSReady        bool
 	SMSReady        bool
 	LastErrorClass  string
+	Stage           string
+	AttemptIndex    int
+	RegisterRound   int
+	Generation      uint64
 }
 
 func newOverviewStreamEmitVersion(item deviceMgmtOverviewLiteItem) overviewStreamEmitVersion {
@@ -646,6 +720,10 @@ func newOverviewStreamEmitVersion(item deviceMgmtOverviewLiteItem) overviewStrea
 		v.IMSReady = item.VoWiFiRuntime.IMSReady
 		v.SMSReady = item.VoWiFiRuntime.SMSReady
 		v.LastErrorClass = item.VoWiFiRuntime.LastErrorClass
+		v.Stage = item.VoWiFiRuntime.Stage
+		v.AttemptIndex = item.VoWiFiRuntime.AttemptIndex
+		v.RegisterRound = item.VoWiFiRuntime.RegisterRound
+		v.Generation = item.VoWiFiRuntime.Generation
 	}
 	return v
 }
@@ -717,19 +795,23 @@ func (s *Server) handleDeviceMgmtList(c *gin.Context) {
 		}
 		status := w.GetCachedDeviceStatus()
 		controlOnline := w.GetCachedHealthy()
-		item := deviceMgmtListItem{
-			ID:                     w.ID,
-			Name:                   cfg.Name,
-			Running:                true,
+item := deviceMgmtListItem{
+ID:                     w.ID,
+Name:                   cfg.Name,
+Manufacturer:           cfg.USBManufacturer,
+USBProduct:             cfg.USBProduct,
+Running:                true,
 			Healthy:                controlOnline,
 			ControlOnline:          controlOnline,
 			PublicIP:               w.GetCachedIP(),
 			PublicIPv6:             w.GetCachedIPv6(),
 			Interface:              cfg.Interface,
-			ESIMTransport:          config.NormalizeESIMTransport(cfg.ESIMTransport),
-			SMSEnabled:             cfg.SMSEnabled,
+		ESIMTransport:          config.NormalizeESIMTransport(cfg.ESIMTransport),
+		PCSCReader:             cfg.PCSCReader,
+		SMSEnabled:             cfg.SMSEnabled,
 			NetworkEnabled:         cfg.NetworkEnabled,
-			VoWiFiEnabled:          s.pool.IsVoWiFiActive(w.ID), // 使用多设备状态查询
+			VoWiFiEnabled:          cardPolicyVoWiFiEnabled(strings.TrimSpace(status.ICCID), cfg.VoWiFiEnabled),
+		VoWiFiActive:           s.pool.IsVoWiFiActive(w.ID),
 			VoWiFiRuntime:          s.getVoWiFiRuntimeDTO(w.ID),
 			NetworkConnected:       w.NetworkConnected(),
 			RegistrationStateLabel: registrationStateLabel(status.RegStatus),
@@ -857,18 +939,20 @@ func (s *Server) handleDeviceMgmtOverviewLite(c *gin.Context) {
 
 		if dc, err := config.GetDeviceByID(id); err == nil && dc != nil {
 			pol := resolveOfflineDevicePolicy(id)
-			item := deviceMgmtOverviewLiteItem{
-				ID:                     dc.ID,
-				Name:                   dc.Name,
-				Running:                false,
-				Healthy:                false,
-				ControlOnline:          false,
-				PublicIP:               "",
-				Interface:              dc.Interface,
-				ControlDevice:          dc.ControlDevice,
-				ESIMTransport:          config.NormalizeESIMTransport(dc.ESIMTransport),
-				ATPort:                 dc.ATPort,
-				USBPath:                dc.USBPath,
+item := deviceMgmtOverviewLiteItem{
+ID:                     dc.ID,
+Name:                   dc.Name,
+Running:                false,
+Healthy:                false,
+ControlOnline:          false,
+PublicIP:               "",
+Interface:              dc.Interface,
+ControlDevice:          dc.ControlDevice,
+ESIMTransport:          config.NormalizeESIMTransport(dc.ESIMTransport),
+ATPort:                 dc.ATPort,
+USBPath:                dc.USBPath,
+Manufacturer:           dc.USBManufacturer,
+USBProduct:             dc.USBProduct,
 				SMSEnabled:             pol.SMSEnabled,
 				NetworkEnabled:         pol.NetworkEnabled,
 				VoWiFiEnabled:          pol.VoWiFiEnabled,
@@ -1001,6 +1085,10 @@ type discoveredDevice struct {
 	Configured     bool     `json:"configured"`
 	ConfiguredID   string   `json:"configured_id,omitempty"`
 	Degraded       bool     `json:"degraded,omitempty"` // 探不到 IMEI,无法确立身份,不可直接添加
+	Type           string   `json:"type,omitempty"`    // modem/pcsc
+	PCSCReader     string   `json:"pcsc_reader,omitempty"`
+	DisplayName    string   `json:"display_name,omitempty"` // USB Product 名称（modem 和 pcsc 通用）
+	Manufacturer  string   `json:"manufacturer,omitempty"`  // USB Manufacturer
 }
 
 var discoverQMIForMgmtFn = device.DiscoverQMIDevices
@@ -1029,8 +1117,9 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 
 	list, err := discoverCompatibleModemsFromQMIFn(discoveredQMI)
 	if err != nil {
-		c.JSON(http.StatusOK, gin.H{"devices": []discoveredDevice{}})
-		return
+		// 调制解调器发现失败不阻断流程，PC/SC 读卡器仍可能在后面被发现
+		logger.Debug(fmt.Sprintf("设备发现: 调制解调器发现失败或未发现: %v", err))
+		list = nil
 	}
 
 	withIMEI := strings.TrimSpace(c.Query("with_imei")) == "1"
@@ -1111,6 +1200,49 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 		out = append(out, buildDiscoveredDevice(hw, false, "", true))
 	}
 
+	// 追加 PC/SC 读卡器到发现列表（使用 wwan-go/ccid 统一枚举读卡器）
+	readerNames, pcscErr := esim.ListPCSCReaders()
+	logger.Debug(fmt.Sprintf("设备发现: ListPCSCReaders readers=%d err=%v", len(readerNames), pcscErr))
+	if pcscErr == nil {
+		usbIdentities := device.ListUSBIdentities()
+		configuredDevices := managed
+		for _, r := range readerNames {
+			configuredID := ""
+			for _, d := range configuredDevices {
+				if config.NormalizeESIMTransport(d.ESIMTransport) == config.ESIMTransportPCSC && d.PCSCReader == r {
+					configuredID = d.ID
+					break
+				}
+			}
+			// 从 USB 设备中提取结构化信息
+			product, manufacturer, vid, pid := device.ResolvePCSCReaderUSBInfo(r, usbIdentities)
+			// 从已配置设备中读取虚拟 IMEI
+			imei := ""
+			if configuredID != "" {
+				for _, d := range configuredDevices {
+					if d.ID == configuredID {
+						imei = strings.TrimSpace(d.ModemIMEI)
+						break
+					}
+				}
+			}
+			out = append(out, discoveredDevice{
+			DiscoveryKey: "pcsc:" + r,
+			DriverName:   "PC/SC Reader",
+			Mode:         "pcsc",
+			Type:         "pcsc",
+			PCSCReader:   r,
+			DisplayName:  product,
+			Manufacturer: manufacturer,
+			VendorID:     parseHexUint16(vid),
+			ProductID:    parseHexUint16(pid),
+			IMEI:         imei,
+			Configured:   configuredID != "",
+			ConfiguredID: configuredID,
+		})
+		}
+	}
+
 	c.JSON(http.StatusOK, gin.H{"devices": out})
 }
 
@@ -1132,7 +1264,22 @@ func buildDiscoveredDevice(hw device.CompatibleModem, configured bool, configure
 		Configured:     configured,
 		ConfiguredID:   configuredID,
 		Degraded:       degraded,
+		DisplayName:    strings.TrimSpace(hw.USBProduct),
+		Manufacturer:   strings.TrimSpace(hw.USBManufacturer),
 	}
+}
+
+// parseHexUint16 将十六进制字符串转为 uint16，解析失败返回 0。
+func parseHexUint16(s string) uint16 {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return 0
+	}
+	v, err := strconv.ParseUint(s, 16, 16)
+	if err != nil {
+		return 0
+	}
+	return uint16(v)
 }
 
 func containsDiscoveredATPort(ports []string, target string) bool {
@@ -1488,6 +1635,45 @@ func (s *Server) handleDeviceMgmtAddDevice(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "必须填写 id"})
 		return
 	}
+
+	// PC/SC 设备跳过 modem 相关校验和 IMEI 探测
+	if config.NormalizeESIMTransport(newCfg.ESIMTransport) == config.ESIMTransportPCSC {
+		if strings.TrimSpace(newCfg.PCSCReader) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "PC/SC 设备需要指定读卡器名称"})
+			return
+		}
+		if existing, err := config.GetDeviceByID(newCfg.ID); err == nil && existing != nil {
+			c.JSON(http.StatusConflict, gin.H{"status": "error", "message": "设备 ID 已存在"})
+			return
+		}
+		if err := validateFreeDeviceConfigLimit(config.ListDevices()); err != nil {
+			c.JSON(http.StatusConflict, gin.H{"status": "error", "message": err.Error()})
+			return
+		}
+		if err := config.AddDeviceInFile(s.configPath, newCfg); err != nil {
+			logger.Error("写入新设备配置失败", "err", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "写入配置失败: " + err.Error()})
+			return
+		}
+		if _, err := s.pool.AddWorkerFromConfig(newCfg); err != nil {
+			logger.Warn("设备配置已添加，但启动运行时设备失败", "device_id", newCfg.ID, "err", err)
+			c.JSON(http.StatusOK, gin.H{
+				"status":           "ok",
+				"started":          false,
+				"requires_restart": true,
+				"warning":          "设备配置已添加，但运行时启动失败: " + err.Error(),
+			})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"status":           "ok",
+			"started":          true,
+			"requires_restart": false,
+			"warning":          forcedWarning,
+		})
+		return
+	}
+
 	if err := validateManagedNetworkConfig(newCfg); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": err.Error()})
 		return
@@ -2016,6 +2202,10 @@ func (s *Server) handleEsimGetOverview(c *gin.Context) {
 				respondEsimBusy(c, "refresh_overview", err)
 				return
 			}
+			if errors.Is(err, esim.ErrNoEUCCFound) {
+				c.JSON(http.StatusOK, gin.H{"chip_info": nil, "profiles": []interface{}{}})
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
@@ -2025,6 +2215,10 @@ func (s *Server) handleEsimGetOverview(c *gin.Context) {
 	if err != nil {
 		if isEsimBusyError(err) {
 			respondEsimBusy(c, "get_overview", err)
+			return
+		}
+		if errors.Is(err, esim.ErrNoEUCCFound) {
+			c.JSON(http.StatusOK, gin.H{"chip_info": nil, "profiles": []interface{}{}})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -2707,6 +2901,10 @@ func overviewRealtimeTrafficEnabled(item deviceMgmtOverviewLiteItem) bool {
 }
 
 func resolveOfflineBackendMode(cfg config.DeviceConfig) string {
+	// PC/SC 设备无 modem backend
+	if config.NormalizeESIMTransport(cfg.ESIMTransport) == config.ESIMTransportPCSC {
+		return "pcsc"
+	}
 	m := strings.ToLower(strings.TrimSpace(cfg.DeviceBackend))
 	if m == "" && strings.TrimSpace(cfg.ControlDevice) != "" {
 		return "qmi"
@@ -2715,4 +2913,15 @@ func resolveOfflineBackendMode(cfg config.DeviceConfig) string {
 		return "qmi"
 	}
 	return "at"
+}
+
+// handlePCSCListReaders 列出系统可用的 PC/SC 智能卡读卡器
+func (s *Server) handlePCSCListReaders(c *gin.Context) {
+	readers, err := esim.ListPCSCReaders()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("枚举读卡器失败: %v", err)})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"readers": readers})
 }

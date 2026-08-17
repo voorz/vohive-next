@@ -10,8 +10,10 @@ import {
   ArrowSync24Regular,
   Add24Regular,
   Check24Regular,
-  PortMicroUsb24Regular
+  PortMicroUsb24Regular,
+  UsbStick20Regular
 } from '@vicons/fluent'
+import { systemService } from '../services/system'
 
 const props = defineProps<{
   modelValue: boolean
@@ -53,8 +55,52 @@ const deviceName = ref('')
 // 运行模式
 const deviceBackend = ref<'at' | 'qmi' | 'mbim'>('at')
 
+// 是否 PC/SC 设备
+const isPCSC = computed(() => selectedDevice.value?.type === 'pcsc')
+
 // 正在添加
 const adding = ref(false)
+
+// PC/SC 驱动检测
+const pcscDriverStatus = ref<{ pcscd_installed: boolean; libccid_installed: boolean; pcscd_active: boolean; all_ready: boolean; message: string } | null>(null)
+const pcscDriverLoading = ref(false)
+const pcscInstalling = ref(false)
+
+async function checkPcscDriver() {
+  pcscDriverLoading.value = true
+  try {
+    const res = await systemService.getPcscDriverStatus()
+    if (res.ok) {
+      pcscDriverStatus.value = res.data
+    } else {
+      pcscDriverStatus.value = null
+    }
+  } catch {
+    pcscDriverStatus.value = null
+  }
+  pcscDriverLoading.value = false
+}
+
+async function installPcscDriver() {
+  pcscInstalling.value = true
+  try {
+    const res = await systemService.installPcscDriver()
+    if (res.ok && res.data.result) {
+      pcscDriverStatus.value = res.data.result
+      if (res.data.result.all_ready) {
+        ElMessage.success('PC/SC 驱动安装成功')
+        await scanDevices(false)
+      } else {
+        ElMessage.warning(res.data.result.message || '安装可能未完成')
+      }
+    } else {
+      ElMessage.error('驱动安装失败')
+    }
+  } catch {
+    ElMessage.error('驱动安装失败')
+  }
+  pcscInstalling.value = false
+}
 
 // 过滤已发现设备
 const filteredDevices = computed(() => {
@@ -103,6 +149,7 @@ watch(() => props.modelValue, async (open) => {
     searchQuery.value = ''
     selectedKey.value = ''
     await scanDevices(false)
+    // checkPcscDriver() — 已弃用，Linux 下走 USBFS 内置驱动
   }
 })
 
@@ -114,8 +161,17 @@ function selectDevice(d: DiscoveredDevice) {
   }
   if (d.configured) return
   selectedKey.value = d.discovery_key
+  // PC/SC 设备 ID 生成
+  if (d.type === 'pcsc') {
+    const readerName = d.pcsc_reader || 'reader'
+    // 取读卡器名称的末尾部分，去除空格和特殊字符
+    const tail = readerName.replace(/[^a-zA-Z0-9]/g, '').slice(-6) || 'reader'
+    deviceId.value = `pcsc-${tail}`
+    deviceName.value = d.display_name || readerName
+    return
+  }
   deviceId.value = d.imei ? `modem-${d.imei.slice(-4)}` : (d.net_interface || d.at_port.split('/').pop() || d.at_port)
-  deviceName.value = ''
+  deviceName.value = d.display_name || ''
 
   // 自动选择后端模式
   const mode = String(d.mode || '').toLowerCase()
@@ -140,14 +196,15 @@ async function handleAdd() {
   const config: DeviceConfigDTO = {
     id: deviceId.value,
     name: deviceName.value || deviceId.value,
-    interface: d.net_interface,
-    at_port: d.at_port,
-    control_device: d.control_path,
-    modem_imei: d.imei,
-    usb_path: d.usb_path,
-    device_backend: deviceBackend.value,
-    esim_transport: 'at',
-    network_enabled: true,
+    interface: d.net_interface || '',
+    at_port: d.at_port || '',
+    control_device: d.control_path || '',
+    modem_imei: d.imei || '',
+    usb_path: d.usb_path || '',
+    device_backend: isPCSC.value ? 'at' : deviceBackend.value,
+    esim_transport: isPCSC.value ? 'pcsc' : 'at',
+    pcsc_reader: isPCSC.value ? (d.pcsc_reader || '') : undefined,
+    network_enabled: !isPCSC.value,
     vowifi_enabled: false
   }
 
@@ -183,21 +240,11 @@ function modeText(mode?: string): string {
   const m = String(mode || 'unknown').toLowerCase()
   if (m === 'qmi') return 'QMI'
   if (m === 'mbim') return 'MBIM'
+  if (m === 'pcsc') return 'PC/SC'
   if (m === 'ecm') return 'ECM'
   if (m === 'rndis') return 'RNDIS'
   if (m === 'ncm') return 'NCM'
   return 'UNKNOWN'
-}
-
-function modeColor(mode?: string): string {
-  if (mode === 'qmi') return 'qmi'
-  if (mode === 'mbim') return 'mbim'
-  return 'other'
-}
-
-// 驱动名首字母
-function driverInitial(driver: string): string {
-  return driver.charAt(0).toUpperCase()
 }
 
 // VID:PID 格式化
@@ -233,6 +280,8 @@ function vidPid(d: DiscoveredDevice): string {
       </el-button>
     </div>
 
+    <!-- PC/SC 驱动检测卡片已移除：Linux 下走 USBFS 内置驱动，无需 pcscd/libccid -->
+
     <!-- 设备列表 -->
     <div class="search-results">
       <!-- 扫描中 -->
@@ -267,20 +316,31 @@ function vidPid(d: DiscoveredDevice): string {
           @click="selectDevice(d)"
         >
           <!-- 图标 -->
-          <div class="discovered-card-icon">{{ driverInitial(d.driver_name) }}</div>
+          <img v-if="d.type === 'pcsc'" src="../assets/svgs/reader.svg" alt="reader" class="discovered-card-icon-svg" />
+          <img v-else src="../assets/svgs/modem.svg" alt="modem" class="discovered-card-icon-svg" />
 
           <!-- 信息 -->
           <div class="discovered-card-info">
-            <div class="discovered-card-name">
-              {{ d.net_interface || '--' }} · {{ d.driver_name || '--' }}
-              <span class="meta-mode" :class="modeColor(d.mode)">{{ modeText(d.mode) }}</span>
-            </div>
-            <div class="discovered-card-meta">
-              <span v-if="d.imei" class="meta-item">IMEI: {{ d.imei }}</span>
-              <span class="meta-item">AT: {{ d.at_port || '--' }}</span>
-              <span class="meta-item">{{ vidPid(d) }}</span>
-              <span v-if="d.degraded" class="meta-degraded">降级</span>
-            </div>
+<!-- 名称行 -->
+<div class="discovered-card-name">
+<template v-if="d.type === 'pcsc'">{{ d.display_name || d.pcsc_reader || 'PC/SC Reader' }} · {{ modeText(d.mode) }}</template>
+<template v-else>{{ d.display_name || d.net_interface || '--' }} · {{ modeText(d.mode) }}</template>
+</div>
+<!-- 副标题 -->
+<div class="discovered-card-meta">
+<template v-if="d.type === 'pcsc'">
+<span v-if="d.imei" class="meta-item">IMEI: {{ d.imei }}</span>
+<span v-if="d.manufacturer" class="meta-item">{{ d.manufacturer }}</span>
+<span v-if="d.vendor_id" class="meta-item">USB: {{ vidPid(d) }}</span>
+</template>
+<template v-else>
+<span v-if="d.imei" class="meta-item">IMEI: {{ d.imei }}</span>
+<span v-if="d.manufacturer" class="meta-item">{{ d.manufacturer }}</span>
+<span class="meta-item">AT: {{ d.at_port || '--' }}</span>
+<span class="meta-item">{{ vidPid(d) }}</span>
+</template>
+<span v-if="d.degraded" class="meta-degraded">降级</span>
+</div>
           </div>
 
           <!-- 状态 -->
@@ -303,7 +363,16 @@ function vidPid(d: DiscoveredDevice): string {
         <div class="config-label">设备名称<span class="config-label-optional">可选</span></div>
         <el-input v-model="deviceName" size="small" placeholder="留空则使用ID" class="config-input" />
       </div>
-      <div class="config-row">
+      <!-- PC/SC 设备提示 -->
+      <div v-if="isPCSC" class="config-row">
+        <div class="config-label">类型</div>
+        <div class="config-input">
+          <el-tag size="small" type="success">PC/SC 读卡器</el-tag>
+          <span class="ml-2 text-xs text-gray-500">纯 eSIM 管理设备，无 modem 功能</span>
+        </div>
+      </div>
+      <!-- Modem 后端模式选择 -->
+      <div v-if="!isPCSC" class="config-row">
         <div class="config-label">
           <div class="config-label-title">运行模式</div>
           <div class="config-label-hint">{{ backendHint }}</div>
@@ -424,20 +493,11 @@ function vidPid(d: DiscoveredDevice): string {
   cursor: not-allowed;
 }
 
-.discovered-card-icon {
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
-  background: var(--background);
-  border: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--foreground);
+.discovered-card-icon-svg {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
   flex-shrink: 0;
-  margin-top: 2px;
 }
 
 .discovered-card-info {
@@ -476,29 +536,6 @@ function vidPid(d: DiscoveredDevice): string {
 
 .meta-item {
   font-family: var(--oomol-font-mono);
-}
-
-.meta-mode {
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-weight: 600;
-  text-transform: uppercase;
-  font-size: 10px;
-}
-
-.meta-mode.qmi {
-  background: color-mix(in oklab, var(--brand) 15%, transparent);
-  color: var(--brand);
-}
-
-.meta-mode.mbim {
-  background: color-mix(in oklab, var(--warning) 15%, transparent);
-  color: var(--warning);
-}
-
-.meta-mode.other {
-  background: var(--muted);
-  color: var(--muted-foreground);
 }
 
 .meta-degraded {
@@ -593,5 +630,83 @@ function vidPid(d: DiscoveredDevice): string {
 .footer-actions {
   display: flex;
   gap: 8px;
+}
+
+/* PC/SC 驱动检测卡片 */
+.pcsc-driver-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+}
+
+.pcsc-driver-card.ready {
+  background: color-mix(in oklab, var(--brand) 6%, var(--card));
+  border-color: color-mix(in oklab, var(--brand) 20%, var(--border));
+}
+
+.pcsc-driver-card.not-ready {
+  background: color-mix(in oklab, var(--destructive) 5%, var(--card));
+  border-color: color-mix(in oklab, var(--destructive) 20%, var(--border));
+}
+
+.pcsc-driver-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pcsc-driver-icon.is-ready {
+  color: var(--brand);
+}
+
+.pcsc-driver-icon:not(.is-ready) {
+  color: var(--destructive);
+}
+
+.pcsc-driver-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pcsc-driver-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.pcsc-driver-detail {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  font-family: var(--oomol-font-mono);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.driver-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.driver-dot.dot-on {
+  background: var(--brand);
+}
+
+.driver-dot.dot-off {
+  background: var(--destructive);
+}
+
+.pcsc-driver-ready-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--brand);
 }
 </style>

@@ -25,10 +25,10 @@ type inboundDialogInfo struct {
 }
 
 type Manager struct {
-	runtimeStore RuntimeStore
-	stateHub     *StateHub
-	recoverStore *DesiredRecoverStore
-	lifecycle    *LifecycleController
+	runtimeStore  RuntimeStore
+	stateHub      *StateHub
+	recoverStore  *DesiredRecoverStore
+	lifecycle     *LifecycleController
 	runtimeStart  runtimeStartFunc
 	adapter       Adapter
 	voiceGateway  *voicehost.Gateway
@@ -36,11 +36,34 @@ type Manager struct {
 	deliveryStore messaging.DeliveryStore
 	dispatcher    eventhost.Dispatcher
 
+	// ikeRetryCount controls IKE retransmission count (0 = default 5).
+	ikeRetryCount int
+
 	inboundDialogsMu sync.Mutex
 	inboundDialogs   map[string]*inboundDialogInfo
 
 	inboundRelaysMu sync.Mutex
 	inboundRelays   map[string]*voicehost.RTPRelaySession
+
+	// callEventPub 发布通话状态事件（可选，用于 SSE 推送和通话记录入库）
+	callEventPub CallEventPublisher
+}
+
+// CallEventPublisher 通话事件发布接口
+// 由 voice.Bus 实现
+type CallEventPublisher interface {
+	OnOutboundInvite(deviceID, callID, number string)
+	OnInboundInvite(deviceID, callID, callerNumber string)
+	OnCallConnected(deviceID, callID string)
+	OnCallEnded(deviceID, callID string)
+}
+
+// SetCallEventPublisher 注入通话事件发布器
+func (m *Manager) SetCallEventPublisher(pub CallEventPublisher) {
+	if m == nil {
+		return
+	}
+	m.callEventPub = pub
 }
 
 func NewManager() *Manager {
@@ -61,6 +84,13 @@ func NewManagerWithRuntimeStore(store RuntimeStore) *Manager {
 		Run:      m.runLifecycleCommand,
 	})
 	return m
+}
+
+func (m *Manager) SetIKERetryCount(n int) {
+	if m == nil {
+		return
+	}
+	m.ikeRetryCount = n
 }
 
 func (m *Manager) RuntimeStore() RuntimeStore {

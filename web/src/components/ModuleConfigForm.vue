@@ -4,6 +4,7 @@ import { Settings24Regular } from '@vicons/fluent'
 import { devicesService } from '../services/devices'
 import { useDevicesStore } from '../stores/devices'
 import { storeToRefs } from 'pinia'
+import { api } from '../stores/auth'
 import type { DeviceConfigDTO, DeviceOverviewItem } from '../types/api'
 import { isWwanQmiControlPath } from '../utils/deviceBackend'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -26,6 +27,28 @@ const editDirty = ref(false)
 const saving = ref(false)
 const deleting = ref(false)
 
+// PC/SC 读卡器列表
+const pcscReaders = ref<string[]>([])
+const pcscLoading = ref(false)
+
+async function loadPCSCReaders() {
+  pcscLoading.value = true
+  try {
+    const res = await api.get('/pcsc/readers')
+    pcscReaders.value = res.data?.readers || []
+  } catch {
+    // 忽略，PC/SC 可能不可用
+  } finally {
+    pcscLoading.value = false
+  }
+}
+
+watch(() => editConfig.value?.esim_transport, (val) => {
+  if (val === 'pcsc' && pcscReaders.value.length === 0) {
+    loadPCSCReaders()
+  }
+})
+
 // 只读信息来自 device（运行时探测值优先）
 const readonlyInfo = computed(() => [
   { label: '设备 ID', value: props.device?.id || props.deviceId },
@@ -38,6 +61,21 @@ const readonlyInfo = computed(() => [
 const activeControlDevice = computed(() => props.device?.control_device || editConfig.value?.control_device || '')
 const isQMIBackendOnly = computed(() => isWwanQmiControlPath(activeControlDevice.value))
 const isMBIMBackendOnly = computed(() => String(editConfig.value?.device_backend || '').toLowerCase() === 'mbim')
+
+// 设备类型判断：esim_transport 为 pcsc 即为读卡器设备
+const isPCSCDevice = computed(() => String(editConfig.value?.esim_transport || '').toLowerCase() === 'pcsc')
+
+// eSIM 传输可选项：读卡器只有 PC/SC，模组有 AT/QMI/MBIM（不含 PC/SC）
+const esimTransportOptions = computed(() => {
+  if (isPCSCDevice.value) {
+    return [{ label: 'PC/SC', value: 'pcsc' }]
+  }
+  return [
+    { label: 'AT', value: 'at' },
+    { label: 'QMI', value: 'qmi' },
+    { label: 'MBIM', value: 'mbim' }
+  ]
+})
 
 async function loadConfig() {
   const id = props.deviceId
@@ -149,7 +187,7 @@ async function handleDelete() {
           <label class="form-label">设备名称</label>
           <el-input v-model="editConfig.name" placeholder="显示名称" />
         </div>
-        <div class="field">
+        <div v-if="editConfig.esim_transport !== 'pcsc'" class="field">
           <label class="form-label">设备后端</label>
           <el-select v-model="editConfig.device_backend" class="!w-full" :disabled="isQMIBackendOnly || isMBIMBackendOnly">
             <el-option v-if="!isMBIMBackendOnly" label="AT (串口)" value="at" />
@@ -159,10 +197,18 @@ async function handleDelete() {
         </div>
         <div class="field">
           <label class="form-label">eSIM 传输</label>
-          <el-select v-model="editConfig.esim_transport" class="!w-full">
-            <el-option label="AT" value="at" />
-            <el-option label="QMI" value="qmi" />
+          <el-select v-model="editConfig.esim_transport" class="!w-full" :disabled="isPCSCDevice">
+            <el-option v-for="opt in esimTransportOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
+        </div>
+        <div v-if="editConfig.esim_transport === 'pcsc'" class="field">
+          <label class="form-label">PC/SC 读卡器</label>
+          <div class="flex gap-2">
+            <el-select v-model="editConfig.pcsc_reader" class="!w-full" placeholder="选择读卡器" :loading="pcscLoading" disabled>
+              <el-option v-for="r in pcscReaders" :key="r" :label="r" :value="r" />
+            </el-select>
+            <el-button :loading="pcscLoading" disabled>刷新</el-button>
+          </div>
         </div>
       </div>
     </div>

@@ -5,18 +5,22 @@ import { useDevicesStore } from '../stores/devices'
 import ListSkeleton from './ListSkeleton.vue'
 import EmptyState from './EmptyState.vue'
 import CountryFlag from './CountryFlag.vue'
-import CarrierIcon from './CarrierIcon.vue'
+import ModemIcon from '../assets/svgs/modem.svg'
+import ReaderIcon from '../assets/svgs/reader.svg'
 import ModuleAtTerminal from './ModuleAtTerminal.vue'
 import ModuleUssdTerminal from './ModuleUssdTerminal.vue'
 import ModuleCardPolicy from './ModuleCardPolicy.vue'
 import ModuleConfigForm from './ModuleConfigForm.vue'
 import ModuleSmsTab from './ModuleSmsTab.vue'
+import ModuleOverviewTab from './ModuleOverviewTab.vue'
+import ModuleVoiceTab from './ModuleVoiceTab.vue'
 import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
-import { ArrowSync24Regular } from '@vicons/fluent'
+import { ArrowSync24Regular, Add24Regular } from '@vicons/fluent'
 import { cardsService } from '../services/cards'
 import type { CardPolicy } from '../types/api'
 import { devicesService } from '../services/devices'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { useOverviewStream } from '../composables/useOverviewStream'
 
 const props = defineProps<{
   selectedId?: string
@@ -64,6 +68,9 @@ const countryIso = computed(() => plmnInfo.value?.country?.iso || '')
 const countryCode = computed(() => plmnInfo.value?.country?.code || '')
 const nativeSpn = computed(() => detail.value?.modem?.native_spn || '')
 
+// PC/SC 读卡器设备：无 modem 控制面
+const isPCSC = computed(() => detail.value?.esim_transport === 'pcsc')
+
 // 卡策略
 const cardPolicy = ref<CardPolicy | null>(null)
 
@@ -86,6 +93,61 @@ async function onCardPolicyChanged() {
 
 const reconnectingVoWiFi = ref(false)
 const rebooting = ref(false)
+const rotating = ref(false)
+const togglingVoWiFi = ref(false)
+
+async function toggleVoWiFi(val: string | number | boolean) {
+  if (!detail.value?.id) return
+  const id = detail.value.id
+  const enabled = !!val
+  togglingVoWiFi.value = true
+  try {
+    const result = enabled
+      ? await devicesService.enableVoWiFi(id)
+      : await devicesService.disableVoWiFi(id)
+    if (!result.ok) throw new Error(result.error.message || '操作失败')
+    void store.fetchDetail(id).catch(() => {})
+    void store.fetchList().catch(() => {})
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : '操作失败')
+  } finally {
+    togglingVoWiFi.value = false
+  }
+}
+
+async function rotateIP() {
+  if (!detail.value?.id) return
+  const id = detail.value.id
+  if (!detail.value?.network_connected) {
+    ElMessage.warning('设备网络未连接，请先启动网络')
+    return
+  }
+  const confirmed = await ElMessageBox.confirm(
+    `确定对设备 ${id} 发起 IP 轮换？这将断开当前网络并重新获取 IP。`,
+    '确认轮换 IP',
+    { confirmButtonText: '立即轮换', cancelButtonText: '取消', type: 'warning' }
+  ).then(() => true).catch(() => false)
+  if (!confirmed) return
+
+  rotating.value = true
+  try {
+    const result = await devicesService.rotateIP(id)
+    if (!result.ok) throw new Error(result.error.message || '轮换失败')
+    ElMessage.success('轮换请求已发送')
+    void store.fetchDetail(id).catch(() => {})
+    void store.fetchList().catch(() => {})
+    setTimeout(() => {
+      void store.fetchDetail(id).catch(() => {})
+      void store.fetchList().catch(() => {})
+    }, 1500)
+  } catch (e: unknown) {
+    if (e !== 'cancel' && e !== undefined) {
+      ElMessage.error(e instanceof Error ? e.message : '轮换失败')
+    }
+  } finally {
+    rotating.value = false
+  }
+}
 
 async function rebootModem() {
   if (!detail.value?.id) return
@@ -93,7 +155,7 @@ async function rebootModem() {
   const confirmed = await ElMessageBox.confirm(
     `确定对设备 ${id} 发送重启模组指令？设备将在此期间脱网和失联数秒。`,
     '确认重启',
-    { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+    { confirmButtonText: '立即重启', cancelButtonText: '取消', type: 'warning' }
   ).then(() => true).catch(() => false)
   if (!confirmed) return
 
@@ -103,7 +165,11 @@ async function rebootModem() {
     if (!result.ok) throw new Error(result.error.message || '指令下发失败')
     ElMessage.success('重启指令已送达，设备正在重新启动')
     void store.fetchDetail(id).catch(() => {})
-    setTimeout(() => { void store.fetchDetail(id).catch(() => {}) }, 5000)
+    void store.fetchList().catch(() => {})
+    setTimeout(() => {
+      void store.fetchDetail(id).catch(() => {})
+      void store.fetchList().catch(() => {})
+    }, 5000)
   } catch (e: unknown) {
     if (e !== 'cancel' && e !== undefined) {
       ElMessage.error(e instanceof Error ? e.message : '指令下发失败')
@@ -119,7 +185,7 @@ async function reconnectVoWiFi() {
   const confirmed = await ElMessageBox.confirm(
     `确定对设备 ${id} 发起 VoWiFi 环境的重新连接拨号？这将在后台重新注册 IMS 链路。`,
     '重连 VoWiFi',
-    { confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning' }
+    { confirmButtonText: '确定重连', cancelButtonText: '取消', type: 'info' }
   ).then(() => true).catch(() => false)
   if (!confirmed) return
 
@@ -129,7 +195,11 @@ async function reconnectVoWiFi() {
     if (!result.ok) throw new Error(result.error.message || '重连请求失败')
     ElMessage.success('已触发重连指令，VoWiFi 服务正在重启...')
     void store.fetchDetail(id).catch(() => {})
-    setTimeout(() => { void store.fetchDetail(id).catch(() => {}) }, 4000)
+    void store.fetchList().catch(() => {})
+    setTimeout(() => {
+      void store.fetchDetail(id).catch(() => {})
+      void store.fetchList().catch(() => {})
+    }, 4000)
   } catch (e: unknown) {
     if (e !== 'cancel' && e !== undefined) {
       ElMessage.error(e instanceof Error ? e.message : '重连请求失败')
@@ -142,15 +212,26 @@ async function reconnectVoWiFi() {
 // 当前 Tab
 const activeTab = ref('overview')
 
-// Tab 列表
-const tabs = [
+// Tab 列表（PC/SC 设备隐藏 AT/USSD）
+const allTabs = [
   { name: 'overview', label: '概览' },
+  { name: 'voice', label: '通话' },
   { name: 'sms', label: '短信' },
-  { name: 'at', label: 'AT终端' },
+  { name: 'at', label: 'AT' },
   { name: 'ussd', label: 'USSD' },
-  { name: 'card', label: '卡策略' },
+  { name: 'card', label: '控制' },
   { name: 'config', label: '配置' }
 ]
+const tabs = computed(() =>
+  isPCSC.value ? allTabs.filter(t => t.name !== 'at' && t.name !== 'ussd') : allTabs
+)
+
+// 切换设备时若当前 Tab 已被隐藏，回退到概览
+watch([tabs, () => detail.value?.id], () => {
+  if (!tabs.value.some(t => t.name === activeTab.value)) {
+    activeTab.value = 'overview'
+  }
+})
 
 function initials(name: string): string {
   return name.charAt(0).toUpperCase()
@@ -159,17 +240,21 @@ function initials(name: string): string {
 function onDeviceDeleted() {
   emit('device-deleted')
 }
+
+// ---- SSE Overview Stream + 实时流量 ----
+const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = useOverviewStream({
+  deviceId: () => props.selectedId,
+  detail,
+})
 </script>
 
 <template>
   <div class="module-detail-panel">
     <!-- 详情头部 (60px) -->
     <div class="detail-header">
-      <!-- 窄屏下拉选择器 + 添加按钮 -->
+      <!-- 窄屏下拉选择器 + 添加按钮 + 重启模组 -->
       <div class="detail-header-narrow">
-        <div class="detail-header-icon-box">
-          {{ initials(operatorName) }}
-        </div>
+        <img :src="detail?.esim_transport === 'pcsc' ? ReaderIcon : ModemIcon" :alt="detail?.esim_transport === 'pcsc' ? 'reader' : 'modem'" class="device-icon-svg narrow-logo" />
         <el-select
           :model-value="props.selectedId"
           @change="(v: string) => emit('select', v)"
@@ -184,13 +269,17 @@ function onDeviceDeleted() {
           />
         </el-select>
         <el-button size="small" type="primary" @click="emit('open-search')" class="!border-0 add-btn-narrow">
-          <el-icon class="mr-1"><ArrowSync24Regular /></el-icon>
+          <el-icon class="mr-1"><Add24Regular /></el-icon>
           <span>添加</span>
         </el-button>
+        <el-button size="small" type="primary" :disabled="rebooting || isPCSC" @click="rebootModem" class="!border-0 reboot-btn-narrow">
+          <el-icon class="mr-1"><ArrowSync24Regular /></el-icon>
+          <span>重启模组</span>
+        </el-button>
       </div>
-      <!-- 宽屏：图标盒子 + 设备名 + 详细信息 -->
+      <!-- 宽屏：图标盒子 + 设备名 + 详细信息 + 重启模组 -->
       <div class="detail-header-wide">
-        <CarrierIcon :mcc="detail?.modem?.native_mcc || ''" :mnc="detail?.modem?.native_mnc || ''" :name="nativeSpn" :size="38" />
+        <img :src="detail?.esim_transport === 'pcsc' ? ReaderIcon : ModemIcon" :alt="detail?.esim_transport === 'pcsc' ? 'reader' : 'modem'" class="device-icon-svg" />
         <div class="detail-header-info">
           <div class="detail-header-name">{{ operatorName }}</div>
           <div class="detail-header-meta">
@@ -200,6 +289,10 @@ function onDeviceDeleted() {
             <span v-if="countryName" class="detail-header-country">{{ countryName }}</span>
           </div>
         </div>
+        <el-button size="small" type="primary" :disabled="rebooting || isPCSC" @click="rebootModem" class="!border-0 reboot-btn">
+          <el-icon class="mr-1"><ArrowSync24Regular /></el-icon>
+          <span>重启模组</span>
+        </el-button>
       </div>
     </div>
 
@@ -207,43 +300,40 @@ function onDeviceDeleted() {
     <div v-if="detail" class="detail-content">
       <div class="edit-area-wrap">
         <div class="detail-inner">
-      <!-- WiFi Calling 行 -->
-      <div class="vowifi-row">
-        <div class="vowifi-row-left">
-          <span class="vowifi-label">WiFi Calling</span>
-          <span class="vowifi-status-dot" :class="{ on: detail.vowifi_enabled }" />
-          <span class="vowifi-status-text">{{ detail.vowifi_enabled ? '已启用' : '未启用' }}</span>
-        </div>
-        <div class="vr-btn-group">
-          <button class="vowifi-reset-btn" :disabled="!detail.running || rebooting" @click="rebootModem">
-            <span class="vr-text"><span>重启模组</span></span>
-          </button>
-          <button class="vowifi-reset-btn" :disabled="!detail.vowifi_enabled || reconnectingVoWiFi" @click="reconnectVoWiFi">
-            <span class="vr-text"><span>重启 VoWiFi</span></span>
-          </button>
-        </div>
-      </div>
-
       <!-- Tab 切换 -->
       <div class="tab-bar">
-        <button
-          v-for="tab in tabs"
-          :key="tab.name"
-          class="tab-item"
-          :class="{ active: activeTab === tab.name }"
-          @click="activeTab = tab.name"
-        >
-          <span>{{ tab.label }}</span>
-        </button>
+        <el-radio-group v-model="activeTab" size="default">
+          <el-radio-button
+            v-for="tab in tabs"
+            :key="tab.name"
+            :value="tab.name"
+          >
+            {{ tab.label }}
+          </el-radio-button>
+        </el-radio-group>
       </div>
 
       <!-- Tab 内容区 -->
       <div class="tab-content">
         <!-- 概览 -->
         <div v-if="activeTab === 'overview'" class="tab-pane">
-          <div class="content-placeholder">
-            运行状态（单卡片纵向排列）
-          </div>
+          <ModuleOverviewTab
+            :device="detail"
+            :traffic-speed-rx="trafficSpeedRx"
+            :traffic-speed-tx="trafficSpeedTx"
+            :traffic-minute-rx="rollingMinuteRx"
+            :traffic-minute-tx="rollingMinuteTx"
+            :is-p-c-s-c="isPCSC"
+            :reconnecting-vo-wi-fi="reconnectingVoWiFi"
+            :rotating="rotating"
+            @reconnect-vowifi="reconnectVoWiFi"
+            @rotate-ip="rotateIP"
+          />
+        </div>
+
+        <!-- 通话 -->
+        <div v-else-if="activeTab === 'voice'" class="tab-pane">
+          <ModuleVoiceTab :device-id="detail.id" />
         </div>
 
         <!-- 短信 -->
@@ -276,6 +366,7 @@ function onDeviceDeleted() {
             :iccid="detail.modem?.iccid"
             :policy="cardPolicy"
             :device-online="detail.running"
+            :is-p-c-s-c="isPCSC"
             @policy-changed="onCardPolicyChanged"
           />
         </div>
@@ -283,10 +374,10 @@ function onDeviceDeleted() {
         <!-- 配置 -->
         <div v-else-if="activeTab === 'config'" class="tab-pane">
           <ModuleConfigForm :device-id="detail.id" :device="detail" @device-deleted="onDeviceDeleted" />
-        </div>
+                </div>
       </div>
-        </div>
-      </div>
+    </div>
+    </div>
     </div>
 
     <!-- 加载/空状态 -->
@@ -300,8 +391,6 @@ function onDeviceDeleted() {
 </template>
 
 <style scoped>
-@import '../assets/button/Reset-vowifi.css';
-
 .module-detail-panel {
   display: flex;
   flex-direction: column;
@@ -349,20 +438,33 @@ function onDeviceDeleted() {
   min-width: 0;
 }
 
+.reboot-btn {
+  flex-shrink: 0;
+  margin-left: auto;
+  background: #DA9F00 !important;
+}
+
+.reboot-btn:hover {
+  background: #DA9F00 !important;
+  opacity: 0.85;
+}
+
+.reboot-btn-narrow {
+  flex-shrink: 0;
+  background: #DA9F00 !important;
+}
+
+.reboot-btn-narrow:hover {
+  background: #DA9F00 !important;
+  opacity: 0.85;
+}
+
 /* 图标盒子 */
-.detail-header-icon-box {
+.device-icon-svg {
   width: 38px;
   height: 38px;
-  border-radius: 6px;
-  background: var(--background);
-  border: 1px solid var(--border);
-  color: var(--foreground);
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  object-fit: contain;
   flex-shrink: 0;
-  font-weight: 700;
-  font-size: 16px;
 }
 
 .detail-header-info {
@@ -436,6 +538,8 @@ function onDeviceDeleted() {
   flex: 1;
   min-height: 0;
   padding: 10px;
+  display: flex;
+  flex-direction: column;
 }
 
 /* 第二层容器 */
@@ -450,81 +554,12 @@ function onDeviceDeleted() {
   overflow: hidden;
 }
 
-/* WiFi Calling 行 */
-.vowifi-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.vowifi-row-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.vowifi-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--foreground);
-}
-
-.vowifi-status-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--muted-foreground);
-  opacity: 0.3;
-}
-
-.vowifi-status-dot.on {
-  background: var(--brand);
-  opacity: 1;
-}
-
-.vowifi-status-text {
-  font-size: 12px;
-  color: var(--muted-foreground);
-}
-
 /* Tab 切换 */
 .tab-bar {
   display: flex;
-  gap: 2px;
   padding: 6px 14px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-}
-
-.tab-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  border: 1px solid transparent;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted-foreground);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.12s;
-}
-
-.tab-item:hover {
-  background: var(--accent);
-  color: var(--foreground);
-}
-
-.tab-item.active {
-  background: var(--background);
-  border-color: var(--border);
-  color: var(--foreground);
-  box-shadow: var(--console-shadow-sm);
 }
 
 /* Tab 内容区 */

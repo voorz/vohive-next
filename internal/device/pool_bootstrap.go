@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -28,6 +29,11 @@ func deriveESIMTransport(cfg config.DeviceConfig) string {
 	backend := strings.ToLower(strings.TrimSpace(cfg.DeviceBackend))
 	legacy := strings.ToLower(strings.TrimSpace(cfg.ESIMTransport))
 
+	// PC/SC 是显式配置，不依赖 device_backend
+	if legacy == config.ESIMTransportPCSC {
+		return config.ESIMTransportPCSC
+	}
+
 	switch backend {
 	case "qmi":
 		return config.ESIMTransportQMI
@@ -38,7 +44,7 @@ func deriveESIMTransport(cfg config.DeviceConfig) string {
 	}
 
 	switch legacy {
-	case config.ESIMTransportQMI, config.ESIMTransportMBIM:
+	case config.ESIMTransportQMI, config.ESIMTransportMBIM, config.ESIMTransportPCSC:
 		return legacy
 	default:
 		return config.ESIMTransportAT
@@ -223,6 +229,11 @@ func (p *Pool) AddWorkerFromConfig(devCfg config.DeviceConfig) (*Worker, error) 
 		p.endRebuildAttemptIfCurrent(devCfg.ID, attempt)
 	}()
 
+	// PC/SC 读卡器设备：不需要 modem/QMI/MBIM/backend，仅创建 eSIM 管理器
+	if config.NormalizeESIMTransport(devCfg.ESIMTransport) == config.ESIMTransportPCSC {
+		return p.addPCSCWorker(devCfg)
+	}
+
 	needsQMICore := requiresQMICore(devCfg)
 	if p.lifecycle != nil && needsQMICore {
 		p.lifecycle.BeginRecovery(devCfg.ID, LifecyclePhaseWorkerStarting, "add_worker", qmiLifecycleRecoveryTTL)
@@ -268,9 +279,15 @@ func (p *Pool) AddWorkerFromConfig(devCfg config.DeviceConfig) (*Worker, error) 
 				devCfg.ATPort = hw.ATPort
 				devCfg.ManagePort = hw.ATPort
 			}
-			if devCfg.AudioDevice == "" && hw.AudioDevice != "" {
-				devCfg.AudioDevice = hw.AudioDevice
-			}
+if devCfg.AudioDevice == "" && hw.AudioDevice != "" {
+devCfg.AudioDevice = hw.AudioDevice
+}
+if devCfg.USBManufacturer == "" && hw.USBManufacturer != "" {
+devCfg.USBManufacturer = hw.USBManufacturer
+}
+if devCfg.USBProduct == "" && hw.USBProduct != "" {
+devCfg.USBProduct = hw.USBProduct
+}
 			if devCfg.ControlDevice == "" {
 				devCfg.ControlDevice = strings.TrimSpace(hw.ControlPath)
 				devCfg.QMIDevice = strings.TrimSpace(hw.ControlPath)
@@ -291,6 +308,14 @@ func (p *Pool) AddWorkerFromConfig(devCfg config.DeviceConfig) (*Worker, error) 
 			ATPort:       devCfg.ATPort,
 			USBPath:      devCfg.USBPath,
 		}
+		// 控制口存在但跳过发现流程时，仍需从 sysfs 填充 USB 元数据
+		// （USBManufacturer/USBProduct 用于 DJI 模组识别等运行时判定）
+		if controlDeviceReady && strings.TrimSpace(devCfg.USBPath) != "" {
+			if prod, mfr := readUSBProductManufacturer(devCfg.USBPath); mfr != "" || prod != "" {
+				configuredStatic.USBManufacturer = mfr
+				configuredStatic.USBProduct = prod
+			}
+		}
 		selected := configuredStatic
 		selectedByDiscovery := false
 		if !controlDeviceReady && strings.TrimSpace(devCfg.ModemIMEI) != "" {
@@ -301,13 +326,8 @@ func (p *Pool) AddWorkerFromConfig(devCfg config.DeviceConfig) (*Worker, error) 
 				hardware := p.collectRescanHardware(qmiList, liveWorkerIndex)
 				resolved := ResolveDeviceIdentities(hardware, []config.DeviceConfig{devCfg})
 				if len(resolved.Matched) > 0 {
-					hw := resolved.Matched[0].Hardware
-					selected = QMIDevice{
-						ControlPath:  strings.TrimSpace(hw.ControlPath),
-						NetInterface: hw.NetInterface,
-						ATPort:       hw.ATPort,
-						USBPath:      hw.USBPath,
-					}
+hw := resolved.Matched[0].Hardware
+selected = hw.toQMIDeviceWithUSB()
 					selectedByDiscovery = true
 				}
 			}
@@ -728,6 +748,121 @@ func (p *Pool) AddWorkerFromConfig(devCfg config.DeviceConfig) (*Worker, error) 
 	}
 
 	p.persistDeviceAttachmentsIfChanged(devCfg)
+
+	return w, nil
+}
+
+// addPCSCWorker 创建一个纯 PC/SC 读卡器 worker（无 modem/QMI/MBIM/backend）。
+func (p *Pool) addPCSCWorker(devCfg config.DeviceConfig) (*Worker, error) {
+	// PC/SC 设备无真实 IMEI，生成虚拟 IMEI 用于数据库同步
+	if strings.TrimSpace(devCfg.ModemIMEI) == "" {
+		devCfg.ModemIMEI = GenerateIMEIForDevice(devCfg.ID)
+		if devCfg.ModemIMEI != "" {
+			logger.Info(fmt.Sprintf("[%s] 为 PC/SC 设备生成虚拟 IMEI: %s", devCfg.ID, devCfg.ModemIMEI))
+		}
+	}
+
+	w := &Worker{
+		ID:          devCfg.ID,
+		Config:      devCfg,
+		Pool:        p,
+		stop:        make(chan struct{}),
+		reassembler: smscodec.NewReassembler(),
+		pcscAccessMu: &sync.Mutex{},
+	}
+	p.assignWorkerGeneration(w)
+
+	// 设置虚拟 IMEI 到设备身份状态
+	if strings.TrimSpace(devCfg.ModemIMEI) != "" {
+		w.state.Identity.IMEI = devCfg.ModemIMEI
+	}
+
+	// 对齐普通 Modem Worker：创建切卡回调，使 PC/SC 设备切卡时也能自动
+	// 清理旧 VoWiFi 实例（SwitchBegin）并在切卡后恢复新 VoWiFi 实例（SwitchEnd）。
+	// newESIMSwitchCallbacks 返回的回调签名不带 SwitchOperation 参数，
+	// 需要包装为 ManagerOptions 要求的 func(SwitchOperation, ...) 签名。
+	onBefore, onAfter, onFailed, onDegraded, onPhase := p.newESIMSwitchCallbacks(devCfg.ID)
+	mgr, err := esim.NewManager(esim.ManagerOptions{
+		DeviceID:     devCfg.ID,
+		Transport:    config.ESIMTransportPCSC,
+		PCSCReader:   devCfg.PCSCReader,
+		PCSCAccessMu: w.pcscAccessMu,
+		OnBeforeSwitch: func(op esim.SwitchOperation, targetICCID string) uint64 {
+			return onBefore(op, targetICCID)
+		},
+		OnAfterSwitch: func(op esim.SwitchOperation, token uint64) {
+			onAfter(token)
+		},
+		OnSwitchFailed: func(op esim.SwitchOperation, token uint64, err error) {
+			onFailed(token, err)
+		},
+		OnSwitchDegraded: func(op esim.SwitchOperation, token uint64, phase esim.SwitchPhase, err error) {
+			onDegraded(token, phase, err)
+		},
+		OnSwitchPhase: func(op esim.SwitchOperation, token uint64, phase esim.SwitchPhase) {
+			onPhase(token, phase)
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("初始化 PC/SC eSIM 管理器失败: %w", err)
+	}
+	w.EsimMgr = mgr
+
+	if err := p.registerWorkerStarting(w); err != nil {
+		return nil, err
+	}
+	w.uimIndicationsReady.Store(true)
+
+	p.persistDeviceAttachmentsIfChanged(devCfg)
+
+	logger.Info(fmt.Sprintf("[%s] PC/SC 读卡器设备已启动 (reader: %s)", devCfg.ID, devCfg.PCSCReader))
+
+	// PC/SC 预热：与普通 Modem Worker 对齐，启动后在后台读取 SIM 身份（ICCID/IMSI），
+	// 写入 worker 状态并应用卡策略。这样 VoWiFi 启动前 ICCID 已就绪、卡策略表已初始化、
+	// 前端概览从一开始就显示正确状态。
+	go func(worker *Worker) {
+		retryDelays := []time.Duration{2 * time.Second, 5 * time.Second, 10 * time.Second, 15 * time.Second}
+		for i, delay := range retryDelays {
+			select {
+			case <-p.ctx.Done():
+				return
+			case <-worker.stop:
+				return
+			case <-time.After(delay):
+			}
+
+			adapter, err := newPCSCModemAdapter(worker.ID, worker.Config.PCSCReader, worker.pcscAccessMu)
+			if err != nil {
+				logger.Debug(fmt.Sprintf("[%s] PC/SC 预热：创建适配器失败", worker.ID), "attempt", i+1, "err", err)
+				continue
+			}
+
+			imsi, iccid, mcc, mnc, err := adapter.ReadSIMIdentity()
+			adapter.Stop()
+			if err != nil || strings.TrimSpace(imsi) == "" {
+				logger.Debug(fmt.Sprintf("[%s] PC/SC 预热：读取 SIM 身份尚未就绪", worker.ID), "attempt", i+1, "err", err)
+				continue
+			}
+
+			iccid = strings.TrimSpace(iccid)
+			worker.cacheMu.Lock()
+			worker.state.Identity.IMSI = strings.TrimSpace(imsi)
+			worker.state.Identity.ICCID = iccid
+			worker.state.Identity.Ready = true
+			worker.cacheMu.Unlock()
+			cacheVoWiFiProfileMCCMNC(worker, strings.TrimSpace(mcc), strings.TrimSpace(mnc))
+
+			p.PersistIdentityState(worker)
+
+			if iccid != "" {
+				p.resolveAndApplyPolicy(worker, "pcsc_prewarm")
+			}
+			p.broadcastVoWiFiStateChange(worker.ID)
+			logger.Info(fmt.Sprintf("[%s] PC/SC 预热完成", worker.ID), "iccid", iccid, "imsi", imsi)
+			return
+		}
+		logger.Warn(fmt.Sprintf("[%s] PC/SC 预热：最终未读取到 SIM 身份", worker.ID))
+	}(w)
 
 	return w, nil
 }

@@ -20,6 +20,16 @@ func newVoWiFiModemInterface(w *Worker, deviceID string) (runtimehost.Modem, err
 	if strings.TrimSpace(deviceID) == "" {
 		deviceID = strings.TrimSpace(w.ID)
 	}
+	// PC/SC 设备：使用 PC/SC 读卡器适配器做 AKA 认证
+	if isPCSCDevice(w) {
+		adapter, err := newPCSCModemAdapter(deviceID, w.Config.PCSCReader, w.pcscAccessMu)
+		if err != nil {
+			return nil, fmt.Errorf("创建 PC/SC modem 适配器失败: %w", err)
+		}
+		// 保存引用供 teardown 时释放
+		w.pcscActiveAdapter.Store(adapter)
+		return adapter, nil
+	}
 	if w.Backend != nil {
 		mode := strings.ToLower(strings.TrimSpace(w.Backend.Mode()))
 		if mode != "" && mode != backend.BackendAT {

@@ -146,7 +146,7 @@ func (p *Pool) prepareVoWiFiStartContext(deviceID, traceID, runtimeEPDGOverride 
 	w.cacheMu.RLock()
 	identityReady := w.state.Identity.Ready
 	w.cacheMu.RUnlock()
-	if !identityReady {
+	if !identityReady && !isPCSCDevice(w) {
 		if err := w.RefreshIdentityLive(nil, "enable_vowifi"); err != nil {
 			logger.Error("VoWiFi 启动前刷新当前设备身份失败",
 				"trace_id", traceID,
@@ -240,39 +240,45 @@ func (p *Pool) prepareVoWiFiStartContext(deviceID, traceID, runtimeEPDGOverride 
 		w.clearCachedIP()
 	}
 
-	// 切卡恢复场景下设备可能已处于飞行模式，此时无需再次切换。
-	// 冗余的 SetOperatingMode(LowPower) 会触发模组内部 UIM Session Close，
-	// 导致 SIM 卡基础通道上的 USIM 应用选择状态丢失，使后续 AKA 认证失败（SW=6B00）。
-	alreadyInFlight := false
-	if opMode, opErr := w.Backend.GetOperatingMode(p.ctx); opErr == nil {
-		alreadyInFlight = isFlightOperatingMode(opMode)
-	}
-	if strings.EqualFold(w.Backend.Mode(), backend.BackendMBIM) {
-		logger.Info("MBIM 后端不支持真正的低功耗模式",
-			"trace_id", traceID, "device", deviceID)
-	} else if alreadyInFlight {
-		logger.Info("设备已处于飞行模式，跳过冗余的飞行模式切换",
-			"trace_id", traceID, "device", deviceID, "backend", w.Backend.Mode())
-	} else {
-		logger.Info("进入飞行模式以禁用原生 IMS 注册",
-			"trace_id", traceID, "device", deviceID, "backend", w.Backend.Mode())
-		if err := w.Backend.SetOperatingMode(p.ctx, backend.ModeRFOff); err != nil {
-			logger.Warn("进入飞行模式失败，继续尝试建立隧道",
-				"trace_id", traceID, "device", deviceID, "err", err)
+	// PC/SC 设备无 modem/backend，跳过飞行模式切换（无原生 IMS 注册需要禁用）
+	if !isPCSCDevice(w) {
+		// 切卡恢复场景下设备可能已处于飞行模式，此时无需再次切换。
+		// 冗余的 SetOperatingMode(LowPower) 会触发模组内部 UIM Session Close，
+		// 导致 SIM 卡基础通道上的 USIM 应用选择状态丢失，使后续 AKA 认证失败（SW=6B00）。
+		alreadyInFlight := false
+		if opMode, opErr := w.Backend.GetOperatingMode(p.ctx); opErr == nil {
+			alreadyInFlight = isFlightOperatingMode(opMode)
+		}
+		if strings.EqualFold(w.Backend.Mode(), backend.BackendMBIM) {
+			logger.Info("MBIM 后端不支持真正的低功耗模式",
+				"trace_id", traceID, "device", deviceID)
+		} else if alreadyInFlight {
+			logger.Info("设备已处于飞行模式，跳过冗余的飞行模式切换",
+				"trace_id", traceID, "device", deviceID, "backend", w.Backend.Mode())
 		} else {
-			// Wait for network stack to settle after RF-off.
-			// Without this delay, mihomo may not have rebuilt its
-			// routing table yet, causing the first IKE_SA_INIT
-			// packet to be silently dropped (manifests as a ~95s
-			// hang before reconnection succeeds).
-			// Delay is configurable per carrier profile (default 5s).
-			rfOffDelay := prepared.EffectiveCarrier.RFOffDelay
-			if rfOffDelay <= 0 {
-				rfOffDelay = 5
+			logger.Info("进入飞行模式以禁用原生 IMS 注册",
+				"trace_id", traceID, "device", deviceID, "backend", w.Backend.Mode())
+			if err := w.Backend.SetOperatingMode(p.ctx, backend.ModeRFOff); err != nil {
+				logger.Warn("进入飞行模式失败，继续尝试建立隧道",
+					"trace_id", traceID, "device", deviceID, "err", err)
+			} else {
+				// Wait for network stack to settle after RF-off.
+				// Without this delay, mihomo may not have rebuilt its
+				// routing table yet, causing the first IKE_SA_INIT
+				// packet to be silently dropped (manifests as a ~95s
+				// hang before reconnection succeeds).
+				// Delay is configurable per carrier profile (default 5s).
+				rfOffDelay := prepared.EffectiveCarrier.RFOffDelay
+				if p.cfg != nil && p.cfg.VoWiFi.Behavior.OverrideRFOff && p.cfg.VoWiFi.Behavior.RFOffDelay > 0 {
+					rfOffDelay = p.cfg.VoWiFi.Behavior.RFOffDelay
+				}
+				if rfOffDelay <= 0 {
+					rfOffDelay = 5
+				}
+				logger.Info("飞行模式后等待网络栈稳定",
+					"trace_id", traceID, "device", deviceID, "rf_off_delay_s", rfOffDelay)
+				time.Sleep(time.Duration(rfOffDelay) * time.Second)
 			}
-			logger.Info("飞行模式后等待网络栈稳定",
-				"trace_id", traceID, "device", deviceID, "rf_off_delay_s", rfOffDelay)
-			time.Sleep(time.Duration(rfOffDelay) * time.Second)
 		}
 	}
 

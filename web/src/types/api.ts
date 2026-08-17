@@ -38,6 +38,7 @@ export type RealtimeTrafficSnapshot = {
 
 export type VoWiFiRuntimeState = {
   device_id?: string
+  phase?: string
   dataplane_mode?: string
   sim_ready?: boolean
   access_ready?: boolean
@@ -52,6 +53,20 @@ export type VoWiFiRuntimeState = {
   last_error?: string
   last_reason?: string
   updated_at?: string
+  // 实时进度
+  generation?: number
+  stage?: string
+  stage_label?: string
+  stage_started_at?: string
+  attempt_index?: number
+  max_attempts?: number
+  // IMS REGISTER 细节
+  register_variant_index?: number
+  register_variant_total?: number
+  register_round?: number
+  max_challenge_rounds?: number
+  last_sip_status?: number
+  last_sip_reason?: string
 }
 
 export type DeviceLifecyclePhase =
@@ -66,9 +81,11 @@ export type DeviceLifecyclePhase =
   | 'evicting'
 
 export type DeviceOverviewItem = {
-  id: string
-  name: string
-  running: boolean
+id: string
+name: string
+manufacturer?: string
+usb_product?: string
+running: boolean
   healthy: boolean
   control_online?: boolean
   physical_present?: boolean
@@ -86,9 +103,11 @@ export type DeviceOverviewItem = {
   interface?: string
   control_device?: string
   esim_transport?: string
+  pcsc_reader?: string
   at_port?: string
   usb_path?: string
   local_phone?: string
+  audio_device?: string
   e911_setup_available?: boolean
   active_esim_profile_name?: string
   network_enabled: boolean
@@ -104,9 +123,11 @@ export type DeviceOverviewItem = {
 }
 
 export type DeviceMgmtListItem = {
-  id: string
-  name: string
-  running: boolean
+id: string
+name: string
+manufacturer?: string
+usb_product?: string
+running: boolean
   healthy: boolean
   control_online?: boolean
   physical_present?: boolean
@@ -121,6 +142,7 @@ export type DeviceMgmtListItem = {
   public_ipv6?: string
   interface?: string
   esim_transport?: string
+  pcsc_reader?: string
   sms_enabled: boolean
   network_enabled: boolean
   vowifi_enabled?: boolean
@@ -129,14 +151,17 @@ export type DeviceMgmtListItem = {
 }
 
 export type DeviceConfigDTO = {
-  id: string
-  name: string
-  interface: string
+id: string
+name: string
+manufacturer?: string
+usb_product?: string
+interface: string
   modem_imei?: string
   usb_path?: string
   apn?: string
   ip_version?: 'v4' | 'v6' | 'v4v6'
-  esim_transport?: 'at' | 'qmi'
+  esim_transport?: 'at' | 'qmi' | 'mbim' | 'pcsc'
+  pcsc_reader?: string
   network_enabled?: boolean
   at_port: string
   control_device: string
@@ -274,22 +299,26 @@ export type EsimNotificationItem = {
 }
 
 export type DiscoveredDevice = {
-  discovery_key: string
-  control_path: string
-  net_interface: string
-  usb_path: string
-  imei?: string
-  vendor_id: number
-  product_id: number
-  driver_name: string
-  at_ports: string[]
-  at_port: string
-  mode?: 'qmi' | 'mbim' | 'ecm' | 'rndis' | 'ncm' | 'unknown'
-  network_capable?: boolean
-  configured: boolean
-  configured_id?: string
-  degraded?: boolean
-  usbnet_mode?: number
+discovery_key: string
+control_path: string
+net_interface: string
+usb_path: string
+imei?: string
+vendor_id: number
+product_id: number
+driver_name: string
+at_ports: string[]
+at_port: string
+mode?: 'qmi' | 'mbim' | 'ecm' | 'rndis' | 'ncm' | 'unknown' | 'pcsc'
+network_capable?: boolean
+configured: boolean
+configured_id?: string
+degraded?: boolean
+usbnet_mode?: number
+type?: 'modem' | 'pcsc'
+pcsc_reader?: string
+display_name?: string
+manufacturer?: string
 }
 
 export type DashboardDevice = {

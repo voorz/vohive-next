@@ -101,6 +101,10 @@ export const useDevicesStore = defineStore('devices', () => {
     return result
   }
 
+  function setList(devices: DeviceListVM[]) {
+    list.value = devices
+  }
+
   return {
     list,
     deviceLimit,
@@ -111,6 +115,7 @@ export const useDevicesStore = defineStore('devices', () => {
     lastOkAt,
     error,
     operatorScans,
+    setList,
     fetchList,
     fetchDetail,
     fetchConfig,

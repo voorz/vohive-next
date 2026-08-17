@@ -3,6 +3,7 @@ package device
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	qmimanager "github.com/voorz/quectel-qmi-go/pkg/manager"
@@ -140,6 +141,38 @@ func (p *Pool) WorkerExists(deviceID string) bool {
 
 func (p *Pool) IsSwitching(deviceID string) bool {
 	return p.IsESIMSwitching(deviceID)
+}
+
+// IsVoWiFiDesired checks whether VoWiFi should be running for this device
+// based on the current card policy. Used by OnTunnelDown to avoid triggering
+// recovery after the user has disabled VoWiFi.
+func (p *Pool) IsVoWiFiDesired(deviceID string) bool {
+	if p == nil {
+		return false
+	}
+	w := p.GetWorker(deviceID)
+	if w == nil {
+		return false
+	}
+	iccid := strings.TrimSpace(w.CurrentICCID())
+	if iccid == "" {
+		status := w.ProjectDeviceStatus()
+		iccid = strings.TrimSpace(status.ICCID)
+	}
+	if iccid == "" {
+		return false
+	}
+	p.mu.RLock()
+	resolver := p.policyResolver
+	p.mu.RUnlock()
+	if resolver == nil {
+		return false
+	}
+	pol, err := resolver.Resolve(iccid)
+	if err != nil {
+		return false
+	}
+	return pol.VoWiFiEnabled
 }
 
 // enableVoWiFiWhenReady waits for readiness, then submits enable through the lifecycle controller.

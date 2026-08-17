@@ -32,10 +32,13 @@ func NewDesiredRecoverStore() *DesiredRecoverStore {
 
 func DesiredRecoverDelay(attempt int) time.Duration {
 	if attempt <= 0 {
-		return 30 * time.Second
+		return 3 * time.Second
 	}
 	if attempt == 1 {
-		return time.Minute
+		return 10 * time.Second
+	}
+	if attempt == 2 {
+		return 30 * time.Second
 	}
 	return 2 * time.Minute
 }
@@ -50,6 +53,16 @@ func (m *Manager) MarkDesiredRecoverFailed(deviceID string, now time.Time, err e
 
 func (m *Manager) ClearDesiredRecoverState(deviceID string) {
 	m.desiredRecoverStore().Clear(deviceID)
+}
+
+// SetDesiredRecoverCooldown sets a cooldown period after a recover that
+// returned nil (enable succeeded) but the tunnel has not yet been confirmed.
+// This prevents tight recover loops when the tunnel immediately fails.
+func (m *Manager) SetDesiredRecoverCooldown(deviceID string, cooldown time.Duration) {
+	if m == nil {
+		return
+	}
+	m.desiredRecoverStore().SetCooldown(deviceID, time.Now(), cooldown)
 }
 
 func (m *Manager) HasDesiredRecoverState(deviceID string) bool {
@@ -100,6 +113,25 @@ func (s *DesiredRecoverStore) MarkFailed(deviceID string, now time.Time, err err
 		st.lastErr = err.Error()
 	}
 	return snapshotFromRecoverState(st, delay)
+}
+
+// SetCooldown clears inFlight and sets a cooldown period during which
+// BeginDesiredRecover will return false. Unlike MarkFailed, it does not
+// increment the attempt counter. Use this after a recover that returned
+// nil (enable succeeded) but the tunnel has not yet been confirmed.
+func (s *DesiredRecoverStore) SetCooldown(deviceID string, now time.Time, cooldown time.Duration) {
+	deviceID = strings.TrimSpace(deviceID)
+	if s == nil || deviceID == "" {
+		return
+	}
+	if now.IsZero() {
+		now = time.Now()
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	st := s.ensureLocked(deviceID)
+	st.inFlight = false
+	st.nextAt = now.Add(cooldown)
 }
 
 func (s *DesiredRecoverStore) Clear(deviceID string) {

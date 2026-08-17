@@ -1,6 +1,7 @@
 package cscall
 
 import (
+	"crypto/rand"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -81,19 +82,31 @@ type AudioBridge struct {
 
 // NewAudioBridge 创建音频桥接器
 func NewAudioBridge(alsaDev, deviceID string) (*AudioBridge, error) {
+// ALSA 设备名为空时由调用方（cscall.Manager）负责解析默认值
+if alsaDev == "" {
+return nil, fmt.Errorf("ALSA 设备名为空")
+}
+
 	// 绑定随机 UDP 端口用于 RTP
 	conn, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
 	if err != nil {
 		return nil, fmt.Errorf("绑定 RTP 端口失败: %w", err)
 	}
 
-	ab := &AudioBridge{
-		alsaDev:  alsaDev,
-		deviceID: deviceID,
-		rtpConn:  conn,
-		ssrc:     0x12345678, // 固定 SSRC
-		stop:     make(chan struct{}),
-	}
+	var ssrcVal uint32
+		b := make([]byte, 4)
+		if _, err := rand.Read(b); err == nil {
+			ssrcVal = binary.BigEndian.Uint32(b) & 0x7FFFFFFF // 随机 SSRC，清除高位
+		} else {
+			ssrcVal = uint32(time.Now().UnixNano()) // 兜底
+		}
+		ab := &AudioBridge{
+			alsaDev:  alsaDev,
+			deviceID: deviceID,
+			rtpConn:  conn,
+			ssrc:     ssrcVal, // 随机 SSRC
+			stop:     make(chan struct{}),
+		}
 	ab.pcmReady.Store(false) // 初始为 false，必须等待 +QPCMV: 1 URC
 	return ab, nil
 }
@@ -372,16 +385,20 @@ func (ab *AudioBridge) loopPlayback() {
 			}
 
 			// 检查 RTP Payload Type (PT)
+			// PT=0: G.711 PCMU (μ-law), PT=1: G.711 PCMA (A-law)
 			pt := buf[1] & 0x7F
-			if pt != 0 {
+			var pcmData []byte
+			switch pt {
+			case 0:
+				payload := buf[headerLen:n]
+				pcmData = DecodeUlawToPCM(payload)
+			case 1:
+				payload := buf[headerLen:n]
+				pcmData = DecodeAlawToPCM(payload)
+			default:
 				logger.Warn(fmt.Sprintf("[%s] AudioBridge: 收到不支持的 RTP 载荷类型 %d, 将丢弃", ab.deviceID, pt))
 				continue
 			}
-
-			payload := buf[headerLen:n]
-
-			// G.711μ → PCM
-			pcmData := DecodeUlawToPCM(payload)
 			pcmAccum = append(pcmAccum, pcmData...)
 
 			// 凑够 1600 字节 (100ms) 后写入 aplay

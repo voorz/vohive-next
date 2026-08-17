@@ -11,6 +11,7 @@ const (
 	ESIMTransportAT            = "at"
 	ESIMTransportQMI           = "qmi"
 	ESIMTransportMBIM          = "mbim"
+	ESIMTransportPCSC          = "pcsc"
 	MBIMTransportAuto          = "auto"
 	MBIMTransportProxy         = "proxy"
 	MBIMTransportDirect        = "direct"
@@ -25,6 +26,8 @@ func NormalizeESIMTransport(in string) string {
 		return ESIMTransportQMI
 	case ESIMTransportMBIM:
 		return ESIMTransportMBIM
+	case ESIMTransportPCSC:
+		return ESIMTransportPCSC
 	default:
 		return strings.ToLower(strings.TrimSpace(in))
 	}
@@ -32,7 +35,7 @@ func NormalizeESIMTransport(in string) string {
 
 func ValidateESIMTransport(in string) error {
 	switch NormalizeESIMTransport(in) {
-	case ESIMTransportAT, ESIMTransportQMI, ESIMTransportMBIM:
+	case ESIMTransportAT, ESIMTransportQMI, ESIMTransportMBIM, ESIMTransportPCSC:
 		return nil
 	default:
 		return fmt.Errorf("invalid esim transport: %q", strings.TrimSpace(in))
@@ -68,19 +71,19 @@ func ResolveIPFamily(in string) (enableV4 bool, enableV6 bool, err error) {
 }
 
 type Config struct {
-	Server    ServerConfig    `mapstructure:"server"`
-	Devices   []DeviceConfig  `mapstructure:"devices"`
-	Telegram  TelegramConfig  `mapstructure:"telegram"`
-	Feishu    FeishuConfig    `mapstructure:"feishu"`
-	QQ        QQConfig        `mapstructure:"qq"`
-	Webhook   WebhookConfig   `mapstructure:"webhook"`
+	Server   ServerConfig   `mapstructure:"server"`
+	Devices  []DeviceConfig `mapstructure:"devices"`
+	Telegram TelegramConfig `mapstructure:"telegram"`
+	Feishu   FeishuConfig   `mapstructure:"feishu"`
+	QQ       QQConfig       `mapstructure:"qq"`
+	Webhook  WebhookConfig  `mapstructure:"webhook"`
 
-	Bark      BarkConfig      `mapstructure:"bark"`
-	Email     EmailConfig     `mapstructure:"email"`
-	Pushplus  PushplusConfig  `mapstructure:"pushplus"`
-	Web       WebConfig       `mapstructure:"web"`
-	Proxy     ProxyConfig     `mapstructure:"proxy"`
-	VoWiFi    VoWiFiConfig    `mapstructure:"vowifi"`
+	Bark         BarkConfig         `mapstructure:"bark"`
+	Email        EmailConfig        `mapstructure:"email"`
+	Pushplus     PushplusConfig     `mapstructure:"pushplus"`
+	Web          WebConfig          `mapstructure:"web"`
+	Proxy        ProxyConfig        `mapstructure:"proxy"`
+	VoWiFi       VoWiFiConfig       `mapstructure:"vowifi"`
 	UpdateRepo   UpdateRepoConfig   `mapstructure:"update_repo"`
 	SMSRateLimit SMSRateLimitConfig `mapstructure:"sms_rate_limit"`
 	Security     SecurityConfig     `mapstructure:"security"`
@@ -133,7 +136,25 @@ type VoWiFiConfig struct {
 	DeviceID string `mapstructure:"device_id"` // 留空则取第一个
 	Mode     string `mapstructure:"mode"`      // vowifi|volte(当前会回退为 vowifi)，默认 vowifi
 
+	Behavior     VoWiFiBehaviorConfig     `mapstructure:"behavior"`
 	VoiceGateway VoWiFiVoiceGatewayConfig `mapstructure:"voice_gateway"`
+}
+
+// VoWiFiBehaviorConfig 控制 VoWiFi 隧道建立行为参数。
+// 这些参数作为系统默认兜底，可通过前端全局设置覆盖。
+
+type VoWiFiBehaviorConfig struct {
+	// IKERetryCount 控制 IKE_SA_INIT 无响应时的重传次数。
+	// 耗尽后触发整个 VoWiFi 拆除重建（等同手动重连）。
+	// 默认 5（对齐 strongSwan retransmit_tries=5），设为 0 则使用默认值。
+	IKERetryCount int `mapstructure:"ike_retry_count"`
+
+	// OverrideRFOff 为 true 时，使用 RFOffDelay 覆盖运营商预设的飞行模式延迟。
+	OverrideRFOff bool `mapstructure:"override_rf_off"`
+
+	// RFOffDelay 是飞行模式后等待网络栈稳定的秒数。
+	// 仅在 OverrideRFOff=true 时生效。默认 5。
+	RFOffDelay int `mapstructure:"rf_off_delay"`
 }
 
 // VoWiFiVoiceGatewayConfig 语音网关配置（支持 Linphone 接打电话）。
@@ -145,10 +166,16 @@ type VoWiFiVoiceGatewayConfig struct {
 		Transport  string `mapstructure:"transport"`   // 传输协议: udp/tcp/tls
 		Realm      string `mapstructure:"realm"`       // SIP 认证域
 		ExternalIP string `mapstructure:"external_ip"` // 公网 IP (可选)
+
+		// WebSocket 监听配置（浏览器 SIP.js 接入）
+		WSListen    string `mapstructure:"ws_listen"`     // WebSocket 监听地址（留空不启用）
+		WSSListen   string `mapstructure:"wss_listen"`    // WSS 监听地址（留空不启用）
+		WSSCertFile string `mapstructure:"wss_cert_file"` // WSS 证书路径
+		WSSKeyFile  string `mapstructure:"wss_key_file"`  // WSS 私钥路径
 	} `mapstructure:"sip"`
 
-	// 用户配置
-	Users []VoWiFiVoiceUserConfig `mapstructure:"users"`
+	// 用户配置（单用户）
+	User VoWiFiVoiceUserConfig `mapstructure:"user"`
 
 	// 媒体配置
 	Media struct {
@@ -171,6 +198,8 @@ type VoWiFiVoiceUserConfig struct {
 	DisplayName string `mapstructure:"display_name"`
 	DeviceID    string `mapstructure:"device_id"` // 绑定的设备 ID
 }
+
+// compat: 旧配置可能仍以 users 数组形式存在，读取时自动取第一个元素
 
 // ProxyInstance 定义一个代理实例配置
 type ProxyInstance struct {
@@ -219,16 +248,17 @@ type DeviceConfig struct {
 	USBPath       string `mapstructure:"-"` // Deprecated: 运行时按 IMEI 现解析,绝不从文件读取
 	ATPort        string `mapstructure:"-"` // Deprecated: 运行时解析;AT 终端用 Worker.ResolvedATPort()
 	ProxyPort     int    `mapstructure:"proxy_port"`
-	ManagePort    string `mapstructure:"-"` // Deprecated: 运行时解析,绝不从文件读取
-	Interface     string `mapstructure:"-"` // Deprecated: 运行时解析,绝不从文件读取
-	QMIDevice     string `mapstructure:"-"` // Deprecated: 运行时解析,绝不从文件读取
-	ControlDevice string `mapstructure:"-"` // Deprecated: 运行时按 IMEI 现解析,绝不从文件读取
+	ManagePort    string `mapstructure:"-"`              // Deprecated: 运行时解析,绝不从文件读取
+	Interface     string `mapstructure:"-"`              // Deprecated: 运行时解析,绝不从文件读取
+	QMIDevice     string `mapstructure:"-"`              // Deprecated: 运行时解析,绝不从文件读取
+	ControlDevice string `mapstructure:"-"`              // Deprecated: 运行时按 IMEI 现解析,绝不从文件读取
 	MBIMTransport string `mapstructure:"mbim_transport"` // MBIM 传输: auto|proxy|direct，默认 auto
 	QMIUseProxy   bool   `mapstructure:"qmi_use_proxy"`  // 是否通过 libqmi qmi-proxy 打开 QMI 控制口
 	// 可选：qmi-proxy abstract socket 名称和可执行文件路径。留空使用 quectel-qmi-go 默认值。
 	QMIProxyPath       string `mapstructure:"qmi_proxy_path"`
 	QMIProxyExecutable string `mapstructure:"qmi_proxy_executable"`
-	ESIMTransport      string `mapstructure:"esim_transport"` // eSIM 传输通道: at|qmi|mbim，默认 at
+	ESIMTransport      string `mapstructure:"esim_transport"` // eSIM 传输通道: at|qmi|mbim|pcsc，默认 at
+	PCSCReader         string `mapstructure:"pcsc_reader"`    // PC/SC 读卡器名称（仅 esim_transport=pcsc 时有效）
 	DeviceBackend      string `mapstructure:"device_backend"` // 设备后端模式: at|qmi|mbim|auto，默认 at
 	USBNetMode         *int   `mapstructure:"usbnet_mode"`    // 可选：用于校验/设置 Quectel USBNET 模式
 	// ESIMSwitch controls deterministic eSIM switch behavior. Zero values preserve current behavior.
@@ -254,6 +284,10 @@ type DeviceConfig struct {
 
 	// USB Audio (自动发现，无需手动配置)
 	AudioDevice string `mapstructure:"-"` // Deprecated: 运行时解析,绝不从文件读取
+
+	// USB 描述符元数据（运行时从 sysfs 填充，不持久化）
+	USBManufacturer string `mapstructure:"-"` // USB manufacturer 字段（如 "BAIWANG"）
+	USBProduct      string `mapstructure:"-"` // USB product 字段（如 "Baiwang"）
 }
 
 type TelegramConfig struct {
@@ -338,6 +372,9 @@ func Load(path string) (*Config, error) {
 	viper.SetDefault("web.password", "admin")
 	viper.SetDefault("vowifi.enabled", false)
 	viper.SetDefault("vowifi.mode", "vowifi")
+	viper.SetDefault("vowifi.behavior.ike_retry_count", 5)
+	viper.SetDefault("vowifi.behavior.override_rf_off", false)
+	viper.SetDefault("vowifi.behavior.rf_off_delay", 5)
 	viper.SetDefault("sms_rate_limit.hourly_limit", 3)
 	viper.SetDefault("sms_rate_limit.daily_limit", 10)
 	viper.SetDefault("imscore.use_sipgo_udp", false)

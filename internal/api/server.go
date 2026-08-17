@@ -27,6 +27,7 @@ import (
 	"github.com/voorz/vohive/internal/notify"
 	"github.com/voorz/vohive/internal/proxy/server"
 	proxytraffic "github.com/voorz/vohive/internal/proxy/traffic"
+	"github.com/voorz/vohive/internal/voice"
 	vwebsheet "github.com/voorz/vohive/internal/websheet"
 	"github.com/voorz/vohive/pkg/smscodec"
 	"github.com/voorz/vowifi-core/runtimehost/voicehost"
@@ -77,7 +78,9 @@ type Server struct {
 	proxyRepo   repo.ProxyInstanceRepository
 	proxySyncMu sync.Mutex
 	voiceGW     *voicehost.Gateway
+	voiceBus    *voice.Bus
 	notifyMgr   *notify.Manager
+	pushNotifier PushNotifier // Linphone 推送接口
 	websheets   *vwebsheet.Broker
 
 	httpSrvMu sync.Mutex
@@ -94,6 +97,17 @@ type Server struct {
 
 type realtimeTrafficSubscriber interface {
 	Subscribe(ctx context.Context, deviceID string) (<-chan proxytraffic.RealtimeSnapshot, func())
+}
+
+// PushNotifier 推送通知接口（sipgw.Registrar 实现了此接口）
+type PushNotifier interface {
+	SendPushNotification(deviceID string, callID string, caller string, callee string) error
+	UpdateUser(username, password, deviceID, displayName string)
+}
+
+// SetPushNotifier 设置推送通知器
+func (s *Server) SetPushNotifier(p PushNotifier) {
+	s.pushNotifier = p
 }
 
 // New 创建一个新的 API 服务器实例
@@ -121,9 +135,18 @@ func New(cfg *config.Config, pool *device.Pool, fs http.FileSystem, proxyMgr *se
 		smsLimiter:    newSMSRateLimiter(time.Now(), time.Now),
 		shutdownCh:    make(chan struct{}),
 	}
+
 	s.initMCP()
 
 	return s
+}
+
+// SetVoiceBus 注入通话事件总线
+func (s *Server) SetVoiceBus(bus *voice.Bus) {
+	if s == nil {
+		return
+	}
+	s.voiceBus = bus
 }
 
 func (s *Server) smsRateLimiter() *smsRateLimiter {
@@ -276,10 +299,11 @@ func (s *Server) newRouter() *gin.Engine {
 		api.GET("/openapi.json", s.handleOpenAPIJSON)
 
 		// ===== 仪表盘 =====
-		api.GET("/dashboard/devices", s.handleListDevices)          // 获取所有设备概览（仪表盘卡片用）
-		api.GET("/devices/:device_id/status", s.handleStatusDetail) // 获取单个设备详细状态
-		api.GET("/health", s.handleHealth)                          // 健康检查（外部监控用）
-		api.GET("/traffic/analysis", s.handleTrafficAnalysis)       // 流量分析统计
+		api.GET("/dashboard/devices", s.handleListDevices)                     // 获取所有设备概览（仪表盘卡片用）
+		api.GET("/dashboard/overview/stream", s.handleDashboardOverviewStream) // SSE 仪表盘聚合实时流量
+		api.GET("/devices/:device_id/status", s.handleStatusDetail)            // 获取单个设备详细状态
+		api.GET("/health", s.handleHealth)                                     // 健康检查（外部监控用）
+		api.GET("/traffic/analysis", s.handleTrafficAnalysis)                  // 流量分析统计
 
 		// ===== 短信 =====
 		api.POST("/sms/send", s.handleSendSMS)                    // 发送短信（自动选择 AT 或 VoWiFi）
@@ -288,6 +312,12 @@ func (s *Server) newRouter() *gin.Engine {
 		api.GET("/sms/thread", s.handleGetSMSThread)              // 获取与某联系人的短信会话
 		api.DELETE("/sms/messages/:id", s.handleDeleteSMSMessage) // 删除单条历史短信
 		api.DELETE("/sms/thread", s.handleDeleteSMSThread)        // 删除指定历史短信会话
+
+		// ===== 语音通话 =====
+		api.GET("/devices/:device_id/voice/stream", s.handleVoiceStream)               // SSE 通话状态实时流
+		api.GET("/devices/:device_id/voice/history", s.handleGetVoiceHistory)           // 获取通话记录列表
+		api.DELETE("/devices/:device_id/voice/history", s.handleDeleteAllVoiceHistory)  // 删除所有通话记录
+		api.DELETE("/devices/:device_id/voice/history/:id", s.handleDeleteVoiceHistory) // 删除单条通话记录
 
 		// ===== 系统设置 =====
 		api.GET("/settings/notifications", s.handleGetNotificationSettings)    // 获取通知设置
@@ -302,11 +332,15 @@ func (s *Server) newRouter() *gin.Engine {
 		api.POST("/system/update/apply", s.handleApplyUpdate)              // 应用最新版本更新
 		api.POST("/system/update/apply/:tag", s.handleApplyUpdateByTag)    // 按 tag 应用指定版本更新
 		api.POST("/system/update/local", s.handleLocalUpdate)              // 上传本地二进制更新
+		api.GET("/system/pcsc-driver", s.handleGetPcscDriverStatus)        // 检测 PC/SC 驱动状态
+		api.POST("/system/pcsc-driver/install", s.handleInstallPcscDriver) // 安装 PC/SC 驱动
 		api.GET("/settings/update-repo", s.handleGetUpdateRepo)            // 获取 release 源配置
 		api.PUT("/settings/update-repo", s.handleUpdateUpdateRepo)         // 更新 release 源配置
 		api.DELETE("/settings/update-repo", s.handleDeleteUpdateRepo)      // 删除 release 源配置
 		api.GET("/settings/sms-limit", s.handleGetSMSRateLimit)            // 获取短信限速配置
 		api.PUT("/settings/sms-limit", s.handleUpdateSMSRateLimit)         // 更新短信限速配置
+		api.GET("/settings/vowifi-behavior", s.handleGetVoWiFiBehavior)    // 获取 VoWiFi 行为配置
+		api.PUT("/settings/vowifi-behavior", s.handleUpdateVoWiFiBehavior) // 更新 VoWiFi 行为配置
 		api.GET("/settings/security", s.handleGetSecurity)                 // 获取安全配置
 		api.PUT("/settings/security", s.handleUpdateSecurity)              // 更新安全配置
 		api.GET("/settings/api-tokens", s.handleListAPITokens)             // 列出全部 API Token
@@ -319,12 +353,17 @@ func (s *Server) newRouter() *gin.Engine {
 		api.PUT("/settings/site", s.handleUpdateSite)                      // 更新站点名称/副标题
 		api.POST("/settings/site/logo", s.handleUploadSiteLogo)            // 上传自定义 logo
 		api.POST("/settings/site/favicon", s.handleUploadSiteFavicon)      // 上传自定义 favicon
+		api.GET("/settings/voice-gateway", s.handleGetVoiceGateway)        // 获取语音网关配置
+		api.PUT("/settings/voice-gateway", s.handleUpdateVoiceGateway)     // 更新语音网关配置
+		api.POST("/settings/voice-gateway/regenerate-password", s.handleRegenerateVoicePassword) // 重新生成授权码
+	api.POST("/settings/voice-gateway/test-linphone-push", s.handleTestLinphonePush)     // 测试 Linphone 推送账户
 
 		// MCP Streamable HTTP（需鉴权，复用 authMiddleware）
 		api.POST("/mcp", s.handleMcpRequest)
 
-		api.GET("/devices", s.handleDeviceMgmtList)                                            // 获取设备列表（管理页用）
-		api.POST("/devices", s.handleDeviceMgmtAddDevice)                                      // 添加新设备
+api.GET("/devices", s.handleDeviceMgmtList)                                            // 获取设备列表（管理页用）
+api.GET("/devices/stream", s.handleDeviceMgmtListStream)                              // SSE 设备列表实时状态流
+api.POST("/devices", s.handleDeviceMgmtAddDevice)                                      // 添加新设备
 		api.GET("/devices/discovered", s.handleDeviceMgmtDiscovered)                           // 获取已发现的硬件设备
 		api.POST("/devices/actions/rescan", s.handleDeviceRescan)                              // 手动触发设备重扫描
 		api.GET("/devices/:device_id/overview/stream", s.handleDeviceMgmtOverviewStreamSingle) // SSE 单体深层实时流
@@ -383,6 +422,9 @@ func (s *Server) newRouter() *gin.Engine {
 		api.PATCH("/devices/:device_id/esim/profiles/:iccid", s.handleEsimRenameProfile)                          // 修改 profile 名称
 		api.DELETE("/devices/:device_id/esim/profiles/:iccid", s.handleEsimDeleteProfile)                         // 删除 eSIM profile
 
+		// ===== eSIM PC/SC =====
+		api.GET("/pcsc/readers", s.handlePCSCListReaders) // 列出可用 PC/SC 读卡器
+
 		// ===== VoWiFi =====
 		api.PATCH("/devices/:device_id/vowifi", s.handleDeviceVoWiFiPatch)                          // 启用/禁用 VoWiFi
 		api.POST("/devices/:device_id/vowifi/actions/reconnect", s.handleDeviceMgmtReconnectVoWiFi) // 重连 VoWiFi
@@ -402,9 +444,9 @@ func (s *Server) newRouter() *gin.Engine {
 		api.POST("/carrier/:mcc/:mnc/deactivate", s.handleDeactivateCarrier) // 禁用用户配置
 
 		// ===== 运营商可见列表（新架构：plmn-index → visible） =====
-		api.POST("/carriers/visible/batch", s.handleBatchAddVisible)         // 批量添加运营商到可见列表
-		api.DELETE("/carriers/visible/:plmn", s.handleRemoveVisible)         // 从可见列表移除运营商
-		api.GET("/carriers/search", s.handleSearchCarrierIndex)              // 搜索 plmn-index
+		api.POST("/carriers/visible/batch", s.handleBatchAddVisible) // 批量添加运营商到可见列表
+		api.DELETE("/carriers/visible/:plmn", s.handleRemoveVisible) // 从可见列表移除运营商
+		api.GET("/carriers/search", s.handleSearchCarrierIndex)      // 搜索 plmn-index
 	}
 	return r
 }

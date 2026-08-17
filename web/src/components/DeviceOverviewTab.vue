@@ -132,7 +132,16 @@ const vowifiStatusTone = computed<StatusLightTone>(() => {
 })
 
 const flightModeStatusText = computed(() => {
-  return flightModeEnabled.value ? '是' : '否'
+return flightModeEnabled.value ? '是' : '否'
+})
+
+const backendModeLabel = computed(() => {
+const m = props.device?.backend_mode
+if (m === 'qmi') return 'QMI'
+if (m === 'mbim') return 'MBIM'
+if (m === 'at') return 'AT'
+if (m === 'pcsc') return 'PC/SC'
+return m || 'Auto'
 })
 
 const activeEsimProfileName = computed(() => activeEsimProfileDisplayName(props.device))
@@ -353,7 +362,7 @@ const networkPanelMessage = computed(() => {
           <span class="text-gray-500">飞行模式</span>
           <span>{{ flightModeStatusText }}</span>
         </div>
-        <FieldRow label="运行模式"  :value="device?.backend_mode === 'qmi' ? 'QMI' : device?.backend_mode === 'mbim' ? 'MBIM' : device?.backend_mode === 'at' ? 'AT' : 'Auto'" monospace />
+        <FieldRow label="运行模式"  :value="backendModeLabel" monospace />
       </div>
     </div>
 

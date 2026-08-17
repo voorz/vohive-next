@@ -18,6 +18,7 @@ require (
 	github.com/voorz/qqbot v1.0.2
 	github.com/voorz/quectel-qmi-go v0.7.0
 	github.com/voorz/vowifi-core v1.1.0
+	github.com/voorz/wwan-go v0.2.1
 	github.com/warthog618/sms v0.3.0
 	go.bug.st/serial v1.6.4
 	go.uber.org/zap v1.27.1
@@ -31,6 +32,8 @@ require (
 )
 
 require (
+	github.com/ElMostafaIdrassi/goscard v1.0.0 // indirect
+	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/google/btree v1.1.2 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8 // indirect

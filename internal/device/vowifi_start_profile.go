@@ -16,6 +16,10 @@ func (p *Pool) buildVoWiFiStartProfile(worker *Worker, traceID string) (identity
 	if worker == nil {
 		return identity.Profile{}, fmt.Errorf("worker_nil")
 	}
+	// PC/SC 设备：通过 PC/SC 读卡器读取 SIM 身份，不依赖 Backend
+	if isPCSCDevice(worker) {
+		return p.buildPCSCVoWiFiStartProfile(worker, traceID)
+	}
 	if worker.Backend == nil {
 		return identity.Profile{}, fmt.Errorf("backend_not_available")
 	}
@@ -83,6 +87,47 @@ func buildVoWiFiRawProfile(imsi, mcc, mnc, imei, smsc, spn string) identity.Prof
 		SMSC: strings.TrimSpace(smsc),
 		SPN:  strings.TrimSpace(spn),
 	}
+}
+
+// buildPCSCVoWiFiStartProfile 通过 PC/SC 读卡器读取 SIM 身份构建 VoWiFi 启动画像。
+func (p *Pool) buildPCSCVoWiFiStartProfile(worker *Worker, traceID string) (identity.Profile, error) {
+	adapter, err := newPCSCModemAdapter(worker.ID, worker.Config.PCSCReader, worker.pcscAccessMu)
+	if err != nil {
+		return identity.Profile{}, fmt.Errorf("创建 PC/SC 适配器失败: %w", err)
+	}
+	defer adapter.Stop()
+
+	imsi, iccid, mcc, mnc, err := adapter.ReadSIMIdentity()
+	if err != nil {
+		return identity.Profile{}, fmt.Errorf("PC/SC 读取 SIM 身份失败: %w", err)
+	}
+	imsi = strings.TrimSpace(imsi)
+	if imsi == "" {
+		return identity.Profile{}, fmt.Errorf("PC/SC 读取 IMSI 为空")
+	}
+	if mcc == "" || mnc == "" {
+		return identity.Profile{}, fmt.Errorf("PC/SC 解析 MCC/MNC 失败: %s", imsi)
+	}
+
+	// 缓存 SIM 身份到 worker 状态，供后续流程使用
+	cacheVoWiFiProfileMCCMNC(worker, mcc, mnc)
+	worker.cacheMu.Lock()
+	worker.state.Identity.IMSI = imsi
+	worker.state.Identity.ICCID = strings.TrimSpace(iccid)
+	worker.state.Identity.Ready = true
+	worker.cacheMu.Unlock()
+
+	logger.Info("VoWiFi 启动画像将基于 PC/SC 读取的 SIM 身份构建",
+		"trace_id", traceID,
+		"device", worker.ID,
+		"source", "pcsc_sim",
+		"iccid", iccid,
+		"imsi", imsi,
+		"mcc", mcc,
+		"mnc", mnc)
+
+	// PC/SC 设备无 IMEI、SMSC、SPN — 留空，EAP-AKA 认证不需要 IMEI
+	return buildVoWiFiRawProfile(imsi, mcc, mnc, "", "", ""), nil
 }
 
 func resolveVoWiFiProfileMCCMNC(ctx context.Context, worker *Worker, status modem.DeviceStatus, imsi, traceID string) (mcc, mnc, source string) {

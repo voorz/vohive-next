@@ -155,6 +155,13 @@ type Worker struct {
 	uimIndicationsReady atomic.Bool  // worker 完成启动注册后才处理 UIM 事件触发的重扫/重载
 	// switchEvents receives UIM indications for the active eSIM switch; nil outside switch convergence.
 	switchEvents atomic.Pointer[switchEventSource]
+
+	// pcscAccessMu 序列化 PC/SC 读卡器访问（eSIM 操作与 VoWiFi AKA 认证共享）。
+	// 仅 PC/SC 设备使用，modem 设备为 nil。
+	pcscAccessMu *sync.Mutex
+	// pcscActiveAdapter 保存当前活跃的 PC/SC modem adapter 引用。
+	// VoWiFi teardown 时调用其 Stop() 释放 PC/SC 通道锁，防止锁泄漏。
+	pcscActiveAdapter atomic.Pointer[pcscModemAdapter]
 }
 
 type Pool struct {
@@ -182,8 +189,9 @@ type Pool struct {
 	rescanAndReconnectForTest func() error
 
 	// SIP 注册器 (用于 CS 域语音桥接查路由)
-	sipRegistrar *sipgw.Registrar
-	voiceGateway *voicehost.Gateway
+	sipRegistrar   *sipgw.Registrar
+	voiceGateway   *voicehost.Gateway
+	callEventPub   vowifihost.CallEventPublisher
 
 	// VoWiFi host 侧整合（多实例）
 	vowifiHost         *vowifihost.Manager
@@ -231,6 +239,9 @@ func NewPool(cfg *config.Config) *Pool {
 	p.transportRecovery = NewTransportRecoveryController(p)
 	p.voWiFiHost().ConfigureAdapter(p)
 	p.voWiFiHost().ConfigureRuntimeDependencies(p.GetVoiceGateway(), vowifiDeliveryStore{}, poolVoWiFiRuntimeDispatcher{pool: p})
+	if cfg != nil {
+		p.voWiFiHost().SetIKERetryCount(cfg.VoWiFi.Behavior.IKERetryCount)
+	}
 
 	return p
 }
@@ -279,7 +290,6 @@ func (p *Pool) assignWorkerGeneration(worker *Worker) uint64 {
 	}
 	return generation
 }
-
 
 func (p *Pool) registerWorkerStarting(worker *Worker) error {
 	if p == nil || worker == nil || strings.TrimSpace(worker.ID) == "" {
@@ -1359,24 +1369,30 @@ func qmiManagedAttachmentChanged(cfg config.DeviceConfig, dev QMIDevice) bool {
 }
 
 func applyQMIManagedAttachment(cfg config.DeviceConfig, dev QMIDevice) config.DeviceConfig {
-	if v := strings.TrimSpace(dev.ControlPath); v != "" {
-		cfg.ControlDevice = v
-		cfg.QMIDevice = v
-	}
-	if v := strings.TrimSpace(dev.NetInterface); v != "" {
-		cfg.Interface = v
-	}
-	if v := strings.TrimSpace(dev.USBPath); v != "" {
-		cfg.USBPath = v
-	}
-	if v := strings.TrimSpace(dev.ATPort); v != "" {
-		cfg.ATPort = v
-		cfg.ManagePort = v
-	}
-	if v := strings.TrimSpace(dev.AudioDevice); v != "" {
-		cfg.AudioDevice = v
-	}
-	return cfg
+if v := strings.TrimSpace(dev.ControlPath); v != "" {
+cfg.ControlDevice = v
+cfg.QMIDevice = v
+}
+if v := strings.TrimSpace(dev.NetInterface); v != "" {
+cfg.Interface = v
+}
+if v := strings.TrimSpace(dev.USBPath); v != "" {
+cfg.USBPath = v
+}
+if v := strings.TrimSpace(dev.ATPort); v != "" {
+cfg.ATPort = v
+cfg.ManagePort = v
+}
+if v := strings.TrimSpace(dev.AudioDevice); v != "" {
+cfg.AudioDevice = v
+}
+if v := strings.TrimSpace(dev.USBManufacturer); v != "" {
+cfg.USBManufacturer = v
+}
+if v := strings.TrimSpace(dev.USBProduct); v != "" {
+cfg.USBProduct = v
+}
+return cfg
 }
 
 func qmiHealthyWorkerAttachmentUpdate(worker *Worker, live QMIDevice) (bool, config.DeviceConfig) {
@@ -1660,6 +1676,11 @@ func (p *Pool) rescanAndReconnect(opts rescanReconnectOptions) error {
 	}
 
 	for _, md := range resolved.Offline {
+		// PC/SC 读卡器设备无硬件可被 QMI 扫描匹配，始终落入 Offline，
+		// 但它并非离线 — 跳过清理以保持 Worker 存活。
+		if config.NormalizeESIMTransport(md.ESIMTransport) == config.ESIMTransportPCSC {
+			continue
+		}
 		if !FreeDeviceLimitAllowsConfiguredDevice(managed, md.ID) {
 			continue
 		}
@@ -1966,6 +1987,7 @@ func newESIMManagerForWorker(
 		Modem:                w.Modem,
 		Backend:              w.Backend,
 		QMITransport:         qmiTransport,
+		PCSCReader:           w.Config.PCSCReader,
 		OnBeforeSwitch:       beforeWithOperation,
 		OnAfterSwitch:        afterWithOperation,
 		OnSwitchFailed:       failedWithOperation,
