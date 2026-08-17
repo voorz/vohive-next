@@ -37,6 +37,17 @@ func operatorSelectionErrorStatus(err error) int {
 	}
 }
 
+// handleDeviceMgmtOperatorScan 
+//
+// @Summary      DeviceMgmtOperatorScan
+// @Tags         devices
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/operator_selection/scan [get]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtOperatorScan(c *gin.Context) {
 	deviceID := deviceIDParam(c)
 	w := s.pool.GetWorker(deviceID)
@@ -55,6 +66,17 @@ func (s *Server) handleDeviceMgmtOperatorScan(c *gin.Context) {
 	c.JSON(status, body)
 }
 
+// handleDeviceMgmtOperatorScanStream 
+//
+// @Summary      DeviceMgmtOperatorScanStream
+// @Tags         devices
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/operator_selection/scan/stream [get]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtOperatorScanStream(c *gin.Context) {
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
@@ -152,6 +174,17 @@ func operatorScanHTTPStatusAndBody(result device.OperatorScanResult) (int, opera
 	}
 }
 
+// handleDeviceMgmtGetOperatorSelection 
+//
+// @Summary      DeviceMgmtGetOperatorSelection
+// @Tags         devices
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/operator_selection [get]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtGetOperatorSelection(c *gin.Context) {
 	deviceID := deviceIDParam(c)
 	w := s.pool.GetWorker(deviceID)
@@ -170,6 +203,18 @@ func (s *Server) handleDeviceMgmtGetOperatorSelection(c *gin.Context) {
 	c.JSON(http.StatusOK, sel)
 }
 
+// handleDeviceMgmtSetOperatorSelection 
+//
+// @Summary      DeviceMgmtSetOperatorSelection
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/operator_selection [post]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtSetOperatorSelection(c *gin.Context) {
 	deviceID := deviceIDParam(c)
 	var req backend.SetOperatorSelectionRequest

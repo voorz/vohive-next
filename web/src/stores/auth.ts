@@ -56,11 +56,11 @@ api.interceptors.response.use(
     debugCollector.recordApiError(error)
     if (error?.response?.status === 401) {
       try {
-        const current = String(window.location.hash || '').replace(/^#/, '') || '/'
+        const current = window.location.pathname + window.location.search || '/'
         if (!current.startsWith('/login')) {
           sessionStorage.setItem('post_login_redirect', current)
           debugCollector.recordAuthEvent({ ts: Date.now(), kind: '401_redirect', redirectTo: current })
-          window.location.hash = `#/login?redirect=${encodeURIComponent(current)}`
+          window.location.href = `/login?redirect=${encodeURIComponent(current)}`
           const auth = useAuthStore()
           auth.logout()
           return Promise.reject(error)
@@ -70,7 +70,7 @@ api.interceptors.response.use(
       }
       const auth = useAuthStore()
       auth.logout()
-      window.location.hash = '#/login'
+      window.location.href = '/login'
     }
     return Promise.reject(error)
   }

@@ -2,7 +2,7 @@ import { api } from '../stores/auth'
 import { callService } from './http'
 
 export type DocsLinks = {
-  swagger_ui: string
+  docs_ui: string
   openapi_yaml: string
   openapi_json: string
 }

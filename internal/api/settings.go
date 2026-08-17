@@ -128,6 +128,16 @@ type updateNotificationSettingsRequest struct {
 	} `json:"pushplus"`
 }
 
+// handleGetNotificationSettings 
+//
+// @Summary      GetNotificationSettings
+// @Tags         settings
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/notifications [get]
+// @Security     BearerAuth
 func (s *Server) handleGetNotificationSettings(c *gin.Context) {
 	var resp notificationSettingsResponse
 	resp.Telegram.Enabled = s.fullCfg.Telegram.Enabled
@@ -178,6 +188,17 @@ func (s *Server) handleGetNotificationSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// handleUpdateNotificationSettings 
+//
+// @Summary      UpdateNotificationSettings
+// @Tags         settings
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/notifications [put]
+// @Security     BearerAuth
 func (s *Server) handleUpdateNotificationSettings(c *gin.Context) {
 	var req updateNotificationSettingsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

@@ -126,7 +126,7 @@ async function copyConfig() {
           </div>
           <div class="mcp-doc-info">
             <strong class="mcp-doc-title">API 文档</strong>
-            <p class="mcp-doc-desc">Swagger UI 交互式文档</p>
+            <p class="mcp-doc-desc">Scalar API Reference 交互式文档</p>
           </div>
           <el-icon class="mcp-doc-external" size="16"><Open20Regular /></el-icon>
         </a>

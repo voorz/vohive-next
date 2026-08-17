@@ -26,6 +26,17 @@ type testWebhookResponse struct {
 	FailedURLs []string `json:"failed_urls,omitempty"`
 }
 
+// handleTestWebhookNotification 
+//
+// @Summary      TestWebhookNotification
+// @Tags         settings
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/notifications/webhook/test [post]
+// @Security     BearerAuth
 func (s *Server) handleTestWebhookNotification(c *gin.Context) {
 	var req testWebhookRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

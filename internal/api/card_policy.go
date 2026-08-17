@@ -34,6 +34,17 @@ func (s *Server) patchCardPolicyForDevice(deviceID string, mutate func(*db.CardP
 	return iccid, true, nil
 }
 
+// handleGetCardPolicy 
+//
+// @Summary      GetCardPolicy
+// @Tags         card-policy
+// @Produce      json
+// @Param        iccid  path      string  true  "iccid"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /cards/{iccid}/policy [get]
+// @Security     BearerAuth
 func (s *Server) handleGetCardPolicy(c *gin.Context) {
 	iccid := c.Param("iccid")
 	pol, err := db.GetCardPolicy(iccid)
@@ -49,6 +60,16 @@ func (s *Server) handleGetCardPolicy(c *gin.Context) {
 	c.JSON(http.StatusOK, pol)
 }
 
+// handleListCardPolicies 
+//
+// @Summary      ListCardPolicies
+// @Tags         card-policy
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /cards/policies [get]
+// @Security     BearerAuth
 func (s *Server) handleListCardPolicies(c *gin.Context) {
 	var out []db.CardPolicy
 	if db.DB != nil {
@@ -60,6 +81,18 @@ func (s *Server) handleListCardPolicies(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"policies": out})
 }
 
+// handlePutCardPolicy 
+//
+// @Summary      PutCardPolicy
+// @Tags         card-policy
+// @Accept       json
+// @Produce      json
+// @Param        iccid  path      string  true  "iccid"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /cards/{iccid}/policy [put]
+// @Security     BearerAuth
 func (s *Server) handlePutCardPolicy(c *gin.Context) {
 	iccid := c.Param("iccid")
 	var req struct {
@@ -104,3 +137,4 @@ func (s *Server) handlePutCardPolicy(c *gin.Context) {
 
 	c.JSON(http.StatusOK, pol)
 }
+

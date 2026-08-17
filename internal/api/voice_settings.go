@@ -69,6 +69,16 @@ type updateVoiceGatewayRequest struct {
 }
 
 // handleGetVoiceGateway GET /api/settings/voice-gateway
+// handleGetVoiceGateway 
+//
+// @Summary      GetVoiceGateway
+// @Tags         settings
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/voice-gateway [get]
+// @Security     BearerAuth
 func (s *Server) handleGetVoiceGateway(c *gin.Context) {
 	var resp voiceGatewayResponse
 
@@ -135,6 +145,17 @@ func (s *Server) handleGetVoiceGateway(c *gin.Context) {
 }
 
 // handleUpdateVoiceGateway PUT /api/settings/voice-gateway
+// handleUpdateVoiceGateway 
+//
+// @Summary      UpdateVoiceGateway
+// @Tags         settings
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/voice-gateway [put]
+// @Security     BearerAuth
 func (s *Server) handleUpdateVoiceGateway(c *gin.Context) {
 	var req updateVoiceGatewayRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -219,6 +240,17 @@ func (s *Server) handleUpdateVoiceGateway(c *gin.Context) {
 }
 
 // handleRegenerateVoicePassword POST /api/settings/voice-gateway/regenerate-password
+// handleRegenerateVoicePassword 
+//
+// @Summary      RegenerateVoicePassword
+// @Tags         settings
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/voice-gateway/regenerate-password [post]
+// @Security     BearerAuth
 func (s *Server) handleRegenerateVoicePassword(c *gin.Context) {
 	vg, err := db.GetVoiceGateway()
 	if err != nil {
@@ -253,6 +285,17 @@ func (s *Server) handleRegenerateVoicePassword(c *gin.Context) {
 
 // handleTestLinphonePush POST /api/settings/voice-gateway/test-linphone-push
 // 测试 Linphone 官方推送 API 密钥是否有效（使用 API Key 认证）
+// handleTestLinphonePush 
+//
+// @Summary      TestLinphonePush
+// @Tags         settings
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/voice-gateway/test-linphone-push [post]
+// @Security     BearerAuth
 func (s *Server) handleTestLinphonePush(c *gin.Context) {
 	var req struct {
 		LinphonePassword string `json:"linphone_password"`

@@ -19,7 +19,7 @@ const DEFAULT_SYSTEM_INFO: SystemInfo = {
   build_time: '',
   config: '',
   docs: {
-    swagger_ui: '',
+    docs_ui: '',
     openapi_yaml: '',
     openapi_json: ''
   },

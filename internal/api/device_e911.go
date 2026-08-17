@@ -40,6 +40,18 @@ func e911ErrorCode(err error) string {
 	}
 }
 
+// handleDeviceE911Websheet 打开 E911 设置 websheet
+//
+// @Summary      打开 E911 设置 websheet
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/vowifi/e911/websheet [post]
+// @Security     BearerAuth
 func (s *Server) handleDeviceE911Websheet(c *gin.Context) {
 	coord := &e911.Coordinator{
 		Pool:      s.pool,
@@ -52,3 +64,4 @@ func (s *Server) handleDeviceE911Websheet(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, info)
 }
+

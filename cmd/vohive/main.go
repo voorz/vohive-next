@@ -38,6 +38,14 @@ import (
 // voiceBus 全局变量（在 sipRegistrar 回调中创建，在 apiServer 初始化时注入）
 var _voiceBus *voice.Bus
 
+// @title           VoHive Main API
+// @version         1.0
+// @description     VoHive 主服务控制面 API — 自动生成 OpenAPI 文档 POC
+// @BasePath        /api
+// @securityDefinitions.apikey BearerAuth
+// @in                          header
+// @name                        Authorization
+// @description                 "Bearer <token>"
 func main() {
 	// sipgo 日志将在主日志系统初始化后接入（见下方 logger.Setup 之后）
 	// 绕过 sipgo 底层硬编码的 UDP MTU 限制（默认 1500），

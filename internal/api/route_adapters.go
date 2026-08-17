@@ -18,6 +18,18 @@ type networkPatchRequest struct {
 	APN       string `json:"apn"`
 }
 
+// handleDeviceNetworkPatch 
+//
+// @Summary      DeviceNetworkPatch
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/network [patch]
+// @Security     BearerAuth
 func (s *Server) handleDeviceNetworkPatch(c *gin.Context) {
 	var req networkPatchRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.Enabled == nil {
@@ -53,6 +65,18 @@ func (s *Server) handleDeviceNetworkPatch(c *gin.Context) {
 	s.handleDeviceMgmtStopNetwork(c)
 }
 
+// handleDeviceVoWiFiPatch 
+//
+// @Summary      DeviceVoWiFiPatch
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/vowifi [patch]
+// @Security     BearerAuth
 func (s *Server) handleDeviceVoWiFiPatch(c *gin.Context) {
 	var req enabledPatchRequest
 	if err := c.ShouldBindJSON(&req); err != nil || req.Enabled == nil {

@@ -273,6 +273,13 @@ func (s *Server) newRouter() *gin.Engine {
 		})
 	}
 
+	// ===== 顶级公开路由（不需要 /api 前缀，不需要鉴权）=====
+	// Scalar API 文档页 + OpenAPI JSON/YAML 端点
+	r.GET("/docs", s.handleDocs)
+	r.GET("/docs/assets/*filepath", s.handleDocsAsset)
+	r.GET("/openapi.json", s.handleOpenAPIJSON)
+	r.GET("/openapi.yaml", s.handleOpenAPIYAML)
+
 	// 静态文件服务 (SPA)
 	r.NoRoute(s.handleStatic)
 
@@ -294,7 +301,7 @@ func (s *Server) newRouter() *gin.Engine {
 	// 以下接口需要鉴权
 	api.Use(s.authMiddleware())
 	{
-
+		// 旧路径兼容：/api/openapi.json 和 /api/openapi.yaml 仍然可用
 		api.GET("/openapi.yaml", s.handleOpenAPIYAML)
 		api.GET("/openapi.json", s.handleOpenAPIJSON)
 
@@ -516,6 +523,16 @@ func requestID(c *gin.Context) string {
 	return ""
 }
 
+// handleListDevices 获取所有设备概览（仪表盘卡片用）
+//
+// @Summary      仪表盘设备概览
+// @Description  返回所有设备的概览状态，用于仪表盘卡片展示
+// @Tags         dashboard
+// @Produce      json
+// @Success      200  {array}   map[string]interface{}  "设备列表"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /dashboard/devices [get]
+// @Security    BearerAuth
 func (s *Server) handleListDevices(c *gin.Context) {
 	workers := s.pool.GetAllWorkers()
 	cfgByID := map[string]config.DeviceConfig{}
@@ -577,6 +594,15 @@ func (s *Server) handleListDevices(c *gin.Context) {
 }
 
 // handleDeviceRescan 手动触发设备重新扫描
+// handleDeviceRescan 手动触发设备重新扫描
+//
+// @Summary      重新扫描并重连设备
+// @Tags         devices
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "扫描完成"
+// @Failure      500  {object}  map[string]interface{}  "扫描失败"
+// @Router       /devices/actions/rescan [post]
+// @Security     BearerAuth
 func (s *Server) handleDeviceRescan(c *gin.Context) {
 	if s.pool == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "error", "message": "服务未就绪"})
@@ -598,6 +624,15 @@ func (s *Server) handleDeviceRescan(c *gin.Context) {
 }
 
 // handleLogStream SSE 实时日志流
+// handleLogStream SSE 实时日志流
+//
+// @Summary      实时日志 SSE 流
+// @Tags         logs
+// @Produce      text/event-stream
+// @Param        level  query    string  false  "日志级别过滤"  Enums(debug, info, warn, error)
+// @Success      200    {string}  string  "SSE 日志流"
+// @Router       /logs/stream [get]
+// @Security     BearerAuth
 func (s *Server) handleLogStream(c *gin.Context) {
 	// 设置 SSE 响应头
 	c.Header("Content-Type", "text/event-stream")
@@ -647,6 +682,11 @@ func (s *Server) handleLogStream(c *gin.Context) {
 	}
 }
 
+// handleLogStreamOptions CORS preflight for SSE
+//
+// @Summary      CORS preflight
+// @Tags         logs
+// @Router       /logs/stream [options]
 func (s *Server) handleLogStreamOptions(c *gin.Context) {
 	s.setLogStreamCORSHeaders(c)
 	c.Status(http.StatusNoContent)
@@ -715,6 +755,15 @@ func matchLogLevel(entryLevel, filterLevel string) bool {
 }
 
 // handleLogHistory 获取历史日志
+// handleLogHistory 获取历史日志
+//
+// @Summary      获取历史日志
+// @Tags         logs
+// @Produce      json
+// @Param        lines  query     int  false  "返回行数"  default(500)
+// @Success      200    {object}  map[string]interface{}  "日志列表"
+// @Router       /logs/history [get]
+// @Security     BearerAuth
 func (s *Server) handleLogHistory(c *gin.Context) {
 	// 读取参数
 	lines := 500 // 默认返回最近 500 行
@@ -862,6 +911,19 @@ func parseLogLine(line string) logger.LogEntry {
 	return entry
 }
 
+// handleRotate 执行公网 IP 轮换
+//
+// @Summary      执行公网 IP 轮换
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request    body      object  false  "轮换请求"
+// @Param        device_id  query     string  false  "设备 ID"
+// @Success      200        {object}  map[string]interface{}  "轮换成功"
+// @Failure      400        {object}  map[string]interface{}  "参数错误"
+// @Failure      401        {object}  map[string]interface{}  "未授权"
+// @Failure      404        {object}  map[string]interface{}  "设备未找到"
+// @Router       /rotateip [post]
 func (s *Server) handleRotate(c *gin.Context) {
 	var req struct {
 		DeviceID       string `json:"device_id" form:"device_id"`
@@ -1004,6 +1066,17 @@ func (s *Server) handleDeviceMgmtStopNetwork(c *gin.Context) {
 	})
 }
 
+// handleHealth 服务健康检查
+//
+// @Summary      服务健康检查
+// @Description  检查所有设备的健康状况，返回聚合状态
+// @Tags         dashboard
+// @Produce      json
+// @Success      200   {object}  map[string]interface{}  "所有设备健康"
+// @Failure      503   {object}  map[string]interface{}  "至少一个设备不健康"
+// @Failure      401   {object}  map[string]interface{}  "未授权"
+// @Router       /health [get]
+// @Security     BearerAuth
 func (s *Server) handleHealth(c *gin.Context) {
 	workers := s.pool.GetAllWorkers()
 	allHealthy := true
@@ -1052,6 +1125,21 @@ func (s *Server) handleHealth(c *gin.Context) {
 	}
 }
 
+// handleSendSMS 发送短信（自动选择 AT 或 VoWiFi）
+//
+// @Summary      发送短信
+// @Description  根据设备 VoWiFi 状态自动选择 AT 或 VoWiFi 方式发送短信
+// @Tags         sms
+// @Accept       json
+// @Produce      json
+// @Param        request  body      object  true  "发送短信请求"  example({"device_id":"","phone":"+8613800138000","message":"hello"})
+// @Success      200      {object}  map[string]interface{}  "发送成功"
+// @Failure      400      {object}  map[string]interface{}  "参数错误"
+// @Failure      404      {object}  map[string]interface{}  "设备未找到"
+// @Failure      429      {object}  map[string]interface{}  "短信限速"
+// @Failure      500      {object}  map[string]interface{}  "发送失败"
+// @Router       /sms/send [post]
+// @Security    BearerAuth
 func (s *Server) handleSendSMS(c *gin.Context) {
 	type SendSMSRequest struct {
 		DeviceID string `json:"device_id"`
@@ -1185,6 +1273,17 @@ func (s *Server) handleSendSMS(c *gin.Context) {
 	})
 }
 
+// handleSMSDelivery 查询短信投递状态
+//
+// @Summary      查询短信投递状态
+// @Tags         sms
+// @Produce      json
+// @Param        message_id  path      string  true  "消息 ID"
+// @Success      200         {object}  map[string]interface{}  "投递状态"
+// @Failure      400         {object}  map[string]interface{}  "参数错误"
+// @Failure      404         {object}  map[string]interface{}  "未找到记录"
+// @Router       /sms/delivery/{message_id} [get]
+// @Security     BearerAuth
 func (s *Server) handleSMSDelivery(c *gin.Context) {
 	messageID := strings.TrimSpace(c.Param("message_id"))
 	if messageID == "" {
@@ -1265,6 +1364,17 @@ func (s *Server) handleVoWiFiDisable(c *gin.Context) {
 }
 
 // handleStatusDetail 返回单个设备的详细状态
+//
+// @Summary      单设备详细状态
+// @Description  返回指定设备的详细信息，包括 IMEI、信号、注册状态、VoWiFi 状态等
+// @Tags         dashboard
+// @Produce      json
+// @Param        device_id  path      string  true  "设备 ID"
+// @Success      200       {object}  map[string]interface{}  "详细状态"
+// @Failure      401       {object}  map[string]interface{}  "未授权"
+// @Failure      404       {object}  map[string]interface{}  "设备未找到"
+// @Router       /devices/{device_id}/status [get]
+// @Security     BearerAuth
 func (s *Server) handleStatusDetail(c *gin.Context) {
 	deviceID := deviceIDParam(c)
 	worker := s.pool.GetWorker(deviceID)
@@ -1371,6 +1481,19 @@ func (s *Server) resolveSMSICCID(deviceID, imsi string) (string, int, string) {
 	return iccid, 0, ""
 }
 
+// handleGetSMSContacts 获取短信联系人列表
+//
+// @Summary      短信联系人列表
+// @Tags         sms
+// @Produce      json
+// @Param        device_id    query     int     false  "每页数量"  default(50)
+// @Param        before_ts   query     string  false  "分页时间戳"
+// @Param        before_peer query     string  false  "分页联系人"
+// @Success      200          {array}   map[string]interface{}  "联系人列表"
+// @Failure      400          {object}  map[string]interface{}  "参数错误"
+// @Failure      500          {object}  map[string]interface{}  "查询失败"
+// @Router       /sms/contacts [get]
+// @Security     BearerAuth
 func (s *Server) handleGetSMSContacts(c *gin.Context) {
 	deviceID := c.Query("device_id")
 	imsi := c.Query("imsi")
@@ -1461,6 +1584,22 @@ func (s *Server) handleGetSMSContacts(c *gin.Context) {
 	c.JSON(http.StatusOK, enriched)
 }
 
+// handleGetSMSThread 获取与某联系人的短信会话
+//
+// @Summary      获取短信会话
+// @Tags         sms
+// @Produce      json
+// @Param        peer       query     string  true   "联系人"
+// @Param        device_id  query     string  false  "设备 ID"
+// @Param        imsi       query     string  false  "IMSI"
+// @Param        limit      query     int     false  "每页数量"  default(50)
+// @Param        before_ts  query     string  false  "分页时间戳"
+// @Param        before_id  query     int     false  "分页 ID"
+// @Success      200         {array}   map[string]interface{}  "短信列表"
+// @Failure      400         {object}  map[string]interface{}  "参数错误"
+// @Failure      500         {object}  map[string]interface{}  "查询失败"
+// @Router       /sms/thread [get]
+// @Security     BearerAuth
 func (s *Server) handleGetSMSThread(c *gin.Context) {
 	deviceID := c.Query("device_id")
 	imsi := c.Query("imsi")
@@ -1538,6 +1677,18 @@ func (s *Server) handleGetSMSThread(c *gin.Context) {
 	c.JSON(http.StatusOK, enriched)
 }
 
+// handleDeleteSMSMessage 删除单条历史短信
+//
+// @Summary      删除单条短信
+// @Tags         sms
+// @Produce      json
+// @Param        id  path      int  true  "短信 ID"
+// @Success      200  {object}  map[string]interface{}  "删除结果"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      404  {object}  map[string]interface{}  "短信不存在"
+// @Failure      500  {object}  map[string]interface{}  "删除失败"
+// @Router       /sms/messages/{id} [delete]
+// @Security     BearerAuth
 func (s *Server) handleDeleteSMSMessage(c *gin.Context) {
 	id64, err := strconv.ParseUint(strings.TrimSpace(c.Param("id")), 10, 64)
 	if err != nil || id64 == 0 {
@@ -1563,6 +1714,20 @@ func (s *Server) handleDeleteSMSMessage(c *gin.Context) {
 	})
 }
 
+// handleDeleteSMSThread 删除指定历史短信会话
+//
+// @Summary      删除短信会话
+// @Tags         sms
+// @Produce      json
+// @Param        peer       query     string  true   "联系人"
+// @Param        device_id  query     string  false  "设备 ID"
+// @Param        imsi       query     string  false  "IMSI"
+// @Success      200         {object}  map[string]interface{}  "删除结果"
+// @Failure      400         {object}  map[string]interface{}  "参数错误"
+// @Failure      404         {object}  map[string]interface{}  "会话不存在"
+// @Failure      500         {object}  map[string]interface{}  "删除失败"
+// @Router       /sms/thread [delete]
+// @Security     BearerAuth
 func (s *Server) handleDeleteSMSThread(c *gin.Context) {
 	deviceID := c.Query("device_id")
 	imsi := c.Query("imsi")
@@ -1598,6 +1763,19 @@ func (s *Server) handleDeleteSMSThread(c *gin.Context) {
 
 // ---------------- 鉴权与静态服务 ----------------
 
+// handleLogin 处理用户登录
+//
+// @Summary      登录
+// @Description  使用用户名密码登录，返回 Bearer token
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request  body      object  true  "登录请求"  example({"username":"admin","password":"admin"})
+// @Success      200      {object}  map[string]interface{}  "登录成功"
+// @Failure      400      {object}  map[string]interface{}  "参数错误"
+// @Failure      401      {object}  map[string]interface{}  "用户名或密码错误"
+// @Failure      429      {object}  map[string]interface{}  "登录尝试过于频繁"
+// @Router       /auth/login [post]
 func (s *Server) handleLogin(c *gin.Context) {
 	var req struct {
 		Username string `json:"username"`
@@ -1650,6 +1828,19 @@ func (s *Server) handleLogin(c *gin.Context) {
 }
 
 // handleChangePassword 处理修改密码请求
+// handleChangePassword 处理修改密码请求
+//
+// @Summary      修改密码
+// @Tags         settings
+// @Accept       json
+// @Produce      json
+// @Param        request  body      object  true  "修改密码请求"
+// @Success      200      {object}  map[string]interface{}  "修改成功"
+// @Failure      400      {object}  map[string]interface{}  "参数错误"
+// @Failure      401      {object}  map[string]interface{}  "原密码错误"
+// @Failure      500      {object}  map[string]interface{}  "保存失败"
+// @Router       /settings/password [post]
+// @Security     BearerAuth
 func (s *Server) handleChangePassword(c *gin.Context) {
 	var req struct {
 		OldPassword     string `json:"old_password"`
@@ -1951,6 +2142,14 @@ func (s *Server) handleStatic(c *gin.Context) {
 	http.ServeContent(c.Writer, c.Request, filePath, stat.ModTime(), f.(io.ReadSeeker))
 }
 
+// handleSystemInfo 获取系统运行与版本信息
+//
+// @Summary      获取系统信息
+// @Tags         settings
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "系统信息"
+// @Router       /system/info [get]
+// @Security     BearerAuth
 func (s *Server) handleSystemInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"version":    global.Version,

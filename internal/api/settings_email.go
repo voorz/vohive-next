@@ -21,6 +21,17 @@ type testEmailRequest struct {
 	ToAddresses []string `json:"to_addresses"`
 }
 
+// handleTestEmailNotification 
+//
+// @Summary      TestEmailNotification
+// @Tags         settings
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/notifications/email/test [post]
+// @Security     BearerAuth
 func (s *Server) handleTestEmailNotification(c *gin.Context) {
 	var req testEmailRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

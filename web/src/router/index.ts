@@ -1,9 +1,9 @@
-import { createRouter, createWebHashHistory, type RouteLocationNormalized } from 'vue-router'
+import { createRouter, createWebHistory, type RouteLocationNormalized } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { debugCollector } from '../debug/collector'
 
 const router = createRouter({
-  history: createWebHashHistory(),
+  history: createWebHistory(),
   routes: [
     {
       path: '/login',

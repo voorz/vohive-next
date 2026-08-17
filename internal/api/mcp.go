@@ -54,6 +54,17 @@ type mcpContent struct {
 // ── Streamable HTTP Transport ──
 // 单 POST 端点，无 SSE 连接，无 session 管理，请求-响应模式
 
+// handleMcpRequest 
+//
+// @Summary      McpRequest
+// @Tags         mcp
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /mcp [post]
+// @Security     BearerAuth
 func (s *Server) handleMcpRequest(c *gin.Context) {
 	var req jsonRPCRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

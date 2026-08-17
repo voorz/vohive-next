@@ -66,6 +66,16 @@ func getPcscDriverStatus() pcscDriverStatus {
 }
 
 // handleGetPcscDriverStatus GET /api/system/pcsc-driver
+// handleGetPcscDriverStatus 
+//
+// @Summary      GetPcscDriverStatus
+// @Tags         settings
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /system/pcsc-driver [get]
+// @Security     BearerAuth
 func (s *Server) handleGetPcscDriverStatus(c *gin.Context) {
 	status := getPcscDriverStatus()
 	c.JSON(200, status)

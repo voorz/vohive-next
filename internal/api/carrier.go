@@ -32,6 +32,16 @@ func makeKey(mcc, mnc, brand string) string {
 // handleListCarriers GET /api/carrier
 // 运营商列表只从 DB (carrier_visible + carrier_index) 读取。
 // 嵌入的 profiles/*.json 仅作为配置模板 fallback，不用于构建列表。
+// handleListCarriers 运营商列表（carrier_visible + carrier_index）
+//
+// @Summary      运营商列表（carrier_visible + carrier_index）
+// @Tags         carrier
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /carrier [get]
+// @Security     BearerAuth
 func (s *Server) handleListCarriers(c *gin.Context) {
 	// 从 carrier_visible 获取所有可见运营商
 	visible, err := db.ListCarrierVisible()
@@ -121,6 +131,16 @@ func (s *Server) handleListCarriers(c *gin.Context) {
 
 // handleGetGenericProfile GET /api/carrier/generic
 // 返回 3GPP 通用默认模板（generic.json）。
+// handleGetGenericProfile 3GPP 通用默认模板
+//
+// @Summary      3GPP 通用默认模板
+// @Tags         carrier
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /carrier/generic [get]
+// @Security     BearerAuth
 func (s *Server) handleGetGenericProfile(c *gin.Context) {
 	p, err := profiles.Generic()
 	if err != nil || p == nil {
@@ -224,6 +244,19 @@ func (s *Server) handleGetCarrier(c *gin.Context) {
 
 // handleSaveCarrierConfig PUT /api/carrier/:mcc/:mnc?brand=
 // 保存用户配置到 carrier_templates + carrier_activation。
+// handleSaveCarrierConfig 
+//
+// @Summary      SaveCarrierConfig
+// @Tags         carrier
+// @Accept       json
+// @Produce      json
+// @Param        mcc  path      string  true  "mcc"
+// @Param        mnc  path      string  true  "mnc"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /carrier/{mcc}/{mnc} [put]
+// @Security     BearerAuth
 func (s *Server) handleSaveCarrierConfig(c *gin.Context) {
 	mcc := strings.TrimSpace(c.Param("mcc"))
 	mnc := strings.TrimSpace(c.Param("mnc"))
@@ -300,6 +333,18 @@ func (s *Server) handleSaveCarrierConfig(c *gin.Context) {
 
 // handleDeleteCarrierConfig DELETE /api/carrier/:mcc/:mnc/config?brand=
 // 删除 carrier_templates 中的用户模板，清除激活记录。
+// handleDeleteCarrierConfig 
+//
+// @Summary      DeleteCarrierConfig
+// @Tags         carrier
+// @Produce      json
+// @Param        mcc  path      string  true  "mcc"
+// @Param        mnc  path      string  true  "mnc"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /carrier/{mcc}/{mnc}/config [delete]
+// @Security     BearerAuth
 func (s *Server) handleDeleteCarrierConfig(c *gin.Context) {
 	mcc := strings.TrimSpace(c.Param("mcc"))
 	mnc := strings.TrimSpace(c.Param("mnc"))
@@ -318,6 +363,19 @@ func (s *Server) handleDeleteCarrierConfig(c *gin.Context) {
 
 // handleActivateCarrier POST /api/carrier/:mcc/:mnc/activate?brand=
 // 激活用户模板。
+// handleActivateCarrier 
+//
+// @Summary      ActivateCarrier
+// @Tags         carrier
+// @Accept       json
+// @Produce      json
+// @Param        mcc  path      string  true  "mcc"
+// @Param        mnc  path      string  true  "mnc"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /carrier/{mcc}/{mnc}/activate [post]
+// @Security     BearerAuth
 func (s *Server) handleActivateCarrier(c *gin.Context) {
 	mcc := strings.TrimSpace(c.Param("mcc"))
 	mnc := strings.TrimSpace(c.Param("mnc"))
@@ -344,6 +402,19 @@ func (s *Server) handleActivateCarrier(c *gin.Context) {
 
 // handleDeactivateCarrier POST /api/carrier/:mcc/:mnc/deactivate?brand=
 // 禁用用户模板，回退到系统默认。
+// handleDeactivateCarrier 
+//
+// @Summary      DeactivateCarrier
+// @Tags         carrier
+// @Accept       json
+// @Produce      json
+// @Param        mcc  path      string  true  "mcc"
+// @Param        mnc  path      string  true  "mnc"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /carrier/{mcc}/{mnc}/deactivate [post]
+// @Security     BearerAuth
 func (s *Server) handleDeactivateCarrier(c *gin.Context) {
 	mcc := strings.TrimSpace(c.Param("mcc"))
 	mnc := strings.TrimSpace(c.Param("mnc"))
@@ -359,6 +430,17 @@ func (s *Server) handleDeactivateCarrier(c *gin.Context) {
 
 // handleBatchAddVisible POST /api/carriers/visible/batch
 // 从 plmn-index 批量添加运营商到可见列表。
+// handleBatchAddVisible 
+//
+// @Summary      BatchAddVisible
+// @Tags         carrier
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /carriers/visible/batch [post]
+// @Security     BearerAuth
 func (s *Server) handleBatchAddVisible(c *gin.Context) {
 	var req struct {
 		PLMNs []string `json:"plmns"`
@@ -380,6 +462,17 @@ func (s *Server) handleBatchAddVisible(c *gin.Context) {
 
 // handleRemoveVisible DELETE /api/carriers/visible/:plmn
 // 从可见列表移除运营商（软删除，可重新添加）。
+// handleRemoveVisible 从可见列表移除运营商
+//
+// @Summary      从可见列表移除运营商
+// @Tags         carrier
+// @Produce      json
+// @Param        plmn  path      string  true  "plmn"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /carriers/visible/{plmn} [delete]
+// @Security     BearerAuth
 func (s *Server) handleRemoveVisible(c *gin.Context) {
 	plmn := strings.TrimSpace(c.Param("plmn"))
 	if plmn == "" {
@@ -397,6 +490,16 @@ func (s *Server) handleRemoveVisible(c *gin.Context) {
 
 // handleSearchCarrierIndex GET /api/carriers/search?q=
 // 搜索 plmn-index 中的运营商（从本地 DB carrier_index 表）。
+// handleSearchCarrierIndex 
+//
+// @Summary      SearchCarrierIndex
+// @Tags         carrier
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /carriers/search [get]
+// @Security     BearerAuth
 func (s *Server) handleSearchCarrierIndex(c *gin.Context) {
 	q := strings.TrimSpace(c.Query("q"))
 	if q == "" {
@@ -410,3 +513,4 @@ func (s *Server) handleSearchCarrierIndex(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, results)
 }
+

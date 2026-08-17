@@ -19,6 +19,16 @@ import (
 )
 
 // handleGetUpdateRepo 返回当前 release 源配置（无默认值）
+// handleGetUpdateRepo 
+//
+// @Summary      GetUpdateRepo
+// @Tags         settings
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/update-repo [get]
+// @Security     BearerAuth
 func (s *Server) handleGetUpdateRepo(c *gin.Context) {
 	cfg := config.GetConfig()
 	owner := ""
@@ -63,6 +73,16 @@ func (s *Server) handleUpdateUpdateRepo(c *gin.Context) {
 }
 
 // handleDeleteUpdateRepo 删除 release 源配置并热加载
+// handleDeleteUpdateRepo 
+//
+// @Summary      DeleteUpdateRepo
+// @Tags         settings
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/update-repo [delete]
+// @Security     BearerAuth
 func (s *Server) handleDeleteUpdateRepo(c *gin.Context) {
 	configPath := config.GetConfigPath()
 	if configPath == "" {
@@ -81,6 +101,16 @@ func (s *Server) handleDeleteUpdateRepo(c *gin.Context) {
 }
 
 // handleGetVoWiFiBehavior 返回当前 VoWiFi 行为配置
+// handleGetVoWiFiBehavior 
+//
+// @Summary      GetVoWiFiBehavior
+// @Tags         settings
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/vowifi-behavior [get]
+// @Security     BearerAuth
 func (s *Server) handleGetVoWiFiBehavior(c *gin.Context) {
 	b := s.fullCfg.VoWiFi.Behavior
 	c.JSON(http.StatusOK, gin.H{
@@ -135,6 +165,16 @@ func (s *Server) handleUpdateVoWiFiBehavior(c *gin.Context) {
 }
 
 // handleGetSMSRateLimit 返回当前短信限速配置
+// handleGetSMSRateLimit 
+//
+// @Summary      GetSMSRateLimit
+// @Tags         settings
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/sms-limit [get]
+// @Security     BearerAuth
 func (s *Server) handleGetSMSRateLimit(c *gin.Context) {
 	hourly, daily := s.smsRateLimiter().Limits()
 	c.JSON(http.StatusOK, gin.H{"hourly_limit": hourly, "daily_limit": daily})
@@ -176,6 +216,16 @@ func (s *Server) handleUpdateSMSRateLimit(c *gin.Context) {
 }
 
 // handleListReleases 获取 Release 列表
+// handleListReleases 
+//
+// @Summary      ListReleases
+// @Tags         settings
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /system/update/releases [get]
+// @Security     BearerAuth
 func (s *Server) handleListReleases(c *gin.Context) {
 	releases, err := updater.ListReleases()
 	if err != nil {
@@ -206,6 +256,17 @@ func (s *Server) handleApplyUpdateByTag(c *gin.Context) {
 }
 
 // handleLocalUpdate 上传本地二进制文件进行更新
+// handleLocalUpdate 
+//
+// @Summary      LocalUpdate
+// @Tags         settings
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /system/update/local [post]
+// @Security     BearerAuth
 func (s *Server) handleLocalUpdate(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {
@@ -236,6 +297,16 @@ func (s *Server) handleLocalUpdate(c *gin.Context) {
 }
 
 // handleGetSite 返回站点信息配置
+// handleGetSite 
+//
+// @Summary      GetSite
+// @Tags         settings
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/site [get]
+// @Security     BearerAuth
 func (s *Server) handleGetSite(c *gin.Context) {
 	cfg := config.GetConfig()
 	if cfg == nil {
@@ -285,6 +356,17 @@ func (s *Server) handleUpdateSite(c *gin.Context) {
 }
 
 // handleUploadSiteLogo 上传自定义 logo
+// handleUploadSiteLogo 
+//
+// @Summary      UploadSiteLogo
+// @Tags         settings
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/site/logo [post]
+// @Security     BearerAuth
 func (s *Server) handleUploadSiteLogo(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {
@@ -333,6 +415,17 @@ func (s *Server) handleUploadSiteLogo(c *gin.Context) {
 }
 
 // handleUploadSiteFavicon 上传自定义 favicon
+// handleUploadSiteFavicon 
+//
+// @Summary      UploadSiteFavicon
+// @Tags         settings
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/site/favicon [post]
+// @Security     BearerAuth
 func (s *Server) handleUploadSiteFavicon(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {
@@ -378,6 +471,16 @@ func (s *Server) handleUploadSiteFavicon(c *gin.Context) {
 }
 
 // handleServeSiteLogo 提供自定义 logo 文件（无需鉴权）
+// handleServeSiteLogo 
+//
+// @Summary      ServeSiteLogo
+// @Tags         site
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /site/logo [get]
+// @Security     BearerAuth
 func (s *Server) handleServeSiteLogo(c *gin.Context) {
 	cfg := config.GetConfig()
 	if cfg == nil || cfg.Site.LogoExt == "" {
@@ -398,6 +501,16 @@ func (s *Server) handleServeSiteLogo(c *gin.Context) {
 }
 
 // handleServeSiteFavicon 提供自定义 favicon 文件（无需鉴权）
+// handleServeSiteFavicon 
+//
+// @Summary      ServeSiteFavicon
+// @Tags         site
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /site/favicon [get]
+// @Security     BearerAuth
 func (s *Server) handleServeSiteFavicon(c *gin.Context) {
 	cfg := config.GetConfig()
 	if cfg == nil || cfg.Site.FaviconExt == "" {
@@ -419,6 +532,16 @@ func (s *Server) handleServeSiteFavicon(c *gin.Context) {
 }
 
 // handleGetSecurity 返回安全配置
+// handleGetSecurity 
+//
+// @Summary      GetSecurity
+// @Tags         settings
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/security [get]
+// @Security     BearerAuth
 func (s *Server) handleGetSecurity(c *gin.Context) {
 	cfg := config.GetConfig()
 	if cfg == nil {
@@ -465,6 +588,16 @@ func (s *Server) handleUpdateSecurity(c *gin.Context) {
 }
 
 // handleListAPITokens 列出全部 API Token
+// handleListAPITokens 
+//
+// @Summary      ListAPITokens
+// @Tags         settings
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/api-tokens [get]
+// @Security     BearerAuth
 func (s *Server) handleListAPITokens(c *gin.Context) {
 	tokens, err := db.ListAPITokens()
 	if err != nil {
@@ -509,6 +642,17 @@ func (s *Server) handleCreateAPIToken(c *gin.Context) {
 }
 
 // handleDeleteAPIToken 删除指定 API Token（按 ID）
+// handleDeleteAPIToken 
+//
+// @Summary      DeleteAPIToken
+// @Tags         settings
+// @Produce      json
+// @Param        id  path      string  true  "id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/api-tokens/{id} [delete]
+// @Security     BearerAuth
 func (s *Server) handleDeleteAPIToken(c *gin.Context) {
 	idStr := c.Param("id")
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -525,6 +669,16 @@ func (s *Server) handleDeleteAPIToken(c *gin.Context) {
 }
 
 // handleGetServerConfig 返回服务器配置
+// handleGetServerConfig 
+//
+// @Summary      GetServerConfig
+// @Tags         settings
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/server [get]
+// @Security     BearerAuth
 func (s *Server) handleGetServerConfig(c *gin.Context) {
 	cfg := config.GetConfig()
 	if cfg == nil {
@@ -569,6 +723,17 @@ func (s *Server) handleUpdateServerConfig(c *gin.Context) {
 }
 
 // handleUpdateWebCredentials 更新管理员用户名和密码
+// handleUpdateWebCredentials 
+//
+// @Summary      UpdateWebCredentials
+// @Tags         settings
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/web-credentials [put]
+// @Security     BearerAuth
 func (s *Server) handleUpdateWebCredentials(c *gin.Context) {
 	var req struct {
 		Username string `json:"username"`
@@ -606,6 +771,16 @@ func (s *Server) handleUpdateWebCredentials(c *gin.Context) {
 }
 
 // handleCheckUpdate 检查系统更新
+// handleCheckUpdate 
+//
+// @Summary      CheckUpdate
+// @Tags         settings
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /system/update/check [get]
+// @Security     BearerAuth
 func (s *Server) handleCheckUpdate(c *gin.Context) {
 	info, err := updater.CheckUpdate()
 	if err != nil {

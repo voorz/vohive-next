@@ -12,6 +12,16 @@ import (
 //
 // 事件:
 //   - "devices": 设备列表快照（2s 间隔 + VoWiFi 状态变更时立即推送）
+// handleDeviceMgmtListStream SSE 设备列表实时状态流
+//
+// @Summary      SSE 设备列表实时状态流
+// @Tags         devices
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/stream [get]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtListStream(c *gin.Context) {
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
@@ -183,3 +193,4 @@ func (s *Server) handleDeviceMgmtListStream(c *gin.Context) {
 		}
 	}
 }
+

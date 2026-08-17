@@ -777,6 +777,16 @@ func overviewLocalPhone(imsi, iccid string) string {
 	return strings.TrimSpace(phone)
 }
 
+// handleDeviceMgmtList 
+//
+// @Summary      DeviceMgmtList
+// @Tags         devices
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices [get]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtList(c *gin.Context) {
 	workers := s.pool.GetAllWorkers()
 	managed := config.ListDevices()
@@ -864,6 +874,18 @@ Running:                true,
 }
 
 // handleDeviceMgmtRefreshInfo 主动触发设备底层重新采集各种信息（SIM、信号等）
+// handleDeviceMgmtRefreshInfo 
+//
+// @Summary      DeviceMgmtRefreshInfo
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/actions/refresh [post]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtRefreshInfo(c *gin.Context) {
 	id := deviceIDParam(c)
 	worker := s.pool.GetWorker(id)
@@ -889,6 +911,17 @@ func (s *Server) handleDeviceMgmtRefreshInfo(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "设备信息刷新完成"})
 }
 
+// handleDeviceMgmtOverviewLite 
+//
+// @Summary      DeviceMgmtOverviewLite
+// @Tags         devices
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/overview [get]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtOverviewLite(c *gin.Context) {
 	id := deviceIDParam(c)
 	if id == "" {
@@ -1043,6 +1076,17 @@ func overviewDetailLiveRefreshRequested(c *gin.Context) bool {
 	return false
 }
 
+// handleDeviceMgmtGetDeviceConfig 
+//
+// @Summary      DeviceMgmtGetDeviceConfig
+// @Tags         devices
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/config [get]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtGetDeviceConfig(c *gin.Context) {
 	id := deviceIDParam(c)
 	if id == "" {
@@ -1109,6 +1153,16 @@ func ensureAddDeviceIMEI(cfg config.DeviceConfig, probe func(string) (string, er
 	return cfg, nil
 }
 
+// handleDeviceMgmtDiscovered 
+//
+// @Summary      DeviceMgmtDiscovered
+// @Tags         devices
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/discovered [get]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 	discoveredQMI, err := discoverQMIForMgmtFn()
 	if err != nil {
@@ -1452,6 +1506,18 @@ func detectDeviceBindingConflictInList(cfg config.DeviceConfig, excludeID string
 	return nil
 }
 
+// handleDeviceMgmtUpdateDevice 
+//
+// @Summary      DeviceMgmtUpdateDevice
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id} [put]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtUpdateDevice(c *gin.Context) {
 	id := deviceIDParam(c)
 	var req updateDeviceRequest
@@ -1569,6 +1635,17 @@ func (s *Server) handleDeviceMgmtUpdateDevice(c *gin.Context) {
 	})
 }
 
+// handleDeviceMgmtDeleteDevice 
+//
+// @Summary      DeviceMgmtDeleteDevice
+// @Tags         devices
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id} [delete]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtDeleteDevice(c *gin.Context) {
 	id := deviceIDParam(c)
 
@@ -1622,6 +1699,17 @@ func validateFreeDeviceConfigLimit(devices []config.DeviceConfig) error {
 	return nil
 }
 
+// handleDeviceMgmtAddDevice 
+//
+// @Summary      DeviceMgmtAddDevice
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices [post]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtAddDevice(c *gin.Context) {
 	var req addDeviceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -1768,6 +1856,18 @@ func manualATPortForWorker(worker *device.Worker) string {
 	return worker.ResolvedATPort()
 }
 
+// handleDeviceMgmtExecuteAT 
+//
+// @Summary      DeviceMgmtExecuteAT
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/actions/at [post]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtExecuteAT(c *gin.Context) {
 	id := deviceIDParam(c)
 	var req executeATRequest
@@ -1837,6 +1937,18 @@ type setUSBNetModeRequest struct {
 	Mode int `json:"mode"`
 }
 
+// handleDeviceMgmtSetUSBNetMode 
+//
+// @Summary      DeviceMgmtSetUSBNetMode
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/usbnet-mode [patch]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtSetUSBNetMode(c *gin.Context) {
 	id := deviceIDParam(c)
 	var req setUSBNetModeRequest
@@ -1865,6 +1977,17 @@ func (s *Server) handleDeviceMgmtSetUSBNetMode(c *gin.Context) {
 }
 
 // handleEsimListProfiles 获取 eSIM Profile 列表
+// handleEsimListProfiles 
+//
+// @Summary      EsimListProfiles
+// @Tags         devices
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/esim/profiles [get]
+// @Security     BearerAuth
 func (s *Server) handleEsimListProfiles(c *gin.Context) {
 	id := deviceIDParam(c)
 	worker := s.pool.GetWorker(id)
@@ -2054,6 +2177,17 @@ func esimNotificationHTTPStatus(err error) int {
 	}
 }
 
+// handleEsimListNotifications 
+//
+// @Summary      EsimListNotifications
+// @Tags         devices
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/esim/notifications [get]
+// @Security     BearerAuth
 func (s *Server) handleEsimListNotifications(c *gin.Context) {
 	id := deviceIDParam(c)
 	worker := s.pool.GetWorker(id)
@@ -2073,6 +2207,19 @@ func (s *Server) handleEsimListNotifications(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"items": items})
 }
 
+// handleEsimRetryNotification 
+//
+// @Summary      EsimRetryNotification
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Param        sequence  path      string  true  "sequence"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/esim/notifications/{sequence}/actions/retry [post]
+// @Security     BearerAuth
 func (s *Server) handleEsimRetryNotification(c *gin.Context) {
 	id := deviceIDParam(c)
 	worker := s.pool.GetWorker(id)
@@ -2098,6 +2245,18 @@ func (s *Server) handleEsimRetryNotification(c *gin.Context) {
 }
 
 // handleEsimSwitchProfile 切换 eSIM Profile
+// handleEsimSwitchProfile 
+//
+// @Summary      EsimSwitchProfile
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/esim/actions/switch [post]
+// @Security     BearerAuth
 func (s *Server) handleEsimSwitchProfile(c *gin.Context) {
 	id := deviceIDParam(c)
 	var req esimSwitchRequest
@@ -2144,6 +2303,17 @@ func (s *Server) handleEsimSwitchProfile(c *gin.Context) {
 }
 
 // handleEsimGetEID 获取所有 eUICC 的 EID 列表
+// handleEsimGetEID 
+//
+// @Summary      EsimGetEID
+// @Tags         devices
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/esim/eids [get]
+// @Security     BearerAuth
 func (s *Server) handleEsimGetEID(c *gin.Context) {
 	id := deviceIDParam(c)
 	worker := s.pool.GetWorker(id)
@@ -2165,6 +2335,17 @@ func (s *Server) handleEsimGetEID(c *gin.Context) {
 }
 
 // handleEsimGetChipInfo 获取 eUICC 芯片硬件信息（名称、序列号、固件版本、可用空间）
+// handleEsimGetChipInfo 
+//
+// @Summary      EsimGetChipInfo
+// @Tags         devices
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/esim/chip-info [get]
+// @Security     BearerAuth
 func (s *Server) handleEsimGetChipInfo(c *gin.Context) {
 	id := deviceIDParam(c)
 	worker := s.pool.GetWorker(id)
@@ -2187,6 +2368,17 @@ func (s *Server) handleEsimGetChipInfo(c *gin.Context) {
 }
 
 // handleEsimGetOverview 获取 eSIM 总览（合并芯片信息和 profiles）
+// handleEsimGetOverview 
+//
+// @Summary      EsimGetOverview
+// @Tags         devices
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/esim [get]
+// @Security     BearerAuth
 func (s *Server) handleEsimGetOverview(c *gin.Context) {
 	id := deviceIDParam(c)
 	worker := s.pool.GetWorker(id)
@@ -2247,6 +2439,17 @@ func (s *Server) handleEsimGetOverview(c *gin.Context) {
 //	{"step":"notify","msg":"...","pct":90}
 //	{"step":"done","msg":"Profile 下载完成","pct":100}
 //	{"step":"error","msg":"<错误信息>","pct":-1}
+// handleEsimDownloadProfile 
+//
+// @Summary      EsimDownloadProfile
+// @Tags         devices
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/esim/actions/download [get]
+// @Security     BearerAuth
 func (s *Server) handleEsimDownloadProfile(c *gin.Context) {
 	id := deviceIDParam(c)
 	worker := s.pool.GetWorker(id)
@@ -2305,6 +2508,19 @@ func (s *Server) handleEsimDownloadProfile(c *gin.Context) {
 }
 
 // handleEsimRenameProfile 修改 eSIM profile 名称
+// handleEsimRenameProfile 
+//
+// @Summary      EsimRenameProfile
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Param        iccid  path      string  true  "iccid"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/esim/profiles/{iccid} [patch]
+// @Security     BearerAuth
 func (s *Server) handleEsimRenameProfile(c *gin.Context) {
 	id := deviceIDParam(c)
 	iccid := c.Param("iccid")
@@ -2336,6 +2552,18 @@ func (s *Server) handleEsimRenameProfile(c *gin.Context) {
 }
 
 // handleEsimDeleteProfile 删除 eSIM profile
+// handleEsimDeleteProfile 
+//
+// @Summary      EsimDeleteProfile
+// @Tags         devices
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Param        iccid  path      string  true  "iccid"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/esim/profiles/{iccid} [delete]
+// @Security     BearerAuth
 func (s *Server) handleEsimDeleteProfile(c *gin.Context) {
 	id := deviceIDParam(c)
 	iccid := c.Param("iccid")
@@ -2374,6 +2602,18 @@ type executeUSSDRequest struct {
 
 // handleDeviceMgmtExecuteUSSD 执行 USSD 指令
 // 路由策略：VoWiFi 在线时优先使用 VoWiFi 通道，否则回退到 CS 域
+// handleDeviceMgmtExecuteUSSD 
+//
+// @Summary      DeviceMgmtExecuteUSSD
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/actions/ussd [post]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtExecuteUSSD(c *gin.Context) {
 	id := deviceIDParam(c)
 	var req executeUSSDRequest
@@ -2437,6 +2677,18 @@ type continueUSSDRequest struct {
 }
 
 // handleDeviceMgmtContinueUSSD 发送 USSD 后续输入（多轮菜单选择）
+// handleDeviceMgmtContinueUSSD 
+//
+// @Summary      DeviceMgmtContinueUSSD
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/actions/ussd/continue [post]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtContinueUSSD(c *gin.Context) {
 	id := deviceIDParam(c)
 	var req continueUSSDRequest
@@ -2495,6 +2747,18 @@ type cancelUSSDRequest struct {
 }
 
 // handleDeviceMgmtCancelUSSD 取消活跃的 USSD 会话
+// handleDeviceMgmtCancelUSSD 
+//
+// @Summary      DeviceMgmtCancelUSSD
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/actions/ussd/cancel [post]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtCancelUSSD(c *gin.Context) {
 	id := deviceIDParam(c)
 	var req cancelUSSDRequest
@@ -2536,6 +2800,18 @@ func markCSUSSDSession(resp *backend.USSDResult) {
 }
 
 // handleDeviceMgmtReboot 执行模组重启 (发送 AT+CFUN=1,1)
+// handleDeviceMgmtSetFlightMode 
+//
+// @Summary      DeviceMgmtSetFlightMode
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/flight-mode [patch]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtSetFlightMode(c *gin.Context) {
 	id := deviceIDParam(c)
 	if id == "" {
@@ -2616,6 +2892,18 @@ func shouldUseATFirstReboot(backendMode string) bool {
 }
 
 // handleDeviceMgmtReboot 执行模组重启 (QMI 模式走 QMI ModeReset，AT 模式走 AT+CFUN=1,1)
+// handleDeviceMgmtReboot 
+//
+// @Summary      DeviceMgmtReboot
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/actions/reboot [post]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtReboot(c *gin.Context) {
 	id := deviceIDParam(c)
 
@@ -2691,6 +2979,18 @@ func validateRebootWorkerIdentity(ctx context.Context, worker *device.Worker) er
 }
 
 // handleDeviceMgmtReconnectVoWiFi 执行重连 VoWiFi 的操作
+// handleDeviceMgmtReconnectVoWiFi 
+//
+// @Summary      DeviceMgmtReconnectVoWiFi
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/vowifi/actions/reconnect [post]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtReconnectVoWiFi(c *gin.Context) {
 	id := deviceIDParam(c)
 
@@ -2717,6 +3017,17 @@ func (s *Server) handleDeviceMgmtReconnectVoWiFi(c *gin.Context) {
 }
 
 // handleDeviceMgmtOverviewStreamSingle 给前端管理的概览信息提供带有动态刷新的 SSE 推流（仅针对选中的单个设备）
+// handleDeviceMgmtOverviewStreamSingle 
+//
+// @Summary      DeviceMgmtOverviewStreamSingle
+// @Tags         devices
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/overview/stream [get]
+// @Security     BearerAuth
 func (s *Server) handleDeviceMgmtOverviewStreamSingle(c *gin.Context) {
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
@@ -2916,6 +3227,16 @@ func resolveOfflineBackendMode(cfg config.DeviceConfig) string {
 }
 
 // handlePCSCListReaders 列出系统可用的 PC/SC 智能卡读卡器
+// handlePCSCListReaders 
+//
+// @Summary      PCSCListReaders
+// @Tags         esim
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /pcsc/readers [get]
+// @Security     BearerAuth
 func (s *Server) handlePCSCListReaders(c *gin.Context) {
 	readers, err := esim.ListPCSCReaders()
 	if err != nil {

@@ -55,6 +55,16 @@ func probeUpstreamProxyConfig(c *gin.Context, proxy db.UpstreamProxy) (upstreamp
 }
 
 // handleListUpstreamProxies 获取所有前置代理实例
+// handleListUpstreamProxies 
+//
+// @Summary      ListUpstreamProxies
+// @Tags         upstream-proxies
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /upstream-proxies [get]
+// @Security     BearerAuth
 func (s *Server) handleListUpstreamProxies(c *gin.Context) {
 	proxies, err := db.ListUpstreamProxies()
 	if err != nil {
@@ -94,6 +104,18 @@ func (s *Server) handleCreateUpstreamProxy(c *gin.Context) {
 }
 
 // handleUpdateUpstreamProxy 更新前置代理实例
+// handleUpdateUpstreamProxy 
+//
+// @Summary      UpdateUpstreamProxy
+// @Tags         upstream-proxies
+// @Accept       json
+// @Produce      json
+// @Param        proxy_id  path      string  true  "proxy_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /upstream-proxies/{proxy_id} [put]
+// @Security     BearerAuth
 func (s *Server) handleUpdateUpstreamProxy(c *gin.Context) {
 	id := upstreamProxyIDParam(c)
 	var req db.UpstreamProxy
@@ -130,6 +152,17 @@ func (s *Server) handleUpdateUpstreamProxy(c *gin.Context) {
 }
 
 // handleDeleteUpstreamProxy 删除前置代理实例
+// handleDeleteUpstreamProxy 
+//
+// @Summary      DeleteUpstreamProxy
+// @Tags         upstream-proxies
+// @Produce      json
+// @Param        proxy_id  path      string  true  "proxy_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /upstream-proxies/{proxy_id} [delete]
+// @Security     BearerAuth
 func (s *Server) handleDeleteUpstreamProxy(c *gin.Context) {
 	id := upstreamProxyIDParam(c)
 	if err := db.DeleteUpstreamProxy(id); err != nil {
@@ -195,6 +228,16 @@ func buildUpstreamProxyCountryRuleResponse(rule db.UpstreamProxyCountryRule) ups
 	}
 }
 
+// handleListUpstreamProxyCountries 
+//
+// @Summary      ListUpstreamProxyCountries
+// @Tags         upstream-proxies
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /upstream-proxy-countries [get]
+// @Security     BearerAuth
 func (s *Server) handleListUpstreamProxyCountries(c *gin.Context) {
 	if !upstreamproxy.CountryTableReady() {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "mcc_mnc_table_unavailable"})
@@ -216,6 +259,18 @@ func (s *Server) handleListUpstreamProxyCountryRules(c *gin.Context) {
 	c.JSON(http.StatusOK, out)
 }
 
+// handleUpsertUpstreamProxyCountryRule 
+//
+// @Summary      UpsertUpstreamProxyCountryRule
+// @Tags         upstream-proxies
+// @Accept       json
+// @Produce      json
+// @Param        country_code  path      string  true  "country_code"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /upstream-proxy-country-rules/{country_code} [put]
+// @Security     BearerAuth
 func (s *Server) handleUpsertUpstreamProxyCountryRule(c *gin.Context) {
 	if !upstreamproxy.CountryTableReady() {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "mcc_mnc_table_unavailable"})
@@ -257,6 +312,17 @@ func (s *Server) handleUpsertUpstreamProxyCountryRule(c *gin.Context) {
 	c.JSON(http.StatusOK, buildUpstreamProxyCountryRuleResponse(rule))
 }
 
+// handleDeleteUpstreamProxyCountryRule 
+//
+// @Summary      DeleteUpstreamProxyCountryRule
+// @Tags         upstream-proxies
+// @Produce      json
+// @Param        country_code  path      string  true  "country_code"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /upstream-proxy-country-rules/{country_code} [delete]
+// @Security     BearerAuth
 func (s *Server) handleDeleteUpstreamProxyCountryRule(c *gin.Context) {
 	countryCode := upstreamproxy.NormalizeCountryCode(countryCodeParam(c))
 	if err := db.DeleteUpstreamProxyCountryRule(countryCode); err != nil {
@@ -275,6 +341,17 @@ func maskSecret(s string) string {
 }
 
 // handleLookupUpstreamProxy 查询前置代理 IP 归属与延迟
+// handleLookupUpstreamProxy 
+//
+// @Summary      LookupUpstreamProxy
+// @Tags         upstream-proxies
+// @Produce      json
+// @Param        proxy_id  path      string  true  "proxy_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /upstream-proxies/{proxy_id}/lookup [get]
+// @Security     BearerAuth
 func (s *Server) handleLookupUpstreamProxy(c *gin.Context) {
 	id := upstreamProxyIDParam(c)
 	proxy, err := db.GetUpstreamProxyByID(id)

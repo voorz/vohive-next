@@ -25,6 +25,17 @@ import (
 //   - ringing: 振铃中（来电）
 //   - connected: 通话中
 //   - ended: 通话结束
+// handleVoiceStream 
+//
+// @Summary      VoiceStream
+// @Tags         voice
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/voice/stream [get]
+// @Security     BearerAuth
 func (s *Server) handleVoiceStream(c *gin.Context) {
 	deviceID := deviceIDParam(c)
 	if deviceID == "" {
@@ -91,6 +102,17 @@ func (s *Server) handleVoiceStream(c *gin.Context) {
 // handleGetVoiceHistory 获取通话记录列表
 //
 // GET /devices/:device_id/voice/history?limit=50&before_ts=&before_peer=
+// handleGetVoiceHistory 
+//
+// @Summary      GetVoiceHistory
+// @Tags         voice
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/voice/history [get]
+// @Security     BearerAuth
 func (s *Server) handleGetVoiceHistory(c *gin.Context) {
 	deviceID := deviceIDParam(c)
 	if deviceID == "" {
@@ -118,6 +140,18 @@ func (s *Server) handleGetVoiceHistory(c *gin.Context) {
 // handleDeleteVoiceHistory 删除单条通话记录
 //
 // DELETE /devices/:device_id/voice/history/:id
+// handleDeleteVoiceHistory 
+//
+// @Summary      DeleteVoiceHistory
+// @Tags         voice
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Param        id  path      string  true  "id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/voice/history/{id} [delete]
+// @Security     BearerAuth
 func (s *Server) handleDeleteVoiceHistory(c *gin.Context) {
 	idStr := strings.TrimSpace(c.Param("id"))
 	if idStr == "" {
@@ -142,6 +176,17 @@ func (s *Server) handleDeleteVoiceHistory(c *gin.Context) {
 // handleDeleteAllVoiceHistory 删除某设备的所有通话记录
 //
 // DELETE /devices/:device_id/voice/history
+// handleDeleteAllVoiceHistory 
+//
+// @Summary      DeleteAllVoiceHistory
+// @Tags         voice
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/voice/history [delete]
+// @Security     BearerAuth
 func (s *Server) handleDeleteAllVoiceHistory(c *gin.Context) {
 	deviceID := deviceIDParam(c)
 	if deviceID == "" {

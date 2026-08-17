@@ -105,7 +105,7 @@ async function loadNotifications() {
 }
 
 function openAPIDocs() {
-  const docsURL = String(systemInfo.value.docs?.swagger_ui || '').trim()
+  const docsURL = String(systemInfo.value.docs?.docs_ui || '').trim()
   if (!docsURL) {
     ElMessage.warning('API 文档入口暂不可用')
     return
@@ -1016,13 +1016,13 @@ onBeforeUnmount(() => {
               <div class="min-w-0">
                 <div>
                   <div class="settings-api-title">API 文档</div>
-                  <div class="settings-card-desc">打开后端直出的 OpenAPI 页面</div>
+                  <div class="settings-card-desc">Scalar API Reference 交互式文档</div>
                 </div>
               </div>
               <el-button
                 type="primary"
                 class="self-start sm:self-center shrink-0 !border-0"
-                :disabled="!systemInfo.docs?.swagger_ui"
+                :disabled="!systemInfo.docs?.docs_ui"
                 @click="openAPIDocs"
               >
                 打开 API 文档

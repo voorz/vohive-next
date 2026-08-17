@@ -10,6 +10,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// handleTrafficAnalysis 
+//
+// @Summary      TrafficAnalysis
+// @Tags         dashboard
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /traffic/analysis [get]
+// @Security     BearerAuth
 func (s *Server) handleTrafficAnalysis(c *gin.Context) {
 	rng := c.Query("range")
 	if rng == "" {

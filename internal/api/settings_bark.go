@@ -24,6 +24,17 @@ type testBarkResponse struct {
 	FailedURLs []string `json:"failed_urls,omitempty"`
 }
 
+// handleTestBarkNotification 
+//
+// @Summary      TestBarkNotification
+// @Tags         settings
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /settings/notifications/bark/test [post]
+// @Security     BearerAuth
 func (s *Server) handleTestBarkNotification(c *gin.Context) {
 	var req testBarkRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

@@ -48,6 +48,16 @@ type proxyConfigRequest struct {
 }
 
 // handleProxyOverview 获取代理配置概览
+// handleProxyOverview 
+//
+// @Summary      ProxyOverview
+// @Tags         proxy-instances
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /proxy-instances/overview [get]
+// @Security     BearerAuth
 func (s *Server) handleProxyOverview(c *gin.Context) {
 	ctx := c.Request.Context()
 	resp := proxyOverviewResponse{
@@ -89,6 +99,17 @@ func (s *Server) handleProxyOverview(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
+// handleProxyInstanceGet 
+//
+// @Summary      ProxyInstanceGet
+// @Tags         proxy-instances
+// @Produce      json
+// @Param        instance_id  path      string  true  "instance_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /proxy-instances/{instance_id} [get]
+// @Security     BearerAuth
 func (s *Server) handleProxyInstanceGet(c *gin.Context) {
 	ctx := c.Request.Context()
 	id := proxyInstanceIDParam(c)
@@ -105,6 +126,17 @@ func (s *Server) handleProxyInstanceGet(c *gin.Context) {
 }
 
 // handleProxyUpdateConfig 更新代理配置
+// handleProxyUpdateConfig 
+//
+// @Summary      ProxyUpdateConfig
+// @Tags         proxy-instances
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /proxy-instances/config [put]
+// @Security     BearerAuth
 func (s *Server) handleProxyUpdateConfig(c *gin.Context) {
 	ctx := c.Request.Context()
 	var req proxyConfigRequest
@@ -208,6 +240,18 @@ func normalizeProxyMode(mode string) (string, error) {
 }
 
 // handleProxyInstanceStart 启动代理实例
+// handleProxyInstanceStart 
+//
+// @Summary      ProxyInstanceStart
+// @Tags         proxy-instances
+// @Accept       json
+// @Produce      json
+// @Param        instance_id  path      string  true  "instance_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /proxy-instances/{instance_id}/actions/start [post]
+// @Security     BearerAuth
 func (s *Server) handleProxyInstanceStart(c *gin.Context) {
 	id := proxyInstanceIDParam(c)
 	if s.proxyMgr == nil {
@@ -224,6 +268,18 @@ func (s *Server) handleProxyInstanceStart(c *gin.Context) {
 }
 
 // handleProxyInstanceStop 停止代理实例
+// handleProxyInstanceStop 
+//
+// @Summary      ProxyInstanceStop
+// @Tags         proxy-instances
+// @Accept       json
+// @Produce      json
+// @Param        instance_id  path      string  true  "instance_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /proxy-instances/{instance_id}/actions/stop [post]
+// @Security     BearerAuth
 func (s *Server) handleProxyInstanceStop(c *gin.Context) {
 	id := proxyInstanceIDParam(c)
 	if s.proxyMgr == nil {
@@ -240,6 +296,18 @@ func (s *Server) handleProxyInstanceStop(c *gin.Context) {
 }
 
 // handleProxyInstanceRestart 重启代理实例
+// handleProxyInstanceRestart 
+//
+// @Summary      ProxyInstanceRestart
+// @Tags         proxy-instances
+// @Accept       json
+// @Produce      json
+// @Param        instance_id  path      string  true  "instance_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /proxy-instances/{instance_id}/actions/restart [post]
+// @Security     BearerAuth
 func (s *Server) handleProxyInstanceRestart(c *gin.Context) {
 	id := proxyInstanceIDParam(c)
 	if s.proxyMgr == nil {

@@ -27,6 +27,16 @@ type dashboardAggregatedTraffic struct {
 // 事件:
 //   - "traffic": 聚合流量快照（~1s 间隔）
 //   - "overview": 设备计数/连接数概览（10s 间隔）
+// handleDashboardOverviewStream SSE 仪表盘聚合实时流量
+//
+// @Summary      SSE 仪表盘聚合实时流量
+// @Tags         dashboard
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /dashboard/overview/stream [get]
+// @Security     BearerAuth
 func (s *Server) handleDashboardOverviewStream(c *gin.Context) {
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
@@ -215,3 +225,4 @@ func (s *Server) handleDashboardOverviewStream(c *gin.Context) {
 		}
 	}
 }
+
