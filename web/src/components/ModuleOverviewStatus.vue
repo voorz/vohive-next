@@ -78,7 +78,19 @@ const signalLevel = computed<number>(() => {
   return 1
 })
 
+// dBm 文字颜色（纯信号强度）
 const signalTone = computed<'good' | 'fair' | 'poor'>(() => {
+  const dbm = props.device?.modem?.signal_dbm
+  if (!hasValidSignalDbm(dbm)) return 'poor'
+  if (dbm >= -85) return 'good'
+  if (dbm >= -100) return 'fair'
+  return 'poor'
+})
+
+// 信号格颜色（搜索网络中→橙色，驻网被拒→红色，其余按信号强度）
+const signalBarTone = computed<'good' | 'fair' | 'poor' | 'warning' | 'danger'>(() => {
+  if (props.device?.registration_state_label === 'searching') return 'warning'
+  if (props.device?.registration_state_label === 'denied') return 'danger'
   const dbm = props.device?.modem?.signal_dbm
   if (!hasValidSignalDbm(dbm)) return 'poor'
   if (dbm >= -85) return 'good'
@@ -241,7 +253,7 @@ const networkModeDisplay = computed(() =>
               v-for="i in 5"
               :key="i"
               class="signal-bar"
-              :class="i <= signalLevel ? ['active', signalTone] : 'inactive'"
+              :class="i <= signalLevel ? ['active', signalBarTone] : 'inactive'"
             />
           </div>
         </div>
@@ -473,6 +485,8 @@ const networkModeDisplay = computed(() =>
 .signal-dbz-value.good { color: var(--brand); }
 .signal-dbz-value.fair { color: var(--warning); }
 .signal-dbz-value.poor { color: var(--destructive); }
+.signal-dbz-value.warning { color: var(--warning); }
+.signal-dbz-value.danger { color: var(--destructive); }
 .signal-dbz-unit { font-size: 12px; color: var(--muted-foreground); }
 .signal-bars { display: flex; align-items: flex-end; gap: 3px; height: 32px; margin-left: auto; }
 .signal-bar { width: 5px; border-radius: 2px; transition: all 0.3s; }
@@ -484,6 +498,8 @@ const networkModeDisplay = computed(() =>
 .signal-bar.active.good { background: var(--brand); }
 .signal-bar.active.fair { background: var(--warning); }
 .signal-bar.active.poor { background: var(--destructive); }
+.signal-bar.active.warning { background: var(--warning); }
+.signal-bar.active.danger { background: var(--destructive); }
 .signal-bar.inactive { background: color-mix(in oklab, var(--muted-foreground) 20%, transparent); }
 .signal-detail { font-size: 10px; color: var(--muted-foreground); font-family: var(--oomol-font-mono); margin-top: 6px; display: flex; gap: 12px; flex-wrap: wrap; }
 </style>

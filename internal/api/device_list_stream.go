@@ -111,6 +111,7 @@ func (s *Server) handleDeviceMgmtListStream(c *gin.Context) {
 				PCSCReader:             cfg.PCSCReader,
 				SMSEnabled:             cfg.SMSEnabled,
 				NetworkEnabled:         cfg.NetworkEnabled,
+				FlightMode:             status.OperatingMode != nil && isFlightModeEnabled(*status.OperatingMode),
 				VoWiFiEnabled:          cardPolicyVoWiFiEnabled(status.ICCID, cfg.VoWiFiEnabled),
 				VoWiFiActive:           s.pool.IsVoWiFiActive(w.ID),
 				VoWiFiRuntime:          s.getVoWiFiRuntimeDTO(w.ID),
@@ -131,6 +132,7 @@ func (s *Server) handleDeviceMgmtListStream(c *gin.Context) {
 					ICCID:         status.ICCID,
 					RegStatus:     status.RegStatus,
 					PSAttached:    status.PSAttached,
+					OperatingMode: status.OperatingMode,
 				},
 			}
 			s.applyLifecycleToListItem(&item, true, cfg)

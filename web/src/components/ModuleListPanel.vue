@@ -155,8 +155,13 @@ function signalBars(dbm?: number): number {
 }
 
 // 信号格颜色（与详情页统一）
-function signalBarColor(dbm?: number): string {
+function signalBarColor(d: DeviceMgmtListItem): string {
+  const dbm = d?.modem?.signal_dbm
   if (dbm === undefined || dbm === null) return ''
+  // 搜索网络中 → 橙色
+  if (d?.registration_state_label === 'searching') return 'bar-warning'
+  // 驻网被拒 → 红色
+  if (d?.registration_state_label === 'denied') return 'bar-danger'
   if (dbm >= -85) return 'bar-good'
   if (dbm >= -100) return 'bar-fair'
   return 'bar-poor'
@@ -164,7 +169,7 @@ function signalBarColor(dbm?: number): string {
 
 // 飞行模式
 function isFlightMode(d: DeviceMgmtListItem): boolean {
-  return d?.modem?.operating_mode === 4
+  return !!d?.flight_mode
 }
 
 // VoWiFi 状态
@@ -233,26 +238,28 @@ function initials(name: string): string {
               <el-icon v-if="isFlightMode(item)" size="16" class="device-card-airplane-icon">
                 <Airplane />
               </el-icon>
-              <!-- 移动数据图标 -->
-              <el-icon v-else-if="item.network_enabled && item.esim_transport !== 'pcsc'" size="16" class="device-card-data-icon" title="移动数据已开启">
-                <ArrowSort24Regular />
-              </el-icon>
-              <!-- 信号格（模组）-->
-              <div v-else-if="signalBars(item.modem?.signal_dbm) > 0 && item.esim_transport !== 'pcsc'" class="signal-bars" title="信号强度">
-                <span
-                  v-for="i in 5"
-                  :key="i"
-                  class="signal-bar"
-                  :class="[
-                    signalBars(item.modem?.signal_dbm) >= i ? signalBarColor(item.modem?.signal_dbm) : '',
-                    { dim: signalBars(item.modem?.signal_dbm) < i }
-                  ]"
-                />
-              </div>
-              <!-- USB 图标（读卡器，无信号格）-->
-              <el-icon v-else-if="item.esim_transport === 'pcsc'" size="16" class="device-card-usb-icon" :class="{ offline: !item.running || !item.healthy }">
-                <UsbStick20Regular />
-              </el-icon>
+              <template v-else>
+                <!-- 移动数据图标（网络开启且有数据连接时显示） -->
+                <el-icon v-if="item.network_enabled && item.data_connected" size="16" class="device-card-data-icon" title="移动数据已连接">
+                  <ArrowSort24Regular />
+                </el-icon>
+                <!-- 信号格（模组）-->
+                <div v-if="signalBars(item.modem?.signal_dbm) > 0 && item.esim_transport !== 'pcsc'" class="signal-bars" title="信号强度">
+                  <div
+                    v-for="i in 5"
+                    :key="i"
+                    class="signal-bar"
+                    :class="[
+                      signalBars(item.modem?.signal_dbm) >= i ? signalBarColor(item) : '',
+                      { dim: signalBars(item.modem?.signal_dbm) < i }
+                    ]"
+                  />
+                </div>
+                <!-- USB 图标（读卡器，无信号格）-->
+                <el-icon v-else-if="item.esim_transport === 'pcsc'" size="16" class="device-card-usb-icon" :class="{ offline: !item.running || !item.healthy }">
+                  <UsbStick20Regular />
+                </el-icon>
+              </template>
               <el-icon size="16" class="device-card-vowifi-icon" :class="vowifiState(item)">
                 <WifiCalling3Round v-if="vowifiState(item) === 'ready'" />
                 <WifiWarning24Filled v-else-if="vowifiState(item) === 'enabled-not-ready'" />
@@ -433,17 +440,17 @@ html.dark .device-card.tone-neutral.selected {
   min-width: 0;
 }
 
-/* 信号格 */
+/* 信号格（与详情页等比例缩放） */
 .signal-bars {
   display: flex;
   align-items: flex-end;
-  gap: 2px;
+  gap: 1px;
   height: 14px;
   flex-shrink: 0;
 }
 
 .signal-bar {
-  width: 3px;
+  width: 2px;
   border-radius: 1px;
   transition: all 0.3s;
 }
@@ -460,6 +467,14 @@ html.dark .device-card.tone-neutral.selected {
 
 .signal-bar.bar-fair {
   background: var(--warning);
+}
+
+.signal-bar.bar-warning {
+  background: var(--warning);
+}
+
+.signal-bar.bar-danger {
+  background: var(--destructive);
 }
 
 .signal-bar.bar-poor {
@@ -574,6 +589,14 @@ html.dark .device-card.tone-neutral.selected {
 
 .device-card-signal.fair {
   color: var(--warning);
+}
+
+.device-card-signal.warning {
+  color: var(--warning);
+}
+
+.device-card-signal.danger {
+  color: var(--destructive);
 }
 
 .device-card-signal.poor {

@@ -424,6 +424,7 @@ type deviceMgmtListModem struct {
 	ICCID         string `json:"iccid,omitempty"`
 	RegStatus     int    `json:"reg_status"`
 	PSAttached    bool   `json:"ps_attached"`
+	OperatingMode *int   `json:"operating_mode,omitempty"`
 }
 
 type deviceMgmtListItem struct {
@@ -447,6 +448,7 @@ Running                bool                `json:"running"`
 	PCSCReader             string              `json:"pcsc_reader,omitempty"`
 	SMSEnabled             bool                `json:"sms_enabled"`
 	NetworkEnabled         bool                `json:"network_enabled"`
+	FlightMode             bool                `json:"flight_mode"`
 VoWiFiEnabled          bool               `json:"vowifi_enabled"`
 VoWiFiActive           bool               `json:"vowifi_active"`
 VoWiFiRuntime          *voWiFiRuntimeDTO   `json:"vowifi_runtime,omitempty"`
@@ -820,8 +822,9 @@ Running:                true,
 		PCSCReader:             cfg.PCSCReader,
 		SMSEnabled:             cfg.SMSEnabled,
 			NetworkEnabled:         cfg.NetworkEnabled,
+			FlightMode:             status.OperatingMode != nil && isFlightModeEnabled(*status.OperatingMode),
 			VoWiFiEnabled:          cardPolicyVoWiFiEnabled(strings.TrimSpace(status.ICCID), cfg.VoWiFiEnabled),
-		VoWiFiActive:           s.pool.IsVoWiFiActive(w.ID),
+			VoWiFiActive:           s.pool.IsVoWiFiActive(w.ID),
 			VoWiFiRuntime:          s.getVoWiFiRuntimeDTO(w.ID),
 			NetworkConnected:       w.NetworkConnected(),
 			RegistrationStateLabel: registrationStateLabel(status.RegStatus),
@@ -840,6 +843,7 @@ Running:                true,
 				ICCID:         status.ICCID,
 				RegStatus:     status.RegStatus,
 				PSAttached:    status.PSAttached,
+				OperatingMode: status.OperatingMode,
 			},
 		}
 		s.applyLifecycleToListItem(&item, true, cfg)
