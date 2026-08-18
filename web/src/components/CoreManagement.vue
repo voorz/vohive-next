@@ -7,6 +7,8 @@ import {
   ArrowDownload24Regular,
   Cloud24Regular,
   Desktop24Regular,
+  Dismiss24Regular,
+  CheckmarkCircle24Regular,
 } from '@vicons/fluent'
 
 const props = defineProps<{
@@ -36,6 +38,7 @@ function onFileSelect(event: Event) {
 function onDrop(event: DragEvent) {
   event.preventDefault()
   dragOver.value = false
+  if (selectedFile.value) return
   if (event.dataTransfer && event.dataTransfer.files.length > 0) {
     selectedFile.value = event.dataTransfer.files[0]
   }
@@ -43,6 +46,7 @@ function onDrop(event: DragEvent) {
 
 function onDragOver(event: DragEvent) {
   event.preventDefault()
+  if (selectedFile.value) return
   dragOver.value = true
 }
 
@@ -263,13 +267,16 @@ onBeforeUnmount(() => {
           class="hidden"
           @change="onFileSelect"
         />
-        <el-button size="small" @click="triggerFileInput">
+        <el-button size="small" :disabled="!!selectedFile" @click="triggerFileInput">
           <el-icon class="mr-1"><FolderOpen24Regular /></el-icon>
           选择文件
         </el-button>
-        <span v-if="selectedFile" class="text-sm font-mono truncate flex-1" style="color: var(--foreground);">
-          {{ selectedFile.name }}
-        </span>
+        <div v-if="selectedFile" class="local-file-chip">
+          <span class="local-file-name" :title="selectedFile.name">{{ selectedFile.name }}</span>
+          <button class="local-file-remove" :disabled="installing" @click="clearFile" title="删除">
+            <el-icon size="12"><Dismiss24Regular /></el-icon>
+          </button>
+        </div>
         <span v-else class="text-sm truncate flex-1" style="color: var(--muted-foreground);">
           未选择文件
         </span>
@@ -278,13 +285,19 @@ onBeforeUnmount(() => {
       <!-- 拖拽区域 -->
       <div
         class="local-drag-zone mt-3"
-        :class="{ 'local-drag-zone--over': dragOver }"
+        :class="{ 'local-drag-zone--over': dragOver, 'local-drag-zone--uploaded': selectedFile }"
         @drop="onDrop"
         @dragover="onDragOver"
         @dragleave="onDragLeave"
       >
-        <el-icon size="32" style="color: var(--muted-foreground);"><ArrowDownload24Regular /></el-icon>
-        <div class="local-drag-hint">或拖拽上传核心二进制开始安装</div>
+        <template v-if="selectedFile">
+          <el-icon size="32" style="color: var(--brand);"><CheckmarkCircle24Regular /></el-icon>
+          <div class="local-drag-hint" style="color: var(--brand);">已上传</div>
+        </template>
+        <template v-else>
+          <el-icon size="32" style="color: var(--muted-foreground);"><ArrowDownload24Regular /></el-icon>
+          <div class="local-drag-hint">或拖拽上传核心二进制开始安装</div>
+        </template>
       </div>
 
       <!-- 操作按钮 -->
@@ -442,6 +455,57 @@ onBeforeUnmount(() => {
 .local-drag-zone--over {
   border-color: var(--brand);
   background: color-mix(in oklab, var(--brand) 5%, transparent);
+}
+
+.local-drag-zone--uploaded {
+  border-color: color-mix(in oklab, var(--brand) 40%, var(--border));
+  background: color-mix(in oklab, var(--brand) 8%, transparent);
+  cursor: default;
+}
+
+.local-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 3px 4px 3px 10px;
+  border-radius: 999px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.local-file-name {
+  font-size: 12px;
+  font-family: var(--oomol-font-mono);
+  color: var(--foreground);
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.local-file-remove {
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.12s;
+}
+.local-file-remove:hover {
+  background: var(--destructive);
+  color: white;
+}
+.local-file-remove:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .local-drag-hint {
