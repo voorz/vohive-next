@@ -53,10 +53,25 @@ const vowifiStatus = computed<'ok' | 'partial' | 'off'>(() => {
   return 'off'
 })
 
-// VoWiFi 全部就绪时触发礼花效果
-watch(vowifiStatus, (now, prev) => {
-  if (now === 'ok' && prev !== 'ok') {
-    // 防止页面初始加载时已经是 ok 状态也触发（只在状态变化时触发）
+// VoWiFi 启动过程追踪：只在同一设备启动过程中变为 ok 才触发礼花
+const isStarting = ref(false)
+const lastDeviceId = ref<string | undefined>()
+
+watch([vowifiStatus, () => props.device?.id], ([status, id]) => {
+  // 设备切换时重置启动状态
+  if (id !== lastDeviceId.value) {
+    isStarting.value = false
+    lastDeviceId.value = id
+    return
+  }
+  // 同一设备：进入启动中状态
+  if (status === 'partial' || (status === 'off' && vowifiEnabled.value)) {
+    isStarting.value = true
+    return
+  }
+  // 同一设备：从启动中变为 ok → 触发礼花
+  if (status === 'ok' && isStarting.value) {
+    isStarting.value = false
     // 左侧发射
     confetti({
       particleCount: 80,
@@ -83,7 +98,7 @@ watch(vowifiStatus, (now, prev) => {
       })
     }, 300)
   }
-})
+}, { immediate: true })
 
 const notReadyNames = computed(() =>
   readinessItems.value.filter(i => !i.ready).map(i => i.key)
@@ -199,7 +214,7 @@ const networkModeIcon = computed(() => {
         :disabled="reconnectingVoWiFi || (isPCSC && !vowifiEnabled)"
         @click="emit('reconnect-vowifi')"
       >
-        <span>重连 VoWiFi</span>
+        <span>重连</span>
       </button>
       <button
         v-else
@@ -379,19 +394,21 @@ const networkModeIcon = computed(() => {
   border-bottom: 1px solid var(--border);
 }
 .ov-reconnect-btn {
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 5px;
-  border: 1px solid var(--foreground);
-  background: var(--foreground);
-  color: var(--background);
-  cursor: pointer;
-  transition: all 0.12s;
-  flex-shrink: 0;
+margin-left: auto;
+display: inline-flex;
+align-items: center;
+height: 24px;
+font-size: 12px;
+font-weight: 500;
+padding: 0 11px;
+border-radius: 4px;
+border: 1px solid var(--foreground);
+background: var(--foreground);
+color: var(--background);
+cursor: pointer;
+transition: all 0.12s;
+flex-shrink: 0;
+line-height: 1;
 }
 .ov-reconnect-btn:not(:disabled):hover {
   background: var(--muted);

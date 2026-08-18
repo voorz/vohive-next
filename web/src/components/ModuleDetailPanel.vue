@@ -322,8 +322,10 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
             :is-p-c-s-c="isPCSC"
             :reconnecting-vo-wi-fi="reconnectingVoWiFi"
             :rotating="rotating"
+            :toggling-vo-wi-fi="togglingVoWiFi"
             @reconnect-vowifi="reconnectVoWiFi"
             @rotate-ip="rotateIP"
+            @toggle-vowifi="toggleVoWiFi"
           />
         </div>
 
