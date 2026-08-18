@@ -109,6 +109,7 @@ async function toggleVoWiFi(val: string | number | boolean) {
     if (!result.ok) throw new Error(result.error.message || '操作失败')
     void store.fetchDetail(id).catch(() => {})
     void store.fetchList().catch(() => {})
+    void fetchCardPolicy(detail.value?.modem?.iccid).catch(() => {})
   } catch (e: unknown) {
     ElMessage.error(e instanceof Error ? e.message : '操作失败')
   } finally {
