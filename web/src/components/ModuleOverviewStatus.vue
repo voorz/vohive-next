@@ -530,8 +530,8 @@ const networkModeIcon = computed(() => {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, color-mix(in oklab, white 30%, transparent), transparent);
-  animation: ov-shimmer 2s ease-in-out infinite;
+  background: linear-gradient(90deg, transparent 20%, color-mix(in oklab, white 60%, transparent), transparent 80%);
+  animation: ov-shimmer 1.5s ease-in-out infinite;
 }
 @keyframes ov-shimmer {
   0% { transform: translateX(-100%); }

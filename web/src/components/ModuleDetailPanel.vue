@@ -44,8 +44,9 @@ const operatorName = computed(() => {
   if (brand) return brand
   const operator = plmnInfo.value?.operators?.[0]?.operator
   if (operator) return operator
-  return detail.value?.name || '未选择'
+  return ''
 })
+const deviceDisplayName = computed(() => detail.value?.name || '未选择')
 const selectedImei = computed(() => detail.value?.modem?.imei || '')
 
 // PLMN 信息（SIM 卡原始 PLMN，非当前接入网络）
@@ -281,8 +282,9 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
       <div class="detail-header-wide">
         <img :src="detail?.esim_transport === 'pcsc' ? ReaderIcon : ModemIcon" :alt="detail?.esim_transport === 'pcsc' ? 'reader' : 'modem'" class="device-icon-svg" />
         <div class="detail-header-info">
-          <div class="detail-header-name">{{ operatorName }}</div>
+          <div class="detail-header-name">{{ deviceDisplayName }}</div>
           <div class="detail-header-meta">
+            <span v-if="operatorName" class="detail-header-operator">{{ operatorName }}</span>
             <span v-if="nativePlmn" class="detail-header-plmn">{{ nativePlmn }}</span>
             <span v-if="countryCode" class="detail-header-code">+{{ countryCode }}</span>
             <CountryFlag v-if="countryIso" :iso="countryIso" :size="16" class="detail-header-flag" />
@@ -482,6 +484,13 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.detail-header-operator {
+  font-size: 12px;
+  color: var(--foreground);
+  opacity: 0.8;
+  font-weight: 500;
 }
 
 .detail-header-imei {
