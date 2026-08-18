@@ -78,10 +78,25 @@ watch(plmn, (val) => {
             </button>
           </div>
 
-          <!-- 第三行：运营商信息 -->
+          <!-- 第三行：运营商信息 + PLMN -->
           <div class="profile-card-line3">
             <span v-if="profile.service_provider_name">{{ profile.service_provider_name }}</span>
-            <span v-if="profile.class_text" class="profile-card-class">{{ profile.class_text }}</span>
+            <span v-if="profile.mcc || profile.mnc" class="profile-card-plmn-tag">
+              {{ profile.mcc }}{{ profile.mnc ? '-' + profile.mnc : '' }}
+            </span>
+          </div>
+
+          <!-- GID 行 -->
+          <div v-if="profile.gid1 || profile.gid2" class="profile-card-gid-row">
+            <span v-if="profile.gid1" class="profile-card-gid">G1:{{ profile.gid1 }}</span>
+            <span v-if="profile.gid2" class="profile-card-gid">G2:{{ profile.gid2 }}</span>
+          </div>
+
+          <!-- ISDPAID 行 -->
+          <div v-if="profile.isdp_aid" class="profile-card-isdp-row">
+            <span class="profile-card-isdp" :class="{ masked: !showSensitive }">
+              {{ profile.isdp_aid.toUpperCase() }}
+            </span>
           </div>
         </div>
       </div>
@@ -115,7 +130,7 @@ watch(plmn, (val) => {
 .profile-card-layout {
   display: flex;
   gap: 10px;
-  align-items: center;
+  align-items: flex-start;
 }
 
 /* 运营商图标盒子 */
@@ -187,6 +202,27 @@ watch(plmn, (val) => {
   user-select: none;
 }
 
+.profile-card-isdp-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.profile-card-isdp {
+  font-size: 10px;
+  color: var(--muted-foreground);
+  font-family: var(--oomol-font-mono);
+  opacity: 0.6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: filter 0.15s;
+}
+.profile-card-isdp.masked {
+  filter: blur(3px);
+  user-select: none;
+}
+
 /* 切换按钮 — toggle switch 样式 */
 .profile-card-switch {
   width: 32px;
@@ -252,7 +288,28 @@ watch(plmn, (val) => {
   color: var(--muted-foreground);
 }
 
-.profile-card-class {
-  opacity: 0.7;
+.profile-card-plmn-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--oomol-font-mono);
+  color: var(--muted-foreground);
+  background: color-mix(in oklab, var(--muted-foreground) 12%, transparent);
+  padding: 1px 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.profile-card-gid-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.profile-card-gid {
+  font-family: var(--oomol-font-mono);
+  opacity: 0.5;
+  font-size: 10px;
+  color: var(--muted-foreground);
 }
 </style>

@@ -234,6 +234,7 @@ func buildDiscoveredEUICCInfo(aid []byte, eidStr string) EUICCInfo {
 // ProfileItem 单个 profile 信息
 type ProfileItem struct {
 	ICCID               string `json:"iccid"`
+	ISDPAIDHex          string `json:"isdp_aid,omitempty"`
 	Name                string `json:"name"`
 	ServiceProviderName string `json:"service_provider_name"`
 	State               int    `json:"state"` // 0=disabled, 1=enabled
@@ -403,6 +404,7 @@ var (
 // 避免 ListProfile 发送几十条 APDU 以及长时间的数据传输。
 var basicProfileTags = []bertlv.Tag{
 	sgp22.TagICCID,
+	sgp22.TagISDPAID,
 	sgp22.TagProfileState,
 	sgp22.TagNickname,
 	sgp22.TagServiceProviderName,
@@ -1688,6 +1690,7 @@ func buildProfileGroup(eidStr string, aid []byte, profiles []*sgp22.ProfileInfo)
 		}
 		group.Profiles = append(group.Profiles, ProfileItem{
 			ICCID:               p.ICCID.String(),
+			ISDPAIDHex:          hex.EncodeToString(p.ISDPAID),
 			Name:                name,
 			ServiceProviderName: p.ServiceProviderName,
 			State:               int(p.ProfileState),

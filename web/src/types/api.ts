@@ -261,6 +261,7 @@ export type EsimEUICCInfo = {
 
 export type EsimProfileItem = {
   iccid: string
+  isdp_aid?: string
   name: string
   service_provider_name: string
   state: number
