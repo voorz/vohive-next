@@ -302,14 +302,12 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
         <div class="detail-inner">
       <!-- Tab 切换 -->
       <div class="tab-bar">
-        <el-radio-group v-model="activeTab" size="default">
+        <el-radio-group v-model="activeTab">
           <el-radio-button
             v-for="tab in tabs"
             :key="tab.name"
             :value="tab.name"
-          >
-            {{ tab.label }}
-          </el-radio-button>
+          >{{ tab.label }}</el-radio-button>
         </el-radio-group>
       </div>
 

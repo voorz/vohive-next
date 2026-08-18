@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { DeviceOverviewItem } from '../types/api'
 import ModuleOverviewStatus from './ModuleOverviewStatus.vue'
+import ModuleStatusCard from './ModuleStatusCard.vue'
 import ModuleOverviewDevice from './ModuleOverviewDevice.vue'
 import ModuleOverviewNetwork from './ModuleOverviewNetwork.vue'
 
@@ -23,6 +24,7 @@ defineEmits<{
 
 <template>
   <div class="ov-overview">
+    <ModuleStatusCard :device="device" />
     <ModuleOverviewStatus
       :device="device"
       :reconnecting-vo-wi-fi="reconnectingVoWiFi"
@@ -32,7 +34,7 @@ defineEmits<{
     />
     <ModuleOverviewDevice :device="device" />
     <ModuleOverviewNetwork
-      v-if="!isPCSC"
+      v-if="!isPCSC && !device?.vowifi_enabled"
       :device="device"
       :traffic-speed-rx="trafficSpeedRx"
       :traffic-speed-tx="trafficSpeedTx"

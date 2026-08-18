@@ -134,7 +134,6 @@ const showSIPStatus = computed(() => (rt.value?.last_sip_status ?? 0) > 0)
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
-  margin-bottom: 14px;
 }
 .activity-header {
   display: flex;

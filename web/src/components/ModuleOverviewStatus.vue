@@ -2,10 +2,14 @@
 import { computed, ref } from 'vue'
 import type { DeviceOverviewItem } from '../types/api'
 import { isControlOnline, isRadioRegistered, isRecoveryPhase, lifecycleStatusLabel } from '../utils/deviceLifecycle'
-import { Pulse24Regular, Settings24Regular, ChevronDown24Regular } from '@vicons/fluent'
+import { Pulse24Regular, Settings24Regular, WifiWarning24Filled } from '@vicons/fluent'
+import { WifiCalling3Twotone, WifiProtectedSetupRound, RunningWithErrorsFilled, CellTowerRound, Md3GMobiledataTwotone, Md4GMobiledataTwotone, Md4GPlusMobiledataTwotone, Md5GRound } from '@vicons/material'
 import OperatorSelectionDialog from './ModuleOperatorSelectionDialog.vue'
 import ModuleOverviewActivity from './ModuleOverviewActivity.vue'
 import { useDevicesStore } from '../stores/devices'
+import ChinaMobileIcon from '../assets/svgs/china-mobile.svg'
+import ChinaTelecomIcon from '../assets/svgs/china-telecom.svg'
+import ChinaUnicomIcon from '../assets/svgs/china-unicom.svg'
 
 const props = defineProps<{
   device: DeviceOverviewItem | null
@@ -23,12 +27,6 @@ const showOperatorSelection = ref(false)
 
 // PC/SC 读卡器设备：无 modem，始终以 VoWiFi 模式展示
 const isPCSC = computed(() => props.device?.esim_transport === 'pcsc')
-
-// VoWiFi 详情折叠
-const showVowifiDetail = ref(false)
-const hasError = computed(() =>
-  !!(props.device?.vowifi_runtime?.last_error_class || props.device?.vowifi_runtime?.last_error)
-)
 
 // ---- VoWiFi 状态 ----
 const vowifiEnabled = computed(() => !!props.device?.vowifi_enabled)
@@ -57,6 +55,12 @@ const vowifiStatus = computed<'ok' | 'partial' | 'off'>(() => {
 const notReadyNames = computed(() =>
   readinessItems.value.filter(i => !i.ready).map(i => i.key)
 )
+
+// VoWiFi 状态图标：全部就绪→WifiCalling3Twotone，其余→WifiWarning24Filled
+const vowifiIcon = computed(() => {
+  if (vowifiStatus.value === 'ok') return 'success'
+  return 'error'
+})
 
 // ---- 蜂窝状态 ----
 const controlOnline = computed(() => isControlOnline(props.device))
@@ -119,6 +123,34 @@ const cellularHeroTone = computed<'ok' | 'warning' | 'off'>(() => {
 const networkModeDisplay = computed(() =>
   [props.device?.modem?.network_duplex, props.device?.modem?.network_mode].filter(Boolean).join(' ') || '--'
 )
+
+// ico1 运营商图标：搜索网络中→WifiProtectedSetupRound，驻网失败→RunningWithErrorsFilled，其他→CellTowerRound
+const operatorIconType = computed<'searching' | 'failed' | 'default'>(() => {
+  if (props.device?.registration_state_label === 'searching') return 'searching'
+  if (props.device?.registration_state_label === 'denied') return 'failed'
+  return 'default'
+})
+
+// 运营商 SVG 图标（中国三大运营商）
+const operatorSvg = computed(() => {
+  const op = props.device?.modem?.operator || ''
+  const spn = props.device?.modem?.native_spn || ''
+  const name = op || spn
+  if (name.includes('移动') || name.includes('China Mobile') || name.includes('CMCC')) return ChinaMobileIcon
+  if (name.includes('电信') || name.includes('China Telecom') || name.includes('CTCC')) return ChinaTelecomIcon
+  if (name.includes('联通') || name.includes('China Unicom') || name.includes('CUCC')) return ChinaUnicomIcon
+  return null
+})
+
+// ico2 信号格旁图标：按网络模式适配 3G/4G/4G+/5G
+const networkModeIcon = computed(() => {
+  const mode = props.device?.modem?.network_mode?.toUpperCase() || ''
+  if (mode.includes('NR5G') || mode.includes('5G')) return '5g'
+  if (mode.includes('LTE') && mode.includes('PLUS')) return '4g-plus'
+  if (mode.includes('LTE') || mode.includes('4G')) return '4g'
+  if (mode.includes('UMTS') || mode.includes('GSM') || mode.includes('CDMA') || mode.includes('3G')) return '3g'
+  return null
+})
 </script>
 
 <template>
@@ -149,127 +181,140 @@ const networkModeDisplay = computed(() =>
 
       <!-- VoWiFi 模式（PC/SC 设备始终进入此分支） -->
       <template v-if="vowifiEnabled || isPCSC">
-        <div class="status-hero" :class="vowifiStatus">
-          <div class="status-pulse" :class="vowifiStatus"></div>
-          <div class="status-hero-text">
-            <div class="status-hero-title">
-              <template v-if="vowifiStatus === 'ok'">WiFi-Calling · 全部就绪</template>
-              <template v-else-if="vowifiStatus === 'partial'">{{ notReadyNames.join(' · ') }} 未就绪</template>
-              <template v-else>VoWiFi 未连接</template>
+        <!-- Hero 大卡片：上半标题+图标，分割线，下半 readiness -->
+        <div class="hero-card" :class="vowifiStatus">
+          <div class="hero-top">
+            <div class="hero-icon-box" :class="vowifiIcon">
+                <el-icon size="35">
+                  <WifiCalling3Twotone v-if="vowifiIcon === 'success'" />
+                  <WifiWarning24Filled v-else />
+                </el-icon>
+              </div>
+            <div class="hero-text">
+              <div class="hero-title">
+                <template v-if="vowifiStatus === 'ok'">WiFi-Calling · 全部就绪</template>
+                <template v-else-if="vowifiStatus === 'partial'">{{ notReadyNames.join(' · ') }} 未就绪</template>
+                <template v-else>VoWiFi 未连接</template>
+              </div>
+              <div v-if="vowifiStatus === 'ok'" class="hero-sub">通过 ePDG 隧道连接 IMS 核心网</div>
+              <div v-else-if="vowifiStatus === 'partial' && device?.vowifi_runtime?.last_reason" class="hero-sub">
+                {{ device.vowifi_runtime.last_reason }}
+              </div>
             </div>
-            <div v-if="vowifiStatus === 'ok'" class="status-hero-sub">通过 ePDG 隧道连接 IMS 核心网</div>
-            <div v-else-if="vowifiStatus === 'partial' && device?.vowifi_runtime?.last_reason" class="status-hero-sub">
-              {{ device.vowifi_runtime.last_reason }}
+          </div>
+          <div class="hero-divider" :class="vowifiStatus"></div>
+          <div class="hero-bottom">
+            <div class="readiness-chain">
+              <div
+                v-for="item in readinessItems"
+                :key="item.key"
+                class="readiness-segment"
+                :class="{ ready: item.ready === true, 'not-ready': item.ready === false }"
+              />
+            </div>
+            <div class="readiness-labels">
+              <span
+                v-for="item in readinessItems"
+                :key="item.key"
+                class="readiness-label"
+                :class="{ fail: item.ready === false }"
+              >{{ item.key }}</span>
             </div>
           </div>
         </div>
 
-        <div class="readiness-chain">
-          <div
-            v-for="item in readinessItems"
-            :key="item.key"
-            class="readiness-segment"
-            :class="{ ready: item.ready === true, 'not-ready': item.ready === false }"
-          />
-        </div>
-        <div class="readiness-labels">
-          <span
-            v-for="item in readinessItems"
-            :key="item.key"
-            class="readiness-label"
-            :class="{ fail: item.ready === false }"
-          >{{ item.key }}</span>
-        </div>
-
-        <!-- 实时活动（嵌入运行状态卡片内部） -->
+        <!-- 实时活动子卡片 -->
         <ModuleOverviewActivity :device="device" />
-
-        <div class="vowifi-detail-collapse">
-          <button class="vowifi-detail-header" @click="showVowifiDetail = !showVowifiDetail">
-            <el-icon size="14" class="vowifi-detail-arrow" :class="{ expanded: showVowifiDetail || hasError }">
-              <ChevronDown24Regular />
-            </el-icon>
-            <span class="vowifi-detail-title">详情</span>
-          </button>
-          <div v-show="showVowifiDetail || hasError" class="status-detail-rows">
-            <div class="detail-row">
-              <span class="detail-row-label">数据平面</span>
-              <span class="detail-row-value">{{ device?.vowifi_runtime?.dataplane_mode || '--' }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-row-label">最后原因</span>
-              <span class="detail-row-value">{{ device?.vowifi_runtime?.last_reason || '--' }}</span>
-            </div>
-            <div class="detail-row">
-              <span class="detail-row-label">错误分类</span>
-              <span class="detail-row-value">{{ device?.vowifi_runtime?.last_error_class || '--' }}</span>
-            </div>
-          </div>
-        </div>
       </template>
 
       <!-- 蜂窝模式 -->
       <template v-else>
-        <div class="cellular-hero" :class="cellularHeroTone">
-          <div class="status-pulse" :class="cellularHeroTone"></div>
-          <div class="cellular-hero-info">
-            <div class="cellular-hero-name">
-              <template v-if="isRegistered">{{ device?.modem?.operator || '--' }}</template>
-              <template v-else>{{ cellularStatusText }}</template>
+        <!-- Hero 大卡片：上半标题+图标，分割线，下半信号区 -->
+        <div class="hero-card" :class="cellularHeroTone">
+          <div class="hero-top">
+            <div class="hero-icon-box" :class="operatorIconType">
+                <img v-if="operatorSvg && isRegistered" :src="operatorSvg" alt="operator" class="operator-svg" />
+                <el-icon v-else size="35">
+                  <WifiProtectedSetupRound v-if="operatorIconType === 'searching'" />
+                  <RunningWithErrorsFilled v-else-if="operatorIconType === 'failed'" />
+                  <CellTowerRound v-else />
+                </el-icon>
+              </div>
+            <div class="hero-text">
+              <div class="hero-title">
+                <template v-if="isRegistered">{{ device?.modem?.operator || '--' }}</template>
+                <template v-else>{{ cellularStatusText }}</template>
+              </div>
+              <div class="hero-sub">
+                <template v-if="isRegistered">{{ networkModeDisplay }}</template>
+                <template v-else-if="!deviceRunning">设备未运行</template>
+                <template v-else>未驻网</template>
+              </div>
             </div>
-            <div class="cellular-hero-meta">
-              <template v-if="isRegistered">{{ networkModeDisplay }}</template>
-              <template v-else-if="!deviceRunning">设备未运行</template>
-              <template v-else>未驻网</template>
+            <button
+              v-if="device?.id"
+              class="ov-icon-btn"
+              title="网络选择设置"
+              @click="showOperatorSelection = true"
+            >
+              <el-icon size="16"><Settings24Regular /></el-icon>
+            </button>
+          </div>
+          <div v-if="hasValidSignalDbm(device?.modem?.signal_dbm)" class="hero-divider" :class="cellularHeroTone"></div>
+          <div v-if="hasValidSignalDbm(device?.modem?.signal_dbm)" class="hero-bottom signal-area">
+            <div class="signal-left">
+              <div class="signal-dbz">
+                <span class="signal-dbz-value" :class="signalTone">{{ device?.modem?.signal_dbm }}</span>
+                <span class="signal-dbz-unit">dBm</span>
+              </div>
+              <div class="signal-detail">
+                <span>RSRP {{ device?.modem?.signal_rsrp ?? '--' }}</span>
+                <span>RSRQ {{ device?.modem?.signal_rsrq ?? '--' }}</span>
+                <span>SINR {{ device?.modem?.signal_sinr ?? '--' }}</span>
+                <template v-if="device?.modem?.nr5g_signal_sinr !== undefined">
+                  <span>NR5G SINR {{ device?.modem?.nr5g_signal_sinr }}</span>
+                </template>
+              </div>
+            </div>
+            <div class="signal-bars-group">
+              <div class="signal-bars-wrapper">
+                <el-icon v-if="networkModeIcon" size="16" class="network-mode-icon">
+                  <Md5GRound v-if="networkModeIcon === '5g'" />
+                  <Md4GPlusMobiledataTwotone v-else-if="networkModeIcon === '4g-plus'" />
+                  <Md4GMobiledataTwotone v-else-if="networkModeIcon === '4g'" />
+                  <Md3GMobiledataTwotone v-else-if="networkModeIcon === '3g'" />
+                </el-icon>
+                <div class="signal-bars">
+                  <div
+                    v-for="i in 5"
+                    :key="i"
+                    class="signal-bar"
+                    :class="i <= signalLevel ? ['active', signalBarTone] : 'inactive'"
+                  />
+                </div>
+              </div>
             </div>
           </div>
-          <button
-            v-if="device?.id"
-            class="ov-icon-btn"
-            title="网络选择设置"
-            @click="showOperatorSelection = true"
-          >
-            <el-icon size="16"><Settings24Regular /></el-icon>
-          </button>
         </div>
 
-        <div v-if="hasValidSignalDbm(device?.modem?.signal_dbm)" class="signal-box">
-          <div>
-            <div class="signal-dbz">
-              <span class="signal-dbz-value" :class="signalTone">{{ device?.modem?.signal_dbm }}</span>
-              <span class="signal-dbz-unit">dBm</span>
+        <!-- 实时活动子卡片（蜂窝详情） -->
+        <div class="activity-card">
+          <div class="activity-header">
+            <span class="activity-title">实时活动</span>
+          </div>
+          <div class="activity-rows">
+            <div class="detail-row">
+              <span class="detail-row-label">网络模式</span>
+              <span class="detail-row-value">{{ networkModeDisplay }}</span>
             </div>
-            <div class="signal-detail">
-              <span>RSRP {{ device?.modem?.signal_rsrp ?? '--' }}</span>
-              <span>RSRQ {{ device?.modem?.signal_rsrq ?? '--' }}</span>
-              <span>SINR {{ device?.modem?.signal_sinr ?? '--' }}</span>
-              <template v-if="device?.modem?.nr5g_signal_sinr !== undefined">
-                <span>NR5G SINR {{ device?.modem?.nr5g_signal_sinr }}</span>
-              </template>
+            <div class="detail-row">
+              <span class="detail-row-label">频段 / 信道</span>
+              <span class="detail-row-value">{{ device?.modem?.radio_band || '--' }} / {{ device?.modem?.radio_channel ?? '--' }}</span>
             </div>
-          </div>
-          <div class="signal-bars">
-            <div
-              v-for="i in 5"
-              :key="i"
-              class="signal-bar"
-              :class="i <= signalLevel ? ['active', signalBarTone] : 'inactive'"
-            />
-          </div>
-        </div>
-
-        <div class="status-detail-rows">
-          <div class="detail-row">
-            <span class="detail-row-label">网络模式</span>
-            <span class="detail-row-value">{{ networkModeDisplay }}</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-row-label">频段 / 信道</span>
-            <span class="detail-row-value">{{ device?.modem?.radio_band || '--' }} / {{ device?.modem?.radio_channel ?? '--' }}</span>
-          </div>
-          <div class="detail-row">
-            <span class="detail-row-label">注册状态</span>
-            <span class="detail-row-value">{{ device?.modem?.reg_status_text || '--' }}</span>
+            <div class="detail-row">
+              <span class="detail-row-label">注册状态</span>
+              <span class="detail-row-value">{{ device?.modem?.reg_status_text || '--' }}</span>
+            </div>
           </div>
         </div>
       </template>
@@ -341,11 +386,6 @@ const networkModeDisplay = computed(() =>
   font-weight: 700;
   color: var(--foreground);
 }
-.ov-card-head-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
 .ov-icon-btn {
   width: 24px;
   height: 24px;
@@ -360,67 +400,101 @@ const networkModeDisplay = computed(() =>
   transition: all 0.12s;
   flex-shrink: 0;
 }
-.ov-icon-btn:hover { background: var(--accent); color: var(--foreground); }
+.ov-icon-btn:hover { background: var(--foreground); color: var(--background); }
 .ov-card-body { padding: 14px; }
 
-/* Hero */
-.status-hero {
+/* ===== Hero 大卡片（统一结构） ===== */
+.hero-card {
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 14px;
+  border: 1px solid var(--border);
+}
+.hero-card.ok {
+  background: linear-gradient(135deg, color-mix(in oklab, var(--brand) 10%, var(--card)), color-mix(in oklab, var(--brand) 3%, var(--card)));
+  border-color: color-mix(in oklab, var(--brand) 20%, var(--border));
+}
+.hero-card.partial {
+  background: linear-gradient(135deg, color-mix(in oklab, var(--warning) 10%, var(--card)), color-mix(in oklab, var(--warning) 3%, var(--card)));
+  border-color: color-mix(in oklab, var(--warning) 20%, var(--border));
+}
+.hero-card.off {
+  background: var(--muted);
+}
+.hero-card.warning {
+  background: linear-gradient(135deg, color-mix(in oklab, var(--warning) 10%, var(--card)), color-mix(in oklab, var(--warning) 3%, var(--card)));
+  border-color: color-mix(in oklab, var(--warning) 20%, var(--border));
+}
+
+/* Hero 上半部分 */
+.hero-top {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 16px 14px;
+}
+
+/* 图标盒子 */
+.hero-icon-box {
+  width: 40px;
+  height: 40px;
   border-radius: 8px;
-  margin-bottom: 14px;
-  position: relative;
-  overflow: hidden;
-}
-.status-hero.ok {
-  background: linear-gradient(135deg, color-mix(in oklab, var(--brand) 12%, var(--card)), color-mix(in oklab, var(--brand) 4%, var(--card)));
-  border: 1px solid color-mix(in oklab, var(--brand) 25%, var(--border));
-}
-.status-hero.partial {
-  background: linear-gradient(135deg, color-mix(in oklab, var(--warning) 12%, var(--card)), color-mix(in oklab, var(--warning) 4%, var(--card)));
-  border: 1px solid color-mix(in oklab, var(--warning) 25%, var(--border));
-}
-.status-hero.off { background: var(--muted); border: 1px solid var(--border); }
-
-.status-pulse {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: #000000;
 }
-.status-pulse.ok { background: var(--brand); }
-.status-pulse.partial { background: var(--warning); }
-.status-pulse.warning { background: var(--warning); }
-.status-pulse.off { background: var(--muted-foreground); opacity: 0.4; }
-.status-pulse.ok::after, .status-pulse.partial::after, .status-pulse.warning::after {
-  content: '';
-  position: absolute;
-  inset: -3px;
-  border-radius: 999px;
-  border: 2px solid currentColor;
-  animation: ov-pulse-ring 2s ease-out infinite;
-}
-.status-pulse.ok::after { color: var(--brand); }
-.status-pulse.partial::after { color: var(--warning); }
-.status-pulse.warning::after { color: var(--warning); }
-@keyframes ov-pulse-ring {
-  0% { transform: scale(0.8); opacity: 0.8; }
-  100% { transform: scale(2.2); opacity: 0; }
+.hero-card.ok .hero-icon-box { border-color: color-mix(in oklab, var(--brand) 20%, var(--border)); }
+.hero-card.partial .hero-icon-box { border-color: color-mix(in oklab, var(--warning) 20%, var(--border)); }
+.hero-card.warning .hero-icon-box { border-color: color-mix(in oklab, var(--warning) 20%, var(--border)); }
+.hero-card.off .hero-icon-box { border-color: var(--border); }
+.hero-icon-box.success { color: var(--brand); }
+.hero-icon-box.error { color: var(--destructive); }
+.hero-card.ok .hero-icon-box { color: var(--brand); }
+.hero-card.partial .hero-icon-box { color: var(--warning); }
+.hero-card.off .hero-icon-box { color: var(--muted-foreground); opacity: 0.4; }
+.hero-icon-box.searching { color: var(--warning); }
+.hero-icon-box.failed { color: var(--destructive); }
+.hero-icon-box.default { color: var(--brand); }
+.hero-card.off .hero-icon-box { color: var(--muted-foreground); opacity: 0.4; }
+.operator-svg {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
 }
 
-.status-hero-text { flex: 1; min-width: 0; }
-.status-hero-title { font-size: 15px; font-weight: 700; line-height: 1.3; }
-.status-hero.ok .status-hero-title { color: color-mix(in oklab, var(--brand) 85%, var(--foreground)); }
-.status-hero.partial .status-hero-title { color: color-mix(in oklab, var(--warning) 85%, var(--foreground)); }
-.status-hero.off .status-hero-title { color: var(--muted-foreground); }
-.status-hero-sub { font-size: 12px; margin-top: 2px; color: var(--muted-foreground); }
+.hero-text { flex: 1; min-width: 0; }
+.hero-title { font-size: 15px; font-weight: 700; line-height: 1.3; }
+.hero-card.ok .hero-title { color: color-mix(in oklab, var(--brand) 85%, var(--foreground)); }
+.hero-card.partial .hero-title { color: color-mix(in oklab, var(--warning) 85%, var(--foreground)); }
+.hero-card.warning .hero-title { color: color-mix(in oklab, var(--warning) 85%, var(--foreground)); }
+.hero-card.off .hero-title { color: var(--muted-foreground); }
+.hero-sub { font-size: 12px; margin-top: 2px; color: var(--muted-foreground); }
+
+/* 分割线（同步卡片轮廓线色调） */
+.hero-divider { border-top: 1px solid var(--border); }
+.hero-divider.ok { border-top-color: color-mix(in oklab, var(--brand) 25%, var(--border)); }
+.hero-divider.partial { border-top-color: color-mix(in oklab, var(--warning) 25%, var(--border)); }
+.hero-divider.warning { border-top-color: color-mix(in oklab, var(--warning) 25%, var(--border)); }
+.hero-divider.off { border-top-color: var(--border); }
+
+/* Hero 下半部分 */
+.hero-bottom {
+  padding: 16px 14px;
+}
+.hero-bottom:not(.signal-area) {
+  min-height: 83px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
 
 /* Readiness */
 .readiness-chain { display: flex; gap: 6px; margin-bottom: 6px; }
-.readiness-segment { flex: 1; height: 12px; border-radius: 999px; background: var(--muted); position: relative; overflow: hidden; }
+.readiness-segment { flex: 1; height: 12px; border-radius: 999px; background: color-mix(in oklab, var(--muted-foreground) 15%, transparent); position: relative; overflow: hidden; }
 .readiness-segment.ready { background: var(--brand); }
 .readiness-segment.not-ready { background: color-mix(in oklab, var(--destructive) 60%, var(--muted)); }
 .readiness-segment.ready::after {
@@ -434,61 +508,36 @@ const networkModeDisplay = computed(() =>
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
-.readiness-labels { display: flex; gap: 6px; margin-bottom: 14px; }
+.readiness-labels { display: flex; gap: 6px; }
 .readiness-label { flex: 1; text-align: center; font-size: 10px; font-weight: 600; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.03em; }
 .readiness-label.fail { color: var(--destructive); }
 
-/* VoWiFi 详情折叠 */
-.vowifi-detail-collapse { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-top: 12px; }
-.vowifi-detail-header { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; background: var(--muted); border: none; cursor: pointer; user-select: none; transition: background 0.15s; }
-.vowifi-detail-header:hover { background: var(--accent); }
-.vowifi-detail-title { font-size: 11px; font-weight: 700; color: var(--muted-foreground); text-transform: uppercase; letter-spacing: 0.04em; }
-.vowifi-detail-arrow { color: var(--muted-foreground); transition: transform 0.2s; }
-.vowifi-detail-arrow.expanded { transform: rotate(180deg); }
-
-/* Detail rows */
-.status-detail-rows { display: flex; flex-direction: column; gap: 6px; padding: 12px; border-top: 1px solid var(--border); }
-.detail-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; }
-.detail-row-label { color: var(--muted-foreground); flex-shrink: 0; }
-.detail-row-value { color: var(--foreground); font-family: var(--oomol-font-mono); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* Cellular hero */
-.cellular-hero {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px 14px;
-  border-radius: 8px;
-  margin-bottom: 14px;
-}
-.cellular-hero.ok {
-  background: linear-gradient(135deg, color-mix(in oklab, var(--brand) 10%, var(--card)), color-mix(in oklab, var(--brand) 3%, var(--card)));
-  border: 1px solid color-mix(in oklab, var(--brand) 20%, var(--border));
-}
-.cellular-hero.warning {
-  background: linear-gradient(135deg, color-mix(in oklab, var(--warning) 10%, var(--card)), color-mix(in oklab, var(--warning) 3%, var(--card)));
-  border: 1px solid color-mix(in oklab, var(--warning) 20%, var(--border));
-}
-.cellular-hero.off {
-  background: var(--muted);
-  border: 1px solid var(--border);
-}
-.cellular-hero-info { flex: 1; min-width: 0; }
-.cellular-hero-name { font-size: 15px; font-weight: 700; color: var(--foreground); }
-.cellular-hero.off .cellular-hero-name { color: var(--muted-foreground); }
-.cellular-hero-meta { font-size: 12px; color: var(--muted-foreground); margin-top: 2px; font-family: var(--oomol-font-mono); }
-
-/* Signal */
-.signal-box { display: flex; align-items: center; gap: 16px; padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--muted); margin-bottom: 14px; }
+/* Signal area (蜂窝 hero 下半部分) */
+.signal-area { display: flex; align-items: center; gap: 16px; }
+.signal-left { flex: 1; min-width: 0; }
 .signal-dbz { display: flex; align-items: baseline; gap: 4px; }
 .signal-dbz-value { font-size: 28px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
 .signal-dbz-value.good { color: var(--brand); }
 .signal-dbz-value.fair { color: var(--warning); }
 .signal-dbz-value.poor { color: var(--destructive); }
-.signal-dbz-value.warning { color: var(--warning); }
-.signal-dbz-value.danger { color: var(--destructive); }
 .signal-dbz-unit { font-size: 12px; color: var(--muted-foreground); }
-.signal-bars { display: flex; align-items: flex-end; gap: 3px; height: 32px; margin-left: auto; }
+.signal-bars-group { display: flex; align-items: flex-end; flex-shrink: 0; }
+.signal-bars-wrapper { position: relative; display: flex; align-items: flex-end; }
+.signal-bars { display: flex; align-items: flex-end; gap: 3px; height: 32px; }
+.network-mode-icon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  color: var(--muted-foreground);
+  z-index: 1;
+  line-height: 0;
+  transform: translate(-2px, -4.5px);
+}
+.network-mode-icon :deep(svg) {
+  display: block;
+  margin: 0;
+  padding: 0;
+}
 .signal-bar { width: 5px; border-radius: 2px; transition: all 0.3s; }
 .signal-bar:nth-child(1) { height: 20%; }
 .signal-bar:nth-child(2) { height: 40%; }
@@ -501,5 +550,39 @@ const networkModeDisplay = computed(() =>
 .signal-bar.active.warning { background: var(--warning); }
 .signal-bar.active.danger { background: var(--destructive); }
 .signal-bar.inactive { background: color-mix(in oklab, var(--muted-foreground) 20%, transparent); }
-.signal-detail { font-size: 10px; color: var(--muted-foreground); font-family: var(--oomol-font-mono); margin-top: 6px; display: flex; gap: 12px; flex-wrap: wrap; }
+.signal-detail { font-size: 10px; color: var(--muted-foreground); margin-top: 6px; display: flex; gap: 12px; flex-wrap: wrap; }
+
+/* Activity card (子卡片) */
+.activity-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.activity-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.activity-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted-foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.activity-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+}
+
+/* Detail rows */
+.detail-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; }
+.detail-row-label { color: var(--muted-foreground); flex-shrink: 0; }
+.detail-row-value { color: var(--foreground); text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
