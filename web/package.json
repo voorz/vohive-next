@@ -19,6 +19,7 @@
     "@vicons/material": "^0.13.0",
     "@vicons/tabler": "^0.13.0",
     "axios": "^1.13.2",
+    "canvas-confetti": "^1.9.4",
     "codemirror": "^6.0.2",
     "echarts": "^6.0.0",
     "element-plus": "^2.11.0",
@@ -35,6 +36,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",
+    "@types/canvas-confetti": "^1.9.0",
     "@typescript-eslint/eslint-plugin": "^8.26.1",
     "@typescript-eslint/parser": "^8.26.1",
     "@vitejs/plugin-vue": "^5.2.4",

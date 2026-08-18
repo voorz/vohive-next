@@ -284,14 +284,13 @@ function modeTagClass(mode?: string): string {
       <el-input
         v-model="searchQuery"
         placeholder="搜索 IMEI / 接口 / 驱动 / 端口"
-        size="large"
         clearable
       >
         <template #prefix>
           <el-icon><Search24Regular /></el-icon>
         </template>
       </el-input>
-      <el-button size="large" type="primary" @click="scanDevices(true)" :disabled="scanning" class="!ml-2 !border-0">
+      <el-button type="primary" @click="scanDevices(true)" :disabled="scanning" class="!ml-2">
         <el-icon class="mr-1"><ArrowSync24Regular /></el-icon>
         <span>重新扫描</span>
       </el-button>

@@ -269,14 +269,14 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
             :value="d.id"
           />
         </el-select>
-        <el-button size="small" type="primary" @click="emit('open-search')" class="!border-0 add-btn-narrow">
+        <el-button type="primary" @click="emit('open-search')" class="action-btn-narrow">
           <el-icon class="mr-1"><Add24Regular /></el-icon>
           <span>添加</span>
         </el-button>
-        <el-button size="small" type="primary" :disabled="rebooting || isPCSC" @click="rebootModem" class="!border-0 reboot-btn-narrow">
+        <button class="reboot-btn-custom" :disabled="rebooting || isPCSC" @click="rebootModem">
           <el-icon class="mr-1"><ArrowSync24Regular /></el-icon>
           <span>重启模组</span>
-        </el-button>
+        </button>
       </div>
       <!-- 宽屏：图标盒子 + 设备名 + 详细信息 + 重启模组 -->
       <div class="detail-header-wide">
@@ -291,19 +291,15 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
             <span v-if="countryName" class="detail-header-country">{{ countryName }}</span>
           </div>
         </div>
-        <el-button size="small" type="primary" :disabled="rebooting || isPCSC" @click="rebootModem" class="!border-0 reboot-btn">
+        <button class="reboot-btn-custom reboot-btn" :disabled="rebooting || isPCSC" @click="rebootModem">
           <el-icon class="mr-1"><ArrowSync24Regular /></el-icon>
           <span>重启模组</span>
-        </el-button>
+        </button>
       </div>
     </div>
 
-    <!-- 第二层容器 -->
-    <div v-if="detail" class="detail-content">
-      <div class="edit-area-wrap">
-        <div class="detail-inner">
-      <!-- Tab 切换 -->
-      <div class="tab-bar">
+    <!-- Tab 切换 -->
+    <div v-if="detail" class="tab-bar">
         <el-radio-group v-model="activeTab">
           <el-radio-button
             v-for="tab in tabs"
@@ -314,7 +310,7 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
       </div>
 
       <!-- Tab 内容区 -->
-      <div class="tab-content">
+    <div v-if="detail" class="tab-content">
         <!-- 概览 -->
         <div v-if="activeTab === 'overview'" class="tab-pane">
           <ModuleOverviewTab
@@ -375,9 +371,6 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
         <div v-else-if="activeTab === 'config'" class="tab-pane">
           <ModuleConfigForm :device-id="detail.id" :device="detail" @device-deleted="onDeviceDeleted" />
                 </div>
-      </div>
-    </div>
-    </div>
     </div>
 
     <!-- 无选中设备时占位头部 -->
@@ -415,7 +408,7 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 16px;
+  padding: 0 12px;
   border-bottom: 1px solid var(--border);
   overflow: hidden;
 }
@@ -431,7 +424,7 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
   flex: 1;
 }
 
-.add-btn-narrow {
+.action-btn-narrow {
   flex-shrink: 0;
 }
 
@@ -446,22 +439,30 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
 .reboot-btn {
   flex-shrink: 0;
   margin-left: auto;
-  background: #DA9F00 !important;
 }
 
-.reboot-btn:hover {
-  background: #DA9F00 !important;
-  opacity: 0.85;
+/* 重启模组按钮（透明红框，hover 反转） */
+.reboot-btn-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: 1px solid #ef4444;
+  border-radius: 6px;
+  background: transparent;
+  color: #ef4444;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.12s;
 }
-
-.reboot-btn-narrow {
-  flex-shrink: 0;
-  background: #DA9F00 !important;
+.reboot-btn-custom:hover:not(:disabled) {
+  background: #ef4444;
+  color: #fff;
 }
-
-.reboot-btn-narrow:hover {
-  background: #DA9F00 !important;
-  opacity: 0.85;
+.reboot-btn-custom:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* 图标盒子 */
@@ -538,40 +539,30 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
   color: var(--muted-foreground);
 }
 
-.detail-content {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.edit-area-wrap {
-  flex: 1;
-  min-height: 0;
-  padding: 10px;
-  display: flex;
-  flex-direction: column;
-}
-
-/* 第二层容器 */
-.detail-inner {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--card);
-  overflow: hidden;
-}
-
 /* Tab 切换 */
 .tab-bar {
-  display: flex;
-  padding: 6px 14px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
+display: flex;
+padding: 12px;
+border-bottom: 1px solid var(--border);
+flex-shrink: 0;
+}
+.tab-bar :deep(.el-radio-group) {
+flex: 1;
+width: 100%;
+display: flex;
+}
+.tab-bar :deep(.el-radio-button) {
+flex: 1;
+min-width: 0;
+}
+.tab-bar :deep(.el-radio-button__inner) {
+width: 100%;
+text-align: center;
+padding-left: 4px;
+padding-right: 4px;
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
 }
 
 /* Tab 内容区 */
@@ -579,7 +570,7 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 14px;
+  padding: 12px;
 }
 
 .tab-pane {

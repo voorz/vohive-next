@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { DeviceOverviewItem } from '../types/api'
 import { isControlOnline, isRadioRegistered, isRecoveryPhase, lifecycleStatusLabel } from '../utils/deviceLifecycle'
 import { Pulse24Regular, Settings24Regular, WifiWarning24Filled } from '@vicons/fluent'
@@ -10,6 +10,7 @@ import { useDevicesStore } from '../stores/devices'
 import ChinaMobileIcon from '../assets/svgs/china-mobile.svg'
 import ChinaTelecomIcon from '../assets/svgs/china-telecom.svg'
 import ChinaUnicomIcon from '../assets/svgs/china-unicom.svg'
+import confetti from 'canvas-confetti'
 
 const props = defineProps<{
   device: DeviceOverviewItem | null
@@ -50,6 +51,38 @@ const vowifiStatus = computed<'ok' | 'partial' | 'off'>(() => {
   if (all.every(Boolean)) return 'ok'
   if (all.some(Boolean)) return 'partial'
   return 'off'
+})
+
+// VoWiFi 全部就绪时触发礼花效果
+watch(vowifiStatus, (now, prev) => {
+  if (now === 'ok' && prev !== 'ok') {
+    // 防止页面初始加载时已经是 ok 状态也触发（只在状态变化时触发）
+    // 左侧发射
+    confetti({
+      particleCount: 80,
+      spread: 70,
+      origin: { x: 0.2, y: 0.6 },
+      colors: ['#10b981', '#34d399', '#6ee7b7', '#fbbf24', '#60a5fa'],
+    })
+    // 右侧发射
+    setTimeout(() => {
+      confetti({
+        particleCount: 80,
+        spread: 70,
+        origin: { x: 0.8, y: 0.6 },
+        colors: ['#10b981', '#34d399', '#6ee7b7', '#fbbf24', '#60a5fa'],
+      })
+    }, 150)
+    // 中间补射
+    setTimeout(() => {
+      confetti({
+        particleCount: 50,
+        spread: 100,
+        origin: { x: 0.5, y: 0.5 },
+        colors: ['#10b981', '#34d399', '#6ee7b7', '#fbbf24', '#60a5fa'],
+      })
+    }, 300)
+  }
 })
 
 const notReadyNames = computed(() =>
@@ -353,17 +386,17 @@ const networkModeIcon = computed(() => {
   font-weight: 600;
   padding: 4px 10px;
   border-radius: 5px;
-  border: 1px solid var(--border);
-  background: var(--muted);
-  color: var(--foreground);
+  border: 1px solid var(--foreground);
+  background: var(--foreground);
+  color: var(--background);
   cursor: pointer;
   transition: all 0.12s;
   flex-shrink: 0;
 }
 .ov-reconnect-btn:not(:disabled):hover {
-  background: var(--foreground);
-  color: var(--background);
-  border-color: var(--foreground);
+  background: var(--muted);
+  color: var(--foreground);
+  border-color: var(--border);
 }
 .ov-reconnect-btn:disabled {
   cursor: not-allowed;

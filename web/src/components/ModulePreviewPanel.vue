@@ -167,18 +167,10 @@ onBeforeUnmount(() => {
         <div class="preview-title">eSIM 管理</div>
       </div>
       <!-- Tab 切换 -->
-      <div class="preview-mode-tabs">
-        <button
-          class="preview-mode-tab"
-          :class="{ active: activeTab === 'preview' }"
-          @click="activeTab = 'preview'"
-        >预览</button>
-        <button
-          class="preview-mode-tab"
-          :class="{ active: activeTab === 'download' }"
-          @click="activeTab = 'download'"
-        >下载</button>
-      </div>
+      <el-button-group>
+        <el-button :type="activeTab === 'preview' ? 'primary' : 'default'" @click="activeTab = 'preview'">预览</el-button>
+        <el-button :type="activeTab === 'download' ? 'primary' : 'default'" @click="activeTab = 'download'">下载</el-button>
+      </el-button-group>
     </div>
 
     <!-- 无设备 -->
@@ -295,7 +287,7 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 0 14px;
+  padding: 0 12px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -326,41 +318,10 @@ onBeforeUnmount(() => {
   color: var(--foreground);
 }
 
-/* Tab 切换 */
-.preview-mode-tabs {
-  display: flex;
-  gap: 2px;
-  flex-shrink: 0;
-}
-
-.preview-mode-tab {
-  padding: 4px 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted-foreground);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.12s;
-}
-
-.preview-mode-tab:hover {
-  background: var(--accent);
-  color: var(--foreground);
-}
-
-.preview-mode-tab.active {
-  background: var(--background);
-  border-color: var(--border);
-  color: var(--foreground);
-  box-shadow: var(--console-shadow-sm);
-}
-
 /* 芯片卡区域 — 固定，有 padding */
 .preview-chip-area {
   flex-shrink: 0;
-  padding: 10px;
+  padding: 12px;
 }
 
 /* 全宽分割线 — 连接外框 */
@@ -386,7 +347,7 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 10px;
-  padding: 10px;
+  padding: 12px;
 }
 
 /* 下载模式 — 独立滚动 */
@@ -394,7 +355,7 @@ onBeforeUnmount(() => {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 10px;
+  padding: 12px;
 }
 
 /* 底部预留栏 */

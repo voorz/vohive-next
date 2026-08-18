@@ -114,7 +114,7 @@ function handleDeviceDeleted() {
     <!-- 预览抽屉（中窄屏） -->
     <el-drawer
       v-model="previewDrawerOpen"
-      title="预览"
+      :with-header="false"
       size="400px"
       direction="rtl"
     >
@@ -177,20 +177,21 @@ function handleDeviceDeleted() {
   z-index: 5;
   width: 42px;
   height: 42px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--brand);
   border-radius: 999px;
-  background: var(--card);
-  color: var(--foreground);
+  background: var(--brand);
+  color: #fff;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   box-shadow: var(--console-shadow-md);
-  transition: transform 0.15s, background 0.15s;
+  transition: transform 0.15s, background 0.15s, color 0.15s;
 }
 
 .preview-fab:hover {
-  background: var(--accent);
+  background: var(--card);
+  color: var(--brand);
   transform: scale(1.05);
 }
 

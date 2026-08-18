@@ -668,19 +668,19 @@ watch(lang, (v) => {
 }
 
 .shell-header {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  min-width: 0;
-  height: 56px;
-  padding: 0 24px;
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in oklab, var(--background) 95%, transparent);
-  backdrop-filter: blur(8px);
+position: sticky;
+top: 0;
+z-index: 10;
+display: flex;
+align-items: center;
+justify-content: space-between;
+gap: 16px;
+min-width: 0;
+height: 56px;
+padding: 0 24px;
+border-bottom: 1px solid var(--sidebar-border);
+background: var(--sidebar);
+color: var(--sidebar-foreground);
 }
 
 .shell-header-title {
@@ -691,10 +691,10 @@ watch(lang, (v) => {
 }
 
 .header-icon {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 auto;
-  color: var(--foreground);
+width: 16px;
+height: 16px;
+flex: 0 0 auto;
+color: var(--sidebar-foreground);
 }
 
 .shell-header-title h1 {

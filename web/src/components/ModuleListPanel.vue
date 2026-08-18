@@ -202,7 +202,7 @@ function initials(name: string): string {
           <el-icon><Search24Regular /></el-icon>
         </template>
       </el-input>
-      <el-button size="small" type="primary" @click="emit('open-search')" class="!border-0 add-btn">
+      <el-button type="primary" @click="emit('open-search')" class="add-btn">
         <el-icon class="mr-1"><Add24Regular /></el-icon>
         <span>添加</span>
       </el-button>
@@ -321,7 +321,7 @@ function initials(name: string): string {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 6px;
+  padding: 12px;
 }
 
 .device-cards {
