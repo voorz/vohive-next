@@ -265,7 +265,7 @@ function initials(name: string): string {
                 <WifiWarning24Filled v-else-if="vowifiState(item) === 'enabled-not-ready'" />
                 <WifiOff24Regular v-else />
               </el-icon>
-              <el-tag size="small" :type="statusTagType(item)">{{ primaryStatusText(item) }}</el-tag>
+              <el-tag size="small" :type="statusTagType(item)" class="device-card-status-tag">{{ primaryStatusText(item) }}</el-tag>
             </div>
             <!-- 第二行：interface + 信号 -->
             <div class="device-card-meta">
@@ -534,12 +534,17 @@ html.dark .device-card.tone-neutral.selected {
 }
 
 .device-card-status-tag {
-  padding: 1px 6px;
-  border-radius: 4px;
+  height: 16px;
+  line-height: 14px;
+  padding: 0 5px;
+  border-radius: 3px;
   font-size: 10px;
   font-weight: 600;
   white-space: nowrap;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  border: none;
 }
 
 .device-card-status-tag.success {

@@ -12,12 +12,24 @@ const expanded = ref(false)
 const info = computed(() => {
   const eid = props.chipInfo?.eids?.[0]
   if (!eid) return null
+  const specParts = [
+    eid.spec,
+    eid.spec_guess ? `(${eid.spec_guess})` : '',
+    eid.spec_confidence ? `[${eid.spec_confidence}]` : '',
+  ].filter(Boolean).join(' ')
   return {
     manufacturer: eid.manufacturer || '--',
     certificates: eid.certificates?.join(', ') || '--',
     firmware: eid.firmware || props.chipInfo?.firmware || '--',
     serial: props.chipInfo?.serial_number || '--',
     deviceName: props.chipInfo?.sku_name || 'eUICC',
+    spec: specParts || '--',
+    infoSource: eid.info_source || '--',
+    infoVersion: eid.info_version || '--',
+    infoError: eid.info_error || '',
+    sasAccreditation: eid.sas_accreditation_number || '--',
+    defaultSmdp: eid.default_smdp_address || '--',
+    rootDs: eid.root_ds_address || '--',
   }
 })
 </script>
@@ -50,6 +62,34 @@ const info = computed(() => {
       <div class="euicc-info-row">
         <span class="euicc-info-label">SN</span>
         <span class="euicc-info-value mono">{{ info.serial }}</span>
+      </div>
+      <div class="euicc-info-row">
+        <span class="euicc-info-label">规格</span>
+        <span class="euicc-info-value mono">{{ info.spec }}</span>
+      </div>
+      <div class="euicc-info-row">
+        <span class="euicc-info-label">信息来源</span>
+        <span class="euicc-info-value mono">{{ info.infoSource }}</span>
+      </div>
+      <div class="euicc-info-row">
+        <span class="euicc-info-label">版本</span>
+        <span class="euicc-info-value mono">{{ info.infoVersion }}</span>
+      </div>
+      <div v-if="info.infoError" class="euicc-info-row">
+        <span class="euicc-info-label">诊断</span>
+        <span class="euicc-info-value" style="color: var(--destructive);">{{ info.infoError }}</span>
+      </div>
+      <div class="euicc-info-row">
+        <span class="euicc-info-label">SAS</span>
+        <span class="euicc-info-value mono">{{ info.sasAccreditation }}</span>
+      </div>
+      <div class="euicc-info-row">
+        <span class="euicc-info-label">SM-DP+</span>
+        <span class="euicc-info-value mono">{{ info.defaultSmdp }}</span>
+      </div>
+      <div class="euicc-info-row">
+        <span class="euicc-info-label">SM-DS</span>
+        <span class="euicc-info-value mono">{{ info.rootDs }}</span>
       </div>
     </div>
   </div>

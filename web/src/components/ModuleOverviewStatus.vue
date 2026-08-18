@@ -443,9 +443,10 @@ const networkModeIcon = computed(() => {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid var(--border);
   background: #000000;
+  position: relative;
 }
 .hero-card.ok .hero-icon-box { border-color: color-mix(in oklab, var(--brand) 20%, var(--border)); }
 .hero-card.partial .hero-icon-box { border-color: color-mix(in oklab, var(--warning) 20%, var(--border)); }
@@ -460,9 +461,37 @@ const networkModeIcon = computed(() => {
 .hero-icon-box.failed { color: var(--destructive); }
 .hero-icon-box.default { color: var(--brand); }
 .hero-card.off .hero-icon-box { color: var(--muted-foreground); opacity: 0.4; }
+
+/* 脉冲扩散环动效（ok / partial / warning / searching / failed / default 状态触发） */
+.hero-icon-box::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 10px;
+  border: 2px solid currentColor;
+  opacity: 0;
+  pointer-events: none;
+}
+.hero-card.ok .hero-icon-box::after {
+  animation: hero-pulse-ring 2.5s ease-out infinite;
+  color: var(--brand);
+}
+.hero-card.partial .hero-icon-box::after {
+  animation: hero-pulse-ring 2.5s ease-out infinite;
+  color: var(--warning);
+}
+.hero-card.warning .hero-icon-box::after {
+  animation: hero-pulse-ring 2.5s ease-out infinite;
+  color: var(--warning);
+}
+.hero-card.off .hero-icon-box::after { animation: none; }
+@keyframes hero-pulse-ring {
+  0% { transform: scale(0.95); opacity: 0.7; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
 .operator-svg {
-  width: 40px;
-  height: 40px;
+  width: 35px;
+  height: 35px;
   object-fit: contain;
 }
 
