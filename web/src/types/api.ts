@@ -321,6 +321,8 @@ type?: 'modem' | 'pcsc'
 pcsc_reader?: string
 display_name?: string
 manufacturer?: string
+serial?: string
+info?: string
 }
 
 export type DashboardDevice = {

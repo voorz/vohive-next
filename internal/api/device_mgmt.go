@@ -1137,6 +1137,8 @@ type discoveredDevice struct {
 	PCSCReader     string   `json:"pcsc_reader,omitempty"`
 	DisplayName    string   `json:"display_name,omitempty"` // USB Product 名称（modem 和 pcsc 通用）
 	Manufacturer  string   `json:"manufacturer,omitempty"`  // USB Manufacturer
+	Serial         string   `json:"serial,omitempty"`        // USB Serial Number
+	Info           string   `json:"info,omitempty"`           // USB 技术信息行（SSN/USB版本/设备类/端点摘要 或 接口驱动统计）
 }
 
 var discoverQMIForMgmtFn = device.DiscoverQMIDevices
@@ -1258,11 +1260,28 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 		out = append(out, buildDiscoveredDevice(hw, false, "", true))
 	}
 
+	// 为模组设备补充 USB serial 和 info 行
+	usbIdentities := device.ListUSBIdentities()
+	for i := range out {
+		if out[i].Type == "pcsc" || (out[i].VendorID == 0 && out[i].ProductID == 0) {
+			continue
+		}
+		vidHex := fmt.Sprintf("%04x", out[i].VendorID)
+		pidHex := fmt.Sprintf("%04x", out[i].ProductID)
+		if detail := device.ResolveUSBIdentityByVIDPID(vidHex, pidHex, usbIdentities); detail != nil {
+			if out[i].Serial == "" {
+				out[i].Serial = detail.Serial
+			}
+			if out[i].Info == "" {
+				out[i].Info = device.FormatUSBInfoLine(detail, false)
+			}
+		}
+	}
+
 	// 追加 PC/SC 读卡器到发现列表（使用 wwan-go/ccid 统一枚举读卡器）
 	readerNames, pcscErr := esim.ListPCSCReaders()
 	logger.Debug(fmt.Sprintf("设备发现: ListPCSCReaders readers=%d err=%v", len(readerNames), pcscErr))
 	if pcscErr == nil {
-		usbIdentities := device.ListUSBIdentities()
 		configuredDevices := managed
 		for _, r := range readerNames {
 			configuredID := ""
@@ -1272,8 +1291,13 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 					break
 				}
 			}
-			// 从 USB 设备中提取结构化信息
+		// 从 USB 设备中提取结构化信息
 			product, manufacturer, vid, pid := device.ResolvePCSCReaderUSBInfo(r, usbIdentities)
+			var serialStr, infoStr string
+			if detail := device.ResolvePCSCReaderUSBDetail(r, usbIdentities); detail != nil {
+				serialStr = detail.Serial
+				infoStr = device.FormatUSBInfoLine(detail, true)
+			}
 			// 从已配置设备中读取虚拟 IMEI
 			imei := ""
 			if configuredID != "" {
@@ -1285,19 +1309,21 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 				}
 			}
 			out = append(out, discoveredDevice{
-			DiscoveryKey: "pcsc:" + r,
-			DriverName:   "PC/SC Reader",
-			Mode:         "pcsc",
-			Type:         "pcsc",
-			PCSCReader:   r,
-			DisplayName:  product,
-			Manufacturer: manufacturer,
-			VendorID:     parseHexUint16(vid),
-			ProductID:    parseHexUint16(pid),
-			IMEI:         imei,
-			Configured:   configuredID != "",
-			ConfiguredID: configuredID,
-		})
+				DiscoveryKey: "pcsc:" + r,
+				DriverName:   "PC/SC Reader",
+				Mode:         "pcsc",
+				Type:         "pcsc",
+				PCSCReader:   r,
+				DisplayName:  product,
+				Manufacturer: manufacturer,
+				VendorID:     parseHexUint16(vid),
+				ProductID:    parseHexUint16(pid),
+				Serial:       serialStr,
+				Info:         infoStr,
+				IMEI:         imei,
+				Configured:   configuredID != "",
+				ConfiguredID: configuredID,
+			})
 		}
 	}
 

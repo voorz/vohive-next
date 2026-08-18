@@ -9,9 +9,7 @@ import {
   Search24Regular,
   ArrowSync24Regular,
   Add24Regular,
-  Check24Regular,
-  PortMicroUsb24Regular,
-  UsbStick20Regular
+  PortMicroUsb24Regular
 } from '@vicons/fluent'
 import { systemService } from '../services/system'
 
@@ -161,12 +159,12 @@ function selectDevice(d: DiscoveredDevice) {
   }
   if (d.configured) return
   selectedKey.value = d.discovery_key
-  // PC/SC 设备 ID 生成
+  // PC/SC 设备 ID 生成：从读卡器名称中提取括号内的完整序列号
   if (d.type === 'pcsc') {
     const readerName = d.pcsc_reader || 'reader'
-    // 取读卡器名称的末尾部分，去除空格和特殊字符
-    const tail = readerName.replace(/[^a-zA-Z0-9]/g, '').slice(-6) || 'reader'
-    deviceId.value = `pcsc-${tail}`
+    // 从 USB identity 中提取完整 SN 作为 ID
+    const sn = d.serial || extractReaderSN(readerName)
+    deviceId.value = sn ? `pcsc-${sn}` : `pcsc-${readerName.replace(/[^a-zA-Z0-9]/g, '').slice(-8) || 'reader'}`
     deviceName.value = d.display_name || readerName
     return
   }
@@ -251,6 +249,25 @@ function modeText(mode?: string): string {
 function vidPid(d: DiscoveredDevice): string {
   return `0x${d.vendor_id.toString(16).padStart(4, '0')}:0x${d.product_id.toString(16).padStart(4, '0')}`
 }
+
+// 从读卡器名称中提取括号内的序列号
+// 例如 "ESTKme-RED (2051315E5056) 00 00" → "2051315E5056"
+function extractReaderSN(reader: string): string {
+  const m = reader.match(/\(([^)]+)\)/)
+  return m ? m[1].trim() : ''
+}
+
+// mode 标签样式类
+function modeTagClass(mode?: string): string {
+  const m = String(mode || 'unknown').toLowerCase()
+  if (m === 'qmi') return 'mode-qmi'
+  if (m === 'mbim') return 'mode-mbim'
+  if (m === 'pcsc') return 'mode-pcsc'
+  if (m === 'ecm') return 'mode-ecm'
+  if (m === 'rndis') return 'mode-rndis'
+  if (m === 'ncm') return 'mode-ncm'
+  return 'mode-unknown'
+}
 </script>
 
 <template>
@@ -274,7 +291,7 @@ function vidPid(d: DiscoveredDevice): string {
           <el-icon><Search24Regular /></el-icon>
         </template>
       </el-input>
-      <el-button size="large" @click="scanDevices(true)" :disabled="scanning" class="!ml-2">
+      <el-button size="large" type="primary" @click="scanDevices(true)" :disabled="scanning" class="!ml-2 !border-0">
         <el-icon class="mr-1"><ArrowSync24Regular /></el-icon>
         <span>重新扫描</span>
       </el-button>
@@ -321,33 +338,32 @@ function vidPid(d: DiscoveredDevice): string {
 
           <!-- 信息 -->
           <div class="discovered-card-info">
-<!-- 名称行 -->
-<div class="discovered-card-name">
-<template v-if="d.type === 'pcsc'">{{ d.display_name || d.pcsc_reader || 'PC/SC Reader' }} · {{ modeText(d.mode) }}</template>
-<template v-else>{{ d.display_name || d.net_interface || '--' }} · {{ modeText(d.mode) }}</template>
-</div>
-<!-- 副标题 -->
-<div class="discovered-card-meta">
-<template v-if="d.type === 'pcsc'">
-<span v-if="d.imei" class="meta-item">IMEI: {{ d.imei }}</span>
-<span v-if="d.manufacturer" class="meta-item">{{ d.manufacturer }}</span>
-<span v-if="d.vendor_id" class="meta-item">USB: {{ vidPid(d) }}</span>
-</template>
-<template v-else>
-<span v-if="d.imei" class="meta-item">IMEI: {{ d.imei }}</span>
-<span v-if="d.manufacturer" class="meta-item">{{ d.manufacturer }}</span>
-<span class="meta-item">AT: {{ d.at_port || '--' }}</span>
-<span class="meta-item">{{ vidPid(d) }}</span>
-</template>
-<span v-if="d.degraded" class="meta-degraded">降级</span>
-</div>
-          </div>
-
-          <!-- 状态 -->
-          <div class="discovered-card-status">
-            <el-icon v-if="d.configured" size="16" class="status-added"><Check24Regular /></el-icon>
-            <el-icon v-else-if="d.degraded" size="16" class="status-degraded" />
-            <el-icon v-else-if="selectedKey === d.discovery_key" size="16" class="status-selected"><Check24Regular /></el-icon>
+            <!-- 名称行 -->
+            <div class="discovered-card-name">
+              <span class="device-name-text">{{ d.display_name || (d.type === 'pcsc' ? d.pcsc_reader : d.net_interface) || '--' }}</span>
+              <span class="device-mode-tag" :class="modeTagClass(d.mode)">{{ modeText(d.mode) }}</span>
+              <span v-if="d.degraded" class="status-tag status-degraded">降级</span>
+              <span v-else-if="d.configured" class="status-tag status-added">已添加</span>
+              <span v-else class="status-tag status-new">新设备</span>
+            </div>
+            <!-- 副标题 -->
+            <div class="discovered-card-meta">
+              <template v-if="d.type === 'pcsc'">
+                <span v-if="d.imei" class="meta-item">IMEI: {{ d.imei }}</span>
+                <span v-if="d.manufacturer" class="meta-item">{{ d.manufacturer }}</span>
+                <span v-if="d.vendor_id" class="meta-item">USB: {{ vidPid(d) }}</span>
+              </template>
+              <template v-else>
+                <span v-if="d.imei" class="meta-item">IMEI: {{ d.imei }}</span>
+                <span v-if="d.manufacturer" class="meta-item">{{ d.manufacturer }}</span>
+                <span class="meta-item">AT: {{ d.at_port || '--' }}</span>
+                <span class="meta-item">{{ vidPid(d) }}</span>
+              </template>
+            </div>
+            <!-- info 行 -->
+            <div v-if="d.info" class="discovered-card-info-line">
+              {{ d.info }}
+            </div>
           </div>
         </div>
       </div>
@@ -514,6 +530,45 @@ function vidPid(d: DiscoveredDevice): string {
   gap: 6px;
 }
 
+.device-name-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+/* mode 标签 */
+.device-mode-tag {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.mode-qmi { background: color-mix(in oklab, var(--brand) 15%, transparent); color: var(--brand); }
+.mode-mbim { background: color-mix(in oklab, var(--info, #3b82f6) 15%, transparent); color: var(--info, #3b82f6); }
+.mode-pcsc { background: color-mix(in oklab, var(--warning) 15%, transparent); color: var(--warning); }
+.mode-ecm { background: color-mix(in oklab, var(--muted-foreground) 15%, transparent); color: var(--muted-foreground); }
+.mode-rndis { background: color-mix(in oklab, var(--muted-foreground) 15%, transparent); color: var(--muted-foreground); }
+.mode-ncm { background: color-mix(in oklab, var(--muted-foreground) 15%, transparent); color: var(--muted-foreground); }
+.mode-unknown { background: var(--muted); color: var(--muted-foreground); }
+
+/* info 行 */
+.discovered-card-info-line {
+  margin-top: 2px;
+  font-size: 10px;
+  font-family: var(--oomol-font-mono);
+  color: var(--muted-foreground);
+  opacity: 0.6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .discovered-card-meta {
   display: flex;
   align-items: center;
@@ -538,26 +593,30 @@ function vidPid(d: DiscoveredDevice): string {
   font-family: var(--oomol-font-mono);
 }
 
-.meta-degraded {
-  padding: 1px 5px;
+/* 状态标签 */
+.status-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
   border-radius: 3px;
-  font-weight: 600;
   font-size: 10px;
-  background: color-mix(in oklab, var(--destructive) 15%, transparent);
-  color: var(--destructive);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
-.discovered-card-status {
-  flex-shrink: 0;
-  margin-top: 2px;
+.status-new {
+  background: color-mix(in oklab, var(--brand) 15%, transparent);
+  color: var(--brand);
 }
 
 .status-added {
+  background: var(--muted);
   color: var(--muted-foreground);
 }
 
-.status-selected {
-  color: var(--brand);
+.status-degraded {
+  background: color-mix(in oklab, var(--destructive) 15%, transparent);
+  color: var(--destructive);
 }
 
 /* 配置区 */
