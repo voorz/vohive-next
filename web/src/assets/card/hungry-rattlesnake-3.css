@@ -1,0 +1,132 @@
+/* From Uiverse.io by imtausef
+   VoHive 适配：类名加 vohive-rattlesnake- 前缀防止全局冲突
+   品牌色替换：#8ed500 → var(--brand)
+   HTML 结构：
+   <div class="vohive-rattlesnake-parent">
+     <div class="vohive-rattlesnake-card">
+       <div class="vohive-rattlesnake-content-box">
+         <span class="vohive-rattlesnake-card-title">设备名称</span>
+         <p class="vohive-rattlesnake-card-content">设备信息（分行）</p>
+         <span class="vohive-rattlesnake-see-more">设备状态</span>
+       </div>
+       <div class="vohive-rattlesnake-date-box">
+         <img src="..." class="vohive-rattlesnake-date-box-icon" />
+       </div>
+     </div>
+   </div>
+*/
+
+/* From Uiverse.io by imtausef */
+.vohive-rattlesnake-parent {
+  width: 300px;
+  padding: 0;
+  perspective: 1000px;
+}
+
+.vohive-rattlesnake-card {
+  padding-top: 50px;
+  /* border-radius: 10px; */
+  border: 3px solid #111111;
+  transform-style: preserve-3d;
+  background: linear-gradient(135deg, #0000 18.75%, #1B1B1B 0 31.25%, #0000 0),
+    repeating-linear-gradient(45deg, #1B1B1B -6.25% 6.25%, #111111 0 18.75%);
+  background-size: 60px 60px;
+  background-position:
+    0 0,
+    0 0;
+  background-color: #111111;
+  width: 100%;
+  box-shadow: rgba(142, 142, 142, 0.3) 0px 30px 30px -10px;
+  transition: all 0.5s ease-in-out;
+}
+
+.vohive-rattlesnake-card:hover {
+  /* [已关闭] 3D 倾斜动效，如需恢复取消下面两行的注释 */
+  /* background-position:
+    -100px 100px,
+    -100px 100px;
+  transform: rotate3d(0.5, 1, 0, 30deg); */
+}
+
+.vohive-rattlesnake-content-box {
+  background: #00bc7d;
+  /* border-radius: 10px 100px 10px 10px; */
+  transition: all 0.5s ease-in-out;
+  padding: 12px 12px 12px 12px;
+  transform-style: preserve-3d;
+}
+
+.vohive-rattlesnake-content-box .vohive-rattlesnake-card-title {
+  display: inline-block;
+  color: #ebebeb;
+  font-size: 17.5px;
+  font-weight: 900;
+  transition: all 0.5s ease-in-out;
+  transform: translate3d(0px, 0px, 50px);
+}
+
+.vohive-rattlesnake-content-box .vohive-rattlesnake-card-title:hover {
+  transform: translate3d(0px, 0px, 60px);
+}
+
+.vohive-rattlesnake-content-box .vohive-rattlesnake-card-content {
+  margin-top: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ebebeb;
+  transition: all 0.5s ease-in-out;
+  transform: translate3d(0px, 0px, 30px);
+}
+
+.vohive-rattlesnake-content-box .vohive-rattlesnake-card-content:hover {
+  transform: translate3d(0px, 0px, 60px);
+}
+
+.vohive-rattlesnake-content-box .vohive-rattlesnake-see-more {
+  cursor: pointer;
+  margin-top: 1rem;
+  display: inline-block;
+  font-weight: 900;
+  font-size: 9px;
+  text-transform: uppercase;
+  color: #00bc7d;
+  background: #141414;
+  padding: 0.5rem 0.7rem;
+  transition: all 0.5s ease-in-out;
+  transform: translate3d(0px, 0px, 20px);
+}
+
+.vohive-rattlesnake-content-box .vohive-rattlesnake-see-more:hover {
+  transform: translate3d(0px, 0px, 60px);
+}
+
+.vohive-rattlesnake-date-box {
+  position: absolute;
+  top: 20px;
+  right: 30px;
+  height: 60px;
+  width: 60px;
+  background: #808080;
+  border: 1px solid #00bc7d;
+  /* border-radius: 10px; */
+  padding: 5px;
+  transform: translate3d(0px, 0px, 80px);
+  box-shadow: rgba(100, 100, 111, 0.2) 0px 17px 10px -10px;
+}
+
+.vohive-rattlesnake-date-box span {
+  display: block;
+  text-align: center;
+}
+
+.vohive-rattlesnake-date-box .month {
+  color: #00bc7d;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.vohive-rattlesnake-date-box .date {
+  font-size: 20px;
+  font-weight: 900;
+  color: #00bc7d;
+}
