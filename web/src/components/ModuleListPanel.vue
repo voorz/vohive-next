@@ -114,9 +114,12 @@ function secondaryStatusText(d: DeviceMgmtListItem): string {
   return '未驻网'
 }
 
-// 卡片状态背景色（只在 VoWiFi 全部就绪时显示绿色，其他状态显示素色暗灰）
+// 卡片状态背景色（随设备状态变化）
 function cardToneClass(d: DeviceMgmtListItem): string {
-  if (d?.vowifi_enabled && vowifiState(d) === 'ready') return 'tone-success'
+  const tone = primaryLifecycleStatus(d).tone
+  if (tone === 'success') return 'tone-success'
+  if (tone === 'warning') return 'tone-warning'
+  if (tone === 'danger') return 'tone-danger'
   return 'tone-neutral'
 }
 
