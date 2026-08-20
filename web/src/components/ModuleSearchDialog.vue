@@ -230,12 +230,24 @@ const { connect: connectDiscoveryStream, disconnect: disconnectDiscoveryStream }
   parse: () => null,
   onEvent: () => {},
   onRawEvent: (eventName: string) => {
-    // 收到 discovered 事件 → 自动刷新发现列表
+    // 收到 discovered 事件 → 刷新发现列表（不触发后端 rescan，避免死循环）
     if (eventName === 'discovered') {
-      scanDevices(false)
+      refreshDiscovered()
     }
   }
 })
+
+// 仅刷新发现列表数据，不触发后端 rescan
+async function refreshDiscovered() {
+  try {
+    const result = await store.fetchDiscovered()
+    if (result.ok) {
+      discovered.value = store.discovered
+    }
+  } catch {
+    // 静默失败
+  }
+}
 
 // 弹窗打开时自动扫描 + 启动 SSE 监听（不显示提示）
 watch(() => props.modelValue, async (open) => {
@@ -403,7 +415,7 @@ function modeTagClass(mode?: string): string {
     <!-- 驱动模式开关（仅有 PC/SC 读卡器时显示） -->
     <div v-if="hasPCSCReader" class="driver-mode-switch">
       <div class="driver-mode-info">
-        <span class="driver-mode-title">使用原生读卡器驱动</span>
+        <span class="driver-mode-title">使用原生PC/SC驱动</span>
         <span class="driver-mode-desc">开启后通过系统 pcscd 服务驱动读卡器，关闭则使用内置 USBFS 直连</span>
       </div>
       <el-switch
