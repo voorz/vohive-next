@@ -220,10 +220,11 @@ onBeforeUnmount(() => {
             </template>
           </template>
           <div v-else-if="!chipInfo" class="preview-empty">
-            未检测到 eUICC
+            <span>未检测到 eUICC 或 eUICC 出现问题，请检查读卡器或查看日志</span>
+            <el-button text size="small" :loading="profilesRefreshing" @click="fetchOverview(true)">刷新</el-button>
           </div>
           <div v-else class="preview-empty">
-            暂无 Profile
+            <el-empty description="暂无 Profile" :image-size="60" />
           </div>
         </div>
       </div>

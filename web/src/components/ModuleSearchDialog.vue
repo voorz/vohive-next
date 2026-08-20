@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useEventStream } from '../composables/useEventStream'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { useDevicesStore } from '../stores/devices'
 import { devicesService } from '../services/devices'
 import { isWwanQmiControlPath } from '../utils/deviceBackend'
@@ -102,39 +102,65 @@ async function loadDriverMode() {
 }
 
 // 切换驱动模式
-// 开启：仅保存配置（安装/启动由驱动卡片单独控制）
-// 关闭：保存配置 + 强制停止 pcscd 服务（否则 pcscd 和 USBFS 驱动会打架）
+// 开启：仅保存配置，显示驱动配置菜单（安装/启动由各按钮二次确认控制）
+// 关闭：二次确认 → 停止 pcscd + 保存配置 → 切换为内置 USBFS 驱动
 async function toggleDriverMode(val: string | number | boolean) {
   const enabled = Boolean(val)
+  if (enabled) {
+    // 开启：只保存配置 + 显示驱动菜单，不弹成功提示
+    driverModeSaving.value = true
+    try {
+      const res = await systemService.saveServerConfig('7575', false, 'pcscd')
+      if (!res.ok) throw new Error(res.error?.message || '保存失败')
+      useNativeDriver.value = true
+      await checkPcscDriver()
+    } catch (e: any) {
+      useNativeDriver.value = false
+      ElMessage.error(e.message || '保存配置失败')
+    } finally {
+      driverModeSaving.value = false
+    }
+    return
+  }
+  // 关闭：二次确认
+  const confirmed = await ElMessageBox.confirm(
+    '关闭后将停止 pcscd 服务并切换到内置 USBFS 驱动。确定继续？',
+    '切换驱动模式',
+    { confirmButtonText: '确认切换', cancelButtonText: '取消', type: 'warning' }
+  ).then(() => true).catch(() => false)
+  if (!confirmed) {
+    useNativeDriver.value = true // 恢复开关状态
+    return
+  }
   driverModeSaving.value = true
   try {
-    const mode = enabled ? 'pcscd' : 'usbfs'
-    const res = await systemService.saveServerConfig('7575', false, mode)
-    if (!res.ok) throw new Error(res.error?.message || '保存失败')
-    useNativeDriver.value = enabled
-    if (enabled) {
-      // 开启时检测驱动状态
-      await checkPcscDriver()
-      ElMessage.success('已切换到原生 PC/SC 驱动模式')
-    } else {
-      // 关闭时强制停止 pcscd 服务，释放 USB CCID 接口给内置驱动
-      try {
-        await systemService.stopPcscDriver()
-      } catch {
-        // 停止失败不阻断切换流程
-      }
-      pcscDriverStatus.value = null
-      ElMessage.success('已切换到内置 USBFS 驱动模式')
+    // 先停止 pcscd
+    try {
+      await systemService.stopPcscDriver()
+    } catch {
+      // 停止失败不阻断
     }
+    // 再保存配置
+    const res = await systemService.saveServerConfig('7575', false, 'usbfs')
+    if (!res.ok) throw new Error(res.error?.message || '保存失败')
+    useNativeDriver.value = false
+    pcscDriverStatus.value = null
+    ElMessage.success('已切换到内置 USBFS 驱动模式')
   } catch (e: any) {
-    useNativeDriver.value = !enabled
-    ElMessage.error(e.message || '切换驱动模式失败')
+    useNativeDriver.value = true
+    ElMessage.error(e.message || '切换失败')
   } finally {
     driverModeSaving.value = false
   }
 }
 
 async function installPcscDriver() {
+  const confirmed = await ElMessageBox.confirm(
+    '将安装 pcscd 和 libccid 驱动包。安装期间读卡器可能短暂不可用。确定继续？',
+    '安装 PC/SC 驱动',
+    { confirmButtonText: '安装', cancelButtonText: '取消', type: 'warning' }
+  ).then(() => true).catch(() => false)
+  if (!confirmed) return
   pcscInstalling.value = true
   try {
     const res = await systemService.installPcscDriver()
@@ -156,6 +182,12 @@ async function installPcscDriver() {
 }
 
 async function stopPcscDriver() {
+  const confirmed = await ElMessageBox.confirm(
+    '停止 pcscd 后读卡器将不可用，直到重新启动。确定停止？',
+    '停止 pcscd',
+    { confirmButtonText: '停止', cancelButtonText: '取消', type: 'warning' }
+  ).then(() => true).catch(() => false)
+  if (!confirmed) return
   try {
     const res = await systemService.stopPcscDriver()
     if (res.ok && res.data.result) {
@@ -170,6 +202,12 @@ async function stopPcscDriver() {
 }
 
 async function startPcscDriver() {
+  const confirmed = await ElMessageBox.confirm(
+    '启动 pcscd 后将通过原生 PC/SC 驱动连接读卡器。确定启动？',
+    '启动 pcscd',
+    { confirmButtonText: '启动', cancelButtonText: '取消', type: 'info' }
+  ).then(() => true).catch(() => false)
+  if (!confirmed) return
   try {
     const res = await systemService.startPcscDriver()
     if (res.ok && res.data.result) {
