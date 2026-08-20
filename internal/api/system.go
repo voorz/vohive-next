@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/db"
+	"github.com/voorz/vohive/internal/esim"
 	"github.com/voorz/vohive/internal/updater"
 	"github.com/voorz/vohive/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
@@ -687,16 +688,18 @@ func (s *Server) handleGetServerConfig(c *gin.Context) {
 	}
 	port := strings.TrimPrefix(cfg.Server.Port, ":")
 	c.JSON(http.StatusOK, gin.H{
-		"port":  port,
-		"debug": cfg.Server.Debug,
+		"port":              port,
+		"debug":             cfg.Server.Debug,
+		"pcsc_driver_mode":  cfg.Server.PcscDriverMode,
 	})
 }
 
 // handleUpdateServerConfig 更新服务器配置并热加载
 func (s *Server) handleUpdateServerConfig(c *gin.Context) {
 	var req struct {
-		Port  string `json:"port"`
-		Debug bool   `json:"debug"`
+		Port           string `json:"port"`
+		Debug          bool   `json:"debug"`
+		PcscDriverMode string `json:"pcsc_driver_mode"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "参数错误"})
@@ -711,7 +714,7 @@ func (s *Server) handleUpdateServerConfig(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "配置文件路径未初始化"})
 		return
 	}
-	if err := config.UpdateServerConfigInFile(configPath, port, req.Debug); err != nil {
+	if err := config.UpdateServerConfigInFile(configPath, port, req.Debug, req.PcscDriverMode); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
 		return
 	}
@@ -719,6 +722,8 @@ func (s *Server) handleUpdateServerConfig(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "热加载配置失败: " + err.Error()})
 		return
 	}
+	// 热切换 PC/SC 传输模式
+	esim.SetPcscTransport(req.PcscDriverMode)
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "配置已保存，端口变更需重启服务生效"})
 }
 

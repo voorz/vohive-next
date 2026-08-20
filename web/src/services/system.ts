@@ -384,13 +384,13 @@ export const systemService = {
   },
   getServerConfig() {
     return callService(async () => {
-      const res = await api.get<{ port: string; debug: boolean }>('/settings/server')
+      const res = await api.get<{ port: string; debug: boolean; pcsc_driver_mode?: string }>('/settings/server')
       return res.data
     })
   },
-  saveServerConfig(port: string, debug: boolean) {
+  saveServerConfig(port: string, debug: boolean, pcscDriverMode?: string) {
     return callService(async () => {
-      const res = await api.put<{ status: string; message: string }>('/settings/server', { port, debug })
+      const res = await api.put<{ status: string; message: string }>('/settings/server', { port, debug, pcsc_driver_mode: pcscDriverMode })
       return res.data
     })
   },
@@ -456,6 +456,36 @@ export const systemService = {
           message: string
         }
       }>('/system/pcsc-driver/install', {})
+      return res.data
+    })
+  },
+  stopPcscDriver() {
+    return callService(async () => {
+      const res = await api.post<{
+        status: string
+        result: {
+          pcscd_installed: boolean
+          libccid_installed: boolean
+          pcscd_active: boolean
+          all_ready: boolean
+          message: string
+        }
+      }>('/system/pcsc-driver/stop', {})
+      return res.data
+    })
+  },
+  startPcscDriver() {
+    return callService(async () => {
+      const res = await api.post<{
+        status: string
+        result: {
+          pcscd_installed: boolean
+          libccid_installed: boolean
+          pcscd_active: boolean
+          all_ready: boolean
+          message: string
+        }
+      }>('/system/pcsc-driver/start', {})
       return res.data
     })
   },

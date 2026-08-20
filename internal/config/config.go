@@ -221,8 +221,9 @@ type WebConfig struct {
 }
 
 type ServerConfig struct {
-	Port  string `mapstructure:"port"`
-	Debug bool   `mapstructure:"debug"`
+	Port           string `mapstructure:"port"`
+	Debug          bool   `mapstructure:"debug"`
+	PcscDriverMode string `mapstructure:"pcsc_driver_mode"` // "usbfs" (默认) | "pcscd"
 }
 
 type ESIMSwitchConfig struct {

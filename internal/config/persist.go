@@ -342,8 +342,8 @@ func UpdateAPITokenInFile(path string, token string, expiry int64) error {
 	return nil
 }
 
-// UpdateServerConfigInFile 更新配置文件中的 server 节点（port/debug）
-func UpdateServerConfigInFile(path string, port string, debug bool) error {
+// UpdateServerConfigInFile 更新配置文件中的 server 节点（port/debug/pcsc_driver_mode）
+func UpdateServerConfigInFile(path string, port string, debug bool, pcscDriverMode string) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("读取配置文件失败: %w", err)
@@ -355,8 +355,9 @@ func UpdateServerConfigInFile(path string, port string, debug bool) error {
 	}
 
 	root["server"] = map[string]any{
-		"port":  port,
-		"debug": debug,
+		"port":              port,
+		"debug":             debug,
+		"pcsc_driver_mode":  pcscDriverMode,
 	}
 
 	out, err := yaml.Marshal(root)

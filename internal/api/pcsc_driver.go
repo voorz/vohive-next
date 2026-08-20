@@ -119,3 +119,68 @@ func (s *Server) handleInstallPcscDriver(c *gin.Context) {
 		"result": status,
 	})
 }
+
+// handleStopPcscDriver POST /api/system/pcsc-driver/stop
+// 停止 pcscd 服务（不卸载包），用于切换到内置 USBFS 驱动时释放 USB CCID 接口。
+//
+// @Summary      StopPcscDriver
+// @Tags         settings
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      500  {object}  map[string]interface{}  "停止失败"
+// @Router       /system/pcsc-driver/stop [post]
+// @Security     BearerAuth
+func (s *Server) handleStopPcscDriver(c *gin.Context) {
+	logger.Info("收到 PC/SC 驱动停止请求", "ip", c.ClientIP())
+
+	stopCmd := exec.Command("systemctl", "stop", "--now", "pcscd")
+	if output, err := stopCmd.CombinedOutput(); err != nil {
+		logger.Error("pcscd 停止失败", "err", err, "output", string(output))
+		c.JSON(500, gin.H{
+			"status":  "error",
+			"message": fmt.Sprintf("停止失败: %v", err),
+		})
+		return
+	}
+
+	status := getPcscDriverStatus()
+	logger.Info("PC/SC 驱动已停止", "pcscd_active", status.PcscdActive)
+	c.JSON(200, gin.H{
+		"status": "ok",
+		"result": status,
+	})
+}
+
+// handleStartPcscDriver POST /api/system/pcsc-driver/start
+// 启动 pcscd 服务，用于切换到原生 PC/SC 驱动时恢复服务。
+//
+// @Summary      StartPcscDriver
+// @Tags         settings
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      500  {object}  map[string]interface{}  "启动失败"
+// @Router       /system/pcsc-driver/start [post]
+// @Security     BearerAuth
+func (s *Server) handleStartPcscDriver(c *gin.Context) {
+	logger.Info("收到 PC/SC 驱动启动请求", "ip", c.ClientIP())
+
+	startCmd := exec.Command("systemctl", "start", "pcscd")
+	if output, err := startCmd.CombinedOutput(); err != nil {
+		logger.Error("pcscd 启动失败", "err", err, "output", string(output))
+		c.JSON(500, gin.H{
+			"status":  "error",
+			"message": fmt.Sprintf("启动失败: %v", err),
+		})
+		return
+	}
+
+	// 等待 pcscd 就绪
+	time.Sleep(1 * time.Second)
+
+	status := getPcscDriverStatus()
+	logger.Info("PC/SC 驱动已启动", "pcscd_active", status.PcscdActive)
+	c.JSON(200, gin.H{
+		"status": "ok",
+		"result": status,
+	})
+}

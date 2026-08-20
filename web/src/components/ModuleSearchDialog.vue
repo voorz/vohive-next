@@ -59,6 +59,10 @@ const isPCSC = computed(() => selectedDevice.value?.type === 'pcsc')
 // 正在添加
 const adding = ref(false)
 
+// 驱动模式开关（true=原生 PC/SC 驱动, false=内置 USBFS 直连）
+const useNativeDriver = ref(false)
+const driverModeSaving = ref(false)
+
 // PC/SC 驱动检测
 const pcscDriverStatus = ref<{ pcscd_installed: boolean; libccid_installed: boolean; pcscd_active: boolean; all_ready: boolean; message: string } | null>(null)
 const pcscDriverLoading = ref(false)
@@ -77,6 +81,38 @@ async function checkPcscDriver() {
     pcscDriverStatus.value = null
   }
   pcscDriverLoading.value = false
+}
+
+// 加载当前驱动模式
+async function loadDriverMode() {
+  try {
+    const res = await systemService.getServerConfig()
+    if (res.ok) {
+      const mode = res.data.pcsc_driver_mode || ''
+      useNativeDriver.value = mode === 'pcscd' || mode === 'pcsc'
+    }
+  } catch { /* keep defaults */ }
+}
+
+// 切换驱动模式（仅保存配置 + 热切换，不自动 stop/start）
+async function toggleDriverMode(val: string | number | boolean) {
+  const enabled = Boolean(val)
+  driverModeSaving.value = true
+  try {
+    const mode = enabled ? 'pcscd' : 'usbfs'
+    const res = await systemService.saveServerConfig('7575', false, mode)
+    if (!res.ok) throw new Error(res.error?.message || '保存失败')
+    useNativeDriver.value = enabled
+    if (enabled) {
+      await checkPcscDriver()
+    }
+    ElMessage.success(enabled ? '已切换到原生 PC/SC 驱动模式' : '已切换到内置 USBFS 驱动模式')
+  } catch (e: any) {
+    useNativeDriver.value = !enabled
+    ElMessage.error(e.message || '切换驱动模式失败')
+  } finally {
+    driverModeSaving.value = false
+  }
 }
 
 async function installPcscDriver() {
@@ -98,6 +134,33 @@ async function installPcscDriver() {
     ElMessage.error('驱动安装失败')
   }
   pcscInstalling.value = false
+}
+
+async function stopPcscDriver() {
+  try {
+    const res = await systemService.stopPcscDriver()
+    if (res.ok && res.data.result) {
+      pcscDriverStatus.value = res.data.result
+      ElMessage.success('pcscd 服务已停止')
+    } else {
+      ElMessage.error('停止 pcscd 失败')
+    }
+  } catch {
+    ElMessage.error('停止 pcscd 失败')
+  }
+}
+
+async function startPcscDriver() {
+  try {
+    const res = await systemService.startPcscDriver()
+    if (res.ok && res.data.result) {
+      pcscDriverStatus.value = res.data.result
+    } else {
+      ElMessage.error('启动 pcscd 失败')
+    }
+  } catch {
+    ElMessage.error('启动 pcscd 失败')
+  }
 }
 
 // 过滤已发现设备
@@ -147,7 +210,10 @@ watch(() => props.modelValue, async (open) => {
     searchQuery.value = ''
     selectedKey.value = ''
     await scanDevices(false)
-    // checkPcscDriver() — 已弃用，Linux 下走 USBFS 内置驱动
+    await loadDriverMode()
+    if (useNativeDriver.value) {
+      checkPcscDriver()
+    }
   }
 })
 
@@ -296,7 +362,41 @@ function modeTagClass(mode?: string): string {
       </el-button>
     </div>
 
-    <!-- PC/SC 驱动检测卡片已移除：Linux 下走 USBFS 内置驱动，无需 pcscd/libccid -->
+    <!-- 驱动模式开关 -->
+    <div class="driver-mode-switch">
+      <div class="driver-mode-info">
+        <span class="driver-mode-title">使用原生读卡器驱动</span>
+        <span class="driver-mode-desc">开启后通过系统 pcscd 服务驱动读卡器，关闭则使用内置 USBFS 直连</span>
+      </div>
+      <el-switch
+        v-model="useNativeDriver"
+        :loading="driverModeSaving"
+        @change="toggleDriverMode"
+      />
+    </div>
+
+    <!-- PC/SC 驱动管理卡片（仅原生模式时显示） -->
+    <div v-if="useNativeDriver && pcscDriverStatus" class="pcsc-driver-card" :class="pcscDriverStatus.all_ready ? 'ready' : 'not-ready'">
+      <div class="pcsc-driver-info">
+        <div class="pcsc-driver-text">
+          <span class="pcsc-driver-title">原生 PC/SC 驱动</span>
+          <span class="pcsc-driver-status-line">
+            <span class="driver-dot" :class="pcscDriverStatus.pcscd_active ? 'dot-on' : 'dot-off'"></span>
+            pcscd: {{ pcscDriverStatus.pcscd_installed ? (pcscDriverStatus.pcscd_active ? '运行中' : '已安装未运行') : '未安装' }}
+            <span class="driver-dot" :class="pcscDriverStatus.libccid_installed ? 'dot-on' : 'dot-off'"></span>
+            libccid: {{ pcscDriverStatus.libccid_installed ? '已安装' : '未安装' }}
+          </span>
+        </div>
+      </div>
+      <div class="footer-actions">
+        <el-button size="small" :loading="pcscInstalling" @click="installPcscDriver" :disabled="pcscDriverStatus.all_ready">
+          {{ pcscDriverStatus.all_ready ? '已安装' : '安装' }}
+        </el-button>
+        <el-button size="small" @click="pcscDriverStatus.pcscd_active ? stopPcscDriver() : startPcscDriver()">
+          {{ pcscDriverStatus.pcscd_active ? '停止' : '启动' }}
+        </el-button>
+      </div>
+    </div>
 
     <!-- 设备列表 -->
     <div class="search-results">
@@ -439,6 +539,35 @@ function modeTagClass(mode?: string): string {
 
 .search-bar .el-input {
   flex: 1;
+}
+
+/* 驱动模式开关 */
+.driver-mode-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 12px;
+  background: var(--muted);
+}
+
+.driver-mode-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.driver-mode-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--foreground);
+}
+
+.driver-mode-desc {
+  font-size: 11px;
+  color: var(--muted-foreground);
 }
 
 .search-results {
@@ -735,6 +864,15 @@ function modeTagClass(mode?: string): string {
   font-size: 13px;
   font-weight: 600;
   color: var(--foreground);
+}
+
+.pcsc-driver-status-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  font-family: var(--oomol-font-mono);
 }
 
 .pcsc-driver-detail {

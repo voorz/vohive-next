@@ -9,8 +9,10 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/db"
 	"github.com/voorz/vohive/internal/device"
+	"github.com/voorz/vohive/internal/esim"
 	"github.com/voorz/vohive/internal/notify"
 	"github.com/voorz/vohive/internal/plmnindex"
 	proxyserver "github.com/voorz/vohive/internal/proxy/server"
@@ -76,6 +79,26 @@ func main() {
 	sip.SetDefaultLogger(slog.New(logger.NewSlogHandler(logger.ZapLogger())))
 	sip.SIPDebug = true
 	logger.Info("VoHive 模组管理器启动中...")
+
+	// 根据 config 设置 PC/SC 读卡器驱动模式（usbfs=内置USBFS直连, pcscd=系统pcscd服务）
+	// 配置为空时自动检测：如果 pcscd 服务正在运行则使用 pcsc 模式，否则使用 usbfs
+	mode := strings.ToLower(strings.TrimSpace(cfg.Server.PcscDriverMode))
+	if mode == "" {
+		// 自动检测 pcscd 服务状态
+		if out, err := exec.Command("systemctl", "is-active", "pcscd").Output(); err == nil && strings.TrimSpace(string(out)) == "active" {
+			mode = "pcscd"
+		} else {
+			mode = "usbfs"
+		}
+		logger.Info("配置未指定 pcsc_driver_mode，自动检测: " + mode)
+	}
+	if mode == "pcscd" || mode == "pcsc" {
+		esim.SetPcscTransport(esim.PCSCTransportPCSC)
+		logger.Info("PC/SC 驱动模式: pcscd（原生驱动）")
+	} else {
+		esim.SetPcscTransport(esim.PCSCTransportUSBFS)
+		logger.Info("PC/SC 驱动模式: usbfs（内置驱动）")
+	}
 
 	go func() {
 		disclaimer := `
