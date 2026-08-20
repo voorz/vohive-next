@@ -2065,7 +2065,8 @@ func (s *Server) handleEsimListProfiles(c *gin.Context) {
 // esimSwitchRequest 包含切换的目标 ICCID
 type esimSwitchRequest struct {
 	ICCID  string `json:"iccid" binding:"required"`
-	AIDHex string `json:"aid_hex"` // 可选，前端已知时直接传，跳过遍历
+	AIDHex string `json:"aid_hex"`  // 可选，前端已知时直接传，跳过遍历
+	State  int    `json:"state"`   // 0=启用(enable)，1=禁用(disable)
 }
 
 type esimSwitchResponse struct {
@@ -2313,10 +2314,29 @@ func (s *Server) handleEsimSwitchProfile(c *gin.Context) {
 		return
 	}
 
-	// Profile 切换：EnableProfile 后等待目标 profile 生效；切卡后按 Ready+Delay 门控执行后处理（不等待搜网）
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	// state==1 表示当前 profile 已启用，用户要禁用它
+	if req.State == 1 {
+		if err := worker.EsimMgr.DisableProfile(ctx, req.ICCID, req.AIDHex); err != nil {
+			if isEsimBusyError(err) {
+				respondEsimBusy(c, "disable_profile", err)
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "esim配置禁用失败: " + err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, esimSwitchResponse{
+			Message:         "eSIM Profile 禁用指令已提交，设备信息将异步刷新",
+			TargetICCID:     req.ICCID,
+			SwitchAccepted:  true,
+			PostSwitchAsync: true,
+		})
+		return
+	}
+
+	// state==0（默认）：启用 profile（原有切卡逻辑）
 	result, err := worker.EsimMgr.SwitchProfileWithResult(ctx, req.ICCID, req.AIDHex)
 	if err != nil {
 		if isEsimBusyError(err) {

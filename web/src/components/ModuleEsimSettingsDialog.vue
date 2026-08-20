@@ -165,8 +165,7 @@ function close() {
           {{ deleting ? '删除中...' : '删除 eSIM' }}
         </button>
         <div class="settings-footer-right">
-          <button class="settings-footer-btn" @click="close">取消</button>
-          <button class="settings-footer-btn primary" @click="close">完成</button>
+          <button class="settings-footer-btn primary" @click="close">关闭</button>
         </div>
       </div>
     </template>

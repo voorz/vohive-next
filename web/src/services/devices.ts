@@ -345,7 +345,7 @@ export const devicesService = {
       }
     })
   },
-  switchEsimProfile(id: string, payload: { iccid: string; aid_hex: string }) {
+  switchEsimProfile(id: string, payload: { iccid: string; aid_hex: string; state: number }) {
     return callService(async () => {
       await withEsimBusyRetry(() => api.post(`/devices/${id}/esim/actions/switch`, payload))
       return true

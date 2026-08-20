@@ -109,7 +109,8 @@ async function switchProfile(iccid: string, state: number, aidHex: string) {
   try {
     const result = await devicesService.switchEsimProfile(props.deviceId!, {
       iccid,
-      aid_hex: aidHex
+      aid_hex: aidHex,
+      state
     })
     if (!result.ok) throw new Error(result.error.message || `${action}失败`)
     ElMessage.success(`Profile ${action}成功`)
