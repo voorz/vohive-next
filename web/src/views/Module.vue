@@ -148,7 +148,7 @@ function handleDeviceDeleted() {
 }
 
 .module-grid.two-col {
-  grid-template-columns: 260px minmax(0, 1fr);
+  grid-template-columns: 280px minmax(0, 1fr);
 }
 
 .module-grid.one-col {

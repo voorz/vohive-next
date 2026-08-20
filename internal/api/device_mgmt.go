@@ -252,6 +252,8 @@ func overviewDisplayConfig(runtime, persisted config.DeviceConfig, hasPersisted 
 	cfg.USBPath = runtime.USBPath
 	cfg.QMIDevice = runtime.QMIDevice
 	cfg.AudioDevice = runtime.AudioDevice
+	cfg.USBManufacturer = runtime.USBManufacturer
+	cfg.USBProduct = runtime.USBProduct
 	// 策略字段（network/vowifi/airplane/ip/apn）已改为跟卡走、只存在于运行时投影，
 	// 不再来自 persisted(config.yaml)。必须取 runtime，否则概览显示恒为 off。
 	cfg.NetworkEnabled = runtime.NetworkEnabled

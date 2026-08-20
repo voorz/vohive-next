@@ -19,12 +19,19 @@ import { Airplane } from '@vicons/ionicons5'
 import { loadPlmnCatalog } from '../composables/plmn-catalog'
 import { downloadIcon, getCachedIcon } from '../composables/useOperatorIcon'
 import { useEventStream } from '../composables/useEventStream'
-import ModemIcon from '../assets/svgs/modem.svg'
-import ReaderIcon from '../assets/svgs/reader.svg'
+import ModemIcon from '../assets/svgs/modem-600x400.svg'
+import ReaderIcon from '../assets/svgs/estk-600x400.svg'
+import BaiwangIcon from '../assets/svgs/baiwang-600x400.svg'
 
 const props = defineProps<{
   selectedId?: string
 }>()
+
+function deviceIcon(item: DeviceMgmtListItem): string {
+  if (item.esim_transport === 'pcsc') return ReaderIcon
+  if (item.manufacturer?.toUpperCase() === 'BAIWANG') return BaiwangIcon
+  return ModemIcon
+}
 
 const emit = defineEmits<{
   'open-search': []
@@ -227,10 +234,8 @@ function readinessItems(d: DeviceMgmtListItem) {
           @click="handleSelect(item.id)"
         >
           <div class="vohive-rattlesnake-card">
-            <!-- 顶部条纹区：设备类型标签 -->
-            <span class="vohive-rattlesnake-type-tag" :class="{ 'type-reader': item.esim_transport === 'pcsc' }">{{ item.esim_transport === 'pcsc' ? '读卡器' : '模组' }}</span>
-            <div class="vohive-rattlesnake-content-box">
-              <!-- 左上角：现有设备状态图标 -->
+            <!-- 顶部：状态图标 -->
+            <div class="vohive-rattlesnake-top-bar">
               <div class="vohive-rattlesnake-icons">
                 <el-icon v-if="isFlightMode(item)" size="20" class="vohive-rattlesnake-airplane">
                   <Airplane />
@@ -260,6 +265,13 @@ function readinessItems(d: DeviceMgmtListItem) {
                   <WifiOff24Regular v-else />
                 </el-icon>
               </div>
+            </div>
+            <div class="vohive-rattlesnake-content-box">
+              <!-- 胶囊标签：类型 + 状态（并列） -->
+              <div class="vohive-rattlesnake-tag-row">
+                <span class="vohive-rattlesnake-type-tag" :class="{ 'type-reader': item.esim_transport === 'pcsc' }">{{ item.esim_transport === 'pcsc' ? '读卡器' : '模组' }}</span>
+                <span class="vohive-rattlesnake-status-pill" :class="'pill-' + statusTagType(item)">{{ primaryStatusText(item) }}</span>
+              </div>
               <!-- 设备名 -->
               <span class="vohive-rattlesnake-card-title">{{ item.name }}</span>
               <!-- 设备信息（分行） -->
@@ -268,7 +280,7 @@ function readinessItems(d: DeviceMgmtListItem) {
                 {{ secondaryStatusText(item) }}<br>
                 <span v-if="item.modem?.signal_dbm !== undefined && item.modem?.signal_dbm !== null">{{ signalText(item) }}</span>
               </p>
-              <!-- VoWiFi 6格就绪进度条 -->
+              <!-- VoWiFi 6格就绪进度条（底部） -->
               <div v-if="item.vowifi_enabled" class="vohive-rattlesnake-readiness">
                 <div
                   v-for="ri in readinessItems(item)"
@@ -277,13 +289,9 @@ function readinessItems(d: DeviceMgmtListItem) {
                   :class="{ ready: ri.ready === true, 'not-ready': ri.ready === false }"
                 />
               </div>
-              <!-- 设备状态 -->
-              <el-tag size="small" :type="statusTagType(item)" class="vohive-rattlesnake-status-tag">{{ primaryStatusText(item) }}</el-tag>
             </div>
-            <!-- 右上角：设备类型图标 -->
-            <div class="vohive-rattlesnake-date-box">
-              <img :src="item.esim_transport === 'pcsc' ? ReaderIcon : ModemIcon" :alt="item.esim_transport === 'pcsc' ? 'reader' : 'modem'" class="vohive-rattlesnake-date-box-icon" />
-            </div>
+            <!-- 右上角：设备类型图标（悬浮，无黑框） -->
+            <img :src="deviceIcon(item)" :alt="item.esim_transport === 'pcsc' ? 'reader' : 'modem'" class="vohive-rattlesnake-device-icon" />
           </div>
         </div>
         <!-- 虚线占位添加区 -->
@@ -346,9 +354,9 @@ function readinessItems(d: DeviceMgmtListItem) {
   cursor: pointer;
 }
 
-/* ===== 强制正方形 ===== */
+/* ===== 强制卡片宽高比 ===== */
 .vohive-rattlesnake-card {
-  aspect-ratio: 1;
+  aspect-ratio: 1.25;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -405,7 +413,6 @@ function readinessItems(d: DeviceMgmtListItem) {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-bottom: 8px;
 }
 
 .vohive-rattlesnake-airplane {
@@ -449,12 +456,13 @@ function readinessItems(d: DeviceMgmtListItem) {
   display: flex;
   align-items: flex-end;
   gap: 1px;
-  height: 24px;
+  height: 20px;
+  padding: 2px;
   flex-shrink: 0;
 }
 
 .vohive-rattlesnake-signal-bar {
-  width: 2px;
+  width: 4px;
   border-radius: 1px;
   transition: all 0.3s;
 }
@@ -491,28 +499,43 @@ function readinessItems(d: DeviceMgmtListItem) {
   opacity: 0.2;
 }
 
-/* ===== date-box 内的设备图标（填满黑块内部 60-5*2=50px） ===== */
-.vohive-rattlesnake-date-box-icon {
-  width: 50px;
-  height: 50px;
+/* ===== 设备图标（悬浮于卡片上，无黑框） ===== */
+.vohive-rattlesnake-device-icon {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 142px;
+  height: 71px;
   object-fit: contain;
+  object-position: right top;
+  padding: 0;
+  margin: 0;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
+  z-index: 5;
 }
 
-/* ===== 状态标签（使用 el-tag 原生样式，定位左下角） ===== */
-.vohive-rattlesnake-status-tag {
+/* ===== 顶部状态栏：图标 ===== */
+.vohive-rattlesnake-top-bar {
   position: absolute;
-  bottom: 12px;
+  top: 12px;
   left: 12px;
-  flex-shrink: 0;
+  right: 12px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
 }
 
-/* ===== 顶部条纹区：设备类型胶囊标签 ===== */
+.vohive-rattlesnake-tag-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+/* ===== 胶囊标签：类型 + 状态 ===== */
 .vohive-rattlesnake-type-tag {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 10;
   padding: 2px 8px;
   border-radius: 9999px;
   font-size: 10px;
@@ -530,11 +553,48 @@ function readinessItems(d: DeviceMgmtListItem) {
   border: 1px solid rgba(218, 159, 0, 0.3);
 }
 
-/* ===== VoWiFi 6格就绪进度条 ===== */
+/* 状态胶囊标签 */
+.vohive-rattlesnake-status-pill {
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  backdrop-filter: blur(4px);
+}
+
+.vohive-rattlesnake-status-pill.pill-success {
+  background: rgba(0, 188, 125, 0.2);
+  color: #00bc7d;
+  border: 1px solid rgba(0, 188, 125, 0.3);
+}
+
+.vohive-rattlesnake-status-pill.pill-warning {
+  background: rgba(218, 159, 0, 0.2);
+  color: #da9f00;
+  border: 1px solid rgba(218, 159, 0, 0.3);
+}
+
+.vohive-rattlesnake-status-pill.pill-danger {
+  background: rgba(255, 59, 48, 0.2);
+  color: #ff3b30;
+  border: 1px solid rgba(255, 59, 48, 0.3);
+}
+
+.vohive-rattlesnake-status-pill.pill-info {
+  background: rgba(255, 255, 255, 0.1);
+  color: #999999;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* ===== VoWiFi 6格就绪进度条（底部） ===== */
 .vohive-rattlesnake-readiness {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
   display: flex;
   gap: 3px;
-  margin-top: 8px;
 }
 
 .vohive-rattlesnake-readiness-bar {
