@@ -188,6 +188,11 @@ type Pool struct {
 	dataConnectHandlers       []func(deviceID string)
 	rescanAndReconnectForTest func() error
 
+	// discoveryEventSubscribers 用于热插拔事件通知 SSE 流。
+	// RescanAndReconnect 完成后向所有订阅者发送信号，触发 discovered 事件推送。
+	discoveryEventMu          sync.RWMutex
+	discoveryEventSubscribers []chan struct{}
+
 	// SIP 注册器 (用于 CS 域语音桥接查路由)
 	sipRegistrar   *sipgw.Registrar
 	voiceGateway   *voicehost.Gateway
@@ -265,6 +270,44 @@ func (p *Pool) notifyDataConnected(deviceID string) {
 	for _, handler := range handlers {
 		h := handler
 		go h(deviceID)
+	}
+}
+
+// SubscribeDiscoveryEvents 订阅设备发现事件。
+// 返回一个 channel（收到信号说明 RescanAndReconnect 已完成）和取消订阅函数。
+// 用于 SSE 流在热插拔后自动推送 discovered 列表。
+func (p *Pool) SubscribeDiscoveryEvents() (<-chan struct{}, func()) {
+	ch := make(chan struct{}, 1)
+	p.discoveryEventMu.Lock()
+	p.discoveryEventSubscribers = append(p.discoveryEventSubscribers, ch)
+	p.discoveryEventMu.Unlock()
+
+	unsub := func() {
+		p.discoveryEventMu.Lock()
+		defer p.discoveryEventMu.Unlock()
+		for i, sub := range p.discoveryEventSubscribers {
+			if sub == ch {
+				p.discoveryEventSubscribers = append(p.discoveryEventSubscribers[:i], p.discoveryEventSubscribers[i+1:]...)
+				break
+			}
+		}
+	}
+	return ch, unsub
+}
+
+// notifyDiscoveryEvent 通知所有订阅者设备发现已完成
+func (p *Pool) notifyDiscoveryEvent() {
+	if p == nil {
+		return
+	}
+	p.discoveryEventMu.RLock()
+	subs := append([]chan struct{}{}, p.discoveryEventSubscribers...)
+	p.discoveryEventMu.RUnlock()
+	for _, ch := range subs {
+		select {
+		case ch <- struct{}{}:
+		default:
+		}
 	}
 }
 
@@ -1696,6 +1739,9 @@ func (p *Pool) rescanAndReconnect(opts rescanReconnectOptions) error {
 			_ = p.RemoveWorker(md.ID)
 		}
 	}
+
+	// 通知 SSE 流：设备发现已完成，前端可自动刷新 discovered 列表
+	p.notifyDiscoveryEvent()
 
 	return nil
 }

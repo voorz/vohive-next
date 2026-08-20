@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { useEventStream } from '../composables/useEventStream'
 import { ElMessage } from 'element-plus'
 import { useDevicesStore } from '../stores/devices'
 import { devicesService } from '../services/devices'
@@ -31,7 +32,10 @@ function handleResize() {
   isNarrow.value = window.innerWidth <= 768
 }
 onMounted(() => window.addEventListener('resize', handleResize))
-onUnmounted(() => window.removeEventListener('resize', handleResize))
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+  disconnectDiscoveryStream()
+})
 
 // 搜索
 const searchQuery = ref('')
@@ -55,6 +59,9 @@ const deviceBackend = ref<'at' | 'qmi' | 'mbim'>('at')
 
 // 是否 PC/SC 设备
 const isPCSC = computed(() => selectedDevice.value?.type === 'pcsc')
+
+// 发现列表中是否存在 PC/SC 读卡器（用于控制驱动配置菜单的显示）
+const hasPCSCReader = computed(() => discovered.value.some(d => d.type === 'pcsc'))
 
 // 正在添加
 const adding = ref(false)
@@ -94,7 +101,9 @@ async function loadDriverMode() {
   } catch { /* keep defaults */ }
 }
 
-// 切换驱动模式（仅保存配置 + 热切换，不自动 stop/start）
+// 切换驱动模式
+// 开启：仅保存配置（安装/启动由驱动卡片单独控制）
+// 关闭：保存配置 + 强制停止 pcscd 服务（否则 pcscd 和 USBFS 驱动会打架）
 async function toggleDriverMode(val: string | number | boolean) {
   const enabled = Boolean(val)
   driverModeSaving.value = true
@@ -104,9 +113,19 @@ async function toggleDriverMode(val: string | number | boolean) {
     if (!res.ok) throw new Error(res.error?.message || '保存失败')
     useNativeDriver.value = enabled
     if (enabled) {
+      // 开启时检测驱动状态
       await checkPcscDriver()
+      ElMessage.success('已切换到原生 PC/SC 驱动模式')
+    } else {
+      // 关闭时强制停止 pcscd 服务，释放 USB CCID 接口给内置驱动
+      try {
+        await systemService.stopPcscDriver()
+      } catch {
+        // 停止失败不阻断切换流程
+      }
+      pcscDriverStatus.value = null
+      ElMessage.success('已切换到内置 USBFS 驱动模式')
     }
-    ElMessage.success(enabled ? '已切换到原生 PC/SC 驱动模式' : '已切换到内置 USBFS 驱动模式')
   } catch (e: any) {
     useNativeDriver.value = !enabled
     ElMessage.error(e.message || '切换驱动模式失败')
@@ -204,7 +223,21 @@ async function scanDevices(showSuccess = false) {
   scanning.value = false
 }
 
-// 弹窗打开时自动扫描（不显示提示）
+// SSE 监听设备发现事件（弹窗打开时连接，关闭时断开）
+const { connect: connectDiscoveryStream, disconnect: disconnectDiscoveryStream } = useEventStream<unknown>({
+  path: '/devices/stream',
+  eventName: '__none__', // 不监听 devices 事件（ModuleListPanel 已在监听）
+  parse: () => null,
+  onEvent: () => {},
+  onRawEvent: (eventName: string) => {
+    // 收到 discovered 事件 → 自动刷新发现列表
+    if (eventName === 'discovered') {
+      scanDevices(false)
+    }
+  }
+})
+
+// 弹窗打开时自动扫描 + 启动 SSE 监听（不显示提示）
 watch(() => props.modelValue, async (open) => {
   if (open) {
     searchQuery.value = ''
@@ -214,6 +247,11 @@ watch(() => props.modelValue, async (open) => {
     if (useNativeDriver.value) {
       checkPcscDriver()
     }
+    // 启动 SSE 监听，热插拔后自动刷新发现列表
+    connectDiscoveryStream()
+  } else {
+    // 弹窗关闭时断开 SSE
+    disconnectDiscoveryStream()
   }
 })
 
@@ -362,8 +400,8 @@ function modeTagClass(mode?: string): string {
       </el-button>
     </div>
 
-    <!-- 驱动模式开关 -->
-    <div class="driver-mode-switch">
+    <!-- 驱动模式开关（仅有 PC/SC 读卡器时显示） -->
+    <div v-if="hasPCSCReader" class="driver-mode-switch">
       <div class="driver-mode-info">
         <span class="driver-mode-title">使用原生读卡器驱动</span>
         <span class="driver-mode-desc">开启后通过系统 pcscd 服务驱动读卡器，关闭则使用内置 USBFS 直连</span>
@@ -389,10 +427,13 @@ function modeTagClass(mode?: string): string {
         </div>
       </div>
       <div class="footer-actions">
-        <el-button size="small" :loading="pcscInstalling" @click="installPcscDriver" :disabled="pcscDriverStatus.all_ready">
-          {{ pcscDriverStatus.all_ready ? '已安装' : '安装' }}
+        <el-button size="small" :loading="pcscInstalling" @click="installPcscDriver"
+          :disabled="pcscDriverStatus.pcscd_installed && pcscDriverStatus.libccid_installed">
+          {{ pcscDriverStatus.pcscd_installed && pcscDriverStatus.libccid_installed ? '已安装' : '安装' }}
         </el-button>
-        <el-button size="small" @click="pcscDriverStatus.pcscd_active ? stopPcscDriver() : startPcscDriver()">
+        <el-button size="small"
+          :disabled="!pcscDriverStatus.pcscd_installed || !pcscDriverStatus.libccid_installed"
+          @click="pcscDriverStatus.pcscd_active ? stopPcscDriver() : startPcscDriver()">
           {{ pcscDriverStatus.pcscd_active ? '停止' : '启动' }}
         </el-button>
       </div>

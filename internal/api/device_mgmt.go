@@ -1287,8 +1287,18 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 		configuredDevices := managed
 		for _, r := range readerNames {
 			configuredID := ""
+			rSerial := device.PcscReaderSerial(r)
 			for _, d := range configuredDevices {
-				if config.NormalizeESIMTransport(d.ESIMTransport) == config.ESIMTransportPCSC && d.PCSCReader == r {
+				if config.NormalizeESIMTransport(d.ESIMTransport) != config.ESIMTransportPCSC {
+					continue
+				}
+				// 优先用序列号匹配（兼容 USBFS/pcscd 两种模式下读卡器名称不同的场景），
+				// 序列号提取失败时回退到全名精确匹配。
+				if rSerial != "" && device.PcscReaderSerial(d.PCSCReader) == rSerial {
+					configuredID = d.ID
+					break
+				}
+				if d.PCSCReader == r {
 					configuredID = d.ID
 					break
 				}

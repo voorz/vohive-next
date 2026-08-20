@@ -289,9 +289,11 @@ func summarizeEndpoints(epTypes []string) string {
 
 var pcscReaderSerialRe = regexp.MustCompile(`\(([^)]+)\)`)
 
-// pcscReaderSerial 从 pcscd 读卡器名称中提取序列号，
+// PcscReaderSerial 从 pcscd/USBFS 读卡器名称中提取序列号，
 // 例如 "Generic Smart Card Reader Interface (2051315E5056) 00 00" → "2051315E5056"
-func pcscReaderSerial(reader string) string {
+// 也匹配 "ESTKme-RED (2051315E5056) 00 00" 格式。
+// 导出以便 api 包在设备发现时用序列号匹配已配置设备（两种驱动模式下名称不同但序列号一致）。
+func PcscReaderSerial(reader string) string {
 	m := pcscReaderSerialRe.FindStringSubmatch(reader)
 	if m == nil {
 		return ""
@@ -328,7 +330,7 @@ var driverRe = regexp.MustCompile(`Driver=(\S+)`)
 // 返回结构化的 product, manufacturer, vid, pid（全为字符串小写形式）；
 // 匹配失败返回空值。
 func ResolvePCSCReaderUSBInfo(reader string, identities []USBIdentity) (product, manufacturer, vid, pid string) {
-	serial := pcscReaderSerial(reader)
+	serial := PcscReaderSerial(reader)
 	if serial == "" {
 		return
 	}
@@ -347,7 +349,7 @@ func ResolvePCSCReaderUSBInfo(reader string, identities []USBIdentity) (product,
 // ResolvePCSCReaderUSBDetail 通过序列号把 pcscd 读卡器匹配到 USB 设备，
 // 返回完整的 USBIdentity（含 USBVersion/DeviceClass/Interfaces 等扩展信息）。
 func ResolvePCSCReaderUSBDetail(reader string, identities []USBIdentity) *USBIdentity {
-	serial := pcscReaderSerial(reader)
+	serial := PcscReaderSerial(reader)
 	if serial == "" {
 		return nil
 	}

@@ -12,6 +12,8 @@ import (
 //
 // 事件:
 //   - "devices": 设备列表快照（2s 间隔 + VoWiFi 状态变更时立即推送）
+//   - "discovered": 设备发现完成通知（热插拔触发 RescanAndReconnect 后推送）
+//
 // handleDeviceMgmtListStream SSE 设备列表实时状态流
 //
 // @Summary      SSE 设备列表实时状态流
@@ -32,6 +34,10 @@ func (s *Server) handleDeviceMgmtListStream(c *gin.Context) {
 
 	// VoWiFi 状态变更 fan-in channel
 	stateChangeCh := make(chan struct{}, 1)
+
+	// 设备发现事件 channel（热插拔触发 RescanAndReconnect 完成后收到信号）
+	discoveryCh, unsubDiscovery := s.pool.SubscribeDiscoveryEvents()
+	defer unsubDiscovery()
 
 	type stateSub struct {
 		un func()
@@ -195,6 +201,12 @@ func (s *Server) handleDeviceMgmtListStream(c *gin.Context) {
 		case <-ticker.C:
 			sendData()
 		case <-stateChangeCh:
+			sendData()
+		case <-discoveryCh:
+			// 热插拔触发 RescanAndReconnect 完成，通知前端刷新发现列表
+			c.SSEvent("discovered", gin.H{"refresh": true})
+			c.Writer.Flush()
+			// 同时推送设备列表快照（设备可能已上线/离线）
 			sendData()
 		}
 	}

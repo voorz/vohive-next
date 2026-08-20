@@ -92,7 +92,7 @@ func (w *UdevWatcher) loop() {
 	}
 }
 
-// isModemEvent 检查是否是 USB 调制解调器相关事件
+// isModemEvent 检查是否是 USB 调制解调器或 PC/SC 读卡器相关事件
 func (w *UdevWatcher) isModemEvent(data []byte) bool {
 	s := string(data)
 
@@ -124,6 +124,13 @@ func (w *UdevWatcher) isModemEvent(data []byte) bool {
 		}
 
 		logger.Debug("检测到调制解调器相关 udev 事件", "data_preview", truncateString(s, 200))
+		return true
+	}
+
+	// PC/SC 智能卡读卡器：USB 接口类 0x0b（十进制 11），uevent 中 INTERFACE=11/0/0
+	// 匹配 usb_interface 类型的 add/remove 事件
+	if strings.Contains(s, "SUBSYSTEM=usb") && strings.Contains(s, "INTERFACE=11/") {
+		logger.Debug("检测到 PC/SC 读卡器相关 udev 事件", "data_preview", truncateString(s, 200))
 		return true
 	}
 
