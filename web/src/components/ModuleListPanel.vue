@@ -19,9 +19,9 @@ import { Airplane } from '@vicons/ionicons5'
 import { loadPlmnCatalog } from '../composables/plmn-catalog'
 import { downloadIcon, getCachedIcon } from '../composables/useOperatorIcon'
 import { useEventStream } from '../composables/useEventStream'
-import ModemIcon from '../assets/svgs/modem-600x400.svg'
-import ReaderIcon from '../assets/svgs/estk-600x400.svg'
-import BaiwangIcon from '../assets/svgs/baiwang-600x400.svg'
+import ModemIcon from '../assets/svgs/modem-600x800.svg'
+import ReaderIcon from '../assets/svgs/estk-600x800.svg'
+import BaiwangIcon from '../assets/svgs/baiwang-600x800.svg'
 
 const props = defineProps<{
   selectedId?: string
@@ -121,12 +121,19 @@ function secondaryStatusText(d: DeviceMgmtListItem): string {
   return '未驻网'
 }
 
-// 卡片状态背景色（随设备状态变化）
+// 卡片状态背景色：仅两种 — 品牌色（已驻网/已注册/VoWiFi已注册）或素色（其他）
 function cardToneClass(d: DeviceMgmtListItem): string {
-  const tone = primaryLifecycleStatus(d).tone
-  if (tone === 'success') return 'tone-success'
-  if (tone === 'warning') return 'tone-warning'
-  if (tone === 'danger') return 'tone-danger'
+  // VoWiFi 已注册（全部就绪）
+  if (d?.vowifi_enabled) {
+    const rt = d?.vowifi_runtime
+    if (rt) {
+      const all = [rt.sim_ready, rt.access_ready, rt.tunnel_ready, rt.ims_ready, rt.sms_ready, rt.call_ready]
+      if (all.every(Boolean)) return 'tone-brand'
+    }
+    return 'tone-neutral'
+  }
+  // 蜂窝已驻网/已注册
+  if (isRadioRegistered(d)) return 'tone-brand'
   return 'tone-neutral'
 }
 
@@ -137,6 +144,18 @@ function signalText(d: DeviceMgmtListItem): string {
   // PC/SC 读卡器无 modem，信号为 0 时显示“No Modem”
   if (d?.esim_transport === 'pcsc' && dbm === 0) return 'No Modem'
   return `${dbm}dBm`
+}
+
+// 信号强度胶囊颜色 class（根据强度值变化）
+function signalPillClass(d: DeviceMgmtListItem): string {
+  const dbm = d?.modem?.signal_dbm
+  if (dbm === undefined || dbm === null) return 'pill-info'
+  if (dbm === 0 || dbm === -999 || !Number.isFinite(dbm)) return 'pill-info'
+  if (d?.registration_state_label === 'searching') return 'pill-warning'
+  if (d?.registration_state_label === 'denied') return 'pill-danger'
+  if (dbm >= -85) return 'pill-success'
+  if (dbm >= -100) return 'pill-warning'
+  return 'pill-danger'
 }
 
 // 信号格数（与详情页统一：5 格）
@@ -267,18 +286,22 @@ function readinessItems(d: DeviceMgmtListItem) {
               </div>
             </div>
             <div class="vohive-rattlesnake-content-box">
-              <!-- 胶囊标签：类型 + 状态（并列） -->
+              <!-- 胶囊标签：类型 -->
               <div class="vohive-rattlesnake-tag-row">
                 <span class="vohive-rattlesnake-type-tag" :class="{ 'type-reader': item.esim_transport === 'pcsc' }">{{ item.esim_transport === 'pcsc' ? '读卡器' : '模组' }}</span>
-                <span class="vohive-rattlesnake-status-pill" :class="'pill-' + statusTagType(item)">{{ primaryStatusText(item) }}</span>
               </div>
               <!-- 设备名 -->
               <span class="vohive-rattlesnake-card-title">{{ item.name }}</span>
               <!-- 设备信息（分行） -->
               <p class="vohive-rattlesnake-card-content">
-                {{ item.id }}<br>
-                {{ secondaryStatusText(item) }}<br>
-                <span v-if="item.modem?.signal_dbm !== undefined && item.modem?.signal_dbm !== null">{{ signalText(item) }}</span>
+                <span class="vohive-rattlesnake-card-id">{{ item.id }}</span><br>
+                <span class="vohive-rattlesnake-card-status">{{ secondaryStatusText(item) }}</span><br>
+                <span
+                  v-if="item.modem?.signal_dbm !== undefined && item.modem?.signal_dbm !== null"
+                  class="vohive-rattlesnake-signal-pill"
+                  :class="signalPillClass(item)"
+                >{{ signalText(item) }}</span>
+                <span class="vohive-rattlesnake-status-pill" :class="'pill-' + statusTagType(item)">{{ primaryStatusText(item) }}</span>
               </p>
               <!-- VoWiFi 6格就绪进度条（底部） -->
               <div v-if="item.vowifi_enabled" class="vohive-rattlesnake-readiness">
@@ -356,10 +379,11 @@ function readinessItems(d: DeviceMgmtListItem) {
 
 /* ===== 强制卡片宽高比 ===== */
 .vohive-rattlesnake-card {
-  aspect-ratio: 1.25;
+  aspect-ratio: 1.275;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 /* ===== content-box 填满 card 除 padding-top 外的剩余空间 ===== */
@@ -374,17 +398,9 @@ function readinessItems(d: DeviceMgmtListItem) {
   box-shadow: 0 0 0 2px rgba(0, 188, 125, 0.4);
 }
 
-/* ===== 状态背景色 (固定暗色模式，低透明度，作用于 content-box) ===== */
-.vohive-rattlesnake-parent.tone-success .vohive-rattlesnake-content-box {
-  background: rgba(16, 185, 129, 0.06);
-}
-
-.vohive-rattlesnake-parent.tone-warning .vohive-rattlesnake-content-box {
-  background: rgba(245, 158, 11, 0.06);
-}
-
-.vohive-rattlesnake-parent.tone-danger .vohive-rattlesnake-content-box {
-  background: rgba(239, 68, 68, 0.06);
+/* ===== 状态背景色 (仅两种：品牌色/素色) ===== */
+.vohive-rattlesnake-parent.tone-brand .vohive-rattlesnake-content-box {
+  background: rgba(0, 188, 125, 0.12);
 }
 
 .vohive-rattlesnake-parent.tone-neutral .vohive-rattlesnake-content-box {
@@ -392,16 +408,8 @@ function readinessItems(d: DeviceMgmtListItem) {
 }
 
 /* ===== 选中时 card border 加强 ===== */
-.vohive-rattlesnake-parent.tone-success.selected .vohive-rattlesnake-card {
-  border-color: #34d399;
-}
-
-.vohive-rattlesnake-parent.tone-warning.selected .vohive-rattlesnake-card {
-  border-color: #fbbf24;
-}
-
-.vohive-rattlesnake-parent.tone-danger.selected .vohive-rattlesnake-card {
-  border-color: #f87171;
+.vohive-rattlesnake-parent.tone-brand.selected .vohive-rattlesnake-card {
+  border-color: #00bc7d;
 }
 
 .vohive-rattlesnake-parent.tone-neutral.selected .vohive-rattlesnake-card {
@@ -499,17 +507,18 @@ function readinessItems(d: DeviceMgmtListItem) {
   opacity: 0.2;
 }
 
-/* ===== 设备图标（悬浮于卡片上，无黑框） ===== */
+/* ===== 设备图标（右对齐，纵向显示） ===== */
 .vohive-rattlesnake-device-icon {
   position: absolute;
   top: 12px;
-  right: 12px;
-  width: 142px;
-  height: 71px;
+  right: 0;
+  bottom: 21px;
+  height: calc(100% - 33px);
+  max-width: 50%;
   object-fit: contain;
   object-position: right top;
   padding: 0;
-  margin: 0;
+  margin: 0 0 0 auto;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
   z-index: 5;
 }
@@ -531,7 +540,27 @@ function readinessItems(d: DeviceMgmtListItem) {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-bottom: 8px;
+}
+
+/* ===== 设备名 ===== */
+.vohive-rattlesnake-content-box .vohive-rattlesnake-card-title {
+  display: inline-block;
+  transform: none !important;
+}
+
+.vohive-rattlesnake-content-box .vohive-rattlesnake-card-title:hover {
+  transform: none !important;
+}
+
+/* ===== 设备信息弱化文本 ===== */
+.vohive-rattlesnake-card-content .vohive-rattlesnake-card-id {
+  color: rgba(235, 235, 235, 0.45);
+  font-size: 11px;
+}
+
+.vohive-rattlesnake-card-content .vohive-rattlesnake-card-status {
+  color: rgba(235, 235, 235, 0.6);
+  font-size: 11px;
 }
 
 /* ===== 胶囊标签：类型 + 状态 ===== */
@@ -555,12 +584,12 @@ function readinessItems(d: DeviceMgmtListItem) {
 
 /* 状态胶囊标签 */
 .vohive-rattlesnake-status-pill {
+  display: inline-block;
   padding: 2px 8px;
   border-radius: 9999px;
   font-size: 10px;
   font-weight: 600;
   white-space: nowrap;
-  backdrop-filter: blur(4px);
 }
 
 .vohive-rattlesnake-status-pill.pill-success {
@@ -582,6 +611,42 @@ function readinessItems(d: DeviceMgmtListItem) {
 }
 
 .vohive-rattlesnake-status-pill.pill-info {
+  background: rgba(255, 255, 255, 0.1);
+  color: #999999;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* ===== 信号强度胶囊标签 ===== */
+.vohive-rattlesnake-signal-pill {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: monospace;
+  white-space: nowrap;
+  margin-right: 4px;
+}
+
+.vohive-rattlesnake-signal-pill.pill-success {
+  background: rgba(0, 188, 125, 0.2);
+  color: #00bc7d;
+  border: 1px solid rgba(0, 188, 125, 0.3);
+}
+
+.vohive-rattlesnake-signal-pill.pill-warning {
+  background: rgba(218, 159, 0, 0.2);
+  color: #da9f00;
+  border: 1px solid rgba(218, 159, 0, 0.3);
+}
+
+.vohive-rattlesnake-signal-pill.pill-danger {
+  background: rgba(255, 59, 48, 0.2);
+  color: #ff3b30;
+  border: 1px solid rgba(255, 59, 48, 0.3);
+}
+
+.vohive-rattlesnake-signal-pill.pill-info {
   background: rgba(255, 255, 255, 0.1);
   color: #999999;
   border: 1px solid rgba(255, 255, 255, 0.2);

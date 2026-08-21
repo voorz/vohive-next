@@ -523,8 +523,8 @@ function modeTagClass(mode?: string): string {
           @click="selectDevice(d)"
         >
           <!-- 图标 -->
-          <img v-if="d.type === 'pcsc'" src="../assets/svgs/reader.svg" alt="reader" class="discovered-card-icon-svg" />
-          <img v-else src="../assets/svgs/modem.svg" alt="modem" class="discovered-card-icon-svg" />
+          <img v-if="d.type === 'pcsc'" src="../assets/svgs/estk-600x800.svg" alt="reader" class="discovered-card-icon-svg" />
+          <img v-else src="../assets/svgs/modem-600x800.svg" alt="modem" class="discovered-card-icon-svg" />
 
           <!-- 信息 -->
           <div class="discovered-card-info">
