@@ -13,6 +13,15 @@ import {
   PortMicroUsb24Regular
 } from '@vicons/fluent'
 import { systemService } from '../services/system'
+import BaiwangIcon from '../assets/svgs/baiwang-600x800.svg'
+import ModemIcon from '../assets/svgs/modem-600x800.svg'
+import ReaderIcon from '../assets/svgs/estk-600x800.svg'
+
+function discoveredDeviceIcon(d: DiscoveredDevice): string {
+  if (d.type === 'pcsc') return ReaderIcon
+  if (d.manufacturer?.toUpperCase() === 'BAIWANG') return BaiwangIcon
+  return ModemIcon
+}
 
 const props = defineProps<{
   modelValue: boolean
@@ -523,8 +532,7 @@ function modeTagClass(mode?: string): string {
           @click="selectDevice(d)"
         >
           <!-- 图标 -->
-          <img v-if="d.type === 'pcsc'" src="../assets/svgs/estk-600x800.svg" alt="reader" class="discovered-card-icon-svg" />
-          <img v-else src="../assets/svgs/modem-600x800.svg" alt="modem" class="discovered-card-icon-svg" />
+          <img :src="discoveredDeviceIcon(d)" alt="device" class="discovered-card-icon-svg" />
 
           <!-- 信息 -->
           <div class="discovered-card-info">
@@ -729,8 +737,8 @@ function modeTagClass(mode?: string): string {
 }
 
 .discovered-card-icon-svg {
-  width: 40px;
-  height: 40px;
+  width: 42px;
+  height: 56px;
   object-fit: contain;
   flex-shrink: 0;
 }

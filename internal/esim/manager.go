@@ -298,6 +298,12 @@ type Manager struct {
 	discoveredEUICCs            []EUICCInfo
 	sf                          *singleflight.Group
 
+	// eUICC 扫描退避：连续失败时自动重试间隔递增，耗尽后停止自动重试。
+	// 手动刷新（RefreshOverview）会重置计数器。
+	scanBackoffMu     sync.Mutex
+	scanBackoffCount  int       // 连续失败次数
+	scanBackoffUntil  time.Time // 下次允许自动重试的时间；zero 表示无限制
+
 	onBeforeSwitch       func(SwitchOperation, string) uint64              // 切卡前执行的回调，返回本次 switch token
 	onAfterSwitch        func(SwitchOperation, uint64)                     // 切卡后网络就绪后执行的回调
 	onSwitchFailed       func(SwitchOperation, uint64, error)              // 切卡失败后执行的回调
@@ -1630,9 +1636,13 @@ func (m *Manager) loadOverview() (*EsimOverview, error) {
 		overview, loadErr := loader()
 		if loadErr != nil {
 			m.setOverviewCache(nil, loadErr, generation)
+			if errors.Is(loadErr, ErrNoEUCCFound) {
+				m.recordScanFailure()
+			}
 			return nil, loadErr
 		}
 		m.setOverviewCache(overview, nil, generation)
+		m.resetScanBackoff()
 		return cloneOverview(overview), nil
 	})
 	if err != nil {
@@ -1662,6 +1672,11 @@ func (m *Manager) triggerOverviewReload(reason string) {
 			logger.Warn("eSIM 总览异步重载等待窗口失败", "device", m.deviceID, "reason", reason, "err", err)
 			return
 		}
+		// 退避检查：如果连续扫描失败且未到下次重试时间，跳过自动重载
+		if !m.scanBackoffAllowsAutoReload() {
+			logger.Debug("eSIM 自动重载因退避策略跳过", "device", m.deviceID, "reason", reason, "backoff_count", m.scanBackoffCount)
+			return
+		}
 		if _, err := m.loadOverview(); err != nil {
 			logger.Warn("eSIM 总览异步重载失败", "device", m.deviceID, "reason", reason, "err", err)
 		}
@@ -1670,6 +1685,68 @@ func (m *Manager) triggerOverviewReload(reason string) {
 
 func (m *Manager) WarmOverviewAsync(reason string) {
 	m.triggerOverviewReload(reason)
+}
+
+// scanBackoffDelays 定义连续扫描失败时的自动重试间隔。
+// 第 1 次失败后等 5s，第 2 次 30s，第 3 次 60s，第 4 次 120s。
+// 耗尽后退避计数器不再增长，scanBackoffAllowsAutoReload 返回 false。
+var scanBackoffDelays = []time.Duration{5 * time.Second, 30 * time.Second, 60 * time.Second, 120 * time.Second}
+
+// scanBackoffAllowsAutoReload 检查是否允许自动重载。
+// 如果退避已耗尽（4 次连续失败），返回 false。
+// 如果仍在退避窗口内，返回 false。
+func (m *Manager) scanBackoffAllowsAutoReload() bool {
+	if m == nil {
+		return true
+	}
+	m.scanBackoffMu.Lock()
+	defer m.scanBackoffMu.Unlock()
+	if m.scanBackoffCount >= len(scanBackoffDelays) {
+		return false
+	}
+	if m.scanBackoffUntil.IsZero() {
+		return true
+	}
+	return time.Now().After(m.scanBackoffUntil)
+}
+
+// recordScanFailure 记录一次扫描失败，递增退避计数器并设置下次允许重试时间。
+func (m *Manager) recordScanFailure() {
+	if m == nil {
+		return
+	}
+	m.scanBackoffMu.Lock()
+	defer m.scanBackoffMu.Unlock()
+	if m.scanBackoffCount < len(scanBackoffDelays) {
+		delay := scanBackoffDelays[m.scanBackoffCount]
+		m.scanBackoffUntil = time.Now().Add(delay)
+		m.scanBackoffCount++
+		logger.Info("eSIM 扫描退避递增",
+			"device", m.deviceID,
+			"failure_count", m.scanBackoffCount,
+			"next_retry_in", delay.String())
+	} else if m.scanBackoffCount == len(scanBackoffDelays) {
+		logger.Info("eSIM 扫描退避已耗尽，不再自动重试",
+			"device", m.deviceID,
+			"failure_count", m.scanBackoffCount)
+		m.scanBackoffCount++ // 确保只日志一次
+	}
+}
+
+// resetScanBackoff 重置退避计数器（扫描成功或手动刷新时调用）。
+func (m *Manager) resetScanBackoff() {
+	if m == nil {
+		return
+	}
+	m.scanBackoffMu.Lock()
+	defer m.scanBackoffMu.Unlock()
+	if m.scanBackoffCount > 0 {
+		logger.Info("eSIM 扫描退避已重置",
+			"device", m.deviceID,
+			"previous_count", m.scanBackoffCount)
+	}
+	m.scanBackoffCount = 0
+	m.scanBackoffUntil = time.Time{}
 }
 
 func buildProfileGroup(eidStr string, aid []byte, profiles []*sgp22.ProfileInfo) EUICCProfiles {
@@ -1983,6 +2060,8 @@ func (m *Manager) RefreshOverview() error {
 	if m == nil {
 		return nil
 	}
+	// 手动刷新：重置退避计数器，允许立即执行扫描
+	m.resetScanBackoff()
 	pendingReload := m.overviewReloadInProgress()
 	if err := m.waitForOverviewReloadAllowed(context.Background()); err != nil {
 		return err

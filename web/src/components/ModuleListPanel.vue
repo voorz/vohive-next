@@ -679,8 +679,8 @@ function readinessItems(d: DeviceMgmtListItem) {
 
 /* ===== 虚线占位添加区 ===== */
 .add-device-placeholder {
-  aspect-ratio: 1;
-  display: flex;
+aspect-ratio: 2;
+display: flex;
   align-items: center;
   justify-content: center;
   border: 2px dashed rgba(255, 255, 255, 0.15);
