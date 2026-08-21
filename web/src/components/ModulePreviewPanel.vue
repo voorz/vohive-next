@@ -46,6 +46,12 @@ const showSensitive = useSensitiveVisibility()
 let fetchAbortController: AbortController | null = null
 let fetchRequestId = 0
 
+// 从空状态点击刷新：复用已有的加载页
+function reloadEsim() {
+  loading.value = true
+  fetchOverview(true)
+}
+
 async function fetchOverview(refresh = false) {
   if (!props.deviceId) return
   fetchRequestId += 1
@@ -220,8 +226,8 @@ onBeforeUnmount(() => {
             </template>
           </template>
           <div v-else-if="!chipInfo" class="preview-empty">
-            <span>未检测到 eUICC 或 eUICC 出现问题，请检查读卡器或查看日志</span>
-            <el-button text size="small" :loading="profilesRefreshing" @click="fetchOverview(true)">刷新</el-button>
+            <span class="preview-empty-text">未检测到 eUICC 或 eUICC 出现问题，请检查读卡器或查看日志</span>
+            <el-button size="small" @click="reloadEsim()" class="preview-empty-btn">刷新</el-button>
           </div>
           <div v-else class="preview-empty">
             <el-empty description="暂无 Profile" :image-size="60" />
@@ -370,12 +376,25 @@ onBeforeUnmount(() => {
 
 .preview-empty {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 12px;
   flex: 1;
   min-height: 200px;
   color: var(--muted-foreground);
   font-size: 13px;
+}
+
+.preview-empty-text {
+  text-align: center;
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+.preview-empty-btn {
+  border: 1px solid var(--border);
+  border-radius: 6px;
 }
 
 .preview-loading {
