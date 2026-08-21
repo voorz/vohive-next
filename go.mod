@@ -3,6 +3,7 @@ module github.com/voorz/vohive
 go 1.26.3
 
 require (
+	github.com/ElMostafaIdrassi/goscard v1.0.0
 	github.com/damonto/euicc-go v1.1.3-0.20260628013808-8d873a2dfc98
 	github.com/gin-gonic/gin v1.11.0
 	github.com/glebarez/sqlite v1.11.0
@@ -13,12 +14,13 @@ require (
 	github.com/minio/selfupdate v0.6.0
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
+	github.com/swaggo/swag v1.16.6
 	github.com/things-go/go-socks5 v0.1.1
 	github.com/voorz/netlink v1.3.4
 	github.com/voorz/qqbot v1.0.2
-	github.com/voorz/quectel-qmi-go v0.7.0
-	github.com/voorz/vowifi-core v1.1.0
-	github.com/voorz/wwan-go v0.2.1
+	github.com/voorz/quectel-qmi-go v0.8.3
+	github.com/voorz/vowifi-core v1.2.1
+	github.com/voorz/wwan-go v0.2.4
 	github.com/warthog618/sms v0.3.0
 	go.bug.st/serial v1.6.4
 	go.uber.org/zap v1.27.1
@@ -32,7 +34,6 @@ require (
 )
 
 require (
-	github.com/ElMostafaIdrassi/goscard v1.0.0 // indirect
 	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/PuerkitoBio/purell v1.1.1 // indirect
 	github.com/PuerkitoBio/urlesc v0.0.0-20170810143723-de5bf2ad4578 // indirect
@@ -45,10 +46,15 @@ require (
 	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
+	github.com/pion/logging v0.2.4 // indirect
+	github.com/pion/randutil v0.1.0 // indirect
+	github.com/pion/rtcp v1.2.16 // indirect
+	github.com/pion/rtp v1.10.2 // indirect
+	github.com/pion/srtp/v3 v3.0.12 // indirect
+	github.com/pion/transport/v4 v4.0.2 // indirect
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8 // indirect
 	github.com/strongswan/govici v0.8.2 // indirect
-	github.com/swaggo/swag v1.16.6 // indirect
-	github.com/voorz/swu-go v0.3.0 // indirect
+	github.com/voorz/swu-go v0.3.2 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gvisor.dev/gvisor v0.0.0-20240521174809-5eedbf551134 // indirect
@@ -107,11 +113,11 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.0 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
-	github.com/voorz/sipgo v1.6.0
+	github.com/voorz/sipgo v1.6.2
 	go.uber.org/mock v0.5.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.20.0 // indirect
-	golang.org/x/net v0.52.0 // indirect
+	golang.org/x/net v0.52.0
 	golang.org/x/text v0.36.0 // indirect
 	golang.org/x/tools v0.43.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
