@@ -557,13 +557,15 @@ func TestWriteEsimDeleteSuccessJSONWritesWarningFields(t *testing.T) {
 
 func TestEsimDownloadExecPropagatesWarningResult(t *testing.T) {
 	var gotIMEI string
-	result, err := esimDownloadExec(func(ctx context.Context, aidHex, smdp, matchingID, confirmationCode, imei string, progressFn esim.DownloadProgressFn) (esim.DownloadProfileResult, error) {
+	var gotForce bool
+	result, err := esimDownloadExec(func(ctx context.Context, aidHex, smdp, matchingID, confirmationCode, imei string, progressFn esim.DownloadProgressFn, force bool) (esim.DownloadProfileResult, error) {
 		gotIMEI = imei
+		gotForce = force
 		return esim.DownloadProfileResult{
 			Warning:     "Profile 下载完成，但通知未完全确认",
 			WarningCode: "download_notification_handle_failed",
 		}, nil
-	}, context.Background(), "A000", "example.com", "", "", "350225641234561", nil)
+	}, context.Background(), "A000", "example.com", "", "", "350225641234561", nil, false)
 	if err != nil {
 		t.Fatalf("esimDownloadExec() error=%v", err)
 	}
@@ -572,6 +574,9 @@ func TestEsimDownloadExecPropagatesWarningResult(t *testing.T) {
 	}
 	if gotIMEI != "350225641234561" {
 		t.Fatalf("imei=%q want forwarded custom IMEI", gotIMEI)
+	}
+	if gotForce {
+		t.Fatalf("force=true want false by default")
 	}
 }
 

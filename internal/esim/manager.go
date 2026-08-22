@@ -3652,7 +3652,8 @@ func (m *Manager) RetryNotification(sequenceNumber int64, aidHex string) error {
 // smdp 为 SM-DP+ 服务器地址，matchingID 和 confirmationCode 可选
 // downloadIMEI 为可选的前端指定 IMEI；为空时使用设备真实 IMEI
 // progressFn 为可选进度回调，为 nil 时静默执行
-func (m *Manager) DownloadProfile(ctx context.Context, aidHex, smdp, matchingID, confirmationCode, downloadIMEI string, progressFn DownloadProgressFn) (DownloadProfileResult, error) {
+// force 为 true 时跳过剩余空间不足的防炸卡保护，允许用户自担风险继续安装
+func (m *Manager) DownloadProfile(ctx context.Context, aidHex, smdp, matchingID, confirmationCode, downloadIMEI string, progressFn DownloadProgressFn, force bool) (DownloadProfileResult, error) {
 	report := func(step, msg string, pct int) {
 		if progressFn != nil {
 			progressFn(DownloadProgressEvent{Step: step, Msg: msg, Pct: pct})
@@ -3711,10 +3712,17 @@ func (m *Manager) DownloadProfile(ctx context.Context, aidHex, smdp, matchingID,
 		m.parseEUICCInfo2ForEID(client, &checkInfo)
 		beforeFreeNvramBytes = checkInfo.FreeNvramBytes
 		if checkInfo.FreeNvramBytes > 0 && checkInfo.FreeNvramBytes < 81920 {
-			return DownloadProfileResult{}, fmt.Errorf("已触发防炸卡保护拦截：目标 EID 剩余空间极度紧张（%d Bytes / %s，低于安全阈值 80KB）。请先删除多余的 Profile 释放空间后再试。",
-				checkInfo.FreeNvramBytes, checkInfo.FreeNvram)
+			if !force {
+				report("space_warning", fmt.Sprintf("剩余空间极度紧张（%d Bytes / %s，低于安全阈值 80KB）", checkInfo.FreeNvramBytes, checkInfo.FreeNvram), 10)
+				return DownloadProfileResult{}, fmt.Errorf("SPACE_WARNING:%d:%s", checkInfo.FreeNvramBytes, checkInfo.FreeNvram)
+			}
+			logger.Warn("用户已确认风险，跳过防炸卡保护继续下载",
+				"device", m.deviceID,
+				"freeNvram", checkInfo.FreeNvram,
+				"freeNvramBytes", checkInfo.FreeNvramBytes)
+		} else {
+			logger.Info("防炸卡预检通过", "device", m.deviceID, "freeNvram", checkInfo.FreeNvram)
 		}
-		logger.Info("防炸卡预检通过", "device", m.deviceID, "freeNvram", checkInfo.FreeNvram)
 	}
 
 	imei, err := m.resolveDownloadIMEI(ctx, downloadIMEI)

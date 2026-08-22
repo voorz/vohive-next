@@ -2090,7 +2090,7 @@ func TestDisableProfileRejectsInvalidICCIDBeforeOpeningChannel(t *testing.T) {
 func TestDownloadProfileReturnsZeroWarningResultForInvalidAIDHex(t *testing.T) {
 	mgr := newTestManagerWithOverviewLoader(nil)
 
-	result, err := mgr.DownloadProfile(context.Background(), "zz", "example.com", "", "", "", nil)
+	result, err := mgr.DownloadProfile(context.Background(), "zz", "example.com", "", "", "", nil, false)
 	if err == nil {
 		t.Fatal("DownloadProfile() error=nil, want invalid AID error")
 	}

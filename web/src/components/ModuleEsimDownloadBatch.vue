@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { api } from '../stores/auth'
 import { pickNextDownloadAid } from './deviceEsimOverviewRefresh'
 import type { EsimChipInfo } from '../types/api'
@@ -57,6 +57,34 @@ function parseLPA(line: string): { smdp: string; matchingId: string } | null {
   return { smdp: trimmed, matchingId: '' }
 }
 
+const SPACE_WARNING_THRESHOLD = 81920
+
+function checkFreeNvram(): { bytes: number; nvram: string } | null {
+  if (!props.chipInfo?.eids?.length) return null
+  const eid = props.chipInfo.eids[0]
+  if (!eid || !eid.free_nvram_bytes || eid.free_nvram_bytes <= 0) return null
+  return { bytes: eid.free_nvram_bytes, nvram: eid.free_nvram || `${eid.free_nvram_bytes} Bytes` }
+}
+
+async function confirmSpaceWarning(freeBytes: number, freeNvram: string): Promise<boolean> {
+  try {
+    await ElMessageBox.confirm(
+      `目标 eUICC 剩余空间极度紧张（${freeBytes} Bytes / ${freeNvram}，低于安全阈值 80KB）。\n在空间不足的情况下继续安装可能导致写入失败或损坏已有 Profile。\n\n是否确认继续安装？`,
+      '空间不足风险确认',
+      {
+        confirmButtonText: '确认安装',
+        cancelButtonText: '取消安装',
+        type: 'warning',
+        confirmButtonClass: 'space-warning-confirm-btn',
+        cancelButtonClass: 'space-warning-cancel-btn',
+      }
+    )
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function downloadBatch() {
   const lines = parsedLines.value
   if (lines.length === 0) {
@@ -75,6 +103,7 @@ async function downloadBatch() {
   const base = api.defaults.baseURL || ''
   const token = localStorage.getItem('token') || ''
   let successCount = 0
+  let forceForRest = false
 
   for (let i = 0; i < lines.length; i++) {
     batchCurrent.value = i + 1
@@ -84,11 +113,24 @@ async function downloadBatch() {
       continue
     }
 
+    if (!forceForRest) {
+      const space = checkFreeNvram()
+      if (space && space.bytes < SPACE_WARNING_THRESHOLD) {
+        const confirmed = await confirmSpaceWarning(space.bytes, space.nvram)
+        if (!confirmed) {
+          batchError.value = `第 ${i + 1} 个下载已取消`
+          break
+        }
+        forceForRest = true
+      }
+    }
+
     batchMsg.value = `正在下载 ${parsed.smdp}...`
 
     const params = new URLSearchParams({ smdp: parsed.smdp })
     if (parsed.matchingId) params.set('matching_id', parsed.matchingId)
     if (targetAidHex) params.set('aid_hex', targetAidHex)
+    if (forceForRest) params.set('force', 'true')
     const url = `${base}/devices/${props.deviceId}/esim/actions/download?${params}`
 
     try {
@@ -306,5 +348,22 @@ async function downloadBatch() {
 }
 .batch-btn.primary:disabled {
   opacity: 0.5;
+}
+</style>
+
+<style>
+/* 空间不足风险确认弹窗：确认安装按钮在左且为警告色 */
+.space-warning-confirm-btn {
+  order: 1 !important;
+  background: #f59e0b !important;
+  border-color: #f59e0b !important;
+  color: #fff !important;
+}
+.space-warning-confirm-btn:hover {
+  background: #d97706 !important;
+  border-color: #d97706 !important;
+}
+.space-warning-cancel-btn {
+  order: 2 !important;
 }
 </style>

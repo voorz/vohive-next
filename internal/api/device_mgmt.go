@@ -412,8 +412,9 @@ USBProduct             string             `json:"usb_product,omitempty"`     // 
 }
 
 type deviceMgmtListModem struct {
-	Operator      string `json:"operator"`
-	NativeSPN     string `json:"native_spn,omitempty"`
+Operator      string `json:"operator"`
+Firmware      string `json:"firmware,omitempty"`
+NativeSPN     string `json:"native_spn,omitempty"`
 	NativeMCC     string `json:"native_mcc,omitempty"`
 	NativeMNC     string `json:"native_mnc,omitempty"`
 	NetworkMode   string `json:"network_mode"`
@@ -830,9 +831,10 @@ Running:                true,
 			VoWiFiRuntime:          s.getVoWiFiRuntimeDTO(w.ID),
 			NetworkConnected:       w.NetworkConnected(),
 			RegistrationStateLabel: registrationStateLabel(status.RegStatus),
-			Modem: deviceMgmtListModem{
-				Operator:      status.Operator,
-				NativeSPN:     status.NativeSPN,
+Modem: deviceMgmtListModem{
+Operator:      status.Operator,
+Firmware:      status.Firmware,
+NativeSPN:     status.NativeSPN,
 				NativeMCC:     status.NativeMCC,
 				NativeMNC:     status.NativeMNC,
 				NetworkMode:   status.NetworkMode,
@@ -2191,8 +2193,40 @@ func writeEsimDeleteSuccessJSON(c *gin.Context, result esim.DeleteProfileResult)
 	c.JSON(http.StatusOK, esimDeleteSuccessBody(result))
 }
 
-func esimDownloadExec(run func(context.Context, string, string, string, string, string, esim.DownloadProgressFn) (esim.DownloadProfileResult, error), ctx context.Context, aidHex, smdp, matchingID, confirmationCode, imei string, progressFn esim.DownloadProgressFn) (esim.DownloadProfileResult, error) {
-	return run(ctx, aidHex, smdp, matchingID, confirmationCode, imei, progressFn)
+func esimDownloadExec(run func(context.Context, string, string, string, string, string, esim.DownloadProgressFn, bool) (esim.DownloadProfileResult, error), ctx context.Context, aidHex, smdp, matchingID, confirmationCode, imei string, progressFn esim.DownloadProgressFn, force bool) (esim.DownloadProfileResult, error) {
+	return run(ctx, aidHex, smdp, matchingID, confirmationCode, imei, progressFn, force)
+}
+
+// spaceWarningError 表示剩余空间不足的防炸卡保护触发错误
+type spaceWarningError struct {
+	FreeBytes int32
+	FreeNvram string
+}
+
+// parseSpaceWarningError 从 error 中解析 SPACE_WARNING 前缀的错误
+// manager.DownloadProfile 在空间不足且 force=false 时返回格式: "SPACE_WARNING:<bytes>:<nvram>"
+func parseSpaceWarningError(err error) *spaceWarningError {
+	if err == nil {
+		return nil
+	}
+	msg := err.Error()
+	const prefix = "SPACE_WARNING:"
+	if !strings.HasPrefix(msg, prefix) {
+		return nil
+	}
+	rest := msg[len(prefix):]
+	parts := strings.SplitN(rest, ":", 2)
+	if len(parts) < 2 {
+		return nil
+	}
+	bytes, parseErr := strconv.ParseInt(parts[0], 10, 32)
+	if parseErr != nil {
+		return nil
+	}
+	return &spaceWarningError{
+		FreeBytes: int32(bytes),
+		FreeNvram: parts[1],
+	}
 }
 
 var esimNotificationListExec = func(run func(string) ([]esim.NotificationItem, error), aidHex string) ([]esim.NotificationItem, error) {
@@ -2529,6 +2563,7 @@ func (s *Server) handleEsimDownloadProfile(c *gin.Context) {
 	confirmationCode := c.Query("confirmation_code")
 	aidHex := c.Query("aid_hex")
 	imei := strings.TrimSpace(c.Query("imei"))
+	force := c.Query("force") == "true"
 
 	// 设置 SSE 响应头
 	c.Header("Content-Type", "text/event-stream")
@@ -2560,8 +2595,17 @@ func (s *Server) handleEsimDownloadProfile(c *gin.Context) {
 		sseWrite(event.Step, event.Msg, event.Pct)
 	}
 
-	result, err := esimDownloadExec(worker.EsimMgr.DownloadProfile, ctx, aidHex, smdp, matchingID, confirmationCode, imei, progressFn)
+	result, err := esimDownloadExec(worker.EsimMgr.DownloadProfile, ctx, aidHex, smdp, matchingID, confirmationCode, imei, progressFn, force)
 	if err != nil {
+		if spaceErr := parseSpaceWarningError(err); spaceErr != nil {
+			fmt.Fprintf(c.Writer, "data: {\"step\":\"error\",\"msg\":%q,\"pct\":-1,\"code\":\"space_warning\",\"free_bytes\":%d,\"free_nvram\":%q}\n\n",
+				fmt.Sprintf("剩余空间极度紧张（%d Bytes / %s，低于安全阈值 80KB）", spaceErr.FreeBytes, spaceErr.FreeNvram),
+				spaceErr.FreeBytes, spaceErr.FreeNvram)
+			if flusher, ok := c.Writer.(http.Flusher); ok {
+				flusher.Flush()
+			}
+			return
+		}
 		writeEsimDownloadErrorEvent(c, err)
 		return
 	}

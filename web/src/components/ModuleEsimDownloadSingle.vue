@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { devicesService } from '../services/devices'
 import { errorMessage } from '../services/http'
 import { api } from '../stores/auth'
@@ -84,11 +84,51 @@ function clearForm() {
   downloadMsg.value = ''
 }
 
-async function downloadProfile() {
+const SPACE_WARNING_THRESHOLD = 81920
+
+function checkFreeNvram(): { bytes: number; nvram: string } | null {
+  if (!props.chipInfo?.eids?.length) return null
+  const eid = props.chipInfo.eids[0]
+  if (!eid || !eid.free_nvram_bytes || eid.free_nvram_bytes <= 0) return null
+  return { bytes: eid.free_nvram_bytes, nvram: eid.free_nvram || `${eid.free_nvram_bytes} Bytes` }
+}
+
+async function confirmSpaceWarning(freeBytes: number, freeNvram: string): Promise<boolean> {
+  try {
+    await ElMessageBox.confirm(
+      `目标 eUICC 剩余空间极度紧张（${freeBytes} Bytes / ${freeNvram}，低于安全阈值 80KB）。\n在空间不足的情况下继续安装可能导致写入失败或损坏已有 Profile。\n\n是否确认继续安装？`,
+      '空间不足风险确认',
+      {
+        confirmButtonText: '确认安装',
+        cancelButtonText: '取消安装',
+        type: 'warning',
+        confirmButtonClass: 'space-warning-confirm-btn',
+        cancelButtonClass: 'space-warning-cancel-btn',
+      }
+    )
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function downloadProfile(force = false) {
   const targetAidHex = aidHex.value || pickNextDownloadAid(props.chipInfo, '')
   if (!smdp.value) {
     ElMessage.warning('请输入 SM-DP+ 地址')
     return
+  }
+
+  if (!force) {
+    const space = checkFreeNvram()
+    if (space && space.bytes < SPACE_WARNING_THRESHOLD) {
+      const confirmed = await confirmSpaceWarning(space.bytes, space.nvram)
+      if (!confirmed) {
+        downloadError.value = '用户取消安装'
+        return
+      }
+      force = true
+    }
   }
 
   downloading.value = true
@@ -101,6 +141,7 @@ async function downloadProfile() {
   if (confirmationCode.value) params.set('confirmation_code', confirmationCode.value)
   if (targetAidHex) params.set('aid_hex', targetAidHex)
   if (imei.value.trim()) params.set('imei', imei.value.trim())
+  if (force) params.set('force', 'true')
 
   const base = api.defaults.baseURL || ''
   const url = `${base}/devices/${props.deviceId}/esim/actions/download?${params}`
@@ -153,6 +194,7 @@ async function downloadProfile() {
               ElMessage.success(notice.message)
             }
             emit('downloaded')
+            clearForm()
             break outer
           }
         } catch { /* 非 JSON 行，忽略 */ }
@@ -240,7 +282,7 @@ async function downloadProfile() {
         <el-icon size="14"><Dismiss24Regular /></el-icon>
         清空
       </button>
-      <button class="single-btn primary" @click="downloadProfile" :disabled="downloading">
+      <button class="single-btn primary" @click="downloadProfile()" :disabled="downloading">
         <el-icon size="14"><ArrowDownload24Regular /></el-icon>
         {{ downloading ? '下载中...' : '下载' }}
       </button>
@@ -362,5 +404,22 @@ async function downloadProfile() {
 }
 .single-btn.primary:disabled {
   opacity: 0.5;
+}
+</style>
+
+<style>
+/* 空间不足风险确认弹窗：确认安装按钮在左且为警告色 */
+.space-warning-confirm-btn {
+  order: 1 !important;
+  background: #f59e0b !important;
+  border-color: #f59e0b !important;
+  color: #fff !important;
+}
+.space-warning-confirm-btn:hover {
+  background: #d97706 !important;
+  border-color: #d97706 !important;
+}
+.space-warning-cancel-btn {
+  order: 2 !important;
 }
 </style>
