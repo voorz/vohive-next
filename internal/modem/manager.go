@@ -915,12 +915,15 @@ func (m *Manager) collectDeviceInfo() {
 			hwRevision = rev
 		}
 	}
-	// AT+GMI / AT+GMM 覆盖 ATI（优先级更高）
+	// AT+GMI 覆盖 ATI（优先级更高）
 	if v, err := m.QueryManufacturer(); err == nil && v != "" {
 		manufacturer = v
 	}
-	if v, err := m.QueryModel(); err == nil && v != "" {
-		model = v
+	// ATI 型号（如 EC20F）优先于 AT+GMM（如 QUECTEL Mobile Broadband Module）
+	if model == "" {
+		if v, err := m.QueryModel(); err == nil && v != "" {
+			model = v
+		}
 	}
 	if v, err := m.QueryFirmware(); err == nil {
 		firmware = v

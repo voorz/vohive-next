@@ -263,19 +263,36 @@ const backendHint = computed(() => {
 })
 
 // 扫描设备（showSuccess: 是否显示成功提示）
+// showSuccess=true: 用户点击“重新扫描”按钮，触发后端 rescanAll（重扫+重连）
+// showSuccess=false: 弹窗打开时，只轻量读取已发现设备列表，不触发 rescan
 async function scanDevices(showSuccess = false) {
-  scanning.value = true
-  try {
-    await devicesService.rescanAll()
-    const result = await store.fetchDiscovered()
-    if (result.ok) {
-      discovered.value = store.discovered
-      if (showSuccess) ElMessage.success('设备重新扫描完成')
+  if (showSuccess) {
+    // 用户主动点击重新扫描 → 触发后端 rescanAll
+    scanning.value = true
+    try {
+      await devicesService.rescanAll()
+      const result = await store.fetchDiscovered()
+      if (result.ok) {
+        discovered.value = store.discovered
+        ElMessage.success('设备重新扫描完成')
+      }
+    } catch {
+      ElMessage.error('扫描设备失败')
     }
-  } catch {
-    ElMessage.error('扫描设备失败')
+    scanning.value = false
+  } else {
+    // 弹窗打开 → 只轻量读取已发现设备
+    scanning.value = true
+    try {
+      const result = await store.fetchDiscovered()
+      if (result.ok) {
+        discovered.value = store.discovered
+      }
+    } catch {
+      // 静默失败
+    }
+    scanning.value = false
   }
-  scanning.value = false
 }
 
 // SSE 监听设备发现事件（弹窗打开时连接，关闭时断开）
@@ -336,11 +353,13 @@ function selectDevice(d: DiscoveredDevice) {
     // 从 USB identity 中提取完整 SN 作为 ID
     const sn = d.serial || extractReaderSN(readerName)
     deviceId.value = sn ? `pcsc-${sn}` : `pcsc-${readerName.replace(/[^a-zA-Z0-9]/g, '').slice(-8) || 'reader'}`
-    deviceName.value = uniqueDeviceName(d.manufacturer || d.display_name || readerName)
+    // PC/SC: 优先 display_name（USB Product），回退 pcsc_reader
+    deviceName.value = uniqueDeviceName(d.display_name || readerName)
     return
   }
   deviceId.value = d.imei ? `modem-${d.imei.slice(-4)}` : (d.net_interface || d.at_port.split('/').pop() || d.at_port)
-  const brand = d.manufacturer || d.display_name || ''
+  // 模组: manufacturer（QMI/AT 来源）+ model 拼接，禁止回退 USB Product
+  const brand = d.manufacturer || ''
   const model = d.model || ''
   deviceName.value = uniqueDeviceName(brand && model ? `${brand}-${model}` : brand)
 
@@ -548,48 +567,53 @@ function modeTagClass(mode?: string): string {
 
           <!-- 信息 -->
           <div class="discovered-card-info">
-            <!-- 第一行：厂商 -->
+            <!-- 第一行：设备名称（加粗） -->
+            <!-- 模组：manufacturer（QMI/AT 来源，如 Quectel）；PC/SC：display_name（USB Product，如 ESTKme-RED） -->
             <div class="discovered-card-name">
-              <span class="meta-label">厂商</span>
-              <span class="device-name-text">{{ d.manufacturer || d.display_name || (d.type === 'pcsc' ? d.pcsc_reader : d.net_interface) || '--' }}</span>
+              <span class="meta-label">名称</span>
+              <span class="device-name-text">{{ d.type === 'pcsc' ? (d.display_name || d.pcsc_reader || '--') : (d.manufacturer || '--') }}</span>
               <span class="device-mode-tag" :class="modeTagClass(d.mode)">{{ modeText(d.mode) }}</span>
               <span v-if="d.degraded" class="status-tag status-degraded">降级</span>
               <span v-else-if="d.configured" class="status-tag status-added">已添加</span>
               <span v-else class="status-tag status-new">新设备</span>
             </div>
-            <!-- 第二行：型号 -->
+            <!-- 第二行：厂商 -->
+            <div v-if="d.manufacturer" class="discovered-card-meta">
+              <span class="meta-label">厂商</span>
+              <span class="meta-item">{{ d.manufacturer }}</span>
+            </div>
+            <!-- 第三行：型号 -->
             <div v-if="d.model" class="discovered-card-meta">
               <span class="meta-label">型号</span>
               <span class="meta-item">{{ d.model }}</span>
             </div>
-            <!-- 第三行：芯片厂商 -->
+            <!-- 第四行：芯片厂商 -->
             <div v-if="d.chip_vendor" class="discovered-card-meta">
               <span class="meta-label">芯片</span>
               <span class="meta-item">{{ d.chip_vendor }}</span>
             </div>
-            <!-- 第四行：信息（pcsc 和 modem 内容一致，合并模板）
-                 display_name 字段在后端是 USB sysfs product（USB 描述符产品名），
-                 非模组真实厂商；manufacturer 才是 QMI/ATI 获取的真实模组厂商 -->
+            <!-- 第五行：标识信息 -->
             <div class="discovered-card-meta">
               <span class="meta-label">信息</span>
               <span v-if="d.imei" class="meta-item">IMEI: {{ d.imei }}</span>
+              <span v-if="d.serial" class="meta-item">SN: {{ d.serial }}</span>
               <span v-if="d.vendor_id" class="meta-item">USB: {{ vidPid(d) }}</span>
             </div>
-            <!-- 第五行：固件 -->
+            <!-- 第六行：固件 -->
             <div v-if="d.firmware" class="discovered-card-meta">
               <span class="meta-label">固件</span>
               <span class="meta-item">{{ d.firmware }}</span>
             </div>
-            <!-- 第六行：接口 -->
+            <!-- 第七行：接口 -->
             <div v-if="d.type !== 'pcsc'" class="discovered-card-meta">
               <span class="meta-label">接口</span>
               <span v-if="d.at_port" class="meta-item">AT: {{ d.at_port }}</span>
               <span v-if="d.control_path" class="meta-item">CTL: {{ d.control_path }}</span>
               <span v-if="d.net_interface" class="meta-item">NET: {{ d.net_interface }}</span>
             </div>
-            <!-- 第七行：能力 -->
+            <!-- 第八行：USB 技术信息 -->
             <div v-if="d.info" class="discovered-card-meta">
-              <span class="meta-label">能力</span>
+              <span class="meta-label">USB</span>
               <span class="meta-item">{{ d.info }}</span>
             </div>
           </div>
@@ -770,16 +794,19 @@ function modeTagClass(mode?: string): string {
   cursor: not-allowed;
 }
 
+/* 图标容器：固定正方形，不受卡片内容高度影响 */
 .discovered-card-icon {
-  height: 100%;
+  width: 48px;
+  height: 48px;
   flex-shrink: 0;
   display: flex;
-  align-items: stretch;
+  align-items: center;
+  justify-content: center;
 }
 
 .discovered-card-icon-svg {
+  width: 100%;
   height: 100%;
-  width: auto;
   object-fit: contain;
 }
 
@@ -889,8 +916,9 @@ function modeTagClass(mode?: string): string {
 }
 
 .status-added {
-  background: var(--muted);
+  background: color-mix(in oklab, var(--muted-foreground) 15%, transparent);
   color: var(--muted-foreground);
+  border: 1px solid color-mix(in oklab, var(--muted-foreground) 25%, transparent);
 }
 
 .status-degraded {

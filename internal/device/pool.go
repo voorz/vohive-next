@@ -542,18 +542,22 @@ func (w *Worker) collectRuntimeStatus(ctx context.Context, reason string) modem.
 
 		wg.Wait()
 		// 从 Manager 获取 AT 来源的模组品牌（如 Quectel），补填到 Manufacturer
+	// 并用 ATI 型号覆盖 QMI DMS GetModel（ATI 返回精简型号如 EC20F，QMI DMS 返回完整描述如 QUECTEL Mobile Broadband Module）
 		if w.Modem != nil {
 			if m := w.Modem; m != nil {
 				if v := m.GetManufacturerCached(); v != "" {
 					status.Manufacturer = v
-				} else if atPort := m.ATPort(); atPort != "" {
-					// QMI 模式下 Manager 未打开 AT 串口，用 ProbeATI 独立探测
+				}
+				// 无论 Manufacturer 是否已缓存，都执行 ATI probe 获取精简型号
+				// 使用 Worker.ResolvedATPort() 而非 Manager.ATPort()，确保走完整回退链
+				if atPort := w.ResolvedATPort(); atPort != "" {
 					if ati, err := modem.ProbeATI(atPort, 2*time.Second); err == nil {
-						if ati.Manufacturer != "" {
+						if ati.Manufacturer != "" && status.Manufacturer == "" {
 							status.Manufacturer = ati.Manufacturer
 							m.SetManufacturerCached(ati.Manufacturer)
 						}
-						if ati.Model != "" && status.Model == "" {
+						// ATI 型号（如 EC20F）优先于 QMI DMS GetModel
+						if ati.Model != "" {
 							status.Model = ati.Model
 						}
 					}
