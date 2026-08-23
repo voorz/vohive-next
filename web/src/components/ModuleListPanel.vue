@@ -18,19 +18,11 @@ import { Airplane } from '@vicons/ionicons5'
 import { loadPlmnCatalog } from '../composables/plmn-catalog'
 import { downloadIcon, getCachedIcon } from '../composables/useOperatorIcon'
 import { useEventStream } from '../composables/useEventStream'
-import ModemIcon from '../assets/svgs/modem-600x800.svg'
-import ReaderIcon from '../assets/svgs/estk-600x800.svg'
-import BaiwangIcon from '../assets/svgs/baiwang-600x800.svg'
+import { getDeviceIcon } from '../utils/deviceIcon'
 
 const props = defineProps<{
   selectedId?: string
 }>()
-
-function deviceIcon(item: DeviceMgmtListItem): string {
-  if (item.esim_transport === 'pcsc') return ReaderIcon
-  if (item.manufacturer?.toUpperCase() === 'BAIWANG') return BaiwangIcon
-  return ModemIcon
-}
 
 const emit = defineEmits<{
   'open-search': []
@@ -307,7 +299,7 @@ function readinessItems(d: DeviceMgmtListItem) {
               </div>
             </div>
             <!-- 右上角：设备类型图标（悬浮，无黑框） -->
-            <img :src="deviceIcon(item)" :alt="item.esim_transport === 'pcsc' ? 'reader' : 'modem'" class="vohive-rattlesnake-device-icon" />
+            <img :src="getDeviceIcon({ esim_transport: item.esim_transport, manufacturer: item.manufacturer })" :alt="item.esim_transport === 'pcsc' ? 'reader' : 'modem'" class="vohive-rattlesnake-device-icon" />
           </div>
         </div>
         <!-- 虚线占位添加区 -->

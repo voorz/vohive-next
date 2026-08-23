@@ -5,6 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { useDevicesStore } from '../stores/devices'
 import { devicesService } from '../services/devices'
 import { isWwanQmiControlPath } from '../utils/deviceBackend'
+import { getDeviceIcon } from '../utils/deviceIcon'
 import type { DiscoveredDevice, DeviceConfigDTO } from '../types/api'
 import {
   Search24Regular,
@@ -13,15 +14,6 @@ import {
   PortMicroUsb24Regular
 } from '@vicons/fluent'
 import { systemService } from '../services/system'
-import BaiwangIcon from '../assets/svgs/baiwang-600x800.svg'
-import ModemIcon from '../assets/svgs/modem-600x800.svg'
-import ReaderIcon from '../assets/svgs/estk-600x800.svg'
-
-function discoveredDeviceIcon(d: DiscoveredDevice): string {
-  if (d.type === 'pcsc') return ReaderIcon
-  if (d.manufacturer?.toUpperCase() === 'BAIWANG') return BaiwangIcon
-  return ModemIcon
-}
 
 const props = defineProps<{
   modelValue: boolean
@@ -250,7 +242,11 @@ const filteredDevices = computed(() => {
     d.at_port.toLowerCase().includes(q) ||
     d.driver_name.toLowerCase().includes(q) ||
     d.usb_path.toLowerCase().includes(q) ||
-    (d.net_interface || '').toLowerCase().includes(q)
+    (d.net_interface || '').toLowerCase().includes(q) ||
+    (d.manufacturer || '').toLowerCase().includes(q) ||
+    (d.model || '').toLowerCase().includes(q) ||
+    (d.chip_vendor || '').toLowerCase().includes(q) ||
+    (d.firmware || '').toLowerCase().includes(q)
   )
 })
 
@@ -546,13 +542,15 @@ function modeTagClass(mode?: string): string {
           @click="selectDevice(d)"
         >
           <!-- 图标 -->
-          <img :src="discoveredDeviceIcon(d)" alt="device" class="discovered-card-icon-svg" />
+          <div class="discovered-card-icon">
+            <img :src="getDeviceIcon({ type: d.type, manufacturer: d.manufacturer })" alt="device" class="discovered-card-icon-svg" />
+          </div>
 
           <!-- 信息 -->
           <div class="discovered-card-info">
-            <!-- 第一行：品牌 -->
+            <!-- 第一行：厂商 -->
             <div class="discovered-card-name">
-              <span class="meta-label">品牌</span>
+              <span class="meta-label">厂商</span>
               <span class="device-name-text">{{ d.manufacturer || d.display_name || (d.type === 'pcsc' ? d.pcsc_reader : d.net_interface) || '--' }}</span>
               <span class="device-mode-tag" :class="modeTagClass(d.mode)">{{ modeText(d.mode) }}</span>
               <span v-if="d.degraded" class="status-tag status-degraded">降级</span>
@@ -569,17 +567,13 @@ function modeTagClass(mode?: string): string {
               <span class="meta-label">芯片</span>
               <span class="meta-item">{{ d.chip_vendor }}</span>
             </div>
-            <!-- 第四行：信息 -->
+            <!-- 第四行：信息（pcsc 和 modem 内容一致，合并模板）
+                 display_name 字段在后端是 USB sysfs product（USB 描述符产品名），
+                 非模组真实厂商；manufacturer 才是 QMI/ATI 获取的真实模组厂商 -->
             <div class="discovered-card-meta">
               <span class="meta-label">信息</span>
-              <template v-if="d.type === 'pcsc'">
-                <span v-if="d.imei" class="meta-item">IMEI: {{ d.imei }}</span>
-                <span v-if="d.vendor_id" class="meta-item">USB: {{ vidPid(d) }}</span>
-              </template>
-              <template v-else>
-                <span v-if="d.imei" class="meta-item">IMEI: {{ d.imei }}</span>
-                <span v-if="d.vendor_id" class="meta-item">USB: {{ vidPid(d) }}</span>
-              </template>
+              <span v-if="d.imei" class="meta-item">IMEI: {{ d.imei }}</span>
+              <span v-if="d.vendor_id" class="meta-item">USB: {{ vidPid(d) }}</span>
             </div>
             <!-- 第五行：固件 -->
             <div v-if="d.firmware" class="discovered-card-meta">
@@ -776,12 +770,17 @@ function modeTagClass(mode?: string): string {
   cursor: not-allowed;
 }
 
-.discovered-card-icon-svg {
-  width: 42px;
+.discovered-card-icon {
   height: 100%;
-  object-fit: contain;
   flex-shrink: 0;
-  align-self: stretch;
+  display: flex;
+  align-items: stretch;
+}
+
+.discovered-card-icon-svg {
+  height: 100%;
+  width: auto;
+  object-fit: contain;
 }
 
 .discovered-card-info {
@@ -791,6 +790,7 @@ function modeTagClass(mode?: string): string {
 
 .discovered-card-name {
   font-size: 13px;
+  line-height: 13px;
   font-weight: 600;
   color: var(--foreground);
   display: flex;
@@ -827,8 +827,9 @@ function modeTagClass(mode?: string): string {
 
 /* info 行 */
 .discovered-card-info-line {
-  margin-top: 2px;
+  margin-top: 0;
   font-size: 11px;
+  line-height: 13px;
   font-family: var(--oomol-font-mono);
   color: var(--muted-foreground);
   opacity: 0.6;
@@ -842,8 +843,9 @@ function modeTagClass(mode?: string): string {
   align-items: center;
   flex-wrap: wrap;
   gap: 6px;
-  margin-top: 3px;
+  margin-top: 0;
   font-size: 11px;
+  line-height: 13px;
   color: var(--muted-foreground);
 }
 

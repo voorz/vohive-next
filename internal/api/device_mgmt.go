@@ -1147,7 +1147,7 @@ type discoveredDevice struct {
 	Degraded       bool     `json:"degraded,omitempty"` // 探不到 IMEI,无法确立身份,不可直接添加
 	Type           string   `json:"type,omitempty"`    // modem/pcsc
 	PCSCReader     string   `json:"pcsc_reader,omitempty"`
-	DisplayName    string `json:"display_name,omitempty"` // USB Product 名称（modem 和 pcsc 通用）
+	DisplayName    string `json:"display_name,omitempty"` // USB sysfs product 字段（USB 描述符产品名，非模组真实厂商）
 	Manufacturer  string `json:"manufacturer,omitempty"`  // 模组厂商（ATI 获取，如 "Quectel"）
 	Model          string `json:"model,omitempty"`           // 模组描述（QMI DMS GetModel 获取，如 "QUECTEL Mobile Broadband Module"）
 	ChipVendor    string `json:"chip_vendor,omitempty"`    // 芯片厂商（QMI DMS GetManufacturer 获取，如 "QUALCOMM INCORPORATED"）
