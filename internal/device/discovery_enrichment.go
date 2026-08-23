@@ -66,15 +66,17 @@ func EnrichDiscoveredCompatibleModem(dev CompatibleModem, opts CompatibleModemEn
 		}
 	}
 
-	if imei == "" && opts.EnableQMIIMEIProbe && strings.TrimSpace(dev.ControlPath) != "" {
+	// QMI DMS 探测：即使 IMEI 已有，如果芯片厂商/型号/固件为空也需执行补充
+	needQMIProbe := opts.EnableQMIIMEIProbe && strings.TrimSpace(dev.ControlPath) != ""
+	if needQMIProbe && (imei == "" || dev.ChipVendor == "" || dev.Model == "" || dev.Firmware == "") {
 		if qmiResult, err := probeDeviceInfoViaQMIFn(dev.ControlPath, opts.QMIClientOptions); err == nil {
-			if qmiIMEI := qmiResult.IMEI; qmiIMEI != "" {
+			if qmiIMEI := qmiResult.IMEI; qmiIMEI != "" && imei == "" {
 				imei = qmiIMEI
 				dev.IMEI = qmiIMEI
 			}
-			// QMI DMS 补充厂商/型号/固件（AT 未获取到时）
-			if dev.Manufacturer == "" && qmiResult.Manufacturer != "" {
-				dev.Manufacturer = qmiResult.Manufacturer
+			// QMI DMS 补充芯片厂商/型号/固件（AT 未获取到时）
+			if dev.ChipVendor == "" && qmiResult.Manufacturer != "" {
+				dev.ChipVendor = qmiResult.Manufacturer
 			}
 			if dev.Model == "" && qmiResult.Model != "" {
 				dev.Model = qmiResult.Model
@@ -151,6 +153,7 @@ type WorkerDiscoveryInfo struct {
 	IMEI         string
 	USBNetMode   *int
 	Manufacturer string
+	ChipVendor   string
 	Model        string
 	Firmware     string
 }
@@ -181,25 +184,28 @@ func BuildWorkerDiscoveryIndex(workers []*Worker, includeRuntimeStatus bool) Wor
 			ATPort:      strings.TrimSpace(cfg.ATPort),
 			IMEI:        strings.TrimSpace(cfg.ModemIMEI),
 		}
-	if includeRuntimeStatus {
-		status := worker.GetDeviceStatus()
-		if imei := strings.TrimSpace(status.IMEI); imei != "" {
-			info.IMEI = imei
-		}
-		if info.ATPort != "" {
-			v := status.USBNetMode
-			info.USBNetMode = &v
-		}
+		if includeRuntimeStatus {
+			status := worker.GetDeviceStatus()
+			if imei := strings.TrimSpace(status.IMEI); imei != "" {
+				info.IMEI = imei
+			}
+			if info.ATPort != "" {
+				v := status.USBNetMode
+				info.USBNetMode = &v
+			}
 		if manu := strings.TrimSpace(status.Manufacturer); manu != "" {
-			info.Manufacturer = manu
-		}
+				info.Manufacturer = manu
+			}
+		if cv := strings.TrimSpace(status.ChipVendor); cv != "" {
+				info.ChipVendor = cv
+			}
 		if mdl := strings.TrimSpace(status.Model); mdl != "" {
-			info.Model = mdl
+				info.Model = mdl
+			}
+			if fw := strings.TrimSpace(status.Firmware); fw != "" {
+				info.Firmware = fw
+			}
 		}
-		if fw := strings.TrimSpace(status.Firmware); fw != "" {
-			info.Firmware = fw
-		}
-	}
 
 		if info.ControlPath != "" {
 			if _, ok := idx.byControl[info.ControlPath]; !ok {

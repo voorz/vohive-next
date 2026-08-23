@@ -340,11 +340,13 @@ function selectDevice(d: DiscoveredDevice) {
     // 从 USB identity 中提取完整 SN 作为 ID
     const sn = d.serial || extractReaderSN(readerName)
     deviceId.value = sn ? `pcsc-${sn}` : `pcsc-${readerName.replace(/[^a-zA-Z0-9]/g, '').slice(-8) || 'reader'}`
-    deviceName.value = uniqueDeviceName((d.manufacturer || d.model) ? [d.manufacturer, d.model].filter(Boolean).join('-') : (d.display_name || readerName))
+    deviceName.value = uniqueDeviceName(d.manufacturer || d.display_name || readerName)
     return
   }
   deviceId.value = d.imei ? `modem-${d.imei.slice(-4)}` : (d.net_interface || d.at_port.split('/').pop() || d.at_port)
-  deviceName.value = uniqueDeviceName((d.manufacturer || d.model) ? [d.manufacturer, d.model].filter(Boolean).join('-') : (d.display_name || ''))
+  const brand = d.manufacturer || d.display_name || ''
+  const model = d.model || ''
+  deviceName.value = uniqueDeviceName(brand && model ? `${brand}-${model}` : brand)
 
   // 自动选择后端模式
   const mode = String(d.mode || '').toLowerCase()
@@ -548,16 +550,26 @@ function modeTagClass(mode?: string): string {
 
           <!-- 信息 -->
           <div class="discovered-card-info">
-            <!-- 第一行：名称 -->
+            <!-- 第一行：品牌 -->
             <div class="discovered-card-name">
-              <span class="meta-label">名称</span>
-              <span class="device-name-text">{{ (d.manufacturer || d.model) ? [d.manufacturer, d.model].filter(Boolean).join('-') : (d.display_name || (d.type === 'pcsc' ? d.pcsc_reader : d.net_interface)) || '--' }}</span>
+              <span class="meta-label">品牌</span>
+              <span class="device-name-text">{{ d.manufacturer || d.display_name || (d.type === 'pcsc' ? d.pcsc_reader : d.net_interface) || '--' }}</span>
               <span class="device-mode-tag" :class="modeTagClass(d.mode)">{{ modeText(d.mode) }}</span>
               <span v-if="d.degraded" class="status-tag status-degraded">降级</span>
               <span v-else-if="d.configured" class="status-tag status-added">已添加</span>
               <span v-else class="status-tag status-new">新设备</span>
             </div>
-            <!-- 第二行：信息 -->
+            <!-- 第二行：型号 -->
+            <div v-if="d.model" class="discovered-card-meta">
+              <span class="meta-label">型号</span>
+              <span class="meta-item">{{ d.model }}</span>
+            </div>
+            <!-- 第三行：芯片厂商 -->
+            <div v-if="d.chip_vendor" class="discovered-card-meta">
+              <span class="meta-label">芯片</span>
+              <span class="meta-item">{{ d.chip_vendor }}</span>
+            </div>
+            <!-- 第四行：信息 -->
             <div class="discovered-card-meta">
               <span class="meta-label">信息</span>
               <template v-if="d.type === 'pcsc'">
@@ -569,19 +581,19 @@ function modeTagClass(mode?: string): string {
                 <span v-if="d.vendor_id" class="meta-item">USB: {{ vidPid(d) }}</span>
               </template>
             </div>
-            <!-- 第三行：固件 -->
+            <!-- 第五行：固件 -->
             <div v-if="d.firmware" class="discovered-card-meta">
               <span class="meta-label">固件</span>
               <span class="meta-item">{{ d.firmware }}</span>
             </div>
-            <!-- 第四行：接口 -->
+            <!-- 第六行：接口 -->
             <div v-if="d.type !== 'pcsc'" class="discovered-card-meta">
               <span class="meta-label">接口</span>
               <span v-if="d.at_port" class="meta-item">AT: {{ d.at_port }}</span>
               <span v-if="d.control_path" class="meta-item">CTL: {{ d.control_path }}</span>
               <span v-if="d.net_interface" class="meta-item">NET: {{ d.net_interface }}</span>
             </div>
-            <!-- 第五行：能力 -->
+            <!-- 第七行：能力 -->
             <div v-if="d.info" class="discovered-card-meta">
               <span class="meta-label">能力</span>
               <span class="meta-item">{{ d.info }}</span>
@@ -729,6 +741,9 @@ function modeTagClass(mode?: string): string {
 /* 设备列表 */
 .device-list {
   padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .discovered-card {

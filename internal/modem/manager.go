@@ -1144,8 +1144,9 @@ type SIMServiceTable struct {
 // GetFullStatus 返回完整状态信息
 type DeviceStatus struct {
 	IMEI            string           `json:"imei"`
-	Manufacturer    string           `json:"manufacturer,omitempty"`
-	Model           string           `json:"model,omitempty"`
+	Manufacturer    string           `json:"manufacturer,omitempty"`   // 模组厂商（ATI 获取，如 Quectel）
+	Model           string           `json:"model,omitempty"`          // 模组描述（QMI DMS GetModel）
+	ChipVendor      string           `json:"chip_vendor,omitempty"`    // 芯片厂商（QMI DMS GetManufacturer，如 QUALCOMM INCORPORATED）
 	HardwareRevision string          `json:"hardware_revision,omitempty"`
 	Firmware        string           `json:"firmware"`
 	ICCID           string           `json:"iccid"`
@@ -1207,6 +1208,27 @@ func (m *Manager) GetFullStatus() DeviceStatus {
 		USBNetMode:    m.usbnetMode,
 		OperatingMode: nil,
 	}
+}
+
+// GetManufacturerCached 返回 ATI 采集的模组厂商名称（如 Quectel），无锁读取。
+// 用于 QMI 模式下 collectRuntimeStatus 补填 Manufacturer 字段。
+func (m *Manager) GetManufacturerCached() string {
+	if m == nil {
+		return ""
+	}
+	m.infoMu.RLock()
+	defer m.infoMu.RUnlock()
+	return m.manufacturer
+}
+
+// SetManufacturerCached 缓存 ATI 采集的模组厂商名称。
+func (m *Manager) SetManufacturerCached(v string) {
+	if m == nil {
+		return
+	}
+	m.infoMu.Lock()
+	defer m.infoMu.Unlock()
+	m.manufacturer = v
 }
 
 // RefreshStatus 刷新设备状态 (信号、运营商、SIM)，并在发现 SIM 卡掉线时触发告警

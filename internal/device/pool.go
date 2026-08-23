@@ -469,9 +469,10 @@ func (w *Worker) collectRuntimeStatus(ctx context.Context, reason string) modem.
 			}
 		})
 		call(func() {
+			// QMI DMS GetManufacturer 返回的是芯片厂商（如 QUALCOMM INCORPORATED）
 			if v, err := w.Backend.GetManufacturer(ctx); err == nil && v != "" {
 				mu.Lock()
-				status.Manufacturer = v
+				status.ChipVendor = v
 				mu.Unlock()
 			}
 		})
@@ -540,6 +541,25 @@ func (w *Worker) collectRuntimeStatus(ctx context.Context, reason string) modem.
 		})
 
 		wg.Wait()
+		// 从 Manager 获取 AT 来源的模组品牌（如 Quectel），补填到 Manufacturer
+		if w.Modem != nil {
+			if m := w.Modem; m != nil {
+				if v := m.GetManufacturerCached(); v != "" {
+					status.Manufacturer = v
+				} else if atPort := m.ATPort(); atPort != "" {
+					// QMI 模式下 Manager 未打开 AT 串口，用 ProbeATI 独立探测
+					if ati, err := modem.ProbeATI(atPort, 2*time.Second); err == nil {
+						if ati.Manufacturer != "" {
+							status.Manufacturer = ati.Manufacturer
+							m.SetManufacturerCached(ati.Manufacturer)
+						}
+						if ati.Model != "" && status.Model == "" {
+							status.Model = ati.Model
+						}
+					}
+				}
+			}
+		}
 		return status
 	}
 

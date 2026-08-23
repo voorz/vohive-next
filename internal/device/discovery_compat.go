@@ -32,8 +32,9 @@ type CompatibleModem struct {
 	NetworkCapable   bool
 	USBProduct       string // USB 描述符 product 字段
 	USBManufacturer  string // USB 描述符 manufacturer 字段
-	Manufacturer     string // 模组厂商（ATI/QMI DMS 获取，非 USB sysfs）
-	Model            string // 模组型号（ATI/QMI DMS 获取）
+	Manufacturer     string // 模组厂商（ATI 获取，如 "Quectel"）
+	Model            string // 模组描述（QMI DMS GetModel 获取，如 "QUECTEL Mobile Broadband Module"）
+	ChipVendor       string // 芯片厂商（QMI DMS GetManufacturer 获取，如 "QUALCOMM INCORPORATED"）
 	Firmware         string // 固件版本（ATI Revision 行获取）
 }
 
@@ -484,8 +485,8 @@ func ProbeIMEIViaQMIWithOptions(controlPath string, clientOptions qmi.ClientOpti
 // QMIProbeResult 包含 QMI 探测的设备身份信息
 type QMIProbeResult struct {
 	IMEI         string
-	Manufacturer string
-	Model        string
+	Manufacturer string // QMI DMS GetManufacturer（芯片厂商，如 QUALCOMM INCORPORATED）
+	Model        string // QMI DMS GetModel（模组描述，如 QUECTEL Mobile Broadband Module）
 	Firmware     string
 }
 
@@ -523,12 +524,12 @@ func ProbeDeviceInfoViaQMI(controlPath string, clientOptions qmi.ClientOptions) 
 		result.IMEI = strings.TrimSpace(info.IMEI)
 	}
 
-	// Manufacturer
+	// Manufacturer (芯片厂商，如 QUALCOMM INCORPORATED)
 	if manu, err := dms.GetManufacturer(ctx); err == nil {
 		result.Manufacturer = strings.TrimSpace(manu)
 	}
 
-	// Model
+	// Model (模组描述，如 QUECTEL Mobile Broadband Module)
 	if mdl, err := dms.GetModel(ctx); err == nil {
 		result.Model = strings.TrimSpace(mdl)
 	}

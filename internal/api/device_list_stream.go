@@ -125,9 +125,10 @@ func (s *Server) handleDeviceMgmtListStream(c *gin.Context) {
 				VoWiFiRuntime:          s.getVoWiFiRuntimeDTO(w.ID),
 				NetworkConnected:       w.NetworkConnected(),
 				RegistrationStateLabel: registrationStateLabel(status.RegStatus),
-			Modem: deviceMgmtListModem{
-				Manufacturer:     status.Manufacturer,
-				Model:            status.Model,
+Modem: deviceMgmtListModem{
+Manufacturer:     status.Manufacturer,
+ChipVendor:       status.ChipVendor,
+Model:            status.Model,
 				HardwareRevision: status.HardwareRevision,
 				Operator:      status.Operator,
 					NativeSPN:     status.NativeSPN,

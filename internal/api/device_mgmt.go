@@ -413,6 +413,7 @@ USBProduct             string             `json:"usb_product,omitempty"`     // 
 
 type deviceMgmtListModem struct {
 	Manufacturer     string `json:"manufacturer,omitempty"`
+	ChipVendor       string `json:"chip_vendor,omitempty"`
 	Model            string `json:"model,omitempty"`
 	HardwareRevision string `json:"hardware_revision,omitempty"`
 	Operator      string `json:"operator"`
@@ -834,9 +835,10 @@ Running:                true,
 			VoWiFiRuntime:          s.getVoWiFiRuntimeDTO(w.ID),
 			NetworkConnected:       w.NetworkConnected(),
 			RegistrationStateLabel: registrationStateLabel(status.RegStatus),
-		Modem: deviceMgmtListModem{
-			Manufacturer:     status.Manufacturer,
-			Model:            status.Model,
+Modem: deviceMgmtListModem{
+Manufacturer:     status.Manufacturer,
+ChipVendor:       status.ChipVendor,
+Model:            status.Model,
 			HardwareRevision: status.HardwareRevision,
 			Operator:      status.Operator,
 Firmware:      status.Firmware,
@@ -1146,8 +1148,9 @@ type discoveredDevice struct {
 	Type           string   `json:"type,omitempty"`    // modem/pcsc
 	PCSCReader     string   `json:"pcsc_reader,omitempty"`
 	DisplayName    string `json:"display_name,omitempty"` // USB Product 名称（modem 和 pcsc 通用）
-	Manufacturer  string `json:"manufacturer,omitempty"`  // 模组厂商（QMI/AT 优先，回退 USB sysfs）
-	Model          string `json:"model,omitempty"`           // 模组型号（QMI/AT 获取）
+	Manufacturer  string `json:"manufacturer,omitempty"`  // 模组厂商（ATI 获取，如 "Quectel"）
+	Model          string `json:"model,omitempty"`           // 模组描述（QMI DMS GetModel 获取，如 "QUECTEL Mobile Broadband Module"）
+	ChipVendor    string `json:"chip_vendor,omitempty"`    // 芯片厂商（QMI DMS GetManufacturer 获取，如 "QUALCOMM INCORPORATED"）
 	Firmware       string `json:"firmware,omitempty"`        // 固件版本（ATI Revision 获取）
 	Serial         string `json:"serial,omitempty"`        // USB Serial Number
 	Info           string `json:"info,omitempty"`           // USB 技术信息行（SSN/USB版本/设备类/端点摘要 或 接口驱动统计）
@@ -1223,6 +1226,9 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 					// 从已管理设备的运行时状态补充厂商/型号/固件
 					if dev.Manufacturer == "" && managedMatch.Manufacturer != "" {
 						dev.Manufacturer = managedMatch.Manufacturer
+					}
+					if dev.ChipVendor == "" && managedMatch.ChipVendor != "" {
+						dev.ChipVendor = managedMatch.ChipVendor
 					}
 					if dev.Model == "" && managedMatch.Model != "" {
 						dev.Model = managedMatch.Model
@@ -1388,6 +1394,7 @@ func buildDiscoveredDevice(hw device.CompatibleModem, configured bool, configure
 		DisplayName:    strings.TrimSpace(hw.USBProduct),
 		Manufacturer:   manufacturer,
 		Model:          strings.TrimSpace(hw.Model),
+		ChipVendor:     strings.TrimSpace(hw.ChipVendor),
 		Firmware:       strings.TrimSpace(hw.Firmware),
 	}
 }

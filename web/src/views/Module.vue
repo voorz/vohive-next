@@ -78,6 +78,7 @@ async function handleAddDevices(deviceIds: string[]) {
 function handleDeviceDeleted() {
   selectedId.value = ''
   void store.fetchList()
+  void store.fetchDiscovered()
 }
 </script>
 

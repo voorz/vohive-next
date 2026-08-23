@@ -199,9 +199,10 @@ export type SIMServiceTable = {
 }
 
 export type ModemStatus = {
-  manufacturer?: string
-  model?: string
-  hardware_revision?: string
+manufacturer?: string
+chip_vendor?: string
+model?: string
+hardware_revision?: string
   imei?: string
   iccid?: string
   imsi?: string
@@ -325,6 +326,7 @@ pcsc_reader?: string
   display_name?: string
   manufacturer?: string
   model?: string
+  chip_vendor?: string
   firmware?: string
   serial?: string
 info?: string
