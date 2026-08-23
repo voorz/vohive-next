@@ -492,7 +492,7 @@ function modeTagClass(mode?: string): string {
     <div v-if="hasPCSCReader" class="driver-mode-switch">
       <div class="driver-mode-info">
         <span class="driver-mode-title">使用原生PC/SC驱动</span>
-        <span class="driver-mode-desc">开启后通过系统 pcscd 服务驱动读卡器，关闭则使用内置 USBFS 直连</span>
+        <span class="driver-mode-desc">应用已内置读卡器驱动，仅在遇到euicc兼容性问题时请开启</span>
       </div>
       <el-switch
         v-model="useNativeDriver"
