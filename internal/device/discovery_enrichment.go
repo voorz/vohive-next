@@ -25,6 +25,8 @@ type CompatibleModemEnrichOptions struct {
 	QMIClientOptions   qmiq.ClientOptions
 }
 
+var probeDeviceInfoViaQMIFn = ProbeDeviceInfoViaQMI
+
 // EnrichDiscoveredQMIDevice 按调用方策略补全单台静态发现到的 QMI 设备信息。
 // 该流程只会在本设备 ATPorts 范围内做 AT 口探测；QMI IMEI 补读作为最后手段单独开关控制。
 func EnrichDiscoveredQMIDevice(dev QMIDevice, opts QMIDeviceEnrichOptions) (QMIDevice, string) {
@@ -39,8 +41,10 @@ func EnrichDiscoveredQMIDevice(dev QMIDevice, opts QMIDeviceEnrichOptions) (QMID
 	}
 
 	if imei == "" && opts.EnableQMIIMEIProbe && strings.TrimSpace(dev.ControlPath) != "" {
-		if qmiIMEI, err := probeIMEIViaQMIFn(dev.ControlPath, opts.QMIClientOptions); err == nil && qmiIMEI != "" {
-			imei = qmiIMEI
+		if qmiResult, err := probeDeviceInfoViaQMIFn(dev.ControlPath, opts.QMIClientOptions); err == nil {
+			if qmiIMEI := qmiResult.IMEI; qmiIMEI != "" {
+				imei = qmiIMEI
+			}
 		}
 	}
 	return dev, imei
@@ -63,9 +67,21 @@ func EnrichDiscoveredCompatibleModem(dev CompatibleModem, opts CompatibleModemEn
 	}
 
 	if imei == "" && opts.EnableQMIIMEIProbe && strings.TrimSpace(dev.ControlPath) != "" {
-		if qmiIMEI, err := probeIMEIViaQMIFn(dev.ControlPath, opts.QMIClientOptions); err == nil && qmiIMEI != "" {
-			imei = qmiIMEI
-			dev.IMEI = qmiIMEI
+		if qmiResult, err := probeDeviceInfoViaQMIFn(dev.ControlPath, opts.QMIClientOptions); err == nil {
+			if qmiIMEI := qmiResult.IMEI; qmiIMEI != "" {
+				imei = qmiIMEI
+				dev.IMEI = qmiIMEI
+			}
+			// QMI DMS 补充厂商/型号/固件（AT 未获取到时）
+			if dev.Manufacturer == "" && qmiResult.Manufacturer != "" {
+				dev.Manufacturer = qmiResult.Manufacturer
+			}
+			if dev.Model == "" && qmiResult.Model != "" {
+				dev.Model = qmiResult.Model
+			}
+			if dev.Firmware == "" && qmiResult.Firmware != "" {
+				dev.Firmware = qmiResult.Firmware
+			}
 		}
 	}
 
@@ -127,13 +143,16 @@ func (idx StaticQMIDeviceIndex) Lookup(controlPath, usbPath, iface string) (QMID
 }
 
 type WorkerDiscoveryInfo struct {
-	ID          string
-	ControlPath string
-	USBPath     string
-	Interface   string
-	ATPort      string
-	IMEI        string
-	USBNetMode  *int
+	ID           string
+	ControlPath  string
+	USBPath      string
+	Interface    string
+	ATPort       string
+	IMEI         string
+	USBNetMode   *int
+	Manufacturer string
+	Model        string
+	Firmware     string
 }
 
 type WorkerDiscoveryIndex struct {
@@ -162,16 +181,25 @@ func BuildWorkerDiscoveryIndex(workers []*Worker, includeRuntimeStatus bool) Wor
 			ATPort:      strings.TrimSpace(cfg.ATPort),
 			IMEI:        strings.TrimSpace(cfg.ModemIMEI),
 		}
-		if includeRuntimeStatus {
-			status := worker.GetDeviceStatus()
-			if imei := strings.TrimSpace(status.IMEI); imei != "" {
-				info.IMEI = imei
-			}
-			if info.ATPort != "" {
-				v := status.USBNetMode
-				info.USBNetMode = &v
-			}
+	if includeRuntimeStatus {
+		status := worker.GetDeviceStatus()
+		if imei := strings.TrimSpace(status.IMEI); imei != "" {
+			info.IMEI = imei
 		}
+		if info.ATPort != "" {
+			v := status.USBNetMode
+			info.USBNetMode = &v
+		}
+		if manu := strings.TrimSpace(status.Manufacturer); manu != "" {
+			info.Manufacturer = manu
+		}
+		if mdl := strings.TrimSpace(status.Model); mdl != "" {
+			info.Model = mdl
+		}
+		if fw := strings.TrimSpace(status.Firmware); fw != "" {
+			info.Firmware = fw
+		}
+	}
 
 		if info.ControlPath != "" {
 			if _, ok := idx.byControl[info.ControlPath]; !ok {

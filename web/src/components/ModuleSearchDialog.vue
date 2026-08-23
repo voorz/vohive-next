@@ -63,6 +63,18 @@ const deviceId = ref('')
 // 设备名称（可选）
 const deviceName = ref('')
 
+// 生成唯一设备名：若已有同名设备则自动加序号 -01/-02
+function uniqueDeviceName(base: string): string {
+  if (!base) return base
+  const existingNames = new Set(store.list.map(d => d.name))
+  if (!existingNames.has(base)) return base
+  let seq = 1
+  while (existingNames.has(`${base}-${String(seq).padStart(2, '0')}`)) {
+    seq++
+  }
+  return `${base}-${String(seq).padStart(2, '0')}`
+}
+
 // 运行模式
 const deviceBackend = ref<'at' | 'qmi' | 'mbim'>('at')
 
@@ -328,11 +340,11 @@ function selectDevice(d: DiscoveredDevice) {
     // 从 USB identity 中提取完整 SN 作为 ID
     const sn = d.serial || extractReaderSN(readerName)
     deviceId.value = sn ? `pcsc-${sn}` : `pcsc-${readerName.replace(/[^a-zA-Z0-9]/g, '').slice(-8) || 'reader'}`
-    deviceName.value = d.display_name || readerName
+    deviceName.value = uniqueDeviceName((d.manufacturer || d.model) ? [d.manufacturer, d.model].filter(Boolean).join('-') : (d.display_name || readerName))
     return
   }
   deviceId.value = d.imei ? `modem-${d.imei.slice(-4)}` : (d.net_interface || d.at_port.split('/').pop() || d.at_port)
-  deviceName.value = d.display_name || ''
+  deviceName.value = uniqueDeviceName((d.manufacturer || d.model) ? [d.manufacturer, d.model].filter(Boolean).join('-') : (d.display_name || ''))
 
   // 自动选择后端模式
   const mode = String(d.mode || '').toLowerCase()
@@ -536,31 +548,43 @@ function modeTagClass(mode?: string): string {
 
           <!-- 信息 -->
           <div class="discovered-card-info">
-            <!-- 名称行 -->
+            <!-- 第一行：名称 -->
             <div class="discovered-card-name">
-              <span class="device-name-text">{{ d.display_name || (d.type === 'pcsc' ? d.pcsc_reader : d.net_interface) || '--' }}</span>
+              <span class="meta-label">名称</span>
+              <span class="device-name-text">{{ (d.manufacturer || d.model) ? [d.manufacturer, d.model].filter(Boolean).join('-') : (d.display_name || (d.type === 'pcsc' ? d.pcsc_reader : d.net_interface)) || '--' }}</span>
               <span class="device-mode-tag" :class="modeTagClass(d.mode)">{{ modeText(d.mode) }}</span>
               <span v-if="d.degraded" class="status-tag status-degraded">降级</span>
               <span v-else-if="d.configured" class="status-tag status-added">已添加</span>
               <span v-else class="status-tag status-new">新设备</span>
             </div>
-            <!-- 副标题 -->
+            <!-- 第二行：信息 -->
             <div class="discovered-card-meta">
+              <span class="meta-label">信息</span>
               <template v-if="d.type === 'pcsc'">
                 <span v-if="d.imei" class="meta-item">IMEI: {{ d.imei }}</span>
-                <span v-if="d.manufacturer" class="meta-item">{{ d.manufacturer }}</span>
                 <span v-if="d.vendor_id" class="meta-item">USB: {{ vidPid(d) }}</span>
               </template>
               <template v-else>
                 <span v-if="d.imei" class="meta-item">IMEI: {{ d.imei }}</span>
-                <span v-if="d.manufacturer" class="meta-item">{{ d.manufacturer }}</span>
-                <span class="meta-item">AT: {{ d.at_port || '--' }}</span>
-                <span class="meta-item">{{ vidPid(d) }}</span>
+                <span v-if="d.vendor_id" class="meta-item">USB: {{ vidPid(d) }}</span>
               </template>
             </div>
-            <!-- info 行 -->
-            <div v-if="d.info" class="discovered-card-info-line">
-              {{ d.info }}
+            <!-- 第三行：固件 -->
+            <div v-if="d.firmware" class="discovered-card-meta">
+              <span class="meta-label">固件</span>
+              <span class="meta-item">{{ d.firmware }}</span>
+            </div>
+            <!-- 第四行：接口 -->
+            <div v-if="d.type !== 'pcsc'" class="discovered-card-meta">
+              <span class="meta-label">接口</span>
+              <span v-if="d.at_port" class="meta-item">AT: {{ d.at_port }}</span>
+              <span v-if="d.control_path" class="meta-item">CTL: {{ d.control_path }}</span>
+              <span v-if="d.net_interface" class="meta-item">NET: {{ d.net_interface }}</span>
+            </div>
+            <!-- 第五行：能力 -->
+            <div v-if="d.info" class="discovered-card-meta">
+              <span class="meta-label">能力</span>
+              <span class="meta-item">{{ d.info }}</span>
             </div>
           </div>
         </div>
@@ -709,11 +733,12 @@ function modeTagClass(mode?: string): string {
 
 .discovered-card {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 10px;
   padding: 10px 12px;
-  border: 1px solid transparent;
+  border: 1px solid var(--border);
   border-radius: 6px;
+  background: var(--muted);
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
 }
@@ -738,9 +763,10 @@ function modeTagClass(mode?: string): string {
 
 .discovered-card-icon-svg {
   width: 42px;
-  height: 56px;
+  height: 100%;
   object-fit: contain;
   flex-shrink: 0;
+  align-self: stretch;
 }
 
 .discovered-card-info {
@@ -787,7 +813,7 @@ function modeTagClass(mode?: string): string {
 /* info 行 */
 .discovered-card-info-line {
   margin-top: 2px;
-  font-size: 10px;
+  font-size: 11px;
   font-family: var(--oomol-font-mono);
   color: var(--muted-foreground);
   opacity: 0.6;
@@ -818,6 +844,15 @@ function modeTagClass(mode?: string): string {
 
 .meta-item {
   font-family: var(--oomol-font-mono);
+}
+
+.meta-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  opacity: 0.5;
+  flex-shrink: 0;
+  margin-right: 2px;
 }
 
 /* 状态标签 */

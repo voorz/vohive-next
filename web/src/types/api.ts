@@ -322,9 +322,11 @@ degraded?: boolean
 usbnet_mode?: number
 type?: 'modem' | 'pcsc'
 pcsc_reader?: string
-display_name?: string
-manufacturer?: string
-serial?: string
+  display_name?: string
+  manufacturer?: string
+  model?: string
+  firmware?: string
+  serial?: string
 info?: string
 }
 

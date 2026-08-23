@@ -5,7 +5,6 @@ import { useDevicesStore } from '../stores/devices'
 import { primaryLifecycleStatus, isRadioRegistered, isControlOnline } from '../utils/deviceLifecycle'
 import type { DeviceMgmtListItem } from '../types/api'
 import ListSkeleton from './ListSkeleton.vue'
-import EmptyState from './EmptyState.vue'
 import {
   Add24Regular,
   Search24Regular,
@@ -234,12 +233,6 @@ function readinessItems(d: DeviceMgmtListItem) {
     <!-- 设备列表 -->
     <div class="list-scroll">
       <ListSkeleton v-if="loading && list.length === 0" :rows="4" />
-
-      <EmptyState
-        v-else-if="filteredDevices.length === 0"
-        title="暂无设备"
-        subtitle="点击「添加」扫描并添加设备"
-      />
 
       <div v-else class="device-cards">
         <div

@@ -72,11 +72,29 @@ func ResolveQMIDeviceATPort(dev QMIDevice, timeout time.Duration) (QMIDevice, st
 
 // ResolveCompatibleModemATPort 为兼容发现结果解析真实可用的主 AT 口。
 // 行为与 QMI 设备一致，同样只允许在该设备自己的 ATPorts 范围内探测。
+// AT 探测成功后顺带在同一端口执行 ATI 获取厂商/型号信息。
 func ResolveCompatibleModemATPort(dev CompatibleModem, timeout time.Duration) (CompatibleModem, string) {
 	atPort, imei := ResolveATPortForDevice(dev.ATPort, dev.ATPorts, timeout)
 	dev.ATPort = atPort
 	if imei != "" {
 		dev.IMEI = imei
 	}
+	// AT 探测成功后，在同一端口顺带执行 ATI 获取厂商/型号
+	if atPort != "" {
+		if ati, err := probeATIFn(atPort, timeout); err == nil {
+			if ati.Manufacturer != "" {
+				dev.Manufacturer = ati.Manufacturer
+			}
+			if ati.Model != "" {
+				dev.Model = ati.Model
+			}
+			if ati.Revision != "" {
+				dev.Firmware = ati.Revision
+			}
+		}
+	}
 	return dev, imei
 }
+
+// probeATIFn 允许测试替换底层 ATI 探测实现。
+var probeATIFn = modem.ProbeATI
