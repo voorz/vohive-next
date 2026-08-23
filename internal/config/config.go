@@ -260,6 +260,7 @@ type DeviceConfig struct {
 	QMIProxyExecutable string `mapstructure:"qmi_proxy_executable"`
 	ESIMTransport      string `mapstructure:"esim_transport"` // eSIM 传输通道: at|qmi|mbim|pcsc，默认 at
 	PCSCReader         string `mapstructure:"pcsc_reader"`    // PC/SC 读卡器名称（仅 esim_transport=pcsc 时有效）
+	PCSCSerial         string `mapstructure:"pcsc_serial"`    // PC/SC 读卡器序列号（唯一标识，跨驱动模式不变）
 	DeviceBackend      string `mapstructure:"device_backend"` // 设备后端模式: at|qmi|mbim|auto，默认 at
 	USBNetMode         *int   `mapstructure:"usbnet_mode"`    // 可选：用于校验/设置 Quectel USBNET 模式
 	// ESIMSwitch controls deterministic eSIM switch behavior. Zero values preserve current behavior.

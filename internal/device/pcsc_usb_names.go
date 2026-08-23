@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/voorz/vohive/internal/esim"
 )
 
 // USBIdentity 描述一个 USB 设备的描述符身份信息
@@ -299,6 +301,59 @@ func PcscReaderSerial(reader string) string {
 		return ""
 	}
 	return strings.TrimSpace(m[1])
+}
+
+// resolvePCSCReaderName 用 SN（优先）或 IMEI（回退）匹配当前模式下可用的读卡器名称。
+// 返回空串表示无需修改（原名称可用或无法解析）。
+func resolvePCSCReaderName(configuredName, sn, imei string) string {
+	configuredName = strings.TrimSpace(configuredName)
+	// 获取当前模式下可用的读卡器列表
+	readers, err := esim.ListPCSCReaders()
+	if err != nil || len(readers) == 0 {
+		return ""
+	}
+	// 如果配置的名称在当前列表中存在，直接返回（无需修改）
+	for _, r := range readers {
+		if r == configuredName {
+			return ""
+		}
+	}
+	// SN 优先匹配
+	if strings.TrimSpace(sn) != "" {
+		for _, r := range readers {
+			if PcscReaderSerial(r) == sn {
+				return r
+			}
+		}
+	}
+	// 名称中提取序列号匹配
+	if serial := PcscReaderSerial(configuredName); serial != "" {
+		for _, r := range readers {
+			if PcscReaderSerial(r) == serial {
+				return r
+			}
+		}
+	}
+	// IMEI 回退匹配（通过 USB 设备序列号列表间接匹配）
+	if strings.TrimSpace(imei) != "" {
+		identities := ListUSBIdentities()
+		for _, r := range readers {
+			rSerial := PcscReaderSerial(r)
+			if rSerial == "" {
+				continue
+			}
+			for _, id := range identities {
+				if id.Serial == rSerial {
+					// 如果 USB 设备的序列号和读卡器序列号匹配，
+					// 再检查 IMEI（USB Serial 可能就是 IMEI 或关联值）
+					if id.Serial == imei || strings.Contains(id.Serial, imei) {
+						return r
+					}
+				}
+			}
+		}
+	}
+	return ""
 }
 
 // ResolvePCSCReaderDisplayName 通过序列号把 pcscd 读卡器匹配到 USB 设备，

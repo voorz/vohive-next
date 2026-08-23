@@ -831,7 +831,7 @@ func (p *Pool) addPCSCWorker(devCfg config.DeviceConfig) (*Worker, error) {
 			case <-time.After(delay):
 			}
 
-			adapter, err := newPCSCModemAdapter(worker.ID, worker.Config.PCSCReader, worker.pcscAccessMu)
+			adapter, err := newPCSCModemAdapter(worker.ID, worker.Config.PCSCReader, worker.Config.PCSCSerial, worker.Config.ModemIMEI, worker.pcscAccessMu)
 			if err != nil {
 				logger.Debug(fmt.Sprintf("[%s] PC/SC 预热：创建适配器失败", worker.ID), "attempt", i+1, "err", err)
 				continue

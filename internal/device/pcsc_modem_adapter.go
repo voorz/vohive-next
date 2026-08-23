@@ -29,14 +29,22 @@ var (
 type pcscModemAdapter struct {
 	deviceID   string
 	readerName string
-	channel    *esim.PCSCExclusiveChannel
-	connected  bool
-	accessMu   *sync.Mutex // 可选：与 eSIM 管理器共享的读卡器访问锁
+	serial    string // 读卡器序列号（SN）
+	imei      string // 设备 IMEI（回退匹配用）
+	channel   *esim.PCSCExclusiveChannel
+	connected bool
+	accessMu  *sync.Mutex // 可选：与 eSIM 管理器共享的读卡器访问锁
 }
 
 var _ runtimehost.Modem = (*pcscModemAdapter)(nil)
 
-func newPCSCModemAdapter(deviceID, readerName string, mu *sync.Mutex) (*pcscModemAdapter, error) {
+func newPCSCModemAdapter(deviceID, readerName, sn, imei string, mu *sync.Mutex) (*pcscModemAdapter, error) {
+	// 跨模式兼容：用 SN（优先）或 IMEI（回退）匹配当前模式下可用的读卡器名称
+	resolvedName := resolvePCSCReaderName(readerName, sn, imei)
+	if resolvedName != "" && resolvedName != readerName {
+		logger.Info(fmt.Sprintf("[%s] PC/SC 读卡器名称跨模式匹配: %q -> %q", deviceID, readerName, resolvedName))
+		readerName = resolvedName
+	}
 	var ch *esim.PCSCExclusiveChannel
 	var err error
 	if mu != nil {
@@ -51,8 +59,10 @@ func newPCSCModemAdapter(deviceID, readerName string, mu *sync.Mutex) (*pcscMode
 	return &pcscModemAdapter{
 		deviceID:   deviceID,
 		readerName: readerName,
-		channel:    ch,
-		accessMu:   mu,
+		serial:    sn,
+		imei:      imei,
+		channel:   ch,
+		accessMu:  mu,
 	}, nil
 }
 
@@ -87,6 +97,12 @@ func (a *pcscModemAdapter) ensureConnected() error {
 	}
 	// 通道已关闭（如上次 AKA 完成后自动断开），需要重建
 	if a.channel == nil || a.channel.IsClosed() {
+		// 重新解析读卡器名称（可能已切换驱动模式）
+		resolvedName := resolvePCSCReaderName(a.readerName, a.serial, a.imei)
+		if resolvedName != "" && resolvedName != a.readerName {
+			logger.Info(fmt.Sprintf("[%s] PC/SC 读卡器名称跨模式匹配: %q -> %q", a.deviceID, a.readerName, resolvedName))
+			a.readerName = resolvedName
+		}
 		var ch *esim.PCSCExclusiveChannel
 		var err error
 		if a.accessMu != nil {

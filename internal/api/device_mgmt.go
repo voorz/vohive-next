@@ -42,6 +42,7 @@ ModemIMEI             string  `json:"modem_imei"`
 	QMIProxyExecutable    *string `json:"qmi_proxy_executable,omitempty"`
 	ESIMTransport         string  `json:"esim_transport,omitempty"`
 	PCSCReader            string  `json:"pcsc_reader,omitempty"`
+	PCSCSerial            string  `json:"pcsc_serial,omitempty"`
 	BaudRate              int     `json:"baud_rate,omitempty"`
 	DataBits              int     `json:"data_bits,omitempty"`
 	StopBits              int     `json:"stop_bits,omitempty"`
@@ -118,12 +119,16 @@ func deviceConfigFromDTOWithBase(d deviceConfigDTO, base *config.DeviceConfig) c
 	}
 	esimTransport := strings.TrimSpace(d.ESIMTransport)
 	pcscReader := strings.TrimSpace(d.PCSCReader)
+	pcscSerial := strings.TrimSpace(d.PCSCSerial)
 	if base != nil {
 		if esimTransport == "" {
 			esimTransport = base.ESIMTransport
 		}
 		if pcscReader == "" {
 			pcscReader = base.PCSCReader
+		}
+		if pcscSerial == "" {
+			pcscSerial = base.PCSCSerial
 		}
 	}
 	return config.DeviceConfig{
@@ -140,6 +145,7 @@ func deviceConfigFromDTOWithBase(d deviceConfigDTO, base *config.DeviceConfig) c
 		QMIProxyExecutable:    qmiProxyExecutable,
 		ESIMTransport:         config.NormalizeESIMTransport(esimTransport),
 		PCSCReader:            pcscReader,
+		PCSCSerial:            pcscSerial,
 		BaudRate:              d.BaudRate,
 		DataBits:              d.DataBits,
 		StopBits:              d.StopBits,

@@ -394,6 +394,7 @@ async function handleAdd() {
     device_backend: isPCSC.value ? 'at' : deviceBackend.value,
     esim_transport: isPCSC.value ? 'pcsc' : 'at',
     pcsc_reader: isPCSC.value ? (d.pcsc_reader || '') : undefined,
+    pcsc_serial: isPCSC.value ? (d.serial || extractReaderSN(d.pcsc_reader || '')) : undefined,
     network_enabled: !isPCSC.value,
     vowifi_enabled: false
   }
