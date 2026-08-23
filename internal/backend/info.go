@@ -29,6 +29,21 @@ type DeviceInfoProvider interface {
 	// QMI 实现：DMS.GetDeviceRevision
 	GetRevision(ctx context.Context) (string, error)
 
+	// GetManufacturer 获取模组厂商名称
+	// AT 实现：ATI 第一行 或 AT+GMI
+	// QMI 实现：DMS.GetManufacturer（快照已预热）
+	GetManufacturer(ctx context.Context) (string, error)
+
+	// GetModel 获取模组型号标识
+	// AT 实现：ATI 第二行 或 AT+GMM
+	// QMI 实现：DMS.GetModel（快照已预热）
+	GetModel(ctx context.Context) (string, error)
+
+	// GetHardwareRevision 获取硬件版本号
+	// AT 实现：ATI Revision 行 或 AT+GMR（部分模组固件版本即硬件版本）
+	// QMI 实现：DMS.GetHardwareRevision（快照已预热）
+	GetHardwareRevision(ctx context.Context) (string, error)
+
 	// GetSignalInfo 获取信号质量信息
 	// AT 实现：AT+CSQ + AT+QENG="servingcell"
 	// QMI 实现：NAS.GetSignalStrength + NAS.GetSignalInfo

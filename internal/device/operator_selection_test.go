@@ -50,6 +50,9 @@ func (m *mockOperatorProvider) GetIMSI(ctx context.Context) (string, error)     
 func (m *mockOperatorProvider) GetICCID(ctx context.Context) (string, error)    { return "789", nil }
 func (m *mockOperatorProvider) GetMSISDN(ctx context.Context) (string, error)   { return "000", nil }
 func (m *mockOperatorProvider) GetRevision(ctx context.Context) (string, error) { return "rev1", nil }
+func (m *mockOperatorProvider) GetManufacturer(ctx context.Context) (string, error) { return "", nil }
+func (m *mockOperatorProvider) GetModel(ctx context.Context) (string, error) { return "", nil }
+func (m *mockOperatorProvider) GetHardwareRevision(ctx context.Context) (string, error) { return "", nil }
 func (m *mockOperatorProvider) GetSignalInfo(ctx context.Context) (*backend.SignalInfo, error) {
 	return &backend.SignalInfo{}, nil
 }

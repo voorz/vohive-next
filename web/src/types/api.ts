@@ -148,7 +148,7 @@ running: boolean
   flight_mode?: boolean
   vowifi_enabled?: boolean
   vowifi_runtime?: VoWiFiRuntimeState
-  modem?: Pick<ModemStatus, 'operator' | 'native_spn' | 'native_mcc' | 'native_mnc' | 'network_mode' | 'network_duplex' | 'radio_band' | 'radio_channel' | 'signal_dbm' | 'signal_sinr' | 'imei' | 'iccid' | 'reg_status' | 'operating_mode'>
+  modem?: Pick<ModemStatus, 'manufacturer' | 'model' | 'hardware_revision' | 'operator' | 'native_spn' | 'native_mcc' | 'native_mnc' | 'network_mode' | 'network_duplex' | 'radio_band' | 'radio_channel' | 'signal_dbm' | 'signal_sinr' | 'imei' | 'iccid' | 'reg_status' | 'operating_mode'>
 }
 
 export type DeviceConfigDTO = {
@@ -199,6 +199,10 @@ export type SIMServiceTable = {
 }
 
 export type ModemStatus = {
+manufacturer?: string
+chip_vendor?: string
+model?: string
+hardware_revision?: string
   imei?: string
   iccid?: string
   imsi?: string
@@ -319,9 +323,12 @@ degraded?: boolean
 usbnet_mode?: number
 type?: 'modem' | 'pcsc'
 pcsc_reader?: string
-display_name?: string
-manufacturer?: string
-serial?: string
+  display_name?: string
+  manufacturer?: string
+  model?: string
+  chip_vendor?: string
+  firmware?: string
+  serial?: string
 info?: string
 }
 

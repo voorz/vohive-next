@@ -242,6 +242,9 @@ func (s *blockingHealthBackendStub) GetICCID(ctx context.Context) (string, error
 func (s *blockingHealthBackendStub) GetMSISDN(ctx context.Context) (string, error)    { return "", nil }
 func (s *blockingHealthBackendStub) GetICCIDLive(ctx context.Context) (string, error) { return "", nil }
 func (s *blockingHealthBackendStub) GetRevision(ctx context.Context) (string, error)  { return "", nil }
+func (s *blockingHealthBackendStub) GetManufacturer(ctx context.Context) (string, error) { return "", nil }
+func (s *blockingHealthBackendStub) GetModel(ctx context.Context) (string, error) { return "", nil }
+func (s *blockingHealthBackendStub) GetHardwareRevision(ctx context.Context) (string, error) { return "", nil }
 func (s *blockingHealthBackendStub) GetSignalInfo(ctx context.Context) (*backend.SignalInfo, error) {
 	return nil, nil
 }

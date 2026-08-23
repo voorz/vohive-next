@@ -412,7 +412,11 @@ USBProduct             string             `json:"usb_product,omitempty"`     // 
 }
 
 type deviceMgmtListModem struct {
-Operator      string `json:"operator"`
+	Manufacturer     string `json:"manufacturer,omitempty"`
+	ChipVendor       string `json:"chip_vendor,omitempty"`
+	Model            string `json:"model,omitempty"`
+	HardwareRevision string `json:"hardware_revision,omitempty"`
+	Operator      string `json:"operator"`
 Firmware      string `json:"firmware,omitempty"`
 NativeSPN     string `json:"native_spn,omitempty"`
 	NativeMCC     string `json:"native_mcc,omitempty"`
@@ -660,7 +664,7 @@ func (s *Server) buildOverviewLiteItemFromWorkerWithModem(w *device.Worker, cfg 
 ATPort:                 w.ResolvedATPort(),
 USBPath:                cfg.USBPath,
 AudioDevice:            cfg.AudioDevice,
-Manufacturer:           cfg.USBManufacturer,
+Manufacturer:           firstNonEmpty(modemStatus.Manufacturer, cfg.USBManufacturer),
 USBProduct:             cfg.USBProduct,
 		LocalPhone:             overviewLocalPhone(effectiveOverviewIMSI(w, status), strings.TrimSpace(status.ICCID)),
 		E911SetupAvailable:     e911.SetupAvailable(modemStatus),
@@ -813,7 +817,7 @@ func (s *Server) handleDeviceMgmtList(c *gin.Context) {
 item := deviceMgmtListItem{
 ID:                     w.ID,
 Name:                   cfg.Name,
-Manufacturer:           cfg.USBManufacturer,
+Manufacturer:           firstNonEmpty(status.Manufacturer, cfg.USBManufacturer),
 USBProduct:             cfg.USBProduct,
 Running:                true,
 			Healthy:                controlOnline,
@@ -832,7 +836,11 @@ Running:                true,
 			NetworkConnected:       w.NetworkConnected(),
 			RegistrationStateLabel: registrationStateLabel(status.RegStatus),
 Modem: deviceMgmtListModem{
-Operator:      status.Operator,
+Manufacturer:     status.Manufacturer,
+ChipVendor:       status.ChipVendor,
+Model:            status.Model,
+			HardwareRevision: status.HardwareRevision,
+			Operator:      status.Operator,
 Firmware:      status.Firmware,
 NativeSPN:     status.NativeSPN,
 				NativeMCC:     status.NativeMCC,
@@ -1139,10 +1147,13 @@ type discoveredDevice struct {
 	Degraded       bool     `json:"degraded,omitempty"` // 探不到 IMEI,无法确立身份,不可直接添加
 	Type           string   `json:"type,omitempty"`    // modem/pcsc
 	PCSCReader     string   `json:"pcsc_reader,omitempty"`
-	DisplayName    string   `json:"display_name,omitempty"` // USB Product 名称（modem 和 pcsc 通用）
-	Manufacturer  string   `json:"manufacturer,omitempty"`  // USB Manufacturer
-	Serial         string   `json:"serial,omitempty"`        // USB Serial Number
-	Info           string   `json:"info,omitempty"`           // USB 技术信息行（SSN/USB版本/设备类/端点摘要 或 接口驱动统计）
+	DisplayName    string `json:"display_name,omitempty"` // USB sysfs product 字段（USB 描述符产品名，非模组真实厂商）
+	Manufacturer  string `json:"manufacturer,omitempty"`  // 模组厂商（ATI 获取，如 "Quectel"）
+	Model          string `json:"model,omitempty"`           // 模组描述（QMI DMS GetModel 获取，如 "QUECTEL Mobile Broadband Module"）
+	ChipVendor    string `json:"chip_vendor,omitempty"`    // 芯片厂商（QMI DMS GetManufacturer 获取，如 "QUALCOMM INCORPORATED"）
+	Firmware       string `json:"firmware,omitempty"`        // 固件版本（ATI Revision 获取）
+	Serial         string `json:"serial,omitempty"`        // USB Serial Number
+	Info           string `json:"info,omitempty"`           // USB 技术信息行（SSN/USB版本/设备类/端点摘要 或 接口驱动统计）
 }
 
 var discoverQMIForMgmtFn = device.DiscoverQMIDevices
@@ -1211,6 +1222,19 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 					}
 					if imei == "" {
 						imei = managedMatch.IMEI
+					}
+					// 从已管理设备的运行时状态补充厂商/型号/固件
+					if dev.Manufacturer == "" && managedMatch.Manufacturer != "" {
+						dev.Manufacturer = managedMatch.Manufacturer
+					}
+					if dev.ChipVendor == "" && managedMatch.ChipVendor != "" {
+						dev.ChipVendor = managedMatch.ChipVendor
+					}
+					if dev.Model == "" && managedMatch.Model != "" {
+						dev.Model = managedMatch.Model
+					}
+					if dev.Firmware == "" && managedMatch.Firmware != "" {
+						dev.Firmware = managedMatch.Firmware
 					}
 				} else {
 					probed, discoveredIMEI := enrichDiscoveredCompatibleModemFn(dev, device.CompatibleModemEnrichOptions{
@@ -1345,6 +1369,11 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 }
 
 func buildDiscoveredDevice(hw device.CompatibleModem, configured bool, configuredID string, degraded bool) discoveredDevice {
+	// 厂商优先使用 QMI/AT 来源，回退 USB sysfs
+	manufacturer := strings.TrimSpace(hw.Manufacturer)
+	if manufacturer == "" {
+		manufacturer = strings.TrimSpace(hw.USBManufacturer)
+	}
 	return discoveredDevice{
 		DiscoveryKey:   hw.DiscoveryKey(),
 		ControlPath:    hw.ControlPath,
@@ -1363,7 +1392,10 @@ func buildDiscoveredDevice(hw device.CompatibleModem, configured bool, configure
 		ConfiguredID:   configuredID,
 		Degraded:       degraded,
 		DisplayName:    strings.TrimSpace(hw.USBProduct),
-		Manufacturer:   strings.TrimSpace(hw.USBManufacturer),
+		Manufacturer:   manufacturer,
+		Model:          strings.TrimSpace(hw.Model),
+		ChipVendor:     strings.TrimSpace(hw.ChipVendor),
+		Firmware:       strings.TrimSpace(hw.Firmware),
 	}
 }
 

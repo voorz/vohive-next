@@ -10,8 +10,12 @@ import (
 
 // deviceIdentityState 存储设备/SIM卡相对静态的身份标识信息
 type deviceIdentityState struct {
-	IMEI         string                   // 设备的 IMEI 串号
-	ICCID        string                   // SIM 卡的唯一识别码 ICCID
+IMEI             string                   // 设备的 IMEI 串号
+Manufacturer     string                   // 模组厂商名称（ATI 获取，如 Quectel）
+ChipVendor       string                   // 芯片厂商（QMI DMS GetManufacturer，如 QUALCOMM INCORPORATED）
+Model            string                   // 模组描述（QMI DMS GetModel，如 QUECTEL Mobile Broadband Module）
+HardwareRevision string                   // 模组硬件版本号（QMI/AT 获取）
+	ICCID            string                   // SIM 卡的唯一识别码 ICCID
 	IMSI         string                   // 国际移动用户识别码 IMSI
 	NativeSPN    string                   // SIM 卡中内置的原始服务提供商名称
 	NativeMCC    string                   // SIM 归属移动国家代码 MCC（由 IMSI + EF-AD 解析）
@@ -78,7 +82,11 @@ type deviceStateStore struct {
 
 // hasRuntimeSnapshot 快速校验给定的设备状态更新对象是否包含任何有效且有意义的运行时属性
 func hasRuntimeSnapshot(status modem.DeviceStatus) bool {
-	return strings.TrimSpace(status.IMEI) != "" ||
+return strings.TrimSpace(status.IMEI) != "" ||
+strings.TrimSpace(status.Manufacturer) != "" ||
+strings.TrimSpace(status.ChipVendor) != "" ||
+strings.TrimSpace(status.Model) != "" ||
+		strings.TrimSpace(status.HardwareRevision) != "" ||
 		strings.TrimSpace(status.Firmware) != "" ||
 		strings.TrimSpace(status.Operator) != "" ||
 		strings.TrimSpace(status.NetworkMode) != "" ||
@@ -103,8 +111,12 @@ func hasRuntimeSnapshot(status modem.DeviceStatus) bool {
 
 // projectDeviceStatusLocked 将内部缓存的 Worker 状态数据投影并合并为公开暴露的通用 `modem.DeviceStatus` 结构体
 func (w *Worker) projectDeviceStatusLocked() modem.DeviceStatus {
-	status := modem.DeviceStatus{
-		IMEI:            strings.TrimSpace(w.state.Identity.IMEI),
+status := modem.DeviceStatus{
+IMEI:            strings.TrimSpace(w.state.Identity.IMEI),
+Manufacturer:    strings.TrimSpace(w.state.Identity.Manufacturer),
+ChipVendor:      strings.TrimSpace(w.state.Identity.ChipVendor),
+Model:           strings.TrimSpace(w.state.Identity.Model),
+		HardwareRevision: strings.TrimSpace(w.state.Identity.HardwareRevision),
 		ICCID:           strings.TrimSpace(w.state.Identity.ICCID),
 		IMSI:            strings.TrimSpace(w.state.Identity.IMSI),
 		NativeSPN:       strings.TrimSpace(w.state.Identity.NativeSPN),
@@ -344,6 +356,18 @@ func (w *Worker) mergeRuntimeStateLocked(status modem.DeviceStatus, healthy bool
 	}
 	if strings.TrimSpace(status.IMEI) != "" {
 		w.state.Identity.IMEI = strings.TrimSpace(status.IMEI)
+	}
+if strings.TrimSpace(status.Manufacturer) != "" {
+w.state.Identity.Manufacturer = strings.TrimSpace(status.Manufacturer)
+}
+if strings.TrimSpace(status.ChipVendor) != "" {
+w.state.Identity.ChipVendor = strings.TrimSpace(status.ChipVendor)
+}
+if strings.TrimSpace(status.Model) != "" {
+		w.state.Identity.Model = strings.TrimSpace(status.Model)
+	}
+	if strings.TrimSpace(status.HardwareRevision) != "" {
+		w.state.Identity.HardwareRevision = strings.TrimSpace(status.HardwareRevision)
 	}
 	w.state.Runtime.Firmware = status.Firmware
 	w.state.Runtime.Operator = status.Operator

@@ -265,6 +265,64 @@ func (q *QMIBackend) GetRevision(ctx context.Context) (string, error) {
 	return rev, err
 }
 
+// qmiManufacturerSource 定义了回源获取 Manufacturer 的最小接口，
+// 通过类型断言访问 manager.Manager 的 GetManufacturer 方法。
+type qmiManufacturerSource interface {
+	GetManufacturer(ctx context.Context) (string, error)
+}
+
+// qmiModelSource 定义了回源获取 Model 的最小接口。
+type qmiModelSource interface {
+	GetModel(ctx context.Context) (string, error)
+}
+
+// qmiHardwareRevisionSource 定义了回源获取 HardwareRevision 的最小接口。
+type qmiHardwareRevisionSource interface {
+	GetHardwareRevision(ctx context.Context) (string, error)
+}
+
+// GetManufacturer 获取模组厂商名称。
+// 快照优先（零 IPC），回源通过类型断言访问底层 Manager.GetManufacturer。
+func (q *QMIBackend) GetManufacturer(ctx context.Context) (string, error) {
+	if snap := q.source.GetDeviceSnapshot(); snap != nil {
+		if ids, ready := snap.Identities(); ready && ids.Manufacturer != "" {
+			return ids.Manufacturer, nil
+		}
+	}
+	if src, ok := q.source.(qmiManufacturerSource); ok {
+		return src.GetManufacturer(ctx)
+	}
+	return "", fmt.Errorf("QMI source 不支持 GetManufacturer")
+}
+
+// GetModel 获取模组型号标识。
+// 快照优先（零 IPC），回源通过类型断言访问底层 Manager.GetModel。
+func (q *QMIBackend) GetModel(ctx context.Context) (string, error) {
+	if snap := q.source.GetDeviceSnapshot(); snap != nil {
+		if ids, ready := snap.Identities(); ready && ids.Model != "" {
+			return ids.Model, nil
+		}
+	}
+	if src, ok := q.source.(qmiModelSource); ok {
+		return src.GetModel(ctx)
+	}
+	return "", fmt.Errorf("QMI source 不支持 GetModel")
+}
+
+// GetHardwareRevision 获取硬件版本号。
+// 快照优先（零 IPC），回源通过类型断言访问底层 Manager.GetHardwareRevision。
+func (q *QMIBackend) GetHardwareRevision(ctx context.Context) (string, error) {
+	if snap := q.source.GetDeviceSnapshot(); snap != nil {
+		if ids, ready := snap.Identities(); ready && ids.HardwareRevision != "" {
+			return ids.HardwareRevision, nil
+		}
+	}
+	if src, ok := q.source.(qmiHardwareRevisionSource); ok {
+		return src.GetHardwareRevision(ctx)
+	}
+	return "", fmt.Errorf("QMI source 不支持 GetHardwareRevision")
+}
+
 // qmiSNRToDB 把 QMI NAS 的 SNR（0.1 dB 缩放整数，如 134 = 13.4 dB）四舍五入为 dB 整数。
 // LTE RSSNR 与 5G NR SINR 在 QMI 里均为该编码；RSRP/RSRQ 则是直接的 dBm/dB 值，无需换算。
 func qmiSNRToDB(raw int16) int {

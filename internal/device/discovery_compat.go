@@ -32,6 +32,10 @@ type CompatibleModem struct {
 	NetworkCapable   bool
 	USBProduct       string // USB 描述符 product 字段
 	USBManufacturer  string // USB 描述符 manufacturer 字段
+	Manufacturer     string // 模组厂商（ATI 获取，如 "Quectel"）
+	Model            string // 模组描述（QMI DMS GetModel 获取，如 "QUECTEL Mobile Broadband Module"）
+	ChipVendor       string // 芯片厂商（QMI DMS GetManufacturer 获取，如 "QUALCOMM INCORPORATED"）
+	Firmware         string // 固件版本（ATI Revision 行获取）
 }
 
 var discoverFallbackModemsFn = discoverFallbackModems
@@ -476,4 +480,73 @@ func ProbeIMEIViaQMIWithOptions(controlPath string, clientOptions qmi.ClientOpti
 
 	logger.Debug("QMI IMEI 探测成功", "control_path", controlPath, "imei", imei)
 	return imei, nil
+}
+
+// QMIProbeResult 包含 QMI 探测的设备身份信息
+type QMIProbeResult struct {
+	IMEI         string
+	Manufacturer string // QMI DMS GetManufacturer（芯片厂商，如 QUALCOMM INCORPORATED）
+	Model        string // QMI DMS GetModel（模组描述，如 QUECTEL Mobile Broadband Module）
+	Firmware     string
+}
+
+// ProbeDeviceInfoViaQMI 通过 QMI DMS 探测设备 IMEI + 厂商 + 型号。
+// 用于扫描发现阶段在尚未创建 Manager 时获取模组身份信息。
+func ProbeDeviceInfoViaQMI(controlPath string, clientOptions qmi.ClientOptions) (QMIProbeResult, error) {
+	controlPath = strings.TrimSpace(controlPath)
+	if controlPath == "" {
+		return QMIProbeResult{}, fmt.Errorf("QMI control path is empty")
+	}
+
+	openCtx, openCancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer openCancel()
+
+	client, err := qmi.NewClientWithOptions(openCtx, controlPath, clientOptions)
+	if err != nil {
+		return QMIProbeResult{}, fmt.Errorf("打开 QMI 设备 %s 失败: %w", controlPath, err)
+	}
+	defer client.Close()
+
+	dms, err := qmi.NewDMSService(client)
+	if err != nil {
+		return QMIProbeResult{}, fmt.Errorf("初始化 DMS service 失败: %w", err)
+	}
+	defer dms.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	result := QMIProbeResult{}
+
+	// IMEI
+	info, err := dms.GetDeviceSerialNumbers(ctx)
+	if err == nil {
+		result.IMEI = strings.TrimSpace(info.IMEI)
+	}
+
+	// Manufacturer (芯片厂商，如 QUALCOMM INCORPORATED)
+	if manu, err := dms.GetManufacturer(ctx); err == nil {
+		result.Manufacturer = strings.TrimSpace(manu)
+	}
+
+	// Model (模组描述，如 QUECTEL Mobile Broadband Module)
+	if mdl, err := dms.GetModel(ctx); err == nil {
+		result.Model = strings.TrimSpace(mdl)
+	}
+
+	// Firmware (DeviceRevision)
+	if rev, _, err := dms.GetDeviceRevision(ctx); err == nil {
+		result.Firmware = strings.TrimSpace(rev)
+	}
+
+	if result.IMEI == "" && result.Manufacturer == "" && result.Model == "" && result.Firmware == "" {
+		return QMIProbeResult{}, fmt.Errorf("QMI DMS 探测全部失败")
+	}
+
+	logger.Debug("QMI 设备信息探测成功",
+		"control_path", controlPath,
+		"imei", result.IMEI,
+		"manufacturer", result.Manufacturer,
+		"model", result.Model)
+	return result, nil
 }

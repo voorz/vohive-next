@@ -26,6 +26,40 @@ func (m *Manager) QueryFirmware() (string, error) {
 	return parseFirmware(resp), nil
 }
 
+// QueryATI 发送 ATI 命令，一次获取厂商、型号、固件版本。
+// ATI 返回格式（Quectel EC20 实测）：
+//
+//	Quectel
+//	EC20F
+//	Revision: EC20CEFDLGR06A10M1G
+//
+// 第一行为厂商，第二行为型号，Revision: 行为固件版本。
+func (m *Manager) QueryATI() (manufacturer, model, revision string, err error) {
+	resp, err := m.ExecuteATSilent("ATI", 2*time.Second)
+	if err != nil {
+		return "", "", "", err
+	}
+	return parseATI(resp)
+}
+
+// QueryManufacturer 发送 AT+GMI 获取模组厂商名称。
+func (m *Manager) QueryManufacturer() (string, error) {
+	resp, err := m.ExecuteATSilent("AT+GMI", 2*time.Second)
+	if err != nil {
+		return "", err
+	}
+	return parseATIdentResponse(resp), nil
+}
+
+// QueryModel 发送 AT+GMM 获取模组型号标识。
+func (m *Manager) QueryModel() (string, error) {
+	resp, err := m.ExecuteATSilent("AT+GMM", 2*time.Second)
+	if err != nil {
+		return "", err
+	}
+	return parseATIdentResponse(resp), nil
+}
+
 func (m *Manager) QuerySIMInserted() (bool, error) {
 	if resp, err := m.ExecuteATSilent("AT+QSIMSTAT?", 2*time.Second); err == nil {
 		if inserted, ok := parseQSIMSTATInserted(resp); ok {

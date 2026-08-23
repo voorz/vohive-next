@@ -113,8 +113,24 @@ function copyVal(val: string | undefined) {
           <span class="device-field-value copyable" @click="copyVal(simOperatorDisplay)">{{ simOperatorDisplay }}</span>
         </div>
         <div class="device-field">
+          <span class="device-field-label">品牌</span>
+          <span class="device-field-value copyable" @click="copyVal(device?.modem?.manufacturer || device?.manufacturer)">{{ device?.modem?.manufacturer || device?.manufacturer || '--' }}</span>
+        </div>
+        <div v-if="device?.modem?.chip_vendor" class="device-field">
+          <span class="device-field-label">芯片</span>
+          <span class="device-field-value copyable" @click="copyVal(device?.modem?.chip_vendor)">{{ device?.modem?.chip_vendor }}</span>
+        </div>
+        <div class="device-field">
+          <span class="device-field-label">型号</span>
+          <span class="device-field-value copyable" @click="copyVal(device?.modem?.model)">{{ device?.modem?.model || '--' }}</span>
+        </div>
+        <div class="device-field">
           <span class="device-field-label">固件版本</span>
           <span class="device-field-value copyable" @click="copyVal(device?.modem?.firmware)">{{ device?.modem?.firmware || '--' }}</span>
+        </div>
+        <div class="device-field">
+          <span class="device-field-label">硬件版本</span>
+          <span class="device-field-value copyable" @click="copyVal(device?.modem?.hardware_revision)">{{ device?.modem?.hardware_revision || '--' }}</span>
         </div>
         <div class="device-field">
           <span class="device-field-label">运行模式</span>

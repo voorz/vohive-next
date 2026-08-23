@@ -63,6 +63,42 @@ func (a *ATBackend) GetRevision(ctx context.Context) (string, error) {
 	return a.modem.QueryFirmware()
 }
 
+// GetManufacturer 获取模组厂商名称。
+// 优先发送 AT+GMI；若失败则尝试 ATI 第一行。
+func (a *ATBackend) GetManufacturer(ctx context.Context) (string, error) {
+	if v, err := a.modem.QueryManufacturer(); err == nil && v != "" {
+		return v, nil
+	}
+	// 回退到 ATI 第一行
+	manufacturer, _, _, err := a.modem.QueryATI()
+	if err != nil {
+		return "", err
+	}
+	return manufacturer, nil
+}
+
+// GetModel 获取模组型号标识。
+// 优先发送 AT+GMM；若失败则尝试 ATI 第二行。
+func (a *ATBackend) GetModel(ctx context.Context) (string, error) {
+	if v, err := a.modem.QueryModel(); err == nil && v != "" {
+		return v, nil
+	}
+	// 回退到 ATI 第二行
+	_, model, _, err := a.modem.QueryATI()
+	if err != nil {
+		return "", err
+	}
+	return model, nil
+}
+
+// GetHardwareRevision 获取硬件版本号。
+// AT 命令无标准硬件版本查询，ATI 的 Revision 行通常为固件版本。
+// 这里用 ATI 的 Revision 行作为硬件版本的近似值（部分模组固件版本即硬件版本）。
+func (a *ATBackend) GetHardwareRevision(ctx context.Context) (string, error) {
+	_, _, revision, err := a.modem.QueryATI()
+	return revision, err
+}
+
 func (a *ATBackend) GetSignalInfo(ctx context.Context) (*SignalInfo, error) {
 	info := &SignalInfo{}
 

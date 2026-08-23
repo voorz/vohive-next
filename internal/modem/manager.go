@@ -81,6 +81,9 @@ type Manager struct {
 	atTimeoutStreak int
 
 	// 设备信息 (从 AT 指令获取)
+	manufacturer    string
+	model           string
+	hardwareRevision string
 	imei        string
 	firmware    string
 	iccid       string
@@ -890,6 +893,7 @@ func (m *Manager) RefreshDeviceInfo() {
 func (m *Manager) collectDeviceInfo() {
 	// 1. 无锁阶段：执行所有 AT 命令
 	var imei, firmware, iccid, imsi, operator, apn, networkMode, networkDuplex string
+	var manufacturer, model, hwRevision string
 	var simInserted bool
 	var regStatus, imsStatus int
 	var regStatusText, lac, cellID string
@@ -898,6 +902,28 @@ func (m *Manager) collectDeviceInfo() {
 
 	if v, err := m.QueryIMEI(); err == nil {
 		imei = v
+	}
+	// ATI 一次获取厂商+型号+固件版本
+	if manu, mdl, rev, err := m.QueryATI(); err == nil {
+		if manu != "" {
+			manufacturer = manu
+		}
+		if mdl != "" {
+			model = mdl
+		}
+		if rev != "" {
+			hwRevision = rev
+		}
+	}
+	// AT+GMI 覆盖 ATI（优先级更高）
+	if v, err := m.QueryManufacturer(); err == nil && v != "" {
+		manufacturer = v
+	}
+	// ATI 型号（如 EC20F）优先于 AT+GMM（如 QUECTEL Mobile Broadband Module）
+	if model == "" {
+		if v, err := m.QueryModel(); err == nil && v != "" {
+			model = v
+		}
 	}
 	if v, err := m.QueryFirmware(); err == nil {
 		firmware = v
@@ -949,6 +975,15 @@ func (m *Manager) collectDeviceInfo() {
 
 	if imei != "" {
 		m.imei = imei
+	}
+	if manufacturer != "" {
+		m.manufacturer = manufacturer
+	}
+	if model != "" {
+		m.model = model
+	}
+	if hwRevision != "" {
+		m.hardwareRevision = hwRevision
 	}
 	if firmware != "" {
 		m.firmware = firmware
@@ -1112,6 +1147,10 @@ type SIMServiceTable struct {
 // GetFullStatus 返回完整状态信息
 type DeviceStatus struct {
 	IMEI            string           `json:"imei"`
+	Manufacturer    string           `json:"manufacturer,omitempty"`   // 模组厂商（ATI 获取，如 Quectel）
+	Model           string           `json:"model,omitempty"`          // 模组描述（QMI DMS GetModel）
+	ChipVendor      string           `json:"chip_vendor,omitempty"`    // 芯片厂商（QMI DMS GetManufacturer，如 QUALCOMM INCORPORATED）
+	HardwareRevision string          `json:"hardware_revision,omitempty"`
 	Firmware        string           `json:"firmware"`
 	ICCID           string           `json:"iccid"`
 	IMSI            string           `json:"imsi"`
@@ -1149,8 +1188,11 @@ func (m *Manager) GetFullStatus() DeviceStatus {
 	m.infoMu.RLock()
 	defer m.infoMu.RUnlock()
 	return DeviceStatus{
-		IMEI:          m.imei,
-		Firmware:      m.firmware,
+		IMEI:             m.imei,
+		Manufacturer:     m.manufacturer,
+		Model:            m.model,
+		HardwareRevision: m.hardwareRevision,
+		Firmware:         m.firmware,
 		ICCID:         m.iccid,
 		IMSI:          m.imsi,
 		Operator:      m.operator,
@@ -1169,6 +1211,27 @@ func (m *Manager) GetFullStatus() DeviceStatus {
 		USBNetMode:    m.usbnetMode,
 		OperatingMode: nil,
 	}
+}
+
+// GetManufacturerCached 返回 ATI 采集的模组厂商名称（如 Quectel），无锁读取。
+// 用于 QMI 模式下 collectRuntimeStatus 补填 Manufacturer 字段。
+func (m *Manager) GetManufacturerCached() string {
+	if m == nil {
+		return ""
+	}
+	m.infoMu.RLock()
+	defer m.infoMu.RUnlock()
+	return m.manufacturer
+}
+
+// SetManufacturerCached 缓存 ATI 采集的模组厂商名称。
+func (m *Manager) SetManufacturerCached(v string) {
+	if m == nil {
+		return
+	}
+	m.infoMu.Lock()
+	defer m.infoMu.Unlock()
+	m.manufacturer = v
 }
 
 // RefreshStatus 刷新设备状态 (信号、运营商、SIM)，并在发现 SIM 卡掉线时触发告警

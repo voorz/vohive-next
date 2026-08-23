@@ -182,7 +182,7 @@ onBeforeUnmount(() => {
 
     <!-- 无设备 -->
     <div v-if="!deviceId" class="preview-empty">
-      选择设备查看 eSIM
+      <el-empty description="选择设备查看 eSIM" :image-size="60" />
     </div>
 
     <!-- 加载中 -->
@@ -240,7 +240,7 @@ onBeforeUnmount(() => {
     <template v-else-if="activeTab === 'download'">
       <div class="preview-download-scroll">
         <div v-if="!chipInfo" class="preview-empty">
-          未检测到 eUICC，无法下载
+          <el-empty description="未检测到 eUICC，无法下载" :image-size="60" />
         </div>
         <ModuleEsimDownload
           v-else
