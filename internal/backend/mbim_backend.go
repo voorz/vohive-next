@@ -69,6 +69,30 @@ func (b *MBIMBackend) GetRevision(ctx context.Context) (string, error) {
 	return caps.FirmwareInfo, nil
 }
 
+// GetManufacturer 获取模组厂商名称。
+// MBIM 协议的 DEVICE_CAPS 不直接提供厂商名，返回空字符串。
+// 调用方应回退到 USB sysfs 或其他来源。
+func (b *MBIMBackend) GetManufacturer(ctx context.Context) (string, error) {
+	return "", nil
+}
+
+// GetModel 获取模组型号标识。
+// MBIM 协议的 DEVICE_CAPS 不直接提供型号标识，返回空字符串。
+// 调用方应回退到 USB sysfs 或其他来源。
+func (b *MBIMBackend) GetModel(ctx context.Context) (string, error) {
+	return "", nil
+}
+
+// GetHardwareRevision 获取硬件版本号。
+// MBIM DEVICE_CAPS 的 HardwareInfo 字段提供硬件版本。
+func (b *MBIMBackend) GetHardwareRevision(ctx context.Context) (string, error) {
+	caps, err := b.source.DeviceCaps(ctx)
+	if err != nil {
+		return "", err
+	}
+	return caps.HardwareInfo, nil
+}
+
 func (b *MBIMBackend) IsSimInserted(ctx context.Context) (bool, error) {
 	sub, err := b.source.SubscriberReady(ctx)
 	if err != nil {

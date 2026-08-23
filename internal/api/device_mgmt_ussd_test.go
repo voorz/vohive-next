@@ -30,6 +30,9 @@ func (s *ussdDeviceBackendStub) GetIMSI(ctx context.Context) (string, error)    
 func (s *ussdDeviceBackendStub) GetICCID(ctx context.Context) (string, error)    { return "", nil }
 func (s *ussdDeviceBackendStub) GetMSISDN(ctx context.Context) (string, error)   { return "", nil }
 func (s *ussdDeviceBackendStub) GetRevision(ctx context.Context) (string, error) { return "", nil }
+func (s *ussdDeviceBackendStub) GetManufacturer(ctx context.Context) (string, error) { return "", nil }
+func (s *ussdDeviceBackendStub) GetModel(ctx context.Context) (string, error) { return "", nil }
+func (s *ussdDeviceBackendStub) GetHardwareRevision(ctx context.Context) (string, error) { return "", nil }
 func (s *ussdDeviceBackendStub) GetSignalInfo(ctx context.Context) (*backend.SignalInfo, error) {
 	return nil, nil
 }

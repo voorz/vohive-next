@@ -469,6 +469,27 @@ func (w *Worker) collectRuntimeStatus(ctx context.Context, reason string) modem.
 			}
 		})
 		call(func() {
+			if v, err := w.Backend.GetManufacturer(ctx); err == nil && v != "" {
+				mu.Lock()
+				status.Manufacturer = v
+				mu.Unlock()
+			}
+		})
+		call(func() {
+			if v, err := w.Backend.GetModel(ctx); err == nil && v != "" {
+				mu.Lock()
+				status.Model = v
+				mu.Unlock()
+			}
+		})
+		call(func() {
+			if v, err := w.Backend.GetHardwareRevision(ctx); err == nil && v != "" {
+				mu.Lock()
+				status.HardwareRevision = v
+				mu.Unlock()
+			}
+		})
+		call(func() {
 			if v, err := w.Backend.GetRevision(ctx); err == nil {
 				mu.Lock()
 				status.Firmware = v

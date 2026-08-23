@@ -10,8 +10,11 @@ import (
 
 // deviceIdentityState 存储设备/SIM卡相对静态的身份标识信息
 type deviceIdentityState struct {
-	IMEI         string                   // 设备的 IMEI 串号
-	ICCID        string                   // SIM 卡的唯一识别码 ICCID
+	IMEI             string                   // 设备的 IMEI 串号
+	Manufacturer     string                   // 模组厂商名称（QMI/AT 获取，非 USB sysfs）
+	Model            string                   // 模组型号标识（QMI/AT 获取）
+	HardwareRevision string                   // 模组硬件版本号（QMI/AT 获取）
+	ICCID            string                   // SIM 卡的唯一识别码 ICCID
 	IMSI         string                   // 国际移动用户识别码 IMSI
 	NativeSPN    string                   // SIM 卡中内置的原始服务提供商名称
 	NativeMCC    string                   // SIM 归属移动国家代码 MCC（由 IMSI + EF-AD 解析）
@@ -79,6 +82,9 @@ type deviceStateStore struct {
 // hasRuntimeSnapshot 快速校验给定的设备状态更新对象是否包含任何有效且有意义的运行时属性
 func hasRuntimeSnapshot(status modem.DeviceStatus) bool {
 	return strings.TrimSpace(status.IMEI) != "" ||
+		strings.TrimSpace(status.Manufacturer) != "" ||
+		strings.TrimSpace(status.Model) != "" ||
+		strings.TrimSpace(status.HardwareRevision) != "" ||
 		strings.TrimSpace(status.Firmware) != "" ||
 		strings.TrimSpace(status.Operator) != "" ||
 		strings.TrimSpace(status.NetworkMode) != "" ||
@@ -105,6 +111,9 @@ func hasRuntimeSnapshot(status modem.DeviceStatus) bool {
 func (w *Worker) projectDeviceStatusLocked() modem.DeviceStatus {
 	status := modem.DeviceStatus{
 		IMEI:            strings.TrimSpace(w.state.Identity.IMEI),
+		Manufacturer:    strings.TrimSpace(w.state.Identity.Manufacturer),
+		Model:           strings.TrimSpace(w.state.Identity.Model),
+		HardwareRevision: strings.TrimSpace(w.state.Identity.HardwareRevision),
 		ICCID:           strings.TrimSpace(w.state.Identity.ICCID),
 		IMSI:            strings.TrimSpace(w.state.Identity.IMSI),
 		NativeSPN:       strings.TrimSpace(w.state.Identity.NativeSPN),
@@ -344,6 +353,15 @@ func (w *Worker) mergeRuntimeStateLocked(status modem.DeviceStatus, healthy bool
 	}
 	if strings.TrimSpace(status.IMEI) != "" {
 		w.state.Identity.IMEI = strings.TrimSpace(status.IMEI)
+	}
+	if strings.TrimSpace(status.Manufacturer) != "" {
+		w.state.Identity.Manufacturer = strings.TrimSpace(status.Manufacturer)
+	}
+	if strings.TrimSpace(status.Model) != "" {
+		w.state.Identity.Model = strings.TrimSpace(status.Model)
+	}
+	if strings.TrimSpace(status.HardwareRevision) != "" {
+		w.state.Identity.HardwareRevision = strings.TrimSpace(status.HardwareRevision)
 	}
 	w.state.Runtime.Firmware = status.Firmware
 	w.state.Runtime.Operator = status.Operator

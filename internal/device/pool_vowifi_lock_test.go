@@ -51,6 +51,9 @@ func (s *vowifiLockBackendStub) GetICCIDLive(ctx context.Context) (string, error
 }
 func (s *vowifiLockBackendStub) GetMSISDN(ctx context.Context) (string, error)   { return "", nil }
 func (s *vowifiLockBackendStub) GetRevision(ctx context.Context) (string, error) { return "", nil }
+func (s *vowifiLockBackendStub) GetManufacturer(ctx context.Context) (string, error) { return "", nil }
+func (s *vowifiLockBackendStub) GetModel(ctx context.Context) (string, error) { return "", nil }
+func (s *vowifiLockBackendStub) GetHardwareRevision(ctx context.Context) (string, error) { return "", nil }
 func (s *vowifiLockBackendStub) GetSignalInfo(ctx context.Context) (*backend.SignalInfo, error) {
 	return nil, nil
 }

@@ -412,7 +412,10 @@ USBProduct             string             `json:"usb_product,omitempty"`     // 
 }
 
 type deviceMgmtListModem struct {
-Operator      string `json:"operator"`
+	Manufacturer     string `json:"manufacturer,omitempty"`
+	Model            string `json:"model,omitempty"`
+	HardwareRevision string `json:"hardware_revision,omitempty"`
+	Operator      string `json:"operator"`
 Firmware      string `json:"firmware,omitempty"`
 NativeSPN     string `json:"native_spn,omitempty"`
 	NativeMCC     string `json:"native_mcc,omitempty"`
@@ -660,7 +663,7 @@ func (s *Server) buildOverviewLiteItemFromWorkerWithModem(w *device.Worker, cfg 
 ATPort:                 w.ResolvedATPort(),
 USBPath:                cfg.USBPath,
 AudioDevice:            cfg.AudioDevice,
-Manufacturer:           cfg.USBManufacturer,
+Manufacturer:           firstNonEmpty(modemStatus.Manufacturer, cfg.USBManufacturer),
 USBProduct:             cfg.USBProduct,
 		LocalPhone:             overviewLocalPhone(effectiveOverviewIMSI(w, status), strings.TrimSpace(status.ICCID)),
 		E911SetupAvailable:     e911.SetupAvailable(modemStatus),
@@ -813,7 +816,7 @@ func (s *Server) handleDeviceMgmtList(c *gin.Context) {
 item := deviceMgmtListItem{
 ID:                     w.ID,
 Name:                   cfg.Name,
-Manufacturer:           cfg.USBManufacturer,
+Manufacturer:           firstNonEmpty(status.Manufacturer, cfg.USBManufacturer),
 USBProduct:             cfg.USBProduct,
 Running:                true,
 			Healthy:                controlOnline,
@@ -831,8 +834,11 @@ Running:                true,
 			VoWiFiRuntime:          s.getVoWiFiRuntimeDTO(w.ID),
 			NetworkConnected:       w.NetworkConnected(),
 			RegistrationStateLabel: registrationStateLabel(status.RegStatus),
-Modem: deviceMgmtListModem{
-Operator:      status.Operator,
+		Modem: deviceMgmtListModem{
+			Manufacturer:     status.Manufacturer,
+			Model:            status.Model,
+			HardwareRevision: status.HardwareRevision,
+			Operator:      status.Operator,
 Firmware:      status.Firmware,
 NativeSPN:     status.NativeSPN,
 				NativeMCC:     status.NativeMCC,

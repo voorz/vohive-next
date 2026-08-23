@@ -72,6 +72,57 @@ func parseFirmware(resp string) string {
 	return ""
 }
 
+// parseATI 解析 ATI 命令的多行响应。
+// ATI 返回格式（Quectel EC20 实测）：
+//
+//	Quectel
+//	EC20F
+//	Revision: EC20CEFDLGR06A10M1G
+//	OK
+//
+// 第一行非空内容为厂商，第二行为型号，Revision: 行为固件版本。
+func parseATI(resp string) (manufacturer, model, revision string, err error) {
+	lines := splitLines(resp)
+	contentLines := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if line == "" || line == "OK" || strings.HasPrefix(line, "+") {
+			continue
+		}
+		contentLines = append(contentLines, line)
+	}
+	if len(contentLines) == 0 {
+		return "", "", "", fmt.Errorf("ATI 响应无有效内容: %s", resp)
+	}
+	if len(contentLines) >= 1 {
+		manufacturer = contentLines[0]
+	}
+	if len(contentLines) >= 2 {
+		model = contentLines[1]
+	}
+	for _, line := range contentLines {
+		if strings.HasPrefix(line, "Revision:") {
+			revision = strings.TrimSpace(strings.TrimPrefix(line, "Revision:"))
+			break
+		}
+	}
+	return manufacturer, model, revision, nil
+}
+
+// parseATIdentResponse 解析 AT+GMI / AT+GMM 等单值标识命令的响应。
+// 这些命令通常返回一行内容 + OK，例如：
+//
+//	Quectel
+//	OK
+func parseATIdentResponse(resp string) string {
+	for _, line := range splitLines(resp) {
+		if line == "" || line == "OK" || strings.HasPrefix(line, "+") {
+			continue
+		}
+		return line
+	}
+	return ""
+}
+
 func parseQSIMSTATInserted(resp string) (bool, bool) {
 	line, ok := findLineWithPrefix(resp, "+QSIMSTAT:")
 	if !ok {

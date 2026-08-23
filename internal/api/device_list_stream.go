@@ -104,19 +104,19 @@ func (s *Server) handleDeviceMgmtListStream(c *gin.Context) {
 			}
 			status := w.GetCachedDeviceStatus()
 			controlOnline := w.GetCachedHealthy()
-			item := deviceMgmtListItem{
-				ID:                     w.ID,
-				Name:                   cfg.Name,
-				Running:                true,
-				Healthy:                controlOnline,
-				ControlOnline:          controlOnline,
-				PublicIP:               w.GetCachedIP(),
-				PublicIPv6:             w.GetCachedIPv6(),
-			Interface:              cfg.Interface,
-			ESIMTransport:          config.NormalizeESIMTransport(cfg.ESIMTransport),
-			PCSCReader:             cfg.PCSCReader,
-			Manufacturer:           cfg.USBManufacturer,
-			USBProduct:             cfg.USBProduct,
+		item := deviceMgmtListItem{
+			ID:                     w.ID,
+			Name:                   cfg.Name,
+			Running:                true,
+			Healthy:                controlOnline,
+			ControlOnline:          controlOnline,
+			PublicIP:               w.GetCachedIP(),
+			PublicIPv6:             w.GetCachedIPv6(),
+		Interface:              cfg.Interface,
+		ESIMTransport:          config.NormalizeESIMTransport(cfg.ESIMTransport),
+		PCSCReader:             cfg.PCSCReader,
+		Manufacturer:           firstNonEmpty(status.Manufacturer, cfg.USBManufacturer),
+		USBProduct:             cfg.USBProduct,
 			SMSEnabled:             cfg.SMSEnabled,
 				NetworkEnabled:         cfg.NetworkEnabled,
 				FlightMode:             status.OperatingMode != nil && isFlightModeEnabled(*status.OperatingMode),
@@ -125,8 +125,11 @@ func (s *Server) handleDeviceMgmtListStream(c *gin.Context) {
 				VoWiFiRuntime:          s.getVoWiFiRuntimeDTO(w.ID),
 				NetworkConnected:       w.NetworkConnected(),
 				RegistrationStateLabel: registrationStateLabel(status.RegStatus),
-				Modem: deviceMgmtListModem{
-					Operator:      status.Operator,
+			Modem: deviceMgmtListModem{
+				Manufacturer:     status.Manufacturer,
+				Model:            status.Model,
+				HardwareRevision: status.HardwareRevision,
+				Operator:      status.Operator,
 					NativeSPN:     status.NativeSPN,
 					NativeMCC:     status.NativeMCC,
 					NativeMNC:     status.NativeMNC,

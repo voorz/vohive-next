@@ -152,6 +152,9 @@ func (f *fakeSIMPowerBackend) GetMSISDN(ctx context.Context) (string, error) {
 func (f *fakeSIMPowerBackend) GetRevision(ctx context.Context) (string, error) {
 	return "", nil
 }
+func (f *fakeSIMPowerBackend) GetManufacturer(ctx context.Context) (string, error) { return "", nil }
+func (f *fakeSIMPowerBackend) GetModel(ctx context.Context) (string, error) { return "", nil }
+func (f *fakeSIMPowerBackend) GetHardwareRevision(ctx context.Context) (string, error) { return "", nil }
 func (f *fakeSIMPowerBackend) GetSignalInfo(ctx context.Context) (*backend.SignalInfo, error) {
 	return nil, nil
 }
