@@ -31,7 +31,7 @@ function onDownloaded() {
     <div class="download-section">
       <!-- 标题 + 模式切换 -->
       <div class="download-section-header">
-        <span class="download-section-title">下载eSIM Profile</span>
+        <span class="download-section-title">输入完整激活码/上传或通过相机扫描</span>
         <div class="download-mode-switch">
           <button
             class="download-mode-btn"

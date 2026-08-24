@@ -320,7 +320,7 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
       <!-- Tab 内容区 -->
     <div v-if="detail" class="tab-content">
         <!-- 概览 -->
-        <div v-if="activeTab === 'overview'" class="tab-pane">
+        <div v-if="activeTab === 'overview'" class="tab-pane tab-pane--auto">
           <ModuleOverviewTab
             :device="detail"
             :traffic-speed-rx="trafficSpeedRx"
@@ -589,6 +589,11 @@ text-overflow: ellipsis;
   gap: 10px;
   height: 100%;
   min-height: 0;
+}
+
+/* 概览页面：内容自然高度，不强制 100%，避免溢出覆盖底部 padding */
+.tab-pane--auto {
+  height: auto;
 }
 
 .content-placeholder {

@@ -1,17 +1,12 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
 import { devicesService } from '../services/devices'
 import { errorMessage } from '../services/http'
 
 const props = defineProps<{
-  visible: boolean
   deviceId: string
-}>()
-
-const emit = defineEmits<{
-  'update:visible': [val: boolean]
 }>()
 
 type Settings = {
@@ -55,10 +50,8 @@ const settings = ref<Settings>({ ...defaultSettings })
 const loading = ref(false)
 const saving = ref(false)
 
-watch(() => props.visible, async (open) => {
-  if (open) {
-    await loadSettings()
-  }
+onMounted(() => {
+  loadSettings()
 })
 
 async function loadSettings() {
@@ -77,19 +70,33 @@ async function loadSettings() {
   }
 }
 
+// 防抖保存：switch 切换后 500ms 自动提交
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+
+function onSwitchChange() {
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(() => {
+    void saveSettings()
+  }, 500)
+}
+
 async function saveSettings() {
+  if (saving.value) return
   saving.value = true
   try {
     const result = await devicesService.updateEsimNotificationSettings(props.deviceId, settings.value as Record<string, unknown>)
     if (!result.ok) throw result.error
-    ElMessage.success('通知设置已保存')
-    emit('update:visible', false)
+    ElMessage.success({ message: '设置已保存', duration: 1500 })
   } catch (e: unknown) {
     ElMessage.error(errorMessage(e, '保存通知设置失败'))
   } finally {
     saving.value = false
   }
 }
+
+onBeforeUnmount(() => {
+  if (saveTimer) clearTimeout(saveTimer)
+})
 
 const eventCards = [
   { key: 'install', title: '安装 (Install)', fields: { send: 'auto_send_install', remove: 'auto_remove_install' }, hasDeleteWithoutSending: false },
@@ -100,17 +107,12 @@ const eventCards = [
 </script>
 
 <template>
-  <el-dialog
-    :model-value="visible"
-    @update:model-value="(v: boolean) => emit('update:visible', v)"
-    title="通知处理设置"
-    width="min(520px, 90vw)"
-  >
+  <div class="notif-settings-view">
     <div v-if="loading" class="settings-loading">
       <el-icon class="settings-spinner" :size="24"><Loading /></el-icon>
       <span>正在加载设置...</span>
     </div>
-    <div v-else class="settings-list">
+    <template v-else>
       <!-- 四个事件类型卡片 -->
       <div v-for="card in eventCards" :key="card.key" class="settings-section">
         <div class="settings-section-title">{{ card.title }}</div>
@@ -120,21 +122,21 @@ const eventCards = [
               <div class="switch-title">自动发送</div>
               <div class="switch-desc">发送通知到 RSP 服务器</div>
             </div>
-            <el-switch v-model="(settings as any)[card.fields.send]" />
+            <el-switch v-model="(settings as any)[card.fields.send]" @change="onSwitchChange" />
           </div>
           <div v-if="(settings as any)[card.fields.send]" class="form-switch-row">
             <div>
               <div class="switch-title">发送后移除</div>
               <div class="switch-desc">发送成功后从卡上删除</div>
             </div>
-            <el-switch v-model="(settings as any)[card.fields.remove]" />
+            <el-switch v-model="(settings as any)[card.fields.remove]" @change="onSwitchChange" />
           </div>
           <div v-if="card.hasDeleteWithoutSending" class="form-switch-row is-danger">
             <div>
               <div class="switch-title">不发送直接移除</div>
               <div class="switch-desc">跳过发送，直接从卡上删除</div>
             </div>
-            <el-switch v-model="(settings as any)[(card.fields as any).deleteWithoutSending]" />
+            <el-switch v-model="(settings as any)[(card.fields as any).deleteWithoutSending]" @change="onSwitchChange" />
           </div>
         </div>
       </div>
@@ -148,48 +150,50 @@ const eventCards = [
               <div class="switch-title">打开页面时自动处理</div>
               <div class="switch-desc">配置文件完成加载后处理通知</div>
             </div>
-            <el-switch v-model="settings.process_initial_load" />
+            <el-switch v-model="settings.process_initial_load" @change="onSwitchChange" />
           </div>
           <div class="form-switch-row">
             <div>
               <div class="switch-title">切换 Profile 后自动处理</div>
               <div class="switch-desc">启用或禁用配置文件后处理通知</div>
             </div>
-            <el-switch v-model="settings.process_after_switch" />
+            <el-switch v-model="settings.process_after_switch" @change="onSwitchChange" />
           </div>
           <div class="form-switch-row">
             <div>
               <div class="switch-title">删除配置后</div>
               <div class="switch-desc">删除配置文件后处理通知</div>
             </div>
-            <el-switch v-model="settings.process_after_delete" />
+            <el-switch v-model="settings.process_after_delete" @change="onSwitchChange" />
           </div>
           <div class="form-switch-row">
             <div>
               <div class="switch-title">下载前</div>
               <div class="switch-desc">开始下载配置文件前处理通知</div>
             </div>
-            <el-switch v-model="settings.process_before_download" />
+            <el-switch v-model="settings.process_before_download" @change="onSwitchChange" />
           </div>
           <div class="form-switch-row">
             <div>
               <div class="switch-title">安装后</div>
               <div class="switch-desc">配置文件安装后处理通知</div>
             </div>
-            <el-switch v-model="settings.process_after_install" />
+            <el-switch v-model="settings.process_after_install" @change="onSwitchChange" />
           </div>
         </div>
       </div>
-    </div>
-
-    <template #footer>
-      <el-button @click="emit('update:visible', false)">取消</el-button>
-      <el-button type="primary" :loading="saving" @click="saveSettings">保存</el-button>
     </template>
-  </el-dialog>
+  </div>
 </template>
 
 <style scoped>
+/* 设置面板 — 参照 ModuleEsimDownload .download-container */
+.notif-settings-view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .settings-loading {
   padding: 40px 0;
   text-align: center;
@@ -209,30 +213,30 @@ const eventCards = [
   to { transform: rotate(360deg); }
 }
 
-.settings-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  max-height: 600px;
-  overflow-y: auto;
-}
-
+/* 设置卡片 — 参照 ModuleEsimDownload .download-section */
 .settings-section {
   border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: visible;
+  border-radius: 6px;
+  overflow: hidden;
 }
 
+/* 卡片标题 — 参照 .download-section-header */
 .settings-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 8px 12px;
-  font-size: 13px;
-  font-weight: 600;
+  font-size: 12px;
+  font-weight: 700;
   background: var(--muted);
+  border-bottom: 1px solid var(--border);
   color: var(--foreground);
 }
 
+/* 卡片内容 — 参照 .download-section-body */
 .settings-section-body {
-  padding: 12px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 8px;
