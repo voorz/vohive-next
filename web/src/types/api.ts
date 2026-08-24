@@ -294,6 +294,7 @@ export type EsimChipInfo = {
 export type EsimOverviewResponse = {
   chip_info: EsimChipInfo | null
   profiles: EsimEUICCProfiles[]
+  notification_count?: number
 }
 
 export type EsimNotificationItem = {

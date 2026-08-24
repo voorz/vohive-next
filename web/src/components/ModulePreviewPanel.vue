@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, watch, onBeforeUnmount } from 'vue'
+import { ref, watch, onBeforeUnmount, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { devicesService } from '../services/devices'
 import { errorMessage } from '../services/http'
 import { useSensitiveVisibility } from '../composables/useSensitiveVisibility'
 import { applyOptimisticActiveState } from './deviceEsimOptimistic'
+import { onNotificationCountChange } from '../composables/useEsimNotifications'
 import type { EsimChipInfo, EsimEUICCProfiles, EsimProfileItem } from '../types/api'
 import ModuleEsimChipCard from './ModuleEsimChipCard.vue'
 import ModuleEsimProfileItem from './ModuleEsimProfileItem.vue'
@@ -28,6 +29,7 @@ const loading = ref(false)
 const profilesRefreshing = ref(false)
 const chipInfo = ref<EsimChipInfo | null>(null)
 const profiles = ref<EsimEUICCProfiles[]>([])
+const notificationCount = ref(0)
 
 // Switching state
 const switching = ref<string | null>(null)
@@ -38,6 +40,19 @@ const settingsOpen = ref(false)
 
 // Notifications dialog
 const notificationsOpen = ref(false)
+
+// F4: 监听通知数量变化，实时更新红点
+let unsubCountChange: (() => void) | null = null
+onMounted(() => {
+  unsubCountChange = onNotificationCountChange((devId, count) => {
+    if (devId === props.deviceId) {
+      notificationCount.value = count
+    }
+  })
+})
+onBeforeUnmount(() => {
+  if (unsubCountChange) unsubCountChange()
+})
 
 // Sensitive visibility
 const showSensitive = useSensitiveVisibility()
@@ -82,6 +97,7 @@ async function fetchOverview(refresh = false) {
     if (!result.ok) throw result.error
     chipInfo.value = result.data.chipInfo
     profiles.value = result.data.profiles || []
+    notificationCount.value = result.data.notificationCount ?? 0
   } catch (e: unknown) {
     if (result.ok === false && result.error.code === 'ERR_CANCELED') {
       return
@@ -89,6 +105,7 @@ async function fetchOverview(refresh = false) {
     // 清空旧数据，避免切换设备后残留上一个设备的 eSIM 信息
     chipInfo.value = null
     profiles.value = []
+    notificationCount.value = 0
     ElMessage.error(errorMessage(e, '获取 eSIM 信息失败'))
   } finally {
     if (shouldResetLoading) {
@@ -151,6 +168,7 @@ watch(() => props.deviceId, (newId) => {
   if (!newId) {
     chipInfo.value = null
     profiles.value = []
+    notificationCount.value = 0
     return
   }
   fetchOverview()
@@ -199,6 +217,7 @@ onBeforeUnmount(() => {
           :chip-info="chipInfo"
           :show-sensitive="showSensitive"
           :refreshing="profilesRefreshing"
+          :notification-count="notificationCount"
           @refresh="fetchOverview(true)"
           @open-notifications="notificationsOpen = true"
           @toggle-sensitive="showSensitive = !showSensitive"
@@ -272,6 +291,7 @@ onBeforeUnmount(() => {
     <ModuleEsimNotificationsDialog
       v-model:visible="notificationsOpen"
       :device-id="deviceId || ''"
+      @count-change="(n: number) => notificationCount = n"
     />
   </div>
 </template>

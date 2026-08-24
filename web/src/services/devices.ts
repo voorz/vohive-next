@@ -312,7 +312,8 @@ export const devicesService = {
       }))
       return {
         chipInfo: res.data?.chip_info || null,
-        profiles: res.data?.profiles || []
+        profiles: res.data?.profiles || [],
+        notificationCount: res.data?.notification_count ?? 0
       }
     })
   },

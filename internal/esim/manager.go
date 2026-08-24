@@ -320,6 +320,11 @@ type Manager struct {
 	// 如果不为 nil，由 smartCardChannelFactory 新建的 QMIChannel 会自动继承该 context，
 	// 从而允许 BPP 安装阶段的长时延迟得到正确处理而不被默认超时中断。
 	downloadCtx atomic.Pointer[context.Context]
+
+	// workingAID 缓存最近一次成功命中的 ISD-R AID（对标 NekoKo _workingAidCache）。
+	// 下次打开通知列表时优先尝试该 AID，避免全量扫描 9 个候选 AID。
+	workingAIDMu sync.RWMutex
+	workingAID   []byte
 }
 
 // ErrOperationInProgress 表示当前有写操作（下载/切换/删除）正在进行中
@@ -1313,8 +1318,9 @@ func (m *Manager) GetEUICCChipInfo(forceRefresh bool) (*EUICCChipInfo, error) {
 
 // EsimOverview 合并的 eSIM 总览信息（芯片信息 + 按 eUICC 分组的 profiles）
 type EsimOverview struct {
-	ChipInfo *EUICCChipInfo  `json:"chip_info"` // 芯片硬件信息
-	Profiles []EUICCProfiles `json:"profiles"`  // 按 eUICC 分组的 profile 列表
+	ChipInfo          *EUICCChipInfo  `json:"chip_info"`           // 芯片硬件信息
+	Profiles          []EUICCProfiles `json:"profiles"`            // 按 eUICC 分组的 profile 列表
+	NotificationCount int             `json:"notification_count"` // 待处理通知数量（不含 autoClean 的 enable/disable）
 }
 
 // parseEUICCInfo2ForEID 从标准 eUICC 信息接口解析单个 eUICC 的可用空间、固件版本、制造商和证书信息。
@@ -1435,8 +1441,9 @@ func cloneOverview(overview *EsimOverview) *EsimOverview {
 		return nil
 	}
 	return &EsimOverview{
-		ChipInfo: cloneChipInfo(overview.ChipInfo),
-		Profiles: cloneProfiles(overview.Profiles),
+		ChipInfo:          cloneChipInfo(overview.ChipInfo),
+		Profiles:          cloneProfiles(overview.Profiles),
+		NotificationCount: overview.NotificationCount,
 	}
 }
 
@@ -1924,6 +1931,7 @@ func (m *Manager) replaceCachedProfileGroup(group EUICCProfiles) {
 func (m *Manager) loadOverviewFresh() (*EsimOverview, error) {
 	info := &EUICCChipInfo{}
 	var profileGroups []EUICCProfiles
+	var notifCount int
 	var fnMu sync.Mutex
 
 	if err := m.forEachEUICC(func(client *lpa.Client, aid []byte, eidStr string) error {
@@ -1936,6 +1944,14 @@ func (m *Manager) loadOverviewFresh() (*EsimOverview, error) {
 			"AID", aidHex,
 			"EID", eidStr)
 		profiles, profileErr := listBasicProfiles(client)
+
+		// 顺便获取通知数量（仅一次 APDU，不触发 autoClean）
+		notifCountForAID := 0
+		if profileErr == nil {
+			if notifs, notifErr := safeListNotification(client); notifErr == nil {
+				notifCountForAID = len(notifs)
+			}
+		}
 
 		fnMu.Lock()
 		defer fnMu.Unlock()
@@ -1956,18 +1972,21 @@ func (m *Manager) loadOverviewFresh() (*EsimOverview, error) {
 		}
 		group := buildProfileGroup(eidStr, aid, profiles)
 		profileGroups = append(profileGroups, group)
+		notifCount += notifCountForAID
 		logger.Debug("eUICC AID 扫描阶段",
 			"device", m.deviceID,
 			"stage", "profiles_ok",
 			"AID", aidHex,
 			"EID", eidStr,
-			"profileCount", len(profiles))
+			"profileCount", len(profiles),
+			"notificationCount", notifCountForAID)
 		logger.Info("获取 eUICC 信息和 profiles",
 			"device", m.deviceID,
 			"AID", aidHex,
 			"EID", eidStr,
 			"freeNvram", euiccInfo.FreeNvram,
-			"profileCount", len(profiles))
+			"profileCount", len(profiles),
+			"notificationCount", notifCountForAID)
 		return nil
 	}); err != nil {
 		return nil, err
@@ -1999,8 +2018,9 @@ func (m *Manager) loadOverviewFresh() (*EsimOverview, error) {
 	}
 
 	return &EsimOverview{
-		ChipInfo: info,
-		Profiles: profileGroups,
+		ChipInfo:          info,
+		Profiles:          profileGroups,
+		NotificationCount: notifCount,
 	}, nil
 }
 
@@ -3233,6 +3253,25 @@ func safeRetrieveNotificationList(client *lpa.Client, seq sgp22.SequenceNumber) 
 	return pendingNotifications, nil
 }
 
+// safeRetrieveAllNotifications 使用 combined 策略一次获取全量 PendingNotification（对标 NekoKo NotificationStrategy.combined）。
+// searchCriteria=nil 时卡片返回所有待处理通知，无需后续逐个 retrieve，减少 APDU 往返。
+func safeRetrieveAllNotifications(client *lpa.Client) (pendingNotifications []*sgp22.PendingNotification, err error) {
+	if client == nil {
+		return nil, fmt.Errorf("LPA client 为空")
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("解析全量通知响应失败: %v", r)
+			pendingNotifications = nil
+		}
+	}()
+	pendingNotifications, err = client.RetrieveNotificationList(nil)
+	if err != nil {
+		return nil, wrapNotificationParseError("解析全量通知响应失败", err)
+	}
+	return pendingNotifications, nil
+}
+
 func wrapNotificationParseError(prefix string, err error) error {
 	if err == nil {
 		return nil
@@ -3331,11 +3370,51 @@ func buildNotificationItems(notifications []*sgp22.NotificationMetadata, aidHex 
 	return items
 }
 
+// buildNotificationItemsFromPending 从 combined 策略获取的 PendingNotification 列表构建 NotificationItem。
+// 每个 PendingNotification 内含 NotificationMetadata，无需额外 retrieve。
+func buildNotificationItemsFromPending(pendingNotifications []*sgp22.PendingNotification, aidHex string) []NotificationItem {
+	items := make([]NotificationItem, 0, len(pendingNotifications))
+	for _, pn := range pendingNotifications {
+		if pn == nil || pn.Notification == nil {
+			continue
+		}
+		meta := pn.Notification
+		item := NotificationItem{
+			SequenceNumber: int64(meta.SequenceNumber),
+			Event:          notificationEventName(meta.ProfileManagementOperation),
+			Address:        meta.Address,
+			AIDHex:         aidHex,
+			CanRetry:       meta.Address != "",
+		}
+		if len(meta.ICCID) > 0 {
+			item.ICCID = meta.ICCID.String()
+		}
+		items = append(items, item)
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		return items[i].SequenceNumber > items[j].SequenceNumber
+	})
+	return items
+}
+
 func isAutoCleanableLoadedNotification(notification *sgp22.NotificationMetadata) bool {
 	if notification == nil || notification.SequenceNumber <= 0 {
 		return false
 	}
 	switch notification.ProfileManagementOperation {
+	case sgp22.NotificationEventEnable, sgp22.NotificationEventDisable:
+		return true
+	default:
+		return false
+	}
+}
+
+// isAutoCleanablePendingNotification 检查 PendingNotification 是否为可自动清理的 enable/disable 类型。
+func isAutoCleanablePendingNotification(pn *sgp22.PendingNotification) bool {
+	if pn == nil || pn.Notification == nil || pn.Notification.SequenceNumber <= 0 {
+		return false
+	}
+	switch pn.Notification.ProfileManagementOperation {
 	case sgp22.NotificationEventEnable, sgp22.NotificationEventDisable:
 		return true
 	default:
@@ -3356,19 +3435,36 @@ func filterCleanedNotifications(notifications []*sgp22.NotificationMetadata, cle
 	return filtered
 }
 
-func (m *Manager) autoCleanLoadedNotifications(client *lpa.Client, notifications []*sgp22.NotificationMetadata, aidHex string) map[sgp22.SequenceNumber]bool {
-	cleaned := make(map[sgp22.SequenceNumber]bool)
-	for _, metadata := range notifications {
-		if !isAutoCleanableLoadedNotification(metadata) {
+// filterCleanedPendingNotifications 从 PendingNotification 列表中移除已清理的通知。
+func filterCleanedPendingNotifications(pendingNotifications []*sgp22.PendingNotification, cleaned map[sgp22.SequenceNumber]bool) []*sgp22.PendingNotification {
+	if len(cleaned) == 0 {
+		return pendingNotifications
+	}
+	filtered := make([]*sgp22.PendingNotification, 0, len(pendingNotifications))
+	for _, pn := range pendingNotifications {
+		if pn == nil || pn.Notification == nil || cleaned[pn.Notification.SequenceNumber] {
 			continue
 		}
-		seq := metadata.SequenceNumber
-		eventName := notificationEventName(metadata.ProfileManagementOperation)
+		filtered = append(filtered, pn)
+	}
+	return filtered
+}
 
-		var pendingNotifications []*sgp22.PendingNotification
+// autoCleanPendingNotifications 在当前 channel 内自动清理 enable/disable 类型的通知（对标 NekoKo _backgroundProcess）。
+// 使用 combined 策略已获取的 PendingNotification，无需重新 retrieve，直接 HandleNotification + RemoveNotificationFromList。
+func (m *Manager) autoCleanPendingNotifications(client *lpa.Client, pendingNotifications []*sgp22.PendingNotification, aidHex string) map[sgp22.SequenceNumber]bool {
+	cleaned := make(map[sgp22.SequenceNumber]bool)
+	for _, pn := range pendingNotifications {
+		if !isAutoCleanablePendingNotification(pn) {
+			continue
+		}
+		meta := pn.Notification
+		seq := meta.SequenceNumber
+		eventName := notificationEventName(meta.ProfileManagementOperation)
+
 		if err := retryWithBackoff(3, 300*time.Millisecond,
 			func(attempt int, wait time.Duration, err error) {
-				logger.Warn("eSIM 加载通知自动清理获取待发送通知失败，稍后重试",
+				logger.Warn("eSIM 通知自动清理发送失败，稍后重试",
 					"device", m.deviceID,
 					"AID", aidHex,
 					"sequence", seq,
@@ -3378,12 +3474,10 @@ func (m *Manager) autoCleanLoadedNotifications(client *lpa.Client, notifications
 					"err", err)
 			},
 			func() error {
-				var err error
-				pendingNotifications, err = safeRetrieveNotificationList(client, seq)
-				return err
+				return client.HandleNotification(pn)
 			},
 		); err != nil {
-			logger.Warn("eSIM 加载通知自动清理失败，获取待发送通知失败",
+			logger.Warn("eSIM 通知自动清理失败，发送通知失败",
 				"device", m.deviceID,
 				"AID", aidHex,
 				"sequence", seq,
@@ -3391,69 +3485,17 @@ func (m *Manager) autoCleanLoadedNotifications(client *lpa.Client, notifications
 				"err", err)
 			continue
 		}
-		if len(pendingNotifications) == 0 {
-			logger.Warn("eSIM 加载通知自动清理跳过，卡片未返回待发送通知",
-				"device", m.deviceID,
-				"AID", aidHex,
-				"sequence", seq,
-				"event", eventName)
-			continue
-		}
-
-		handledAny := false
-		handleErr := false
-		for _, notification := range pendingNotifications {
-			if notification == nil {
-				continue
-			}
-			if err := retryWithBackoff(3, 300*time.Millisecond,
-				func(attempt int, wait time.Duration, err error) {
-					logger.Warn("eSIM 加载通知自动清理发送通知失败，稍后重试",
-						"device", m.deviceID,
-						"AID", aidHex,
-						"sequence", seq,
-						"event", eventName,
-						"attempt", fmt.Sprintf("%d/%d", attempt, 3),
-						"wait_ms", wait.Milliseconds(),
-						"err", err)
-				},
-				func() error {
-					return client.HandleNotification(notification)
-				},
-			); err != nil {
-				logger.Warn("eSIM 加载通知自动清理失败，发送通知失败",
-					"device", m.deviceID,
-					"AID", aidHex,
-					"sequence", seq,
-					"event", eventName,
-					"err", err)
-				handleErr = true
-				break
-			}
-			handledAny = true
-		}
-		if handleErr {
-			continue
-		}
-		if !handledAny {
-			logger.Warn("eSIM 加载通知自动清理跳过，卡片返回空待发送通知",
-				"device", m.deviceID,
-				"AID", aidHex,
-				"sequence", seq,
-				"event", eventName)
-			continue
-		}
 
 		if err := retryWithBackoff(3, 300*time.Millisecond,
 			func(attempt int, wait time.Duration, err error) {
-				logger.Warn("eSIM 加载通知自动清理移除卡内通知失败，稍后重试",
+				logger.Warn("eSIM 通知自动清理移除卡内通知失败，稍后重试",
 					"device", m.deviceID,
-					"AID", aidHex,
-					"sequence", seq,
-					"event", eventName,
-					"attempt", fmt.Sprintf("%d/%d", attempt, 3),
+				"AID", aidHex,
+				"sequence", seq,
+				"event", eventName,
+				"attempt", fmt.Sprintf("%d/%d", attempt, 3),
 					"wait_ms", wait.Milliseconds(),
-					"err", err)
+				"err", err)
 			},
 			func() error {
 				err := client.RemoveNotificationFromList(seq)
@@ -3463,7 +3505,7 @@ func (m *Manager) autoCleanLoadedNotifications(client *lpa.Client, notifications
 				return err
 			},
 		); err != nil {
-			logger.Warn("eSIM 加载通知自动清理失败，移除卡内通知失败",
+			logger.Warn("eSIM 通知自动清理失败，移除卡内通知失败",
 				"device", m.deviceID,
 				"AID", aidHex,
 				"sequence", seq,
@@ -3473,7 +3515,7 @@ func (m *Manager) autoCleanLoadedNotifications(client *lpa.Client, notifications
 		}
 
 		cleaned[seq] = true
-		logger.Info("eSIM 加载通知已自动清理状态通知",
+		logger.Info("eSIM 通知已自动清理",
 			"device", m.deviceID,
 			"AID", aidHex,
 			"sequence", seq,
@@ -3482,25 +3524,26 @@ func (m *Manager) autoCleanLoadedNotifications(client *lpa.Client, notifications
 	return cleaned
 }
 
+// listNotificationItemsWithCleanup 使用 combined 策略一次获取全量 PendingNotification（对标 NekoKo NotificationStrategy.combined），
+// 然后在同一 channel 内同步执行 autoClean（对标 NekoKo _backgroundProcess），无需重新 createLPAWithAID。
 func (m *Manager) listNotificationItemsWithCleanup(client *lpa.Client, aidHex string) ([]NotificationItem, error) {
-	notifications, err := safeListNotification(client)
+	pendingNotifications, err := safeRetrieveAllNotifications(client)
 	if err != nil {
 		return nil, err
 	}
-	cleaned := m.autoCleanLoadedNotifications(client, notifications, aidHex)
+
+	// 同 channel 内同步执行 autoClean（enable/disable 类型）
+	cleaned := m.autoCleanPendingNotifications(client, pendingNotifications, aidHex)
 	if len(cleaned) > 0 {
-		refreshed, refreshErr := safeListNotification(client)
-		if refreshErr != nil {
-			logger.Warn("eSIM 加载通知自动清理后刷新列表失败，使用本地过滤结果",
-				"device", m.deviceID,
-				"AID", aidHex,
-				"err", refreshErr)
-			notifications = filterCleanedNotifications(notifications, cleaned)
-		} else {
-			notifications = refreshed
-		}
+		logger.Info("eSIM 通知 autoClean 完成（同 channel）",
+			"device", m.deviceID,
+			"AID", aidHex,
+			"cleanedCount", len(cleaned))
+		// 过滤掉已清理的通知，不返回给前端
+		pendingNotifications = filterCleanedPendingNotifications(pendingNotifications, cleaned)
 	}
-	return buildNotificationItems(notifications, aidHex), nil
+
+	return buildNotificationItemsFromPending(pendingNotifications, aidHex), nil
 }
 
 func (m *Manager) resolveNotificationAID(aidHex string) ([]byte, error) {
@@ -3527,6 +3570,24 @@ func (m *Manager) notificationCandidateAIDs() [][]byte {
 	return candidates
 }
 
+// getWorkingAID 返回缓存的最近一次成功命中的 ISD-R AID（对标 NekoKo getWorkingAid）。
+// 返回 nil 表示无缓存，调用方应回退到全量 AID 扫描。
+func (m *Manager) getWorkingAID() []byte {
+	m.workingAIDMu.RLock()
+	defer m.workingAIDMu.RUnlock()
+	if m.workingAID == nil {
+		return nil
+	}
+	return append([]byte(nil), m.workingAID...)
+}
+
+// setWorkingAID 缓存成功命中的 ISD-R AID（对标 NekoKo setWorkingAid）。
+func (m *Manager) setWorkingAID(aid []byte) {
+	m.workingAIDMu.Lock()
+	defer m.workingAIDMu.Unlock()
+	m.workingAID = append([]byte(nil), aid...)
+}
+
 func (m *Manager) listNotificationsForCurrentCard() ([]NotificationItem, error) {
 	unlock, err := m.lockOperation("list_notifications_current_card")
 	if err != nil {
@@ -3541,7 +3602,14 @@ func (m *Manager) listNotificationsForCurrentCard() ([]NotificationItem, error) 
 	items := make([]NotificationItem, 0)
 	var lastErr error
 	var successCount int
-	for _, aid := range m.notificationCandidateAIDs() {
+
+	// 优先尝试缓存的 working AID（对标 NekoKo _workingAidCache）
+	candidates := m.notificationCandidateAIDs()
+	if cached := m.getWorkingAID(); cached != nil {
+		candidates = append([][]byte{cached}, candidates...)
+	}
+
+	for _, aid := range candidates {
 		client, err := m.createLPAWithAID(aid)
 		if err != nil {
 			lastErr = err
@@ -3556,6 +3624,10 @@ func (m *Manager) listNotificationsForCurrentCard() ([]NotificationItem, error) 
 		}
 		successCount++
 		items = append(items, aidItems...)
+		// 缓存成功命中的 AID（对标 NekoKo setWorkingAid）
+		m.setWorkingAID(aid)
+		// 命中第一个成功 AID 后提前退出（对标 NekoKo selectAid 命中即返回）
+		break
 	}
 	if len(items) > 0 {
 		sort.SliceStable(items, func(i, j int) bool {
@@ -3600,6 +3672,8 @@ func (m *Manager) ListNotifications(aidHex string) ([]NotificationItem, error) {
 	if err != nil {
 		return nil, NewNotificationError(NotificationErrorInternal, fmt.Sprintf("获取通知列表失败: %v", err), err)
 	}
+	// 缓存成功命中的 AID
+	m.setWorkingAID(targetAID)
 	return items, nil
 }
 
