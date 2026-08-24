@@ -304,6 +304,7 @@ export type EsimNotificationItem = {
   address?: string
   aid_hex?: string
   can_retry: boolean
+  status?: 'pending' | 'sent' | 'failed'
 }
 
 export type DiscoveredDevice = {

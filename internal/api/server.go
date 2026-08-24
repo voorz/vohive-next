@@ -424,6 +424,9 @@ api.POST("/devices", s.handleDeviceMgmtAddDevice)                               
 		api.GET("/devices/:device_id/esim/profiles", s.handleEsimListProfiles)
 		api.GET("/devices/:device_id/esim/notifications", s.handleEsimListNotifications)
 		api.POST("/devices/:device_id/esim/notifications/:sequence/actions/retry", s.handleEsimRetryNotification) // 获取 eSIM profile 列表
+		api.GET("/devices/:device_id/esim/notification-settings", s.handleEsimGetNotificationSettings)               // 获取通知处理设置
+		api.PUT("/devices/:device_id/esim/notification-settings", s.handleEsimUpdateNotificationSettings)            // 更新通知处理设置
+		api.GET("/devices/:device_id/esim/notification-history", s.handleEsimListNotificationHistory)                 // 获取通知历史记录
 		api.POST("/devices/:device_id/esim/actions/switch", s.handleEsimSwitchProfile)                            // 切换 eSIM profile
 		api.GET("/devices/:device_id/esim/eids", s.handleEsimGetEID)                                              // 获取 EID
 		api.GET("/devices/:device_id/esim/chip-info", s.handleEsimGetChipInfo)                                    // 获取 eUICC 芯片信息

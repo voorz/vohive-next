@@ -2359,6 +2359,90 @@ func (s *Server) handleEsimRetryNotification(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "通知重试发送成功"})
 }
 
+// handleEsimGetNotificationSettings
+//
+// @Summary      EsimGetNotificationSettings
+// @Tags         devices
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/esim/notification-settings [get]
+// @Security     BearerAuth
+func (s *Server) handleEsimGetNotificationSettings(c *gin.Context) {
+	id := deviceIDParam(c)
+	settings, err := db.GetEsimNotificationSettings(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取通知设置失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, settings)
+}
+
+// handleEsimUpdateNotificationSettings
+//
+// @Summary      EsimUpdateNotificationSettings
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/esim/notification-settings [put]
+// @Security     BearerAuth
+func (s *Server) handleEsimUpdateNotificationSettings(c *gin.Context) {
+	id := deviceIDParam(c)
+	var settings db.EsimNotificationSettings
+	if err := c.ShouldBindJSON(&settings); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误: " + err.Error()})
+		return
+	}
+	settings.DeviceID = id
+	if err := db.UpsertEsimNotificationSettings(settings); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存通知设置失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "settings": settings})
+}
+
+// handleEsimListNotificationHistory
+//
+// @Summary      EsimListNotificationHistory
+// @Tags         devices
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {array}   db.EsimNotificationRecord  "通知历史记录列表"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/esim/notification-history [get]
+// @Security     BearerAuth
+func (s *Server) handleEsimListNotificationHistory(c *gin.Context) {
+	id := deviceIDParam(c)
+	worker := s.pool.GetWorker(id)
+	if worker == nil {
+		c.JSON(http.StatusOK, []interface{}{})
+		return
+	}
+	// 获取该设备的 EID
+	eid := ""
+	if worker.EsimMgr != nil {
+		e, err := worker.EsimMgr.GetEID()
+		if err == nil {
+			eid = e
+		}
+	}
+	if eid == "" {
+		c.JSON(http.StatusOK, []interface{}{})
+		return
+	}
+	records, err := db.GetEsimNotificationsByEID(eid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取通知历史记录失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, records)
+}
+
 // handleEsimSwitchProfile 切换 eSIM Profile
 // handleEsimSwitchProfile 
 //

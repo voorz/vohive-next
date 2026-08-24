@@ -6,7 +6,7 @@ import type { EsimNotificationItem } from '../types/api'
  *
  * 功能：
  * - F1: 通知列表缓存（秒开）—— 打开弹窗时先展示缓存数据，后台刷新后替换
- * - F2: 发送状态持久化 —— sessionStorage 记录 sent/failed 状态
+ * - F2: 发送状态持久化 —— 由后端 DB 管理，API 返回 status 字段
  * - F3: 局部刷新 —— 重发后更新单条 item 状态，不重新拉全量
  * - F4: 红点同步 —— count 变化时通知父组件更新
  */
@@ -24,56 +24,26 @@ type DeviceNotificationState = {
 
 // 设备维度缓存
 const deviceCache = new Map<string, DeviceNotificationState>()
-// 设备维度 status 记录（sessionStorage key 前缀）
-const STATUS_KEY_PREFIX = 'vohive:esim:notif:status:'
-
-function loadStatusMap(deviceId: string): Map<number, NotificationStatus> {
-  try {
-    const raw = sessionStorage.getItem(STATUS_KEY_PREFIX + deviceId)
-    if (!raw) return new Map()
-    const arr = JSON.parse(raw) as [number, NotificationStatus][]
-    return new Map(arr)
-  } catch {
-    return new Map()
-  }
-}
-
-function saveStatusMap(deviceId: string, map: Map<number, NotificationStatus>) {
-  try {
-    const arr = Array.from(map.entries())
-    sessionStorage.setItem(STATUS_KEY_PREFIX + deviceId, JSON.stringify(arr))
-  } catch {
-    // sessionStorage 满或不可用，忽略
-  }
-}
 
 /**
- * 将 API 返回的 NotificationItem 列表合并本地状态，返回带 status 的列表。
+ * 将 API 返回的 NotificationItem 列表转为带 status 的列表。
+ * 状态来源为后端 DB（API 返回的 status 字段），无 sessionStorage。
  */
-export function mergeWithLocalStatus(
-  deviceId: string,
-  items: EsimNotificationItem[]
-): NotificationItemWithStatus[] {
-  const statusMap = loadStatusMap(deviceId)
+function mergeWithApiStatus(items: EsimNotificationItem[]): NotificationItemWithStatus[] {
   return items.map(item => ({
     ...item,
-    status: statusMap.get(item.sequence_number) ?? 'pending'
+    status: (item.status ?? 'pending') as NotificationStatus
   }))
 }
 
 /**
- * 更新单条通知的状态（F2 + F3）。
+ * 更新单条通知的本地缓存状态（F2 + F3）。
  */
 export function updateNotificationStatus(
   deviceId: string,
   sequenceNumber: number,
   status: NotificationStatus
 ) {
-  const statusMap = loadStatusMap(deviceId)
-  statusMap.set(sequenceNumber, status)
-  saveStatusMap(deviceId, statusMap)
-
-  // 同步更新内存缓存
   const cached = deviceCache.get(deviceId)
   if (cached) {
     const item = cached.items.find(i => i.sequence_number === sequenceNumber)
@@ -104,7 +74,7 @@ export function updateNotificationCache(
   deviceId: string,
   items: EsimNotificationItem[]
 ) {
-  const merged = mergeWithLocalStatus(deviceId, items)
+  const merged = mergeWithApiStatus(items)
   deviceCache.set(deviceId, {
     items: merged,
     count: merged.length

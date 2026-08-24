@@ -1601,6 +1601,139 @@ const docTemplate = `{
                 }
             }
         },
+        "/devices/{device_id}/esim/notification-history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "devices"
+                ],
+                "summary": "EsimListNotificationHistory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "device_id",
+                        "name": "device_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "通知历史记录列表",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_voorz_vohive_internal_db.EsimNotificationRecord"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/devices/{device_id}/esim/notification-settings": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "devices"
+                ],
+                "summary": "EsimGetNotificationSettings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "device_id",
+                        "name": "device_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "devices"
+                ],
+                "summary": "EsimUpdateNotificationSettings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "device_id",
+                        "name": "device_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/devices/{device_id}/esim/notifications": {
             "get": {
                 "security": [
@@ -5224,6 +5357,60 @@ const docTemplate = `{
                             "additionalProperties": true
                         }
                     }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "github_com_voorz_vohive_internal_db.EsimNotificationRecord": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "description": "base64 编码的 PendingNotification",
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "delete_pending": {
+                    "description": "卡上移除失败，待重试",
+                    "type": "boolean"
+                },
+                "eid": {
+                    "type": "string"
+                },
+                "iccid": {
+                    "type": "string"
+                },
+                "notification_server": {
+                    "description": "RSP 服务器地址",
+                    "type": "string"
+                },
+                "notification_type": {
+                    "description": "install/enable/disable/delete",
+                    "type": "string"
+                },
+                "response_code": {
+                    "description": "HTTP 响应码",
+                    "type": "integer"
+                },
+                "response_content": {
+                    "description": "HTTP 响应内容",
+                    "type": "string"
+                },
+                "seq_number": {
+                    "type": "integer"
+                },
+                "status": {
+                    "description": "0/1/2/3",
+                    "type": "integer"
+                },
+                "timestamp": {
+                    "description": "毫秒时间戳",
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
                 }
             }
         }

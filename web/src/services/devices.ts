@@ -346,6 +346,24 @@ export const devicesService = {
       }
     })
   },
+  getEsimNotificationSettings(id: string) {
+    return callService(async () => {
+      const res = await api.get(`/devices/${id}/esim/notification-settings`)
+      return res.data
+    })
+  },
+  updateEsimNotificationSettings(id: string, settings: Record<string, unknown>) {
+    return callService(async () => {
+      const res = await api.put(`/devices/${id}/esim/notification-settings`, settings)
+      return res.data
+    })
+  },
+  getEsimNotificationHistory(id: string) {
+    return callService(async () => {
+      const res = await api.get(`/devices/${id}/esim/notification-history`)
+      return res.data
+    })
+  },
   switchEsimProfile(id: string, payload: { iccid: string; aid_hex: string; state: number }) {
     return callService(async () => {
       await withEsimBusyRetry(() => api.post(`/devices/${id}/esim/actions/switch`, payload))

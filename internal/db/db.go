@@ -169,6 +169,8 @@ func Init(dbPath string) error {
 		&CarrierActivation{},
 		&VoiceHistory{},
 		&VoiceGateway{},
+		&EsimNotificationRecord{},
+		&EsimNotificationSettings{},
 	); err != nil {
 		return err
 	}
