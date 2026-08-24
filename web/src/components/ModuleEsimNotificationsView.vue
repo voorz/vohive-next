@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
+import { api } from '../stores/auth'
 import {
   ArrowLeft24Regular,
   Alert24Regular,
@@ -42,6 +43,13 @@ const notifTab = ref<'current' | 'history' | 'settings'>('current')
 const notifItems = ref<NotificationItemWithStatus[]>([])
 const notifLoading = ref(false)
 const notifRetryingSeq = ref<number | null>(null)
+
+// 5s 倒计时后自动逐条处理通知（对标 NekoKoLPA2）
+const processCountdown = ref(0)
+const processing = ref(false)
+const processingSeq = ref<number | null>(null)
+let countdownTimer: ReturnType<typeof setInterval> | null = null
+let processAbortCtrl: AbortController | null = null
 
 interface NotifHistoryRecord {
   eid: string
@@ -109,6 +117,11 @@ onMounted(() => {
   fetchNotifications()
 })
 
+onBeforeUnmount(() => {
+  stopCountdown()
+  stopProcessing()
+})
+
 async function fetchNotifications() {
   if (!props.deviceId) return
   notifLoading.value = true
@@ -117,11 +130,144 @@ async function fetchNotifications() {
     if (!result.ok) throw result.error
     notifItems.value = refreshNotificationCache(props.deviceId, result.data as EsimNotificationItem[])
     emit('count-change', notifItems.value.length)
+    // 有通知时启动 5s 倒计时
+    if (notifItems.value.length > 0) {
+      startCountdown()
+    }
   } catch (e: unknown) {
     ElMessage.error(errorMessage(e, '获取通知列表失败'))
   } finally {
     notifLoading.value = false
   }
+}
+
+function startCountdown() {
+  stopCountdown()
+  processCountdown.value = 5
+  countdownTimer = setInterval(() => {
+    processCountdown.value--
+    if (processCountdown.value <= 0) {
+      stopCountdown()
+      void startProcessing()
+    }
+  }, 1000)
+}
+
+function stopCountdown() {
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+    countdownTimer = null
+  }
+  processCountdown.value = 0
+}
+
+async function startProcessing() {
+  if (processing.value || notifItems.value.length === 0) return
+  processing.value = true
+  processAbortCtrl = new AbortController()
+
+  const token = localStorage.getItem('token') || ''
+  const base = api.defaults.baseURL || ''
+  const url = `${base}/devices/${props.deviceId}/esim/notifications/actions/process`
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, Accept: 'text/event-stream' },
+      signal: processAbortCtrl.signal
+    })
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    if (!res.body) throw new Error('No stream body')
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+
+      while (true) {
+        const nl = buffer.indexOf('\n')
+        if (nl < 0) break
+        let line = buffer.slice(0, nl)
+        buffer = buffer.slice(nl + 1)
+        if (line.endsWith('\r')) line = line.slice(0, -1)
+        if (!line.startsWith('data:')) continue
+
+        const payload = line.slice('data:'.length).trim()
+        try {
+          const evt = JSON.parse(payload) as {
+            step: string
+            sequence_number?: number
+            event?: string
+            message?: string
+            processed_count?: number
+            total_count?: number
+          }
+          handleProcessEvent(evt)
+        } catch {
+          // ignore parse error
+        }
+      }
+    }
+  } catch (err: unknown) {
+    if (processAbortCtrl?.signal.aborted) return
+    ElMessage.error(errorMessage(err, '通知处理失败'))
+  } finally {
+    processing.value = false
+    processingSeq.value = null
+  }
+}
+
+function handleProcessEvent(evt: {
+  step: string
+  sequence_number?: number
+  message?: string
+  processed_count?: number
+  total_count?: number
+}) {
+  switch (evt.step) {
+    case 'processing':
+      processingSeq.value = evt.sequence_number ?? null
+      break
+    case 'sent':
+    case 'deleted':
+      // 从列表移除已处理的通知
+      notifItems.value = notifItems.value.filter(i => i.sequence_number !== evt.sequence_number)
+      emit('count-change', notifItems.value.length)
+      break
+    case 'failed':
+      // 标记为失败但不移除
+      {
+        const idx = notifItems.value.findIndex(i => i.sequence_number === evt.sequence_number)
+        if (idx >= 0) {
+          notifItems.value[idx] = { ...notifItems.value[idx], status: 'failed' as NotificationStatus }
+        }
+      }
+      break
+    case 'skipped':
+      // 跳过，不处理
+      break
+    case 'done':
+      processingSeq.value = null
+      ElMessage.success(evt.message || '处理完成')
+      // 刷新 overview 缓存让红点递减
+      break
+    case 'error':
+      ElMessage.error(evt.message || '处理失败')
+      break
+  }
+}
+
+function stopProcessing() {
+  if (processAbortCtrl) {
+    processAbortCtrl.abort()
+    processAbortCtrl = null
+  }
+  processing.value = false
+  processingSeq.value = null
 }
 
 async function fetchNotifHistory() {
@@ -227,6 +373,14 @@ async function retryNotification(item: NotificationItemWithStatus) {
           </div>
           <template v-else>
             <div v-if="notifLoading" class="notif-refreshing-mask" />
+            <!-- 倒计时 / 处理中提示 -->
+            <div v-if="processCountdown > 0" class="notif-countdown-bar">
+              <span>{{ processCountdown }}s 后自动处理通知...</span>
+            </div>
+            <div v-if="processing" class="notif-countdown-bar processing">
+              <div class="notif-countdown-spinner" />
+              <span>正在逐条处理通知...</span>
+            </div>
             <div
               v-for="item in notifItems"
               :key="item.sequence_number"
@@ -551,6 +705,34 @@ async function retryNotification(item: NotificationItemWithStatus) {
   z-index: 1;
   pointer-events: none;
   border-radius: 6px;
+}
+
+/* 倒计时 / 处理中提示条 */
+.notif-countdown-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  flex-shrink: 0;
+}
+.notif-countdown-bar.processing {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+.notif-countdown-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--brand);
+  border-radius: 999px;
+  animation: notif-spin 0.8s linear infinite;
 }
 
 @keyframes notif-spin {

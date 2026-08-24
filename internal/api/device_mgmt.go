@@ -2319,7 +2319,62 @@ func (s *Server) handleEsimListNotifications(c *gin.Context) {
 		c.JSON(esimNotificationHTTPStatus(err), gin.H{"error": err.Error()})
 		return
 	}
+	// autoClean 可能在 ListNotifications 内部处理了通知（发送/删除），
+	// 异步刷新 overview 缓存让下次请求时红点计数同步递减。
+	go worker.EsimMgr.WarmOverviewAsync("list_notifications_cleanup")
 	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+// handleEsimProcessNotifications 逐条处理通知（SSE 流式进度推送）
+// 对标 NekoKoLPA2：用户点开通知列表后 5s 倒计时，然后逐条发送/删除，实时显示进度。
+//
+// 响应为 text/event-stream，每条事件 data 为 JSON：
+//
+//	{"step":"processing","sequence_number":3,"event":"enable","message":"正在处理 #3 enable","processed_count":0,"total_count":4}
+//	{"step":"sent","sequence_number":3,"event":"enable","message":"#3 已发送并移除","processed_count":1,"total_count":4}
+//	{"step":"done","message":"全部处理完成 (4/4)","processed_count":4,"total_count":4}
+func (s *Server) handleEsimProcessNotifications(c *gin.Context) {
+	id := deviceIDParam(c)
+	worker := s.pool.GetWorker(id)
+	if worker == nil || worker.EsimMgr == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "设备或esim管理器未找到"})
+		return
+	}
+
+	// 设置 SSE 响应头
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
+
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "流式输出不支持"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Minute)
+	defer cancel()
+
+	progressFn := func(event esim.NotificationProcessEvent) {
+		data, _ := json.Marshal(event)
+		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+		flusher.Flush()
+	}
+
+	err := worker.EsimMgr.ProcessNotifications(progressFn)
+	if err != nil {
+		errEvent := esim.NotificationProcessEvent{
+			Step:    "error",
+			Message: err.Error(),
+		}
+		data, _ := json.Marshal(errEvent)
+		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+		flusher.Flush()
+		return
+	}
+
+	_ = ctx
 }
 
 // handleEsimRetryNotification 

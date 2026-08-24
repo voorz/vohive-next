@@ -116,6 +116,69 @@ async function fetchOverview(refresh = false) {
   }
 }
 
+// 切卡后模组恢复需要时间（SIM power cycle + 网络注册），渐进式重试 fetchOverview(true)
+// 3s → 6s → 10s → 15s → 22s，最多 5 次。期间静默不弹错误。
+let postSwitchRefreshTimer: ReturnType<typeof setTimeout> | null = null
+function schedulePostSwitchOverviewRefresh() {
+  if (postSwitchRefreshTimer) {
+    clearTimeout(postSwitchRefreshTimer)
+    postSwitchRefreshTimer = null
+  }
+  const delays = [3000, 6000, 10000, 15000, 22000]
+  let attempt = 0
+  const device = props.deviceId
+  async function tryRefresh() {
+    if (props.deviceId !== device) return // 设备已切换，停止重试
+    attempt++
+    const ok = await fetchOverviewSilent(true)
+    if (ok) return // 成功拿到数据，停止重试
+    if (attempt >= delays.length) return // 超时，停止重试
+    postSwitchRefreshTimer = setTimeout(() => void tryRefresh(), delays[attempt] - delays[attempt - 1])
+  }
+  postSwitchRefreshTimer = setTimeout(() => void tryRefresh(), delays[0])
+}
+
+// 静默 fetchOverview：成功返回 true，失败返回 false（不弹错误，不清空数据）
+async function fetchOverviewSilent(refresh: boolean): Promise<boolean> {
+  if (!props.deviceId) return false
+  fetchRequestId += 1
+  const requestId = fetchRequestId
+  if (fetchAbortController) {
+    fetchAbortController.abort()
+  }
+  const controller = new AbortController()
+  fetchAbortController = controller
+  if (refresh) {
+    profilesRefreshing.value = true
+  }
+  const result = await devicesService.getEsimOverview(props.deviceId, {
+    refresh,
+    signal: controller.signal
+  })
+  let shouldResetLoading = true
+  try {
+    if (requestId !== fetchRequestId) {
+      shouldResetLoading = false
+      return false
+    }
+    if (!result.ok) throw result.error
+    chipInfo.value = result.data.chipInfo
+    profiles.value = result.data.profiles || []
+    notificationCount.value = result.data.notificationCount ?? 0
+    return true
+  } catch {
+    return false
+  } finally {
+    if (shouldResetLoading) {
+      if (refresh) {
+        profilesRefreshing.value = false
+      } else {
+        loading.value = false
+      }
+    }
+  }
+}
+
 async function switchProfile(iccid: string, state: number, aidHex: string) {
   const action = state === 1 ? '禁用' : '启用'
   const confirmed = await ElMessageBox.confirm(
@@ -135,6 +198,9 @@ async function switchProfile(iccid: string, state: number, aidHex: string) {
     if (!result.ok) throw new Error(result.error.message || `${action}失败`)
     ElMessage.success(`Profile ${action}成功`)
     profiles.value = applyOptimisticActiveState(profiles.value, iccid, aidHex)
+    // 切卡后模组恢复需要时间，渐进式重试 fetchOverview(true) 直到成功或超时
+    // 期间静默不弹错误（模组恢复中 APDU 失败是预期行为）
+    schedulePostSwitchOverviewRefresh()
   } catch (e: unknown) {
     ElMessage.error(errorMessage(e, `${action}失败`))
   } finally {
@@ -174,6 +240,10 @@ watch(() => props.deviceId, (newId) => {
 onBeforeUnmount(() => {
   if (fetchAbortController) {
     fetchAbortController.abort()
+  }
+  if (postSwitchRefreshTimer) {
+    clearTimeout(postSwitchRefreshTimer)
+    postSwitchRefreshTimer = null
   }
 })
 </script>

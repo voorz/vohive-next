@@ -2,6 +2,7 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
+import { Info24Regular } from '@vicons/fluent'
 import { devicesService } from '../services/devices'
 import { errorMessage } from '../services/http'
 
@@ -113,7 +114,17 @@ const eventCards = [
       <span>正在加载设置...</span>
     </div>
     <template v-else>
-      <!-- 四个事件类型卡片 -->
+      <!-- 提示卡片 -->
+      <div class="settings-info-card">
+        <div class="settings-info-icon">
+          <el-icon size="16"><Info24Regular /></el-icon>
+        </div>
+        <div class="settings-info-text">
+          处理通知有助于您的 eUICC 与 SM-DP+ 服务器（运营商）之间的同步。删除已发送的通知可以保持卡存储清洁。
+        </div>
+      </div>
+
+      <!-- 四个事件类型卡片 -->>
       <div v-for="card in eventCards" :key="card.key" class="settings-section">
         <div class="settings-section-title">{{ card.title }}</div>
         <div class="settings-section-body">
@@ -211,6 +222,37 @@ const eventCards = [
 
 @keyframes settings-spin {
   to { transform: rotate(360deg); }
+}
+
+/* 提示卡片 — 参照 chip-card 样式 */
+.settings-info-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--muted);
+}
+
+.settings-info-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  background: var(--background);
+  border: 1px solid var(--border);
+  color: var(--brand);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.settings-info-text {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted-foreground);
+  padding-top: 4px;
 }
 
 /* 设置卡片 — 参照 ModuleEsimDownload .download-section */

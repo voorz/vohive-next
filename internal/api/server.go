@@ -423,6 +423,7 @@ api.POST("/devices", s.handleDeviceMgmtAddDevice)                               
 		api.GET("/devices/:device_id/esim", s.handleEsimGetOverview) // 获取 eSIM 总览
 		api.GET("/devices/:device_id/esim/profiles", s.handleEsimListProfiles)
 		api.GET("/devices/:device_id/esim/notifications", s.handleEsimListNotifications)
+		api.POST("/devices/:device_id/esim/notifications/actions/process", s.handleEsimProcessNotifications) // 逐条处理通知（SSE 流式进度）
 		api.POST("/devices/:device_id/esim/notifications/:sequence/actions/retry", s.handleEsimRetryNotification) // 获取 eSIM profile 列表
 		api.GET("/devices/:device_id/esim/notification-settings", s.handleEsimGetNotificationSettings)               // 获取通知处理设置
 		api.PUT("/devices/:device_id/esim/notification-settings", s.handleEsimUpdateNotificationSettings)            // 更新通知处理设置

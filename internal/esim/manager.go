@@ -3699,24 +3699,14 @@ func encodePendingNotificationBase64(pn *sgp22.PendingNotification) string {
 	return base64.StdEncoding.EncodeToString(data)
 }
 
-// listNotificationItemsWithCleanup 使用 combined 策略一次获取全量 PendingNotification（对标 NekoKo NotificationStrategy.combined），
-// 然后在同一 channel 内同步执行 autoClean（对标 NekoKo _backgroundProcess），无需重新 createLPAWithAID。
+// listNotificationItemsWithCleanup 使用 combined 策略一次获取全量 PendingNotification（对标 NekoKo NotificationStrategy.combined）。
+// 注意：此处不再同步执行 autoClean（对标 NekoKo _backgroundProcess 的延迟触发）。
+// autoClean 改由 SSE 接口 ProcessNotificationsSSE 逐条异步执行，让用户先看到列表再感知处理过程。
 // eid 参数用于合并 DB 中的通知状态（对标 NekoKo _refreshStatusMap + syncAndGetCount）。
 func (m *Manager) listNotificationItemsWithCleanup(client *lpa.Client, aidHex, eid string) ([]NotificationItem, error) {
 	pendingNotifications, err := safeRetrieveAllNotifications(client)
 	if err != nil {
 		return nil, err
-	}
-
-	// 同 channel 内同步执行 autoClean（enable/disable 类型）
-	cleaned := m.autoCleanPendingNotifications(client, pendingNotifications, aidHex, eid)
-	if len(cleaned) > 0 {
-		logger.Info("eSIM 通知 autoClean 完成（同 channel）",
-			"device", m.deviceID,
-			"AID", aidHex,
-			"cleanedCount", len(cleaned))
-		// 过滤掉已清理的通知，不返回给前端
-		pendingNotifications = filterCleanedPendingNotifications(pendingNotifications, cleaned)
 	}
 
 	// G3: syncNotificationsWithDB — 对比 DB 和卡上通知，清理不一致的记录
@@ -4609,5 +4599,261 @@ func retryWithBackoff(maxRetries int, baseDelay time.Duration, onRetry func(atte
 		}
 		return nil
 	}
+	return nil
+}
+
+// NotificationProcessEvent 是逐条处理通知时通过回调推送的 SSE 事件。
+type NotificationProcessEvent struct {
+	Step           string `json:"step"`            // "processing" | "sent" | "removed" | "deleted" | "failed" | "skipped" | "done"
+	SequenceNumber int64  `json:"sequence_number"` // 通知序号
+	Event          string `json:"event"`           // install/enable/disable/delete
+	ICCID          string `json:"iccid,omitempty"`
+	Message        string `json:"message"`          // 描述信息
+	ProcessedCount int    `json:"processed_count"`  // 已处理数
+	TotalCount     int    `json:"total_count"`      // 总数
+}
+
+// ProcessNotifications 逐条处理通知（对标 NekoKo 逐条 autoClean + SSE 进度推送）。
+// 每处理完一条调用 progressFn 推送事件，让前端实时感知每条通知的处理过程。
+func (m *Manager) ProcessNotifications(progressFn func(NotificationProcessEvent)) error {
+	// 1. 获取通知列表（不 autoClean）
+	items, err := m.ListNotifications("")
+	if err != nil {
+		return err
+	}
+	if len(items) == 0 {
+		progressFn(NotificationProcessEvent{Step: "done", Message: "没有待处理的通知", ProcessedCount: 0, TotalCount: 0})
+		return nil
+	}
+
+	total := len(items)
+	processed := 0
+
+	// 2. 读取通知设置
+	settings, _ := db.GetEsimNotificationSettings(m.deviceID)
+
+	// 3. 获取 AID + 创建 LPA client
+	targetAID, err := m.resolveNotificationAID("")
+	if err != nil {
+		return err
+	}
+	if len(targetAID) == 0 {
+		candidates := m.notificationCandidateAIDs()
+		if cached := m.getWorkingAID(); cached != nil {
+			candidates = append([][]byte{cached}, candidates...)
+		}
+		if len(candidates) == 0 {
+			return NewNotificationError(NotificationErrorInternal, "无可用 AID", nil)
+		}
+		targetAID = candidates[0]
+	}
+
+	m.opMu.Lock()
+	defer func() {
+		m.logWriteOperationHold("process_notifications", time.Now())
+		m.opMu.Unlock()
+		m.notifyWriteDone()
+	}()
+
+	if err := m.waitForAPDUIdleForRead(); err != nil {
+		return err
+	}
+	m.preCleanChannels()
+	client, err := m.createLPAWithAID(targetAID)
+	if err != nil {
+		return NewNotificationError(NotificationErrorInternal, fmt.Sprintf("创建 LPA client 失败: %v", err), err)
+	}
+	defer func() {
+		_ = m.closeLPAClientForOperation("process_notifications", client)
+	}()
+
+	m.setWorkingAID(targetAID)
+	eid := m.firstEID()
+
+	// 4. 重新获取卡上的 PendingNotification（ListNotifications 返回的是 NotificationItem，
+	//    需要原始 pn 用于 HandleNotification）
+	pendingNotifications, err := safeRetrieveAllNotifications(client)
+	if err != nil {
+		return err
+	}
+
+	pendingMap := make(map[int64]*sgp22.PendingNotification, len(pendingNotifications))
+	for _, pn := range pendingNotifications {
+		if pn != nil && pn.Notification != nil {
+			pendingMap[int64(pn.Notification.SequenceNumber)] = pn
+		}
+	}
+
+	// 5. 逐条处理
+	for _, item := range items {
+		seq := item.SequenceNumber
+		eventName := item.Event
+
+		progressFn(NotificationProcessEvent{
+			Step:           "processing",
+			SequenceNumber: seq,
+			Event:          eventName,
+			ICCID:          item.ICCID,
+			Message:        fmt.Sprintf("正在处理 #%d %s", seq, eventName),
+			ProcessedCount: processed,
+			TotalCount:     total,
+		})
+
+		pn, ok := pendingMap[seq]
+		if !ok || pn == nil || pn.Notification == nil {
+			progressFn(NotificationProcessEvent{
+				Step:           "skipped",
+				SequenceNumber: seq,
+				Event:          eventName,
+				Message:        fmt.Sprintf("#%d 不在卡上，跳过", seq),
+				ProcessedCount: processed,
+				TotalCount:     total,
+			})
+			continue
+		}
+
+		meta := pn.Notification
+		shouldSend, shouldRemove, shouldDeleteWithoutSending := getNotificationActionSettings(meta.ProfileManagementOperation, settings)
+
+		if !shouldSend && !shouldRemove && !shouldDeleteWithoutSending {
+			progressFn(NotificationProcessEvent{
+				Step:           "skipped",
+				SequenceNumber: seq,
+				Event:          eventName,
+				Message:        fmt.Sprintf("#%d 设置未开启自动处理，跳过", seq),
+				ProcessedCount: processed,
+				TotalCount:     total,
+			})
+			continue
+		}
+
+		iccidStr := ""
+		if len(meta.ICCID) > 0 {
+			iccidStr = meta.ICCID.String()
+		}
+
+		// deleteWithoutSending
+		if shouldDeleteWithoutSending {
+			if err := retryWithBackoff(3, 300*time.Millisecond, nil, func() error {
+				err := client.RemoveNotificationFromList(meta.SequenceNumber)
+				if errors.Is(err, sgp22.ErrNothingToDelete) {
+					return nil
+				}
+				return err
+			}); err != nil {
+				progressFn(NotificationProcessEvent{
+					Step:           "failed",
+					SequenceNumber: seq,
+					Event:          eventName,
+					Message:        fmt.Sprintf("#%d 移除失败: %v", seq, err),
+					ProcessedCount: processed,
+					TotalCount:     total,
+				})
+				continue
+			}
+			if eid != "" {
+				_ = db.UpdateEsimNotificationStatus(eid, seq, iccidStr, 3, nil, "")
+			}
+			processed++
+			progressFn(NotificationProcessEvent{
+				Step:           "deleted",
+				SequenceNumber: seq,
+				Event:          eventName,
+				ICCID:          iccidStr,
+				Message:        fmt.Sprintf("#%d 已直接删除（不发送）", seq),
+				ProcessedCount: processed,
+				TotalCount:     total,
+			})
+			continue
+		}
+
+		// shouldSend
+		if shouldSend {
+			if err := retryWithBackoff(3, 300*time.Millisecond, nil, func() error {
+				return client.HandleNotification(pn)
+			}); err != nil {
+				if eid != "" {
+					_ = db.UpdateEsimNotificationStatus(eid, seq, iccidStr, 2, nil, err.Error())
+				}
+				progressFn(NotificationProcessEvent{
+					Step:           "failed",
+					SequenceNumber: seq,
+					Event:          eventName,
+					Message:        fmt.Sprintf("#%d 发送失败: %v", seq, err),
+					ProcessedCount: processed,
+					TotalCount:     total,
+				})
+				continue
+			}
+			if eid != "" {
+				contentBase64 := encodePendingNotificationBase64(pn)
+				record := db.EsimNotificationRecord{
+					EID:                eid,
+					SeqNumber:          seq,
+					ICCID:              iccidStr,
+					Content:            contentBase64,
+					Timestamp:          time.Now().UnixMilli(),
+					Status:             1,
+					NotificationServer: meta.Address,
+					NotificationType:   eventName,
+				}
+				_ = db.SaveEsimNotification(record)
+			}
+		}
+
+		// shouldRemove
+		if shouldRemove {
+			if err := retryWithBackoff(3, 300*time.Millisecond, nil, func() error {
+				err := client.RemoveNotificationFromList(meta.SequenceNumber)
+				if errors.Is(err, sgp22.ErrNothingToDelete) {
+					return nil
+				}
+				return err
+			}); err != nil {
+				if eid != "" {
+					_ = db.SetEsimNotificationDeletePending(eid, seq, iccidStr, true)
+				}
+				progressFn(NotificationProcessEvent{
+					Step:           "failed",
+					SequenceNumber: seq,
+					Event:          eventName,
+					Message:        fmt.Sprintf("#%d 移除失败: %v", seq, err),
+					ProcessedCount: processed,
+					TotalCount:     total,
+				})
+				continue
+			}
+		}
+
+		processed++
+		action := "已发送"
+		if shouldSend && shouldRemove {
+			action = "已发送并移除"
+		} else if !shouldSend && shouldRemove {
+			action = "已移除"
+		}
+		progressFn(NotificationProcessEvent{
+			Step:           "sent",
+			SequenceNumber: seq,
+			Event:          eventName,
+			ICCID:          iccidStr,
+			Message:        fmt.Sprintf("#%d %s", seq, action),
+			ProcessedCount: processed,
+			TotalCount:     total,
+		})
+	}
+
+	// 6. 完成
+	progressFn(NotificationProcessEvent{
+		Step:           "done",
+		Message:        fmt.Sprintf("全部处理完成 (%d/%d)", processed, total),
+		ProcessedCount: processed,
+		TotalCount:     total,
+	})
+
+	// 7. 刷新 overview 缓存
+	m.invalidateOverviewCache("process_notifications")
+	m.triggerOverviewReload("process_notifications")
+
 	return nil
 }
