@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useCarrierStore } from '../stores/carrier'
@@ -13,7 +13,7 @@ import {
 import CarrierIcon from './CarrierIcon.vue'
 import CountryFlag from './CountryFlag.vue'
 import { downloadIcon, getCachedIcon } from '../composables/useOperatorIcon'
-import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
+import { mccToIso, loadPlmnInfo, getPlmnInfo } from '../composables/plmn-info'
 
 const emit = defineEmits<{
   'open-search': []
@@ -24,31 +24,21 @@ const { carriers, selectedKey, loading } = storeToRefs(store)
 
 const searchText = ref('')
 
-// PLMN 索引信息
-const plmnInfoMap = ref<Record<string, PlmnInfoEntry | null>>({})
-const plmInfoLoaded = ref(false)
-
+// PLMN 索引加载（用于 mccToIso 内部查询）
 onMounted(async () => {
   await loadPlmnInfo()
-  plmInfoLoaded.value = true
 })
 
-// 同步刷新 plmnInfoMap
-watch([carriers, plmInfoLoaded], () => {
-  const map: Record<string, PlmnInfoEntry | null> = {}
-  for (const c of carriers.value) {
-    // 子品牌 key 如 "234-33__cmlink" 需取主网 PLMN 查找
-    const baseKey = c.key.split('__')[0]
-    map[c.key] = getPlmnInfo(baseKey)
-  }
-  plmnInfoMap.value = map
-}, { immediate: true })
-
-function getCountryIso(key: string): string {
-  return plmnInfoMap.value[key]?.country?.iso || ''
+// 国旗 ISO — 直接用 MCC+MNC 查询，与 CarrierIcon 使用同一套数据源
+function getCountryIso(mcc: string, mnc: string): string {
+  return mccToIso(mcc, mnc)
 }
-function getCountryCode(key: string): string {
-  return plmnInfoMap.value[key]?.country?.code || ''
+
+// 国家码 — 从 PLMN 信息获取
+function getCountryCode(mcc: string, mnc: string): string {
+  const plmn = mnc ? `${mcc}-${mnc}` : mcc
+  const info = getPlmnInfo(plmn)
+  return info?.country?.code || ''
 }
 
 const filteredCarriers = computed(() => {
@@ -139,9 +129,9 @@ async function handleDelete(key: string, name: string) {
             <div class="carrier-card-name">{{ item.name }}</div>
             <div class="carrier-card-meta">
               <span class="carrier-card-plmn">{{ item.mcc }}:{{ item.mnc }}</span>
-              <span v-if="getCountryCode(item.key)" class="carrier-card-code">+{{ getCountryCode(item.key) }}</span>
-              <CountryFlag v-if="getCountryIso(item.key)" :iso="getCountryIso(item.key)" :size="14" class="carrier-card-flag" />
-              <span v-if="getCountryIso(item.key)" class="carrier-card-iso">{{ getCountryIso(item.key) }}</span>
+              <span v-if="getCountryCode(item.mcc, item.mnc)" class="carrier-card-code">+{{ getCountryCode(item.mcc, item.mnc) }}</span>
+              <CountryFlag v-if="getCountryIso(item.mcc, item.mnc)" :iso="getCountryIso(item.mcc, item.mnc)" :size="14" class="carrier-card-flag" />
+              <span v-if="getCountryIso(item.mcc, item.mnc)" class="carrier-card-iso">{{ getCountryIso(item.mcc, item.mnc) }}</span>
             </div>
           </div>
           <div class="carrier-card-badges">

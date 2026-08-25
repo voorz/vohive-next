@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useCarrierStore } from '../stores/carrier'
 import CarrierEditArea from './CarrierEditArea.vue'
@@ -8,7 +8,7 @@ import EmptyState from './EmptyState.vue'
 import { Add24Regular } from '@vicons/fluent'
 import CarrierIcon from './CarrierIcon.vue'
 import CountryFlag from './CountryFlag.vue'
-import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
+import { mccToIso, loadPlmnInfo, getPlmnInfo } from '../composables/plmn-info'
 
 const emit = defineEmits<{
   'open-search': []
@@ -24,21 +24,24 @@ function handleSelectChange(value: string) {
 
 const selectValue = computed(() => selectedKey.value)
 
-// PLMN 索引信息（国家/代码/ISO）
-const plmnInfo = ref<PlmnInfoEntry | null>(null)
-
 // 触发加载
 onMounted(() => loadPlmnInfo())
 
-// 选中运营商变化时查询 PLMN 信息
-watch(() => selectedCarrier.value?.key, (key) => {
-  // 子品牌 key 如 "234-33__cmlink" 需取主网 PLMN 查找
-  const baseKey = key ? key.split('__')[0] : ''
-  plmnInfo.value = baseKey ? getPlmnInfo(baseKey) : null
-}, { immediate: true })
+// 选中运营商变化时查询 PLMN 信息（直接用 MCC+MNC，与 CarrierIcon 同源）
+const plmnInfo = computed(() => {
+  const mcc = selectedCarrier.value?.mcc
+  const mnc = selectedCarrier.value?.mnc
+  if (!mcc) return null
+  const plmn = mnc ? `${mcc}-${mnc}` : mcc
+  return getPlmnInfo(plmn)
+})
 
 const countryName = computed(() => plmnInfo.value?.country?.name || '')
-const countryIso = computed(() => plmnInfo.value?.country?.iso || '')
+const countryIso = computed(() => {
+  const mcc = selectedCarrier.value?.mcc
+  const mnc = selectedCarrier.value?.mnc
+  return mccToIso(mcc, mnc)
+})
 const countryCode = computed(() => plmnInfo.value?.country?.code || '')
 
 // 激活状态文案

@@ -104,3 +104,21 @@ export function getPlmnInfo(plmn: string): PlmnInfoEntry | null {
   const data = getPlmnInfoData()
   return data?.[plmn] || null
 }
+
+/** 通过 MCC/MNC 查询国家 ISO 码（用于国旗显示）。同步调用，需先 loadPlmnInfo。 */
+export function mccToIso(mcc?: string, mnc?: string): string {
+  if (!mcc) return ''
+  const plmn = mnc ? `${mcc}-${mnc}` : mcc
+  const info = getPlmnInfo(plmn)
+  if (info?.country?.iso) return info.country.iso
+  // 回退：只用 MCC 查找（遍历以 mcc 开头的 key）
+  const data = getPlmnInfoData()
+  if (data) {
+    for (const [key, entry] of Object.entries(data)) {
+      if (key.startsWith(mcc + '-') && entry.country?.iso) {
+        return entry.country.iso
+      }
+    }
+  }
+  return ''
+}

@@ -322,8 +322,6 @@ onBeforeUnmount(() => {
           />
         </div>
 
-        <div v-if="chipInfo" class="preview-section-divider" />
-
         <div class="preview-profile-wrapper">
           <div class="preview-profile-scroll">
             <template v-if="profiles.length > 0">
@@ -426,20 +424,13 @@ onBeforeUnmount(() => {
   padding: 12px;
 }
 
-/* 全宽分割线 — 连接外框 */
-.preview-section-divider {
-  height: 1px;
-  background: var(--border);
-  flex-shrink: 0;
-}
-
-/* Profile 列表 — 外层 wrapper（下沉式内阴影） */
+/* Profile 列表 — 外层 wrapper */
 .preview-profile-wrapper {
   flex: 1;
   min-height: 0;
   overflow: hidden;
   position: relative;
-  box-shadow: inset 0 4px 6px -3px rgba(0,0,0,0.12), inset 0 -4px 6px -3px rgba(0,0,0,0.12);
+  border-top: 1px solid var(--border);
 }
 
 /* Profile 列表 — 内层滚动 */

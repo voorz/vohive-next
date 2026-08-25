@@ -301,6 +301,8 @@ export type EsimNotificationItem = {
   sequence_number: number
   event: string
   iccid?: string
+  profile_name?: string
+  mcc?: string
   address?: string
   aid_hex?: string
   can_retry: boolean

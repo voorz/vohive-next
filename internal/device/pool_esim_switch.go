@@ -1217,6 +1217,8 @@ func (p *Pool) handleESIMSwitchAfter(deviceID string, token uint64) {
 	// 此处模组已恢复，触发一次 overview 重新加载以恢复 profile 列表。
 	// 此时 overview 会统计卡上通知数量（不触发 autoClean），红点先出现。
 	if worker.EsimMgr != nil {
+		// 强制清空缓存（patchCachedActiveProfile 只修改了 profile 状态，notificationCount 仍是旧值）
+		worker.EsimMgr.InvalidateOverviewCache("post_switch_finalize")
 		worker.EsimMgr.WarmOverviewAsync("post_switch_finalize")
 	}
 

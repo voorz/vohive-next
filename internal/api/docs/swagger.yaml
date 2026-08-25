@@ -14,11 +14,17 @@ definitions:
         type: string
       iccid:
         type: string
+      mcc:
+        description: 关联 profile 的 MCC（用于国旗显示）
+        type: string
       notification_server:
         description: RSP 服务器地址
         type: string
       notification_type:
         description: install/enable/disable/delete
+        type: string
+      profile_name:
+        description: 关联 profile 的名称（手机号/卡名）
         type: string
       response_code:
         description: HTTP 响应码
@@ -1001,6 +1007,38 @@ paths:
       tags:
       - devices
   /devices/{device_id}/esim/notification-history:
+    delete:
+      description: 清空指定设备的通知历史记录
+      parameters:
+      - description: device_id
+        in: path
+        name: device_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 清空成功
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: 未授权
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: 内部错误
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: EsimClearNotificationHistory
+      tags:
+      - devices
     get:
       parameters:
       - description: device_id

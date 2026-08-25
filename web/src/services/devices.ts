@@ -364,6 +364,12 @@ export const devicesService = {
       return res.data
     })
   },
+  clearEsimNotificationHistory(id: string) {
+    return callService(async () => {
+      const res = await api.delete(`/devices/${id}/esim/notification-history`)
+      return res.data
+    })
+  },
   switchEsimProfile(id: string, payload: { iccid: string; aid_hex: string; state: number }) {
     return callService(async () => {
       await withEsimBusyRetry(() => api.post(`/devices/${id}/esim/actions/switch`, payload))

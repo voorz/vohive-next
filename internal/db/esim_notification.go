@@ -16,6 +16,8 @@ type EsimNotificationRecord struct {
 	EID                string `gorm:"column:eid;primaryKey" json:"eid"`
 	SeqNumber          int64  `gorm:"column:seq_number;primaryKey" json:"seq_number"`
 	ICCID              string `gorm:"column:iccid;primaryKey" json:"iccid"`
+	ProfileName        string `gorm:"column:profile_name" json:"profile_name"`             // 关联 profile 的名称（手机号/卡名）
+	MCC                string `gorm:"column:mcc" json:"mcc"`                               // 关联 profile 的 MCC（用于国旗显示）
 	Content            string `gorm:"column:content" json:"content"`                           // base64 编码的 PendingNotification
 	Timestamp          int64  `gorm:"column:timestamp" json:"timestamp"`                     // 毫秒时间戳
 	Status             int    `gorm:"column:status" json:"status"`                           // 0/1/2/3
@@ -241,4 +243,12 @@ func defaultEsimNotificationSettings(deviceID string) *EsimNotificationSettings 
 		CreatedAt:                   time.Now(),
 		UpdatedAt:                   time.Now(),
 	}
+}
+
+// DeleteEsimNotificationsByEID 删除指定 EID 下的所有通知历史记录
+func DeleteEsimNotificationsByEID(eid string) error {
+	if DB == nil {
+		return errors.New("database not initialized")
+	}
+	return DB.Where("eid = ?", eid).Delete(&EsimNotificationRecord{}).Error
 }

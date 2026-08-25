@@ -2498,6 +2498,44 @@ func (s *Server) handleEsimListNotificationHistory(c *gin.Context) {
 	c.JSON(http.StatusOK, records)
 }
 
+// handleEsimClearNotificationHistory
+//
+// @Summary      EsimClearNotificationHistory
+// @Description  清空指定设备的通知历史记录
+// @Tags         devices
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]string  "清空成功"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Failure      500  {object}  map[string]interface{}  "内部错误"
+// @Router       /devices/{device_id}/esim/notification-history [delete]
+// @Security     BearerAuth
+func (s *Server) handleEsimClearNotificationHistory(c *gin.Context) {
+	id := deviceIDParam(c)
+	worker := s.pool.GetWorker(id)
+	if worker == nil {
+		c.JSON(http.StatusOK, gin.H{"message": "设备不在线，无需清理"})
+		return
+	}
+	// 获取该设备的 EID
+	eid := ""
+	if worker.EsimMgr != nil {
+		e, err := worker.EsimMgr.GetEID()
+		if err == nil {
+			eid = e
+		}
+	}
+	if eid == "" {
+		c.JSON(http.StatusOK, gin.H{"message": "未检测到 eUICC，无需清理"})
+		return
+	}
+	if err := db.DeleteEsimNotificationsByEID(eid); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "清空通知历史记录失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "通知历史记录已清空"})
+}
+
 // handleEsimSwitchProfile 切换 eSIM Profile
 // handleEsimSwitchProfile 
 //

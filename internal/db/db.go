@@ -175,6 +175,15 @@ func Init(dbPath string) error {
 		return err
 	}
 
+	// eSIM 通知历史记录自动过期：每次插入新记录时触发清理 7 天前的已处理记录
+	DB.Exec(`CREATE TRIGGER IF NOT EXISTS trg_notif_auto_expire
+AFTER INSERT ON esim_notification_records
+BEGIN
+	DELETE FROM esim_notification_records
+	WHERE updated_at < datetime('now', '-7 days')
+	AND status IN (1, 3);
+END`)
+
 	if err := RunICCIDReKeyMigration(DB); err != nil {
 		return err
 	}

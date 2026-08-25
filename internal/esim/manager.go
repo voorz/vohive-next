@@ -1468,6 +1468,31 @@ func (m *Manager) setOverviewCache(overview *EsimOverview, err error, generation
 	}
 }
 
+// InvalidateOverviewCache 导出版本，供外部包（如 device）调用强制清空 overview 缓存。
+// lookupProfileByICCID 从 overview 缓存中通过 ICCID 查找 profile 的 Name 和 MCC。
+func (m *Manager) lookupProfileByICCID(iccid string) (name, mcc string) {
+	if iccid == "" {
+		return "", ""
+	}
+	m.cacheMu.RLock()
+	defer m.cacheMu.RUnlock()
+	if m.overviewCache == nil {
+		return "", ""
+	}
+	for _, group := range m.overviewCache.Profiles {
+		for _, p := range group.Profiles {
+			if p.ICCID == iccid {
+				return p.Name, p.MCC
+			}
+		}
+	}
+	return "", ""
+}
+
+func (m *Manager) InvalidateOverviewCache(reason string) {
+	m.invalidateOverviewCache(reason)
+}
+
 func (m *Manager) invalidateOverviewCache(reason string) {
 	if m == nil {
 		return
@@ -3132,6 +3157,8 @@ type NotificationItem struct {
 	SequenceNumber int64  `json:"sequence_number"`
 	Event          string `json:"event"`
 	ICCID          string `json:"iccid,omitempty"`
+	ProfileName    string `json:"profile_name,omitempty"` // 关联 profile 的名称（手机号/卡名）
+	MCC            string `json:"mcc,omitempty"`          // 关联 profile 的 MCC（用于前端国旗显示）
 	Address        string `json:"address,omitempty"`
 	AIDHex         string `json:"aid_hex,omitempty"`
 	CanRetry       bool   `json:"can_retry"`
@@ -3398,7 +3425,13 @@ func buildNotificationItems(notifications []*sgp22.NotificationMetadata, aidHex 
 // buildNotificationItemsFromPending 从 combined 策略获取的 PendingNotification 列表构建 NotificationItem。
 // 每个 PendingNotification 内含 NotificationMetadata，无需额外 retrieve。
 // dbStatusMap 为 DB 中该 EID 的通知状态映射（seq→status int），用于合并状态。
-func buildNotificationItemsFromPending(pendingNotifications []*sgp22.PendingNotification, aidHex string, dbStatusMap map[int64]int) []NotificationItem {
+func buildNotificationItemsFromPending(pendingNotifications []*sgp22.PendingNotification, aidHex string, dbStatusMap map[int64]int, profiles []ProfileItem) []NotificationItem {
+	// 构建 ICCID → Profile 索引，用于关联卡名和国旗
+	profileByICCID := make(map[string]ProfileItem, len(profiles))
+	for _, p := range profiles {
+		profileByICCID[p.ICCID] = p
+	}
+
 	items := make([]NotificationItem, 0, len(pendingNotifications))
 	for _, pn := range pendingNotifications {
 		if pn == nil || pn.Notification == nil {
@@ -3426,6 +3459,11 @@ func buildNotificationItemsFromPending(pendingNotifications []*sgp22.PendingNoti
 		}
 		if len(meta.ICCID) > 0 {
 			item.ICCID = meta.ICCID.String()
+			// 通过 ICCID 关联 profile 信息（卡名 + MCC）
+			if p, ok := profileByICCID[item.ICCID]; ok {
+				item.ProfileName = p.Name
+				item.MCC = p.MCC
+			}
 		}
 		items = append(items, item)
 	}
@@ -3583,10 +3621,14 @@ func (m *Manager) autoCleanPendingNotifications(client *lpa.Client, pendingNotif
 					iccidStr = meta.ICCID.String()
 				}
 				contentBase64 := encodePendingNotificationBase64(pn)
+				// 从 overview 缓存关联 profile 名称和国旗 MCC
+				profileName, mcc := m.lookupProfileByICCID(iccidStr)
 				record := db.EsimNotificationRecord{
 					EID:                eid,
 					SeqNumber:          int64(seq),
 					ICCID:              iccidStr,
+					ProfileName:        profileName,
+					MCC:                mcc,
 					Content:            contentBase64,
 					Timestamp:          time.Now().UnixMilli(),
 					Status:             1, // sent
@@ -3712,8 +3754,29 @@ func (m *Manager) listNotificationItemsWithCleanup(client *lpa.Client, aidHex, e
 	// G3: syncNotificationsWithDB — 对比 DB 和卡上通知，清理不一致的记录
 	dbStatusMap := m.syncNotificationsWithDB(eid, pendingNotifications)
 
+	// 从 overview 获取 profiles，用于关联卡名和国旗
+	// 如果缓存为空（如切卡后刚清空），同步加载一次
+	var profiles []ProfileItem
+	m.cacheMu.RLock()
+	if m.overviewCache != nil {
+		for _, group := range m.overviewCache.Profiles {
+			profiles = append(profiles, group.Profiles...)
+		}
+	}
+	m.cacheMu.RUnlock()
+
+	if len(profiles) == 0 {
+		// 缓存为空，同步加载 overview
+		if overview, err := m.loadOverview(); err == nil && overview != nil {
+			profiles = make([]ProfileItem, 0)
+			for _, group := range overview.Profiles {
+				profiles = append(profiles, group.Profiles...)
+			}
+		}
+	}
+
 	// G2: 合并 DB 状态构建 NotificationItem（status==1 的不返回）
-	return buildNotificationItemsFromPending(pendingNotifications, aidHex, dbStatusMap), nil
+	return buildNotificationItemsFromPending(pendingNotifications, aidHex, dbStatusMap, profiles), nil
 }
 
 // syncNotificationsWithDB 对比 DB 记录和卡上通知列表，清理不一致的记录（对标 NekoKo syncAndGetCount）。
@@ -3965,10 +4028,14 @@ func (m *Manager) RetryNotification(sequenceNumber int64, aidHex string) error {
 				address = meta.Address
 			}
 			contentBase64 := encodePendingNotificationBase64(notification)
+			// 从 overview 缓存关联 profile 名称和国旗 MCC
+			profileName, mcc := m.lookupProfileByICCID(iccidStr)
 			record := db.EsimNotificationRecord{
 				EID:                eid,
 				SeqNumber:          sequenceNumber,
 				ICCID:              iccidStr,
+				ProfileName:        profileName,
+				MCC:                mcc,
 				Content:            contentBase64,
 				Timestamp:          time.Now().UnixMilli(),
 				Status:             1, // sent
@@ -4787,11 +4854,13 @@ func (m *Manager) ProcessNotifications(progressFn func(NotificationProcessEvent)
 			}
 			if eid != "" {
 				contentBase64 := encodePendingNotificationBase64(pn)
-				record := db.EsimNotificationRecord{
-					EID:                eid,
-					SeqNumber:          seq,
-					ICCID:              iccidStr,
-					Content:            contentBase64,
+			record := db.EsimNotificationRecord{
+				EID:                eid,
+				SeqNumber:          seq,
+				ICCID:              iccidStr,
+				ProfileName:        item.ProfileName,
+				MCC:                item.MCC,
+				Content:            contentBase64,
 					Timestamp:          time.Now().UnixMilli(),
 					Status:             1,
 					NotificationServer: meta.Address,

@@ -2,7 +2,6 @@
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Loading } from '@element-plus/icons-vue'
-import { Info24Regular } from '@vicons/fluent'
 import { devicesService } from '../services/devices'
 import { errorMessage } from '../services/http'
 
@@ -114,17 +113,7 @@ const eventCards = [
       <span>正在加载设置...</span>
     </div>
     <template v-else>
-      <!-- 提示卡片 -->
-      <div class="settings-info-card">
-        <div class="settings-info-icon">
-          <el-icon size="16"><Info24Regular /></el-icon>
-        </div>
-        <div class="settings-info-text">
-          处理通知有助于您的 eUICC 与 SM-DP+ 服务器（运营商）之间的同步。删除已发送的通知可以保持卡存储清洁。
-        </div>
-      </div>
-
-      <!-- 四个事件类型卡片 -->>
+      <!-- 四个事件类型卡片 -->
       <div v-for="card in eventCards" :key="card.key" class="settings-section">
         <div class="settings-section-title">{{ card.title }}</div>
         <div class="settings-section-body">

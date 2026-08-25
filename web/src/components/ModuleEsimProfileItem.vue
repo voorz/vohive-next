@@ -5,6 +5,7 @@ import { Settings24Regular } from '@vicons/fluent'
 import CountryFlag from './CountryFlag.vue'
 import CarrierIcon from './CarrierIcon.vue'
 import { phoneToIso } from '../utils/phone-flag'
+import { mccToIso } from '../composables/plmn-info'
 import { useProviderLogo, autoDownloadIcon } from '../composables/useProviderLogo'
 
 const props = defineProps<{
@@ -19,7 +20,12 @@ const emit = defineEmits<{
   'open-settings': [profile: EsimProfileItem, aidHex: string]
 }>()
 
-const flagIso = computed(() => phoneToIso(props.profile.name))
+// 优先用 PLMN (MCC+MNC) 匹配国旗，回退用手机号 phoneToIso
+const flagIso = computed(() => {
+  const iso = mccToIso(props.profile.mcc, props.profile.mnc)
+  if (iso) return iso
+  return phoneToIso(props.profile.name)
+})
 const isActive = computed(() => props.profile.state === 1)
 
 // 运营商 LOGO — 使用 profile 自带的 MCC/MNC（来自 profileOwner），等待 catalog 加载

@@ -1635,6 +1635,55 @@
                         }
                     }
                 }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "清空指定设备的通知历史记录",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "devices"
+                ],
+                "summary": "EsimClearNotificationHistory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "device_id",
+                        "name": "device_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "清空成功",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "内部错误",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
             }
         },
         "/devices/{device_id}/esim/notification-settings": {
@@ -5375,12 +5424,20 @@
                 "iccid": {
                     "type": "string"
                 },
+                "mcc": {
+                    "description": "关联 profile 的 MCC（用于国旗显示）",
+                    "type": "string"
+                },
                 "notification_server": {
                     "description": "RSP 服务器地址",
                     "type": "string"
                 },
                 "notification_type": {
                     "description": "install/enable/disable/delete",
+                    "type": "string"
+                },
+                "profile_name": {
+                    "description": "关联 profile 的名称（手机号/卡名）",
                     "type": "string"
                 },
                 "response_code": {
