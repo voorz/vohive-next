@@ -3926,14 +3926,28 @@ func (m *Manager) listNotificationsForCurrentCard() ([]NotificationItem, error) 
 	}
 
 	for _, aid := range candidates {
+		createStart := time.Now()
 		client, err := m.createLPAWithAID(aid)
+		createMs := time.Since(createStart).Milliseconds()
 		if err != nil {
 			lastErr = err
 			continue
 		}
 		aidHex := strings.ToUpper(hex.EncodeToString(aid))
+		listStart := time.Now()
 		aidItems, listErr := m.listNotificationItemsWithCleanup(client, aidHex, eid)
-		_ = m.closeLPAClientForOperation("list_notifications_current_card", client)
+		listMs := time.Since(listStart).Milliseconds()
+		closeStart := time.Now()
+		closeErr := m.closeLPAClientForOperation("list_notifications_current_card", client)
+		closeMs := time.Since(closeStart).Milliseconds()
+		logger.Info("通知列表耗时分解",
+			"device", m.deviceID,
+			"AID", aidHex,
+			"create_ms", createMs,
+			"list_ms", listMs,
+			"close_ms", closeMs,
+			"close_err", closeErr,
+			"items_count", len(aidItems))
 		if listErr != nil {
 			lastErr = listErr
 			continue

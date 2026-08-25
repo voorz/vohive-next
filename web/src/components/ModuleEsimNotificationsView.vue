@@ -505,7 +505,6 @@ async function retryNotification(item: NotificationItemWithStatus) {
             <el-empty description="当前没有可展示的通知" :image-size="60" />
           </div>
           <template v-else>
-            <div v-if="notifLoading" class="notif-refreshing-mask" />
             <!-- 倒计时 / 处理中 / 暂停 提示条（含暂停/播放按钮） -->
             <div v-if="paused" class="notif-countdown-bar">
               <span>自动清理已暂停</span>
@@ -846,16 +845,6 @@ async function retryNotification(item: NotificationItemWithStatus) {
   border-top-color: var(--brand);
   border-radius: 999px;
   animation: notif-spin 0.8s linear infinite;
-}
-
-.notif-refreshing-mask {
-  position: absolute;
-  inset: 0;
-  background: var(--card);
-  opacity: 0.5;
-  z-index: 1;
-  pointer-events: none;
-  border-radius: 6px;
 }
 
 /* 倒计时 / 处理中提示条 */
