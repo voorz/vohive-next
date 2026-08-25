@@ -12,6 +12,7 @@ import (
 
 // USBIdentity 描述一个 USB 设备的描述符身份信息
 type USBIdentity struct {
+	SysPath      string // 完整 sysfs 路径，如 /sys/bus/usb/devices/1-1
 	Manufacturer string
 	Product      string
 	Serial       string
@@ -75,6 +76,7 @@ func listUSBIdentitiesFromSysfs() []USBIdentity {
 		// 读取接口驱动信息
 		interfaces := readSysfsInterfaces(dir)
 		out = append(out, USBIdentity{
+			SysPath:      dir,
 			Manufacturer: manufacturer,
 			Product:      product,
 			Serial:       serial,

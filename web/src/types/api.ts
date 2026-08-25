@@ -334,7 +334,8 @@ pcsc_reader?: string
   chip_vendor?: string
   firmware?: string
   serial?: string
-info?: string
+  info?: string
+  suggested_id?: string
 }
 
 export type DashboardDevice = {

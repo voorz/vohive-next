@@ -1160,6 +1160,7 @@ type discoveredDevice struct {
 	Firmware       string `json:"firmware,omitempty"`        // 固件版本（ATI Revision 获取）
 	Serial         string `json:"serial,omitempty"`        // USB Serial Number
 	Info           string `json:"info,omitempty"`           // USB 技术信息行（SSN/USB版本/设备类/端点摘要 或 接口驱动统计）
+	SuggestedID    string `json:"suggested_id,omitempty"` // 后端生成的建议设备ID（PC/SC 用 crc32(usb_path)）
 }
 
 var discoverQMIForMgmtFn = device.DiscoverQMIDevices
@@ -1338,7 +1339,9 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 		// 从 USB 设备中提取结构化信息
 			product, manufacturer, vid, pid := device.ResolvePCSCReaderUSBInfo(r, usbIdentities)
 			var serialStr, infoStr string
+			var pcscDetail *device.USBIdentity
 			if detail := device.ResolvePCSCReaderUSBDetail(r, usbIdentities); detail != nil {
+				pcscDetail = detail
 				serialStr = detail.Serial
 				infoStr = device.FormatUSBInfoLine(detail, true)
 			}
@@ -1367,6 +1370,7 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 				IMEI:         imei,
 				Configured:   configuredID != "",
 				ConfiguredID: configuredID,
+				SuggestedID:  pcscSuggestedID(pcscDetail),
 			})
 		}
 	}
