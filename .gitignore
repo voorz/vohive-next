@@ -80,4 +80,5 @@ dist/
 build.ps1
 build-arm.ps1
 deploy/
+dev
 /internal/backend/frontend/

@@ -103,7 +103,7 @@ running: boolean
   interface?: string
   control_device?: string
   esim_transport?: string
-  pcsc_reader?: string
+  pcsc_usb_path?: string
   at_port?: string
   usb_path?: string
   local_phone?: string
@@ -142,7 +142,7 @@ running: boolean
   public_ipv6?: string
   interface?: string
   esim_transport?: string
-  pcsc_reader?: string
+  pcsc_usb_path?: string
   sms_enabled: boolean
   network_enabled: boolean
   flight_mode?: boolean
@@ -162,8 +162,7 @@ interface: string
   apn?: string
   ip_version?: 'v4' | 'v6' | 'v4v6'
   esim_transport?: 'at' | 'qmi' | 'mbim' | 'pcsc'
-  pcsc_reader?: string
-  pcsc_serial?: string
+  pcsc_usb_path?: string
   network_enabled?: boolean
   at_port: string
   control_device: string
@@ -327,7 +326,7 @@ configured_id?: string
 degraded?: boolean
 usbnet_mode?: number
 type?: 'modem' | 'pcsc'
-pcsc_reader?: string
+pcsc_usb_path?: string
   display_name?: string
   manufacturer?: string
   model?: string

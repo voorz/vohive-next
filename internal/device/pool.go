@@ -2078,7 +2078,7 @@ func newESIMManagerForWorker(
 		Modem:                w.Modem,
 		Backend:              w.Backend,
 		QMITransport:         qmiTransport,
-		PCSCReader:           w.Config.PCSCReader,
+		PCSCUSBPath:           w.Config.PCSCUSBPath,
 		OnBeforeSwitch:       beforeWithOperation,
 		OnAfterSwitch:        afterWithOperation,
 		OnSwitchFailed:       failedWithOperation,

@@ -41,8 +41,8 @@ ModemIMEI             string  `json:"modem_imei"`
 	QMIProxyPath          *string `json:"qmi_proxy_path,omitempty"`
 	QMIProxyExecutable    *string `json:"qmi_proxy_executable,omitempty"`
 	ESIMTransport         string  `json:"esim_transport,omitempty"`
-	PCSCReader            string  `json:"pcsc_reader,omitempty"`
 	PCSCSerial            string  `json:"pcsc_serial,omitempty"`
+	PCSCUSBPath           string  `json:"pcsc_usb_path,omitempty"`
 	BaudRate              int     `json:"baud_rate,omitempty"`
 	DataBits              int     `json:"data_bits,omitempty"`
 	StopBits              int     `json:"stop_bits,omitempty"`
@@ -74,7 +74,8 @@ ModemIMEI:             c.ModemIMEI,
 		QMIProxyPath:          stringPtr(c.QMIProxyPath),
 		QMIProxyExecutable:    stringPtr(c.QMIProxyExecutable),
 		ESIMTransport:         config.NormalizeESIMTransport(c.ESIMTransport),
-		PCSCReader:            c.PCSCReader,
+		PCSCSerial:            c.PCSCSerial,
+		PCSCUSBPath:           c.PCSCUSBPath,
 		BaudRate:              c.BaudRate,
 		DataBits:              c.DataBits,
 		StopBits:              c.StopBits,
@@ -118,17 +119,17 @@ func deviceConfigFromDTOWithBase(d deviceConfigDTO, base *config.DeviceConfig) c
 		qmiProxyExecutable = strings.TrimSpace(*d.QMIProxyExecutable)
 	}
 	esimTransport := strings.TrimSpace(d.ESIMTransport)
-	pcscReader := strings.TrimSpace(d.PCSCReader)
 	pcscSerial := strings.TrimSpace(d.PCSCSerial)
+	pcscUSBPath := strings.TrimSpace(d.PCSCUSBPath)
 	if base != nil {
 		if esimTransport == "" {
 			esimTransport = base.ESIMTransport
 		}
-		if pcscReader == "" {
-			pcscReader = base.PCSCReader
-		}
 		if pcscSerial == "" {
 			pcscSerial = base.PCSCSerial
+		}
+		if pcscUSBPath == "" {
+			pcscUSBPath = base.PCSCUSBPath
 		}
 	}
 	return config.DeviceConfig{
@@ -144,8 +145,8 @@ func deviceConfigFromDTOWithBase(d deviceConfigDTO, base *config.DeviceConfig) c
 		QMIProxyPath:          qmiProxyPath,
 		QMIProxyExecutable:    qmiProxyExecutable,
 		ESIMTransport:         config.NormalizeESIMTransport(esimTransport),
-		PCSCReader:            pcscReader,
 		PCSCSerial:            pcscSerial,
+		PCSCUSBPath:           pcscUSBPath,
 		BaudRate:              d.BaudRate,
 		DataBits:              d.DataBits,
 		StopBits:              d.StopBits,
@@ -393,7 +394,7 @@ type deviceMgmtOverviewLiteItem struct {
 	Interface              string             `json:"interface,omitempty"`
 	ControlDevice          string             `json:"control_device,omitempty"`
 	ESIMTransport          string             `json:"esim_transport,omitempty"`
-	PCSCReader             string             `json:"pcsc_reader,omitempty"`
+	PCSCUSBPath           string             `json:"pcsc_usb_path,omitempty"`
 ATPort                 string             `json:"at_port,omitempty"`
 USBPath                string             `json:"usb_path,omitempty"`
 AudioDevice            string             `json:"audio_device,omitempty"`
@@ -458,7 +459,7 @@ Running                bool                `json:"running"`
 	PublicIPv6             string              `json:"public_ipv6,omitempty"`
 	Interface              string              `json:"interface,omitempty"`
 	ESIMTransport          string              `json:"esim_transport,omitempty"`
-	PCSCReader             string              `json:"pcsc_reader,omitempty"`
+	PCSCUSBPath           string              `json:"pcsc_usb_path,omitempty"`
 	SMSEnabled             bool                `json:"sms_enabled"`
 	NetworkEnabled         bool                `json:"network_enabled"`
 	FlightMode             bool                `json:"flight_mode"`
@@ -666,7 +667,7 @@ func (s *Server) buildOverviewLiteItemFromWorkerWithModem(w *device.Worker, cfg 
 		Interface:              cfg.Interface,
 		ControlDevice:          cfg.ControlDevice,
 		ESIMTransport:          config.NormalizeESIMTransport(cfg.ESIMTransport),
-		PCSCReader:             cfg.PCSCReader,
+		PCSCUSBPath:             cfg.PCSCUSBPath,
 ATPort:                 w.ResolvedATPort(),
 USBPath:                cfg.USBPath,
 AudioDevice:            cfg.AudioDevice,
@@ -832,7 +833,7 @@ Running:                true,
 			PublicIPv6:             w.GetCachedIPv6(),
 			Interface:              cfg.Interface,
 		ESIMTransport:          config.NormalizeESIMTransport(cfg.ESIMTransport),
-		PCSCReader:             cfg.PCSCReader,
+		PCSCUSBPath:             cfg.PCSCUSBPath,
 		SMSEnabled:             cfg.SMSEnabled,
 			NetworkEnabled:         cfg.NetworkEnabled,
 			FlightMode:             status.OperatingMode != nil && isFlightModeEnabled(*status.OperatingMode),
@@ -1152,7 +1153,7 @@ type discoveredDevice struct {
 	ConfiguredID   string   `json:"configured_id,omitempty"`
 	Degraded       bool     `json:"degraded,omitempty"` // 探不到 IMEI,无法确立身份,不可直接添加
 	Type           string   `json:"type,omitempty"`    // modem/pcsc
-	PCSCReader     string   `json:"pcsc_reader,omitempty"`
+	PCSCUSBPath    string `json:"pcsc_usb_path,omitempty"`
 	DisplayName    string `json:"display_name,omitempty"` // USB sysfs product 字段（USB 描述符产品名，非模组真实厂商）
 	Manufacturer  string `json:"manufacturer,omitempty"`  // 模组厂商（ATI 获取，如 "Quectel"）
 	Model          string `json:"model,omitempty"`           // 模组描述（QMI DMS GetModel 获取，如 "QUECTEL Mobile Broadband Module"）
@@ -1314,33 +1315,27 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 	}
 
 	// 追加 PC/SC 读卡器到发现列表（使用 wwan-go/ccid 统一枚举读卡器）
-	readerNames, pcscErr := esim.ListPCSCReaders()
-	logger.Debug(fmt.Sprintf("设备发现: ListPCSCReaders readers=%d err=%v", len(readerNames), pcscErr))
+	readerInfos, pcscErr := esim.ListPCSCReaderInfo()
+	logger.Debug(fmt.Sprintf("设备发现: ListPCSCReaderInfo readers=%d err=%v", len(readerInfos), pcscErr))
 	if pcscErr == nil {
 		configuredDevices := managed
-		for _, r := range readerNames {
+		for _, ri := range readerInfos {
 			configuredID := ""
-			rSerial := device.PcscReaderSerial(r)
 			for _, d := range configuredDevices {
 				if config.NormalizeESIMTransport(d.ESIMTransport) != config.ESIMTransportPCSC {
 					continue
 				}
-				// 优先用序列号匹配（兼容 USBFS/pcscd 两种模式下读卡器名称不同的场景），
-				// 序列号提取失败时回退到全名精确匹配。
-				if rSerial != "" && device.PcscReaderSerial(d.PCSCReader) == rSerial {
-					configuredID = d.ID
-					break
-				}
-				if d.PCSCReader == r {
+				// 用 USB 路径匹配（稳定标识，不受驱动模式影响）
+				if ri.USBPath != "" && d.PCSCUSBPath == ri.USBPath {
 					configuredID = d.ID
 					break
 				}
 			}
 		// 从 USB 设备中提取结构化信息
-			product, manufacturer, vid, pid := device.ResolvePCSCReaderUSBInfo(r, usbIdentities)
+			product, manufacturer, vid, pid := device.ResolvePCSCReaderUSBInfo(ri.USBPath, usbIdentities)
 			var serialStr, infoStr string
 			var pcscDetail *device.USBIdentity
-			if detail := device.ResolvePCSCReaderUSBDetail(r, usbIdentities); detail != nil {
+			if detail := device.ResolvePCSCReaderUSBDetail(ri.USBPath, usbIdentities); detail != nil {
 				pcscDetail = detail
 				serialStr = detail.Serial
 				infoStr = device.FormatUSBInfoLine(detail, true)
@@ -1356,11 +1351,11 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 				}
 			}
 			out = append(out, discoveredDevice{
-				DiscoveryKey: "pcsc:" + r,
+				DiscoveryKey: "pcsc:" + ri.Name,
 				DriverName:   "PC/SC Reader",
 				Mode:         "pcsc",
 				Type:         "pcsc",
-				PCSCReader:   r,
+				PCSCUSBPath:  ri.USBPath,
 				DisplayName:  product,
 				Manufacturer: manufacturer,
 				VendorID:     parseHexUint16(vid),
@@ -1812,8 +1807,8 @@ func (s *Server) handleDeviceMgmtAddDevice(c *gin.Context) {
 
 	// PC/SC 设备跳过 modem 相关校验和 IMEI 探测
 	if config.NormalizeESIMTransport(newCfg.ESIMTransport) == config.ESIMTransportPCSC {
-		if strings.TrimSpace(newCfg.PCSCReader) == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "PC/SC 设备需要指定读卡器名称"})
+	if strings.TrimSpace(newCfg.PCSCUSBPath) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "PC/SC 设备需要指定 USB 路径"})
 			return
 		}
 		if existing, err := config.GetDeviceByID(newCfg.ID); err == nil && existing != nil {

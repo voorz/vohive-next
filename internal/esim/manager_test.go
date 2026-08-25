@@ -3054,6 +3054,12 @@ func TestExpectedPostResetLPAClientCloseError(t *testing.T) {
 			err:       errors.New("transport timeout"),
 			want:      false,
 		},
+		{
+			name:      "pcsc switch deferred close 6200",
+			operation: "switch_profile_deferred",
+			err:       errors.New("关闭逻辑通道返回异常: 6200"),
+			want:      true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

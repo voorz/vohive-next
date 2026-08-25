@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -489,6 +490,44 @@ func ListPCSCReaders() ([]string, error) {
 		return listReadersPCSC()
 	}
 	return ccid.ListReaders(context.Background())
+}
+
+// ListPCSCReaderInfo 列出系统可用的 PC/SC 读卡器完整信息（含 USBPath）。
+// USBFS 模式下通过 wwan-go/ccid 枚举，PC/SC 模式下通过 goscard 枚举（无 USBPath）。
+func ListPCSCReaderInfo() ([]ccid.ReaderInfo, error) {
+	if isPcscNativeMode() {
+		// pcscd 模式下没有 USBPath 信息，回退到只返回名称
+		names, err := listReadersPCSC()
+		if err != nil {
+			return nil, err
+		}
+		infos := make([]ccid.ReaderInfo, 0, len(names))
+		for _, name := range names {
+			infos = append(infos, ccid.ReaderInfo{Name: name, ChannelAvailable: true, Transport: "pcsc"})
+		}
+		return infos, nil
+	}
+	return ccid.ListReaderInfo(context.Background())
+}
+
+// ResolveReaderByUSBPath 用 USB 路径匹配当前模式下可用的读卡器名称。
+// USB 路径是稳定标识（如 /sys/bus/usb/devices/1-1），不受驱动模式影响。
+// 返回空串表示未匹配到可用读卡器。
+func ResolveReaderByUSBPath(usbPath string) string {
+	usbPath = strings.TrimSpace(usbPath)
+	if usbPath == "" {
+		return ""
+	}
+	infos, err := ListPCSCReaderInfo()
+	if err != nil || len(infos) == 0 {
+		return ""
+	}
+	for _, info := range infos {
+		if info.USBPath == usbPath {
+			return info.Name
+		}
+	}
+	return ""
 }
 
 // listReadersPCSC 通过 goscard 枚举读卡器。

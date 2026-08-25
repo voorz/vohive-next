@@ -91,7 +91,7 @@ func buildVoWiFiRawProfile(imsi, mcc, mnc, imei, smsc, spn string) identity.Prof
 
 // buildPCSCVoWiFiStartProfile 通过 PC/SC 读卡器读取 SIM 身份构建 VoWiFi 启动画像。
 func (p *Pool) buildPCSCVoWiFiStartProfile(worker *Worker, traceID string) (identity.Profile, error) {
-	adapter, err := newPCSCModemAdapter(worker.ID, worker.Config.PCSCReader, worker.Config.PCSCSerial, worker.Config.ModemIMEI, worker.pcscAccessMu)
+	adapter, err := newPCSCModemAdapter(worker.ID, worker.Config.PCSCUSBPath, worker.pcscAccessMu)
 	if err != nil {
 		return identity.Profile{}, fmt.Errorf("创建 PC/SC 适配器失败: %w", err)
 	}

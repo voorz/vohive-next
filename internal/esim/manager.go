@@ -342,7 +342,7 @@ type ManagerOptions struct {
 	Modem                *modem.Manager
 	Backend              backendpkg.DeviceBackend
 	QMITransport         QMIAPDUTransport
-	PCSCReader           string // PC/SC 读卡器名称（仅 transport=pcsc 时有效）
+	PCSCUSBPath         string             // PC/SC 读卡器 USB 路径（仅 transport=pcsc 时有效，运行时匹配 reader）
 	PCSCAccessMu         *sync.Mutex // 可选：PC/SC 读卡器访问互斥锁（跨 eSIM/VoWiFi 共享）
 	IMEIProvider         func(ctx context.Context) (string, error)
 	OnBeforeSwitch       func(SwitchOperation, string) uint64
@@ -551,13 +551,16 @@ func NewManager(opts ManagerOptions) (*Manager, error) {
 			return ch, nil
 		}
 	case transportPCSC:
-		readerName := strings.TrimSpace(opts.PCSCReader)
-		if readerName == "" {
-			return nil, fmt.Errorf("PC/SC 传输需要指定读卡器名称")
+		usbPath := strings.TrimSpace(opts.PCSCUSBPath)
+		if usbPath == "" {
+			return nil, fmt.Errorf("PC/SC 传输需要指定 USB 路径")
 		}
 		mgr.smartCardChannelFactory = func() (driver.SmartCardChannel, error) {
-			// 独占模式通道（对齐 lpac）：部分 eUICC 在共享模式下
-			// EnableProfile 恒定返回 910B，独占 + T=0 + 断开下电可避免
+			// 用 USB 路径运行时匹配当前模式下的 reader 名称
+			readerName := ResolveReaderByUSBPath(usbPath)
+			if readerName == "" {
+				return nil, fmt.Errorf("未找到 USB 路径 %s 的读卡器", usbPath)
+			}
 			var ch *PCSCExclusiveChannel
 			var err error
 			if opts.PCSCAccessMu != nil {
@@ -902,8 +905,15 @@ func isExpectedPostResetLPAClientCloseError(operation string, err error) bool {
 		return false
 	}
 	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "close logical channel") &&
-		(strings.Contains(msg, "qmi_uim_card_reset") || strings.Contains(msg, "error=0x0030"))
+	if !strings.Contains(msg, "close logical channel") && !strings.Contains(msg, "关闭逻辑通道") {
+		return false
+	}
+	// QMI 模式：qmi_uim_card_reset 或 error=0x0030
+	if strings.Contains(msg, "qmi_uim_card_reset") || strings.Contains(msg, "error=0x0030") {
+		return true
+	}
+	// PC/SC 模式：切卡后卡片 reset，关闭逻辑通道返回 6xxx 警告 SW（如 6200）
+	return strings.Contains(msg, "6200") || strings.Contains(msg, "6xxx")
 }
 
 func (m *Manager) closeLPAClientForOperation(operation string, client *lpa.Client) error {

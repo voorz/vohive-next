@@ -27,23 +27,19 @@ var (
 // pcscModemAdapter 通过 PC/SC 读卡器实现 runtimehost.Modem 接口。
 // 用于 PC/SC 设备的 VoWiFi 启动流程，使 AKA 认证可通过 PC/SC 通道执行。
 type pcscModemAdapter struct {
-	deviceID   string
-	readerName string
-	serial    string // 读卡器序列号（SN）
-	imei      string // 设备 IMEI（回退匹配用）
-	channel   *esim.PCSCExclusiveChannel
+	deviceID string
+	usbPath  string // USB 路径，运行时匹配 reader 字符串
+	channel  *esim.PCSCExclusiveChannel
 	connected bool
-	accessMu  *sync.Mutex // 可选：与 eSIM 管理器共享的读卡器访问锁
+	accessMu *sync.Mutex // 可选：与 eSIM 管理器共享的读卡器访问锁
 }
 
 var _ runtimehost.Modem = (*pcscModemAdapter)(nil)
 
-func newPCSCModemAdapter(deviceID, readerName, sn, imei string, mu *sync.Mutex) (*pcscModemAdapter, error) {
-	// 跨模式兼容：用 SN（优先）或 IMEI（回退）匹配当前模式下可用的读卡器名称
-	resolvedName := resolvePCSCReaderName(readerName, sn, imei)
-	if resolvedName != "" && resolvedName != readerName {
-		logger.Info(fmt.Sprintf("[%s] PC/SC 读卡器名称跨模式匹配: %q -> %q", deviceID, readerName, resolvedName))
-		readerName = resolvedName
+func newPCSCModemAdapter(deviceID, usbPath string, mu *sync.Mutex) (*pcscModemAdapter, error) {
+	readerName := esim.ResolveReaderByUSBPath(usbPath)
+	if readerName == "" {
+		return nil, fmt.Errorf("[%s] 未找到 USB 路径 %s 的读卡器", deviceID, usbPath)
 	}
 	var ch *esim.PCSCExclusiveChannel
 	var err error
@@ -57,12 +53,10 @@ func newPCSCModemAdapter(deviceID, readerName, sn, imei string, mu *sync.Mutex) 
 		return nil, fmt.Errorf("创建 PC/SC 通道失败: %w", err)
 	}
 	return &pcscModemAdapter{
-		deviceID:   deviceID,
-		readerName: readerName,
-		serial:    sn,
-		imei:      imei,
-		channel:   ch,
-		accessMu:  mu,
+		deviceID: deviceID,
+		usbPath:  usbPath,
+		channel: ch,
+		accessMu: mu,
 	}, nil
 }
 
@@ -97,18 +91,17 @@ func (a *pcscModemAdapter) ensureConnected() error {
 	}
 	// 通道已关闭（如上次 AKA 完成后自动断开），需要重建
 	if a.channel == nil || a.channel.IsClosed() {
-		// 重新解析读卡器名称（可能已切换驱动模式）
-		resolvedName := resolvePCSCReaderName(a.readerName, a.serial, a.imei)
-		if resolvedName != "" && resolvedName != a.readerName {
-			logger.Info(fmt.Sprintf("[%s] PC/SC 读卡器名称跨模式匹配: %q -> %q", a.deviceID, a.readerName, resolvedName))
-			a.readerName = resolvedName
+		// 用 USB 路径重新匹配当前模式下的 reader 名称（可能已切换驱动模式）
+		readerName := esim.ResolveReaderByUSBPath(a.usbPath)
+		if readerName == "" {
+			return fmt.Errorf("[%s] 未找到 USB 路径 %s 的读卡器", a.deviceID, a.usbPath)
 		}
 		var ch *esim.PCSCExclusiveChannel
 		var err error
 		if a.accessMu != nil {
-			ch, err = esim.NewPCSCSharedChannelWithMutex(a.readerName, a.accessMu)
+			ch, err = esim.NewPCSCSharedChannelWithMutex(readerName, a.accessMu)
 		} else {
-			ch, err = esim.NewPCSCSharedChannel(a.readerName)
+			ch, err = esim.NewPCSCSharedChannel(readerName)
 		}
 		if err != nil {
 			return fmt.Errorf("重建 PC/SC 通道失败: %w", err)
@@ -120,7 +113,7 @@ func (a *pcscModemAdapter) ensureConnected() error {
 		return fmt.Errorf("PC/SC 连接失败: %w", err)
 	}
 	a.connected = true
-	logger.Info(fmt.Sprintf("[%s] PC/SC 读卡器已连接 (reader: %s)", a.deviceID, a.readerName))
+	logger.Info(fmt.Sprintf("[%s] PC/SC 读卡器已连接 (usb_path: %s)", a.deviceID, a.usbPath))
 	return nil
 }
 

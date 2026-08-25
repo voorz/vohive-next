@@ -785,7 +785,7 @@ func (p *Pool) addPCSCWorker(devCfg config.DeviceConfig) (*Worker, error) {
 	mgr, err := esim.NewManager(esim.ManagerOptions{
 		DeviceID:     devCfg.ID,
 		Transport:    config.ESIMTransportPCSC,
-		PCSCReader:   devCfg.PCSCReader,
+		PCSCUSBPath: devCfg.PCSCUSBPath,
 		PCSCAccessMu: w.pcscAccessMu,
 		OnBeforeSwitch: func(op esim.SwitchOperation, targetICCID string) uint64 {
 			return onBefore(op, targetICCID)
@@ -815,7 +815,7 @@ func (p *Pool) addPCSCWorker(devCfg config.DeviceConfig) (*Worker, error) {
 
 	p.persistDeviceAttachmentsIfChanged(devCfg)
 
-	logger.Info(fmt.Sprintf("[%s] PC/SC 读卡器设备已启动 (reader: %s)", devCfg.ID, devCfg.PCSCReader))
+	logger.Info(fmt.Sprintf("[%s] PC/SC 读卡器设备已启动 (usb_path: %s)", devCfg.ID, devCfg.PCSCUSBPath))
 
 	// PC/SC 预热：与普通 Modem Worker 对齐，启动后在后台读取 SIM 身份（ICCID/IMSI），
 	// 写入 worker 状态并应用卡策略。这样 VoWiFi 启动前 ICCID 已就绪、卡策略表已初始化、
@@ -831,7 +831,7 @@ func (p *Pool) addPCSCWorker(devCfg config.DeviceConfig) (*Worker, error) {
 			case <-time.After(delay):
 			}
 
-			adapter, err := newPCSCModemAdapter(worker.ID, worker.Config.PCSCReader, worker.Config.PCSCSerial, worker.Config.ModemIMEI, worker.pcscAccessMu)
+			adapter, err := newPCSCModemAdapter(worker.ID, worker.Config.PCSCUSBPath, worker.pcscAccessMu)
 			if err != nil {
 				logger.Debug(fmt.Sprintf("[%s] PC/SC 预热：创建适配器失败", worker.ID), "attempt", i+1, "err", err)
 				continue
