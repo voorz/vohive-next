@@ -581,7 +581,7 @@ func (p *Pool) refreshPostSwitchIdentityPCSC(deviceID string, worker *Worker, sn
 	for {
 		pollAttempt++
 		readStart := time.Now()
-		adapter, err := newPCSCModemAdapter(worker.ID, worker.Config.PCSCUSBPath, worker.pcscAccessMu)
+		adapter, err := newPCSCModemAdapter(worker.ID, worker.Config.PCSCUSBPath, worker.Config.PCSCSerial, worker.pcscAccessMu)
 		if err != nil {
 			logger.Debug("切卡后 PC/SC 创建适配器失败", "device", deviceID, "err", err)
 		} else {

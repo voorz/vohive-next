@@ -62,9 +62,13 @@ func UpdateDeviceInFile(path string, deviceID string, newDevice DeviceConfig) er
 		} else {
 			deleteMapKey(n, "pcsc_usb_path")
 		}
-		// 清理旧配置中可能残留的 pcsc_reader / pcsc_serial 字段
+		if newDevice.PCSCSerial != "" {
+			setMapScalar(n, "pcsc_serial", newDevice.PCSCSerial)
+		} else {
+			deleteMapKey(n, "pcsc_serial")
+		}
+		// 清理旧配置中可能残留的 pcsc_reader 字段
 		deleteMapKey(n, "pcsc_reader")
-		deleteMapKey(n, "pcsc_serial")
 
 		if newDevice.ProxyPort > 0 {
 			setMapInt(n, "proxy_port", newDevice.ProxyPort)
@@ -199,6 +203,9 @@ func deviceConfigToNode(d DeviceConfig) *yaml.Node {
 	}
 	if d.PCSCUSBPath != "" {
 		appendMapScalar(m, "pcsc_usb_path", d.PCSCUSBPath)
+	}
+	if d.PCSCSerial != "" {
+		appendMapScalar(m, "pcsc_serial", d.PCSCSerial)
 	}
 	if d.ProxyPort > 0 {
 		appendMapInt(m, "proxy_port", d.ProxyPort)

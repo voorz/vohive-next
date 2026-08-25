@@ -786,6 +786,7 @@ func (p *Pool) addPCSCWorker(devCfg config.DeviceConfig) (*Worker, error) {
 		DeviceID:     devCfg.ID,
 		Transport:    config.ESIMTransportPCSC,
 		PCSCUSBPath: devCfg.PCSCUSBPath,
+		PCSCSerial:  devCfg.PCSCSerial,
 		PCSCAccessMu: w.pcscAccessMu,
 		OnBeforeSwitch: func(op esim.SwitchOperation, targetICCID string) uint64 {
 			return onBefore(op, targetICCID)
@@ -831,7 +832,7 @@ func (p *Pool) addPCSCWorker(devCfg config.DeviceConfig) (*Worker, error) {
 			case <-time.After(delay):
 			}
 
-			adapter, err := newPCSCModemAdapter(worker.ID, worker.Config.PCSCUSBPath, worker.pcscAccessMu)
+			adapter, err := newPCSCModemAdapter(worker.ID, worker.Config.PCSCUSBPath, worker.Config.PCSCSerial, worker.pcscAccessMu)
 			if err != nil {
 				logger.Debug(fmt.Sprintf("[%s] PC/SC 预热：创建适配器失败", worker.ID), "attempt", i+1, "err", err)
 				continue

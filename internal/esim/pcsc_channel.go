@@ -559,21 +559,33 @@ func extractSerialFromReaderName(name string) string {
 	return strings.TrimSpace(name[start+1 : start+end])
 }
 
-// ResolveReaderByUSBPath 用 USB 路径匹配当前模式下可用的读卡器名称。
-// USB 路径是稳定标识（如 /sys/bus/usb/devices/1-1），不受驱动模式影响。
+// ResolveReaderByUSBPath 用 USB 路径和可选 SN 匹配当前模式下可用的读卡器名称。
+// 匹配优先级：USB 路径 > SN（仅正规设备）。
+// USB 路径是稳定标识（如 1-2），不受驱动模式影响，适用于所有读卡器。
+// 当 USB 路径匹配失败时，若 SN 非空且非固定值（山寨读卡器常见 "000000000001"），
+// 则回退到 SN 匹配——正规设备插拔换 USB 接口后 SN 不变，仍可正确解析 reader。
 // 返回空串表示未匹配到可用读卡器。
-func ResolveReaderByUSBPath(usbPath string) string {
+func ResolveReaderByUSBPath(usbPath, sn string) string {
 	usbPath = strings.TrimSpace(usbPath)
-	if usbPath == "" {
-		return ""
-	}
+	sn = strings.TrimSpace(sn)
 	infos, err := ListPCSCReaderInfo()
 	if err != nil || len(infos) == 0 {
 		return ""
 	}
-	for _, info := range infos {
-		if info.USBPath == usbPath {
-			return info.Name
+	// 优先按 USB 路径匹配
+	if usbPath != "" {
+		for _, info := range infos {
+			if info.USBPath == usbPath {
+				return info.Name
+			}
+		}
+	}
+	// USB 路径匹配失败时，按 SN 回退匹配（排除山寨读卡器固定 SN）
+	if sn != "" && !strings.Contains(sn, "000000000001") {
+		for _, info := range infos {
+			if info.USBSerial == sn {
+				return info.Name
+			}
 		}
 	}
 	return ""

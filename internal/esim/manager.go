@@ -343,6 +343,7 @@ type ManagerOptions struct {
 	Backend              backendpkg.DeviceBackend
 	QMITransport         QMIAPDUTransport
 	PCSCUSBPath         string             // PC/SC 读卡器 USB 路径（仅 transport=pcsc 时有效，运行时匹配 reader）
+	PCSCSerial          string             // PC/SC 读卡器 SN（正规设备 SN 回退匹配，插拔换接口后仍可解析）
 	PCSCAccessMu         *sync.Mutex // 可选：PC/SC 读卡器访问互斥锁（跨 eSIM/VoWiFi 共享）
 	IMEIProvider         func(ctx context.Context) (string, error)
 	OnBeforeSwitch       func(SwitchOperation, string) uint64
@@ -552,17 +553,18 @@ func NewManager(opts ManagerOptions) (*Manager, error) {
 		}
 	case transportPCSC:
 		usbPath := strings.TrimSpace(opts.PCSCUSBPath)
-		if usbPath == "" {
-			return nil, fmt.Errorf("PC/SC 传输需要指定 USB 路径")
+		sn := strings.TrimSpace(opts.PCSCSerial)
+		if usbPath == "" && sn == "" {
+			return nil, fmt.Errorf("PC/SC 传输需要指定 USB 路径或 SN")
 		}
 		// pcscChannelTracker 在 channelFactory 中保存底层 PCSCExclusiveChannel 引用，
 		// 用于 closeClient 中在 CloseLogicalChannel 失败时强制 Disconnect 释放 accessMu。
 		var pcscChannelTracker atomic.Pointer[PCSCExclusiveChannel]
 		mgr.smartCardChannelFactory = func() (driver.SmartCardChannel, error) {
-			// 用 USB 路径运行时匹配当前模式下的 reader 名称
-			readerName := ResolveReaderByUSBPath(usbPath)
+			// 用 USB 路径优先匹配，失败时按 SN 回退匹配当前模式下的 reader 名称
+			readerName := ResolveReaderByUSBPath(usbPath, sn)
 			if readerName == "" {
-				return nil, fmt.Errorf("未找到 USB 路径 %s 的读卡器", usbPath)
+				return nil, fmt.Errorf("未找到 USB 路径 %s 或 SN %s 的读卡器", usbPath, sn)
 			}
 			var ch *PCSCExclusiveChannel
 			var err error

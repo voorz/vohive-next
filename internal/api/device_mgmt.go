@@ -1325,8 +1325,13 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 				if config.NormalizeESIMTransport(d.ESIMTransport) != config.ESIMTransportPCSC {
 					continue
 				}
-				// 用 USB 路径匹配（稳定标识，不受驱动模式影响）
+				// 优先用 USB 路径匹配（稳定标识，不受驱动模式影响）
 				if ri.USBPath != "" && d.PCSCUSBPath == ri.USBPath {
+					configuredID = d.ID
+					break
+				}
+				// USB 路径匹配失败时，按 SN 回退匹配（正规设备插拔换接口后 SN 不变）
+				if ri.USBSerial != "" && !strings.Contains(ri.USBSerial, "000000000001") && d.PCSCSerial == ri.USBSerial {
 					configuredID = d.ID
 					break
 				}
@@ -1807,8 +1812,8 @@ func (s *Server) handleDeviceMgmtAddDevice(c *gin.Context) {
 
 	// PC/SC 设备跳过 modem 相关校验和 IMEI 探测
 	if config.NormalizeESIMTransport(newCfg.ESIMTransport) == config.ESIMTransportPCSC {
-	if strings.TrimSpace(newCfg.PCSCUSBPath) == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "PC/SC 设备需要指定 USB 路径"})
+	if strings.TrimSpace(newCfg.PCSCUSBPath) == "" && strings.TrimSpace(newCfg.PCSCSerial) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "PC/SC 设备需要指定 USB 路径或 SN"})
 			return
 		}
 		if existing, err := config.GetDeviceByID(newCfg.ID); err == nil && existing != nil {

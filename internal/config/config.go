@@ -259,7 +259,7 @@ type DeviceConfig struct {
 	QMIProxyPath       string `mapstructure:"qmi_proxy_path"`
 	QMIProxyExecutable string `mapstructure:"qmi_proxy_executable"`
 	ESIMTransport      string `mapstructure:"esim_transport"` // eSIM 传输通道: at|qmi|mbim|pcsc，默认 at
-	PCSCSerial         string `mapstructure:"pcsc_serial"`    // PC/SC 读卡器序列号（仅用于设备发现页展示，不用于匹配）
+	PCSCSerial         string `mapstructure:"pcsc_serial"`    // PC/SC 读卡器序列号（正规设备 SN 回退匹配，插拔换接口后仍可解析）
 	PCSCUSBPath        string `mapstructure:"pcsc_usb_path"`  // PC/SC 读卡器 USB 路径（唯一可靠标识，运行时匹配 reader）
 	DeviceBackend      string `mapstructure:"device_backend"` // 设备后端模式: at|qmi|mbim|auto，默认 at
 	USBNetMode         *int   `mapstructure:"usbnet_mode"`    // 可选：用于校验/设置 Quectel USBNET 模式

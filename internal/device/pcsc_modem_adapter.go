@@ -29,6 +29,7 @@ var (
 type pcscModemAdapter struct {
 	deviceID string
 	usbPath  string // USB 路径，运行时匹配 reader 字符串
+	sn       string // 读卡器 SN（正规设备 USB 路径匹配失败时回退匹配）
 	channel  *esim.PCSCExclusiveChannel
 	connected bool
 	accessMu *sync.Mutex // 可选：与 eSIM 管理器共享的读卡器访问锁
@@ -36,10 +37,10 @@ type pcscModemAdapter struct {
 
 var _ runtimehost.Modem = (*pcscModemAdapter)(nil)
 
-func newPCSCModemAdapter(deviceID, usbPath string, mu *sync.Mutex) (*pcscModemAdapter, error) {
-	readerName := esim.ResolveReaderByUSBPath(usbPath)
+func newPCSCModemAdapter(deviceID, usbPath, sn string, mu *sync.Mutex) (*pcscModemAdapter, error) {
+	readerName := esim.ResolveReaderByUSBPath(usbPath, sn)
 	if readerName == "" {
-		return nil, fmt.Errorf("[%s] 未找到 USB 路径 %s 的读卡器", deviceID, usbPath)
+		return nil, fmt.Errorf("[%s] 未找到 USB 路径 %s 或 SN %s 的读卡器", deviceID, usbPath, sn)
 	}
 	var ch *esim.PCSCExclusiveChannel
 	var err error
@@ -55,6 +56,7 @@ func newPCSCModemAdapter(deviceID, usbPath string, mu *sync.Mutex) (*pcscModemAd
 	return &pcscModemAdapter{
 		deviceID: deviceID,
 		usbPath:  usbPath,
+		sn:      sn,
 		channel: ch,
 		accessMu: mu,
 	}, nil
@@ -91,10 +93,10 @@ func (a *pcscModemAdapter) ensureConnected() error {
 	}
 	// 通道已关闭（如上次 AKA 完成后自动断开），需要重建
 	if a.channel == nil || a.channel.IsClosed() {
-		// 用 USB 路径重新匹配当前模式下的 reader 名称（可能已切换驱动模式）
-		readerName := esim.ResolveReaderByUSBPath(a.usbPath)
+		// 用 USB 路径优先匹配，失败时按 SN 回退匹配（可能已切换驱动模式或换接口）
+		readerName := esim.ResolveReaderByUSBPath(a.usbPath, a.sn)
 		if readerName == "" {
-			return fmt.Errorf("[%s] 未找到 USB 路径 %s 的读卡器", a.deviceID, a.usbPath)
+			return fmt.Errorf("[%s] 未找到 USB 路径 %s 或 SN %s 的读卡器", a.deviceID, a.usbPath, a.sn)
 		}
 		var ch *esim.PCSCExclusiveChannel
 		var err error
