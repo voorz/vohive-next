@@ -572,10 +572,10 @@ func ResolveReaderByUSBPath(usbPath, sn string) string {
 	if err != nil || len(infos) == 0 {
 		return ""
 	}
-	// 优先按 USB 路径匹配
+	// 优先按 USB 路径匹配（容错：支持完整路径和简短路径两种格式）
 	if usbPath != "" {
 		for _, info := range infos {
-			if info.USBPath == usbPath {
+			if matchUSBPath(info.USBPath, usbPath) {
 				return info.Name
 			}
 		}
@@ -589,6 +589,24 @@ func ResolveReaderByUSBPath(usbPath, sn string) string {
 		}
 	}
 	return ""
+}
+
+// matchUSBPath 容错匹配两个 USB 路径。
+// 支持完整路径（/sys/bus/usb/devices/1-2）和简短路径（1-2）之间的互相匹配。
+func matchUSBPath(a, b string) bool {
+	a = strings.TrimSpace(a)
+	b = strings.TrimSpace(b)
+	if a == "" || b == "" {
+		return false
+	}
+	if a == b {
+		return true
+	}
+	// 一方是完整路径时，检查另一方是否是其后缀
+	if strings.HasSuffix(a, "/"+b) || strings.HasSuffix(b, "/"+a) {
+		return true
+	}
+	return false
 }
 
 // listReadersPCSC 通过 goscard 枚举读卡器。

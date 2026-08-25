@@ -671,7 +671,7 @@ func (s *Server) buildOverviewLiteItemFromWorkerWithModem(w *device.Worker, cfg 
 ATPort:                 w.ResolvedATPort(),
 USBPath:                cfg.USBPath,
 AudioDevice:            cfg.AudioDevice,
-Manufacturer:           firstNonEmpty(modemStatus.Manufacturer, cfg.USBManufacturer),
+Manufacturer:           firstNonEmpty(cfg.USBManufacturer, modemStatus.Manufacturer),
 USBProduct:             cfg.USBProduct,
 		LocalPhone:             overviewLocalPhone(effectiveOverviewIMSI(w, status), strings.TrimSpace(status.ICCID)),
 		E911SetupAvailable:     e911.SetupAvailable(modemStatus),
@@ -824,7 +824,7 @@ func (s *Server) handleDeviceMgmtList(c *gin.Context) {
 item := deviceMgmtListItem{
 ID:                     w.ID,
 Name:                   cfg.Name,
-Manufacturer:           firstNonEmpty(status.Manufacturer, cfg.USBManufacturer),
+Manufacturer:           firstNonEmpty(cfg.USBManufacturer, status.Manufacturer),
 USBProduct:             cfg.USBProduct,
 Running:                true,
 			Healthy:                controlOnline,
@@ -1325,8 +1325,8 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 				if config.NormalizeESIMTransport(d.ESIMTransport) != config.ESIMTransportPCSC {
 					continue
 				}
-				// 优先用 USB 路径匹配（稳定标识，不受驱动模式影响）
-				if ri.USBPath != "" && d.PCSCUSBPath == ri.USBPath {
+				// 优先用 USB 路径匹配（容错：支持完整路径和简短路径）
+				if ri.USBPath != "" && matchPCSCUSBPath(d.PCSCUSBPath, ri.USBPath) {
 					configuredID = d.ID
 					break
 				}
@@ -1379,11 +1379,10 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 }
 
 func buildDiscoveredDevice(hw device.CompatibleModem, configured bool, configuredID string, degraded bool) discoveredDevice {
-	// 厂商优先使用 QMI/AT 来源，回退 USB sysfs
-	manufacturer := strings.TrimSpace(hw.Manufacturer)
-	if manufacturer == "" {
-		manufacturer = strings.TrimSpace(hw.USBManufacturer)
-	}
+	// 厂商名/型号：sysfs (USBManufacturer/USBProduct) 优先，ATI/QMI 回退。
+	// 某些模组 ATI 探测会返回无效厂商名（如 "AT"/"ERROR"），sysfs 更可靠。
+	manufacturer := validOrFallback(hw.USBManufacturer, hw.Manufacturer)
+	model := validOrFallback(hw.USBProduct, hw.Model)
 	return discoveredDevice{
 		DiscoveryKey:   hw.DiscoveryKey(),
 		ControlPath:    hw.ControlPath,
@@ -1403,7 +1402,7 @@ func buildDiscoveredDevice(hw device.CompatibleModem, configured bool, configure
 		Degraded:       degraded,
 		DisplayName:    strings.TrimSpace(hw.USBProduct),
 		Manufacturer:   manufacturer,
-		Model:          strings.TrimSpace(hw.Model),
+		Model:          model,
 		ChipVendor:     strings.TrimSpace(hw.ChipVendor),
 		Firmware:       strings.TrimSpace(hw.Firmware),
 	}

@@ -115,7 +115,7 @@ func (s *Server) handleDeviceMgmtListStream(c *gin.Context) {
 		Interface:              cfg.Interface,
 		ESIMTransport:          config.NormalizeESIMTransport(cfg.ESIMTransport),
 		PCSCUSBPath:             cfg.PCSCUSBPath,
-		Manufacturer:           firstNonEmpty(status.Manufacturer, cfg.USBManufacturer),
+		Manufacturer:           firstNonEmpty(cfg.USBManufacturer, status.Manufacturer),
 		USBProduct:             cfg.USBProduct,
 			SMSEnabled:             cfg.SMSEnabled,
 				NetworkEnabled:         cfg.NetworkEnabled,

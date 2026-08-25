@@ -541,23 +541,25 @@ func (w *Worker) collectRuntimeStatus(ctx context.Context, reason string) modem.
 		})
 
 		wg.Wait()
-		// 从 Manager 获取 AT 来源的模组品牌（如 Quectel），补填到 Manufacturer
-	// 并用 ATI 型号覆盖 QMI DMS GetModel（ATI 返回精简型号如 EC20F，QMI DMS 返回完整描述如 QUECTEL Mobile Broadband Module）
+		// 从 Manager 获取 AT 来源的模组品牌（如 Quectel），补填到 Manufacturer。
+		// 注意：sysfs USBManufacturer 的优先级在 API 层处理（firstNonEmpty(cfg.USBManufacturer, status.Manufacturer)），
+		// 这里只负责采集 ATI/QMI 来源的值作为回退。
 		if w.Modem != nil {
 			if m := w.Modem; m != nil {
-				if v := m.GetManufacturerCached(); v != "" {
+				// ATI 缓存值仅在 status.Manufacturer 为空时填入（不覆盖已有值）
+				if v := m.GetManufacturerCached(); v != "" && strings.TrimSpace(status.Manufacturer) == "" {
 					status.Manufacturer = v
 				}
 				// 无论 Manufacturer 是否已缓存，都执行 ATI probe 获取精简型号
 				// 使用 Worker.ResolvedATPort() 而非 Manager.ATPort()，确保走完整回退链
 				if atPort := w.ResolvedATPort(); atPort != "" {
 					if ati, err := modem.ProbeATI(atPort, 2*time.Second); err == nil {
-						if ati.Manufacturer != "" && status.Manufacturer == "" {
+						if ati.Manufacturer != "" && strings.TrimSpace(status.Manufacturer) == "" {
 							status.Manufacturer = ati.Manufacturer
 							m.SetManufacturerCached(ati.Manufacturer)
 						}
-						// ATI 型号（如 EC20F）优先于 QMI DMS GetModel
-						if ati.Model != "" {
+						// ATI 型号（如 EC20F）仅在 status.Model 为空时填入
+						if ati.Model != "" && strings.TrimSpace(status.Model) == "" {
 							status.Model = ati.Model
 						}
 					}
