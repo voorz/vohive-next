@@ -1252,21 +1252,14 @@ func (p *Pool) schedulePostSwitchNotificationAutoClean(deviceID string, token ui
 		// 检查 process_after_switch 设置
 		settings, err := db.GetEsimNotificationSettings(deviceID)
 		if err != nil {
-			logger.Warn("切卡后通知 autoClean：读取设置失败",
-				"device", deviceID,
-				"err", err)
 			return
 		}
 		if !settings.ProcessAfterSwitch {
-			logger.Debug("切卡后通知 autoClean：process_after_switch 已关闭",
-				"device", deviceID)
 			return
 		}
 
 		// 对齐 NekoKo：网络未恢复时不 autoClean，通知保留在卡上
 		if !worker.NetworkConnected() {
-			logger.Info("切卡后通知 autoClean：网络未恢复，跳过自动处理",
-				"device", deviceID)
 			return
 		}
 
@@ -1274,27 +1267,10 @@ func (p *Pool) schedulePostSwitchNotificationAutoClean(deviceID string, token ui
 		if !settings.AutoSendInstall && !settings.AutoSendEnable &&
 				!settings.AutoSendDisable && !settings.AutoSendDelete &&
 				!settings.DeleteWithoutSendingEnable && !settings.DeleteWithoutSendingDisable {
-			logger.Debug("切卡后通知 autoClean：所有 autoSend 开关已关闭",
-				"device", deviceID)
 			return
 		}
 
-		logger.Info("切卡后开始通知 autoClean",
-			"device", deviceID,
-			"switch_token", token)
-
-		// 调用 ListNotifications 触发 autoClean（listNotificationItemsWithCleanup 内含 autoClean）
-		_, cleanErr := worker.EsimMgr.ListNotifications("")
-		if cleanErr != nil {
-			logger.Warn("切卡后通知 autoClean 失败",
-				"device", deviceID,
-				"err", cleanErr)
-			return
-		}
-
-		// autoClean 完成后刷新 overview 缓存，让前端下次请求时红点递减
-		worker.EsimMgr.WarmOverviewAsync("post_switch_notif_autoclean")
-		logger.Info("切卡后通知 autoClean 完成",
-			"device", deviceID)
+		// 调用 AutoCleanNotifications 批量处理卡上通知（无感，只更新红点计数）
+		_ = worker.EsimMgr.AutoCleanNotifications()
 	}()
 }
