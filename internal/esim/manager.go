@@ -3793,8 +3793,9 @@ func (m *Manager) listNotificationItemsWithCleanup(client *lpa.Client, aidHex, e
 	// G3: syncNotificationsWithDB — 对比 DB 和卡上通知，清理不一致的记录
 	dbStatusMap := m.syncNotificationsWithDB(eid, pendingNotifications)
 
-	// 从 overview 获取 profiles，用于关联卡名和国旗
-	// 如果缓存为空（如切卡后刚清空），同步加载一次
+	// 从 overview 缓存获取 profiles，用于关联卡名和国旗（对标 NekoKo _preloadProfileMetadata）。
+	// 仅读缓存，不触发同步加载——切卡后 overview 缓存为空时 profile_name 留空，
+	// 前端先展示通知列表，overview 异步加载完成后下次请求自然补全。
 	var profiles []ProfileItem
 	m.cacheMu.RLock()
 	if m.overviewCache != nil {
@@ -3803,16 +3804,6 @@ func (m *Manager) listNotificationItemsWithCleanup(client *lpa.Client, aidHex, e
 		}
 	}
 	m.cacheMu.RUnlock()
-
-	if len(profiles) == 0 {
-		// 缓存为空，同步加载 overview
-		if overview, err := m.loadOverview(); err == nil && overview != nil {
-			profiles = make([]ProfileItem, 0)
-			for _, group := range overview.Profiles {
-				profiles = append(profiles, group.Profiles...)
-			}
-		}
-	}
 
 	// G2: 合并 DB 状态构建 NotificationItem（status==1 的不返回）
 	return buildNotificationItemsFromPending(pendingNotifications, aidHex, dbStatusMap, profiles), nil
