@@ -231,6 +231,14 @@ func (c *PCSCExclusiveChannel) connectUSBFS() error {
 		return fmt.Errorf("连接读卡器 %q 失败: %w", c.reader, err)
 	}
 	c.ccidReader = r
+	// ⚠️ 警告：此终端能力 APDU 补发不可省略！
+	// ccid.OpenWithOptions 在 Linux 上忽略 OpenOptions（包括 SendTerminalCapabilities），
+	// 因为 USBFS 连接本质上是独占的。但部分 eSIM 卡在不收到终端能力 APDU 时
+	// 会对 STORE DATA (EnableProfile) 返回 6A81 (Function not supported)。
+	// 此修复曾被后续改动意外覆盖导致 6A81 复现，请勿移除！
+	if c.sendTermCap {
+		_, _ = r.Transmit(ctx, pcscTerminalCapabilitiesAPDU)
+	}
 	c.connected = true
 	return nil
 }
@@ -500,21 +508,55 @@ func ListPCSCReaders() ([]string, error) {
 }
 
 // ListPCSCReaderInfo 列出系统可用的 PC/SC 读卡器完整信息（含 USBPath）。
-// USBFS 模式下通过 wwan-go/ccid 枚举，PC/SC 模式下通过 goscard 枚举（无 USBPath）。
+// USBFS 模式下通过 wwan-go/ccid 枚举（含 USBPath）。
+// pcscd 模式下通过 goscard 枚举读卡器名称，同时从 sysfs 读取 USBPath 补充。
+// sysfs 枚举只读 /sys/bus/usb/devices/ 下的属性文件，不连接 USB 设备，不与 pcscd 冲突。
 func ListPCSCReaderInfo() ([]ccid.ReaderInfo, error) {
 	if isPcscNativeMode() {
-		// pcscd 模式下没有 USBPath 信息，回退到只返回名称
 		names, err := listReadersPCSC()
 		if err != nil {
 			return nil, err
 		}
+		// 从 sysfs 枚举 CCID 设备获取 USBPath（只读 sysfs，不连接设备）。
+		// goscard 返回的读卡器名称中包含 SN，通过 SN 关联 sysfs 的 USBPath。
+		sysfsInfos, sysfsErr := ccid.ListReaderInfo(context.Background())
 		infos := make([]ccid.ReaderInfo, 0, len(names))
 		for _, name := range names {
-			infos = append(infos, ccid.ReaderInfo{Name: name, ChannelAvailable: true, Transport: "pcsc"})
+			info := ccid.ReaderInfo{Name: name, ChannelAvailable: true, Transport: "pcsc"}
+			if sysfsErr == nil {
+				sn := extractSerialFromReaderName(name)
+				if sn != "" {
+					for _, si := range sysfsInfos {
+						if si.USBSerial == sn {
+							info.USBPath = si.USBPath
+							info.USBSerial = si.USBSerial
+							info.VendorID = si.VendorID
+							info.ProductID = si.ProductID
+							break
+						}
+					}
+				}
+			}
+			infos = append(infos, info)
 		}
 		return infos, nil
 	}
 	return ccid.ListReaderInfo(context.Background())
+}
+
+// extractSerialFromReaderName 从 PC/SC 读卡器名称中提取序列号（SN）。
+// goscard/pcscd 返回的名称格式通常为 "Product Name (SN) Slot Index"，
+// 例如 "Generic Smart Card Reader Interface (2051315E5056) 00 00"。
+func extractSerialFromReaderName(name string) string {
+	start := strings.LastIndex(name, "(")
+	if start < 0 {
+		return ""
+	}
+	end := strings.Index(name[start:], ")")
+	if end < 0 {
+		return ""
+	}
+	return strings.TrimSpace(name[start+1 : start+end])
 }
 
 // ResolveReaderByUSBPath 用 USB 路径匹配当前模式下可用的读卡器名称。
