@@ -577,13 +577,24 @@ func (p *Pool) refreshPostSwitchIdentityPCSC(deviceID string, worker *Worker, sn
 
 	var newICCID, newIMSI string
 	pollDeadline := time.Now().Add(pollTimeout)
+	pollAttempt := 0
 	for {
+		pollAttempt++
+		readStart := time.Now()
 		adapter, err := newPCSCModemAdapter(worker.ID, worker.Config.PCSCUSBPath, worker.pcscAccessMu)
 		if err != nil {
 			logger.Debug("切卡后 PC/SC 创建适配器失败", "device", deviceID, "err", err)
 		} else {
 			imsi, iccid, mcc, mnc, readErr := adapter.ReadSIMIdentity()
+			readMS := time.Since(readStart).Milliseconds()
 			adapter.Stop()
+			if readErr != nil {
+				logger.Warn("切卡后 PC/SC 读取 SIM 身份失败",
+					"device", deviceID,
+					"attempt", pollAttempt,
+					"read_ms", readMS,
+					"err", readErr)
+			}
 			if readErr == nil {
 				newICCID = normalizeSIMIdentity(iccid)
 				newIMSI = normalizeSIMIdentity(imsi)

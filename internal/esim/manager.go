@@ -555,6 +555,9 @@ func NewManager(opts ManagerOptions) (*Manager, error) {
 		if usbPath == "" {
 			return nil, fmt.Errorf("PC/SC 传输需要指定 USB 路径")
 		}
+		// pcscChannelTracker 在 channelFactory 中保存底层 PCSCExclusiveChannel 引用，
+		// 用于 closeClient 中在 CloseLogicalChannel 失败时强制 Disconnect 释放 accessMu。
+		var pcscChannelTracker atomic.Pointer[PCSCExclusiveChannel]
 		mgr.smartCardChannelFactory = func() (driver.SmartCardChannel, error) {
 			// 用 USB 路径运行时匹配当前模式下的 reader 名称
 			readerName := ResolveReaderByUSBPath(usbPath)
@@ -571,7 +574,33 @@ func NewManager(opts ManagerOptions) (*Manager, error) {
 			if err != nil {
 				return nil, fmt.Errorf("创建 PC/SC 通道失败: %w", err)
 			}
+			pcscChannelTracker.Store(ch)
 			return ch, nil
+		}
+		// PC/SC 模式下 euicc-go 的 cardTransmitter.Close() 在 CloseLogicalChannel
+		// 失败时（如切卡后卡片 reset 返回 6200）不会调用 Disconnect()，导致
+		// PCSCExclusiveChannel 的 accessMu 锁永远不释放，后续所有 PC/SC 操作
+		// （identity refresh、VoWiFi AKA 认证等）全部永久阻塞。
+		// 自定义 closeClient 确保即使 CloseLogicalChannel 失败也强制 Disconnect。
+		mgr.closeClient = func(client *lpa.Client) error {
+			if client == nil {
+				return nil
+			}
+			closeErr := client.Close()
+			if closeErr != nil {
+				// client.Close() 失败意味着 CloseLogicalChannel 报错，
+				// euicc-go 不会继续调用 Disconnect()，accessMu 仍被持有。
+				// 通过 tracker 获取底层 channel，强制 Disconnect 释放锁。
+				ch := pcscChannelTracker.Load()
+				if ch != nil {
+					logger.Warn("PC/SC closeClient: Close 失败，强制 Disconnect 释放 accessMu",
+						"device", opts.DeviceID,
+						"close_err", closeErr)
+					_ = ch.Disconnect()
+					pcscChannelTracker.Store(nil)
+				}
+			}
+			return closeErr
 		}
 	default:
 		return nil, fmt.Errorf("不支持的 eSIM transport: %s", transport)

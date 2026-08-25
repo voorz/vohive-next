@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/ElMostafaIdrassi/goscard"
 	"github.com/voorz/wwan-go/ccid"
@@ -21,6 +22,7 @@ import (
 const (
 	pcscMaxLogicalChannel      = 19
 	pcscMaxShortAPDUDataLength = 255
+	pcscAPDUTimeout            = 30 * time.Second // APDU 传输超时，防止卡片不响应时永久阻塞
 )
 
 // 终端能力 APDU（与 lpac APDU_TERMINAL_CAPABILITIES 一致），失败忽略。
@@ -217,7 +219,8 @@ func (c *PCSCExclusiveChannel) Connect() error {
 
 // connectUSBFS 通过 wwan-go/ccid 包连接（内置 USBFS 驱动）。
 func (c *PCSCExclusiveChannel) connectUSBFS() error {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), pcscAPDUTimeout)
+	defer cancel()
 	r, err := ccid.OpenWithOptions(ctx, c.reader, ccid.OpenOptions{
 		ShareMode:                c.shareMode,
 		Protocol:                 c.protocol,
@@ -361,7 +364,9 @@ func (c *PCSCExclusiveChannel) Transmit(command []byte) ([]byte, error) {
 	var err error
 
 	if c.ccidReader != nil {
-		recv, err = c.ccidReader.Transmit(context.Background(), command)
+		ctx, cancel := context.WithTimeout(context.Background(), pcscAPDUTimeout)
+		defer cancel()
+		recv, err = c.ccidReader.Transmit(ctx, command)
 	} else if c.gcard != nil && c.gioSend != nil {
 		recv, _, err = c.gcard.Transmit(c.gioSend, command, nil)
 	} else {
@@ -422,7 +427,9 @@ func (c *PCSCExclusiveChannel) OpenLogicalChannel(AID []byte) (byte, error) {
 // transmitLocked 在已持有 c.mu 的前提下发送 APDU。
 func (c *PCSCExclusiveChannel) transmitLocked(command []byte) ([]byte, error) {
 	if c.ccidReader != nil {
-		return c.ccidReader.Transmit(context.Background(), command)
+		ctx, cancel := context.WithTimeout(context.Background(), pcscAPDUTimeout)
+		defer cancel()
+		return c.ccidReader.Transmit(ctx, command)
 	}
 	if c.gcard != nil && c.gioSend != nil {
 		recv, _, err := c.gcard.Transmit(c.gioSend, command, nil)
