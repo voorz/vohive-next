@@ -37,6 +37,16 @@ func UpdateDeviceInFile(path string, deviceID string, newDevice DeviceConfig) er
 			deleteMapKey(n, "modem_imei")
 		}
 		setMapScalar(n, "device_backend", newDevice.DeviceBackend)
+		if newDevice.USBManufacturer != "" {
+			setMapScalar(n, "usb_manufacturer", newDevice.USBManufacturer)
+		} else {
+			deleteMapKey(n, "usb_manufacturer")
+		}
+		if newDevice.USBProduct != "" {
+			setMapScalar(n, "usb_product", newDevice.USBProduct)
+		} else {
+			deleteMapKey(n, "usb_product")
+		}
 		if newDevice.QMIUseProxy {
 			setMapBool(n, "qmi_use_proxy", true)
 		} else {
@@ -92,6 +102,32 @@ func UpdateDeviceIMEIInFile(path string, updates map[string]string) error {
 				return nil, fmt.Errorf("设备未找到: %s", deviceID)
 			}
 			setMapScalar(n, "modem_imei", strings.TrimSpace(imei))
+		}
+		return devices, nil
+	})
+}
+
+// USBMetadataUpdate 描述单个设备的 USB 元数据回填。
+type USBMetadataUpdate struct {
+	Manufacturer string
+	Product      string
+}
+
+// UpdateDeviceUSBMetadataInFile 持久化 usb_manufacturer / usb_product 到配置文件。
+// 空值跳过（不擦除已有值），与 IMEI 回填语义一致。
+func UpdateDeviceUSBMetadataInFile(path string, updates map[string]USBMetadataUpdate) error {
+	return updateDevicesInFile(path, func(devices *yaml.Node) (*yaml.Node, error) {
+		for deviceID, meta := range updates {
+			n := findDeviceNodeByID(devices, deviceID)
+			if n == nil {
+				return nil, fmt.Errorf("设备未找到: %s", deviceID)
+			}
+			if strings.TrimSpace(meta.Manufacturer) != "" {
+				setMapScalar(n, "usb_manufacturer", strings.TrimSpace(meta.Manufacturer))
+			}
+			if strings.TrimSpace(meta.Product) != "" {
+				setMapScalar(n, "usb_product", strings.TrimSpace(meta.Product))
+			}
 		}
 		return devices, nil
 	})
@@ -188,6 +224,12 @@ func deviceConfigToNode(d DeviceConfig) *yaml.Node {
 	}
 	if d.DeviceBackend != "" {
 		appendMapScalar(m, "device_backend", d.DeviceBackend)
+	}
+	if d.USBManufacturer != "" {
+		appendMapScalar(m, "usb_manufacturer", d.USBManufacturer)
+	}
+	if d.USBProduct != "" {
+		appendMapScalar(m, "usb_product", d.USBProduct)
 	}
 	if d.QMIUseProxy {
 		appendMapBool(m, "qmi_use_proxy", true)

@@ -541,9 +541,9 @@ func (w *Worker) collectRuntimeStatus(ctx context.Context, reason string) modem.
 		})
 
 		wg.Wait()
-		// 从 Manager 获取 AT 来源的模组品牌（如 Quectel），补填到 Manufacturer。
-		// 注意：sysfs USBManufacturer 的优先级在 API 层处理（firstNonEmpty(cfg.USBManufacturer, status.Manufacturer)），
-		// 这里只负责采集 ATI/QMI 来源的值作为回退。
+// 从 Manager 获取 AT 来源的模组品牌（如 Quectel），补填到 Manufacturer。
+// 注意：API 层的优先级已改为 ATI 优先（firstNonEmpty(status.Manufacturer, cfg.USBManufacturer)），
+// 这里负责采集 ATI/QMI 来源的厂商名和型号作为首选值。
 		if w.Modem != nil {
 			if m := w.Modem; m != nil {
 				// ATI 缓存值仅在 status.Manufacturer 为空时填入（不覆盖已有值）

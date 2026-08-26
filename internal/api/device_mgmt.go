@@ -121,6 +121,8 @@ func deviceConfigFromDTOWithBase(d deviceConfigDTO, base *config.DeviceConfig) c
 	esimTransport := strings.TrimSpace(d.ESIMTransport)
 	pcscSerial := strings.TrimSpace(d.PCSCSerial)
 	pcscUSBPath := strings.TrimSpace(d.PCSCUSBPath)
+	usbManufacturer := ""
+	usbProduct := ""
 	if base != nil {
 		if esimTransport == "" {
 			esimTransport = base.ESIMTransport
@@ -131,6 +133,8 @@ func deviceConfigFromDTOWithBase(d deviceConfigDTO, base *config.DeviceConfig) c
 		if pcscUSBPath == "" {
 			pcscUSBPath = base.PCSCUSBPath
 		}
+		usbManufacturer = base.USBManufacturer
+		usbProduct = base.USBProduct
 	}
 	return config.DeviceConfig{
 		ID:                    id,
@@ -160,6 +164,8 @@ func deviceConfigFromDTOWithBase(d deviceConfigDTO, base *config.DeviceConfig) c
 		NetworkEnabled:        d.NetworkEnabled,
 		VoWiFiEnabled:         d.VoWiFiEnabled,
 		DeviceBackend:         d.DeviceBackend,
+		USBManufacturer:       usbManufacturer,
+		USBProduct:           usbProduct,
 	}
 }
 
@@ -671,9 +677,9 @@ func (s *Server) buildOverviewLiteItemFromWorkerWithModem(w *device.Worker, cfg 
 ATPort:                 w.ResolvedATPort(),
 USBPath:                cfg.USBPath,
 AudioDevice:            cfg.AudioDevice,
-Manufacturer:           firstNonEmpty(cfg.USBManufacturer, modemStatus.Manufacturer),
-USBProduct:             cfg.USBProduct,
-		LocalPhone:             overviewLocalPhone(effectiveOverviewIMSI(w, status), strings.TrimSpace(status.ICCID)),
+Manufacturer:           firstNonEmpty(modemStatus.Manufacturer, cfg.USBManufacturer),
+	USBProduct:             cfg.USBProduct,
+	LocalPhone:             overviewLocalPhone(effectiveOverviewIMSI(w, status), strings.TrimSpace(status.ICCID)),
 		E911SetupAvailable:     e911.SetupAvailable(modemStatus),
 		SMSEnabled:             cfg.SMSEnabled,
 		NetworkEnabled:         cfg.NetworkEnabled,
@@ -824,9 +830,9 @@ func (s *Server) handleDeviceMgmtList(c *gin.Context) {
 item := deviceMgmtListItem{
 ID:                     w.ID,
 Name:                   cfg.Name,
-Manufacturer:           firstNonEmpty(cfg.USBManufacturer, status.Manufacturer),
-USBProduct:             cfg.USBProduct,
-Running:                true,
+Manufacturer:           firstNonEmpty(status.Manufacturer, cfg.USBManufacturer),
+	USBProduct:             cfg.USBProduct,
+	Running:                true,
 			Healthy:                controlOnline,
 			ControlOnline:          controlOnline,
 			PublicIP:               w.GetCachedIP(),
@@ -876,6 +882,8 @@ NativeSPN:     status.NativeSPN,
 		item := deviceMgmtListItem{
 			ID:                     dc.ID,
 			Name:                   dc.Name,
+			Manufacturer:           dc.USBManufacturer,
+			USBProduct:             dc.USBProduct,
 			Running:                false,
 			Healthy:                false,
 			ControlOnline:          false,
@@ -1379,10 +1387,12 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 }
 
 func buildDiscoveredDevice(hw device.CompatibleModem, configured bool, configuredID string, degraded bool) discoveredDevice {
-	// 厂商名/型号：sysfs (USBManufacturer/USBProduct) 优先，ATI/QMI 回退。
-	// 某些模组 ATI 探测会返回无效厂商名（如 "AT"/"ERROR"），sysfs 更可靠。
-	manufacturer := validOrFallback(hw.USBManufacturer, hw.Manufacturer)
-	model := validOrFallback(hw.USBProduct, hw.Model)
+	// 名称(DisplayName)：sysfs USBProduct 优先——USB 描述符的产品名更适合做显示名。
+	// 厂商(Manufacturer)：ATI/QMI 优先，sysfs 回退——ATI 返回的厂商名(如 Quectel)更准确。
+	// 型号(Model)：ATI/QMI 优先，sysfs 回退——ATI 返回的型号(如 EC20F)更准确。
+	// validOrFallback 会过滤 AT/ERROR 等无效值，确保 ATI 无效时回退到 sysfs。
+	manufacturer := validOrFallback(hw.Manufacturer, hw.USBManufacturer)
+	model := validOrFallback(hw.Model, hw.USBProduct)
 	return discoveredDevice{
 		DiscoveryKey:   hw.DiscoveryKey(),
 		ControlPath:    hw.ControlPath,
