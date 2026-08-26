@@ -75,10 +75,10 @@ func (p *Pool) buildVoWiFiStartProfile(worker *Worker, traceID string) (identity
 		"mnc", mnc,
 		"imei", imei)
 
-	return buildVoWiFiRawProfile(imsi, mcc, mnc, imei, smsc, status.NativeSPN), nil
+	return buildVoWiFiRawProfile(imsi, mcc, mnc, imei, smsc, status.NativeSPN, status.GID1, status.GID2), nil
 }
 
-func buildVoWiFiRawProfile(imsi, mcc, mnc, imei, smsc, spn string) identity.Profile {
+func buildVoWiFiRawProfile(imsi, mcc, mnc, imei, smsc, spn, gid1, gid2 string) identity.Profile {
 	return identity.Profile{
 		IMSI: strings.TrimSpace(imsi),
 		MCC:  strings.TrimSpace(mcc),
@@ -86,6 +86,8 @@ func buildVoWiFiRawProfile(imsi, mcc, mnc, imei, smsc, spn string) identity.Prof
 		IMEI: strings.TrimSpace(imei),
 		SMSC: strings.TrimSpace(smsc),
 		SPN:  strings.TrimSpace(spn),
+		GID1: strings.TrimSpace(gid1),
+		GID2: strings.TrimSpace(gid2),
 	}
 }
 
@@ -109,11 +111,25 @@ func (p *Pool) buildPCSCVoWiFiStartProfile(worker *Worker, traceID string) (iden
 		return identity.Profile{}, fmt.Errorf("PC/SC 解析 MCC/MNC 失败: %s", imsi)
 	}
 
+	// 读取 GID1/GID2 用于精准运营商匹配（读取失败不阻断流程）
+	gid1, gid1Err := adapter.ReadGID1()
+	if gid1Err != nil {
+		logger.Debug("PC/SC 读取 GID1 失败，继续", "trace_id", traceID, "device", worker.ID, "err", gid1Err)
+		gid1 = ""
+	}
+	gid2, gid2Err := adapter.ReadGID2()
+	if gid2Err != nil {
+		logger.Debug("PC/SC 读取 GID2 失败，继续", "trace_id", traceID, "device", worker.ID, "err", gid2Err)
+		gid2 = ""
+	}
+
 	// 缓存 SIM 身份到 worker 状态，供后续流程使用
 	cacheVoWiFiProfileMCCMNC(worker, mcc, mnc)
 	worker.cacheMu.Lock()
 	worker.state.Identity.IMSI = imsi
 	worker.state.Identity.ICCID = strings.TrimSpace(iccid)
+	worker.state.Identity.GID1 = strings.TrimSpace(gid1)
+	worker.state.Identity.GID2 = strings.TrimSpace(gid2)
 	worker.state.Identity.Ready = true
 	worker.cacheMu.Unlock()
 
@@ -124,10 +140,12 @@ func (p *Pool) buildPCSCVoWiFiStartProfile(worker *Worker, traceID string) (iden
 		"iccid", iccid,
 		"imsi", imsi,
 		"mcc", mcc,
-		"mnc", mnc)
+		"mnc", mnc,
+		"gid1_len", len(gid1),
+		"gid2_len", len(gid2))
 
 	// PC/SC 设备无 IMEI、SMSC、SPN — 留空，EAP-AKA 认证不需要 IMEI
-	return buildVoWiFiRawProfile(imsi, mcc, mnc, "", "", ""), nil
+	return buildVoWiFiRawProfile(imsi, mcc, mnc, "", "", "", gid1, gid2), nil
 }
 
 func resolveVoWiFiProfileMCCMNC(ctx context.Context, worker *Worker, status modem.DeviceStatus, imsi, traceID string) (mcc, mnc, source string) {

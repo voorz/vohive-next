@@ -7,7 +7,6 @@ import (
 	"time"
 
 	swusim "github.com/voorz/vowifi-core/engine/sim"
-	"github.com/voorz/vowifi-core/profiles"
 	"github.com/voorz/vowifi-core/runtimehost"
 	"github.com/voorz/vowifi-core/runtimehost/carrier"
 	"github.com/voorz/vowifi-core/runtimehost/eventhost"
@@ -120,11 +119,28 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 		pcscfAddr       string
 	)
 	if mcc != "" && mnc != "" {
-		if p, err := profiles.Lookup(mcc, mnc); err == nil && p != nil {
+		if p, err := carrier.LookupWithIdentity(mcc, mnc, profile.GID1, profile.GID2, profile.SPN); err == nil && p != nil {
 			registerProfile = carrierconfig.ResolveRegisterProfile(p)
 			sipInstanceURN = carrierconfig.ResolveSIPInstanceURN(p)
 			registerExpiry = carrierconfig.ResolveRegisterExpiry(p)
 			pcscfAddr = carrierconfig.ResolvePCSCFAddr(p)
+
+			// 打印实际使用的 carrier 模板信息（1 条，带设备 ID）
+			source := "系统默认"
+			if userP, _ := carrier.LookupWithSPN(mcc, mnc, profile.SPN); userP != nil {
+				source = "用户自定义"
+			}
+			profileName := p.Name
+			if profileName == "" {
+				profileName = p.ID
+			}
+			logger.Info(fmt.Sprintf("[%s] 🧩IMS 运营商模板已匹配", deviceID),
+				"trace_id", strings.TrimSpace(req.TraceID),
+				"plmn", mcc+"-"+mnc,
+				"source", source,
+				"template", profileName,
+				"gid1", profile.GID1,
+				"gid2", profile.GID2)
 		}
 	}
 

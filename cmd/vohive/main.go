@@ -147,6 +147,9 @@ func main() {
 
 	// 启动 plmn-index 同步（首次空库时拉取，之后每 24h 定期同步）
 	plmnindex.StartPeriodicSync(context.Background())
+
+	// 注入 CarrierIndexProvider，启用 GID 精准匹配
+	plmnindex.InitCarrierIndexProvider()
 	countryResult := upstreamproxy.InitCountryTable(context.Background(), upstreamproxy.CountryTableOptions{
 		CachePath: upstreamproxy.DefaultCountryTableCachePath,
 	})

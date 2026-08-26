@@ -21,6 +21,8 @@ var (
 	efIMSI         = []byte{0x6F, 0x07}
 	efICCID        = []byte{0x2F, 0xE2}
 	efAD           = []byte{0x6F, 0xAD}
+	efGID1         = []byte{0x6F, 0x3E} // Group Identifier 1 (3GPP TS 31.102 §4.2.6)
+	efGID2         = []byte{0x6F, 0x3F} // Group Identifier 2 (3GPP TS 31.102 §4.2.7)
 	efMF           = []byte{0x3F, 0x00}
 )
 
@@ -571,6 +573,55 @@ func (a *pcscModemAdapter) ReadSIMIdentity() (imsi, iccid, mcc, mnc string, err 
 	}
 	_, mcc, mnc, _, _ = parseIMSIMCCMNC(imsi, mncLen)
 	return
+}
+
+// ReadGID1 通过 PC/SC 读取 EF_GID1 并返回 hex 字符串（去除尾部 0xFF 填充）。
+func (a *pcscModemAdapter) ReadGID1() (string, error) {
+	return a.readEFHex(efGID1, "EF_GID1")
+}
+
+// ReadGID2 通过 PC/SC 读取 EF_GID2 并返回 hex 字符串（去除尾部 0xFF 填充）。
+func (a *pcscModemAdapter) ReadGID2() (string, error) {
+	return a.readEFHex(efGID2, "EF_GID2")
+}
+
+// readEFHex 读取一个透明 EF 文件并返回去除 0xFF 填充后的 hex 字符串。
+func (a *pcscModemAdapter) readEFHex(fid []byte, label string) (string, error) {
+	if err := a.ensureConnected(); err != nil {
+		return "", err
+	}
+	ch, cleanup, err := a.openUSIMChannel()
+	if err != nil {
+		return "", fmt.Errorf("打开 USIM 逻辑通道失败: %w", err)
+	}
+	defer cleanup()
+
+	resp, err := a.transmitOnChannel(ch, selectByFIDCmd(fid))
+	if err != nil {
+		return "", fmt.Errorf("SELECT %s 失败: %w", label, err)
+	}
+	if err := checkSW(resp); err != nil {
+		return "", fmt.Errorf("SELECT %s: %w", label, err)
+	}
+
+	// READ BINARY (最多 32 字节，GID 通常 1-20 字节)
+	resp, err = a.transmitOnChannel(ch, readBinaryCmd(0x20))
+	if err != nil {
+		return "", fmt.Errorf("READ %s 失败: %w", label, err)
+	}
+	if err := checkSW(resp); err != nil {
+		return "", fmt.Errorf("READ %s: %w", label, err)
+	}
+
+	data := resp[:len(resp)-2] // 去掉 SW 字节
+	// 去除尾部 0xFF 填充
+	for len(data) > 0 && data[len(data)-1] == 0xFF {
+		data = data[:len(data)-1]
+	}
+	if len(data) == 0 {
+		return "", nil
+	}
+	return hex.EncodeToString(data), nil
 }
 
 // parseIMSI 解析 EF_IMSI 原始字节为 IMSI/MCC/MNC/MSIN。
