@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/voorz/vohive/internal/backend"
+	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/db"
 	"github.com/voorz/vohive/internal/esim"
 	"github.com/voorz/vohive/pkg/logger"
@@ -1269,8 +1270,10 @@ func (p *Pool) schedulePostSwitchNotificationAutoClean(deviceID string, token ui
 			return
 		}
 
-		// 对齐 NekoKo：网络未恢复时不 autoClean，通知保留在卡上
-		if !worker.NetworkConnected() {
+		
+		// PC/SC 读卡器没有 modem 网络控制器，通知发送走主机网络，跳过此检查
+		isPCSC := config.NormalizeESIMTransport(worker.Config.ESIMTransport) == config.ESIMTransportPCSC
+		if !isPCSC && !worker.NetworkConnected() {
 			return
 		}
 
