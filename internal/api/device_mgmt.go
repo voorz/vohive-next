@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -1363,9 +1364,17 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 					}
 				}
 			}
-			out = append(out, discoveredDevice{
-				DiscoveryKey: "pcsc:" + ri.Name,
-				DriverName:   "PC/SC Reader",
+// ⚠️ 警告：DiscoveryKey 必须用 USB 路径区分，切勿改回 ri.Name！
+// 山寨读卡器（如 Holtek 04d9:c001）serial 固定为 000000000001，导致 ri.Name 完全一样。
+// 用 name 做 key 会产生重复，Vue v-for :key 冲突，设备卡片合并/信息丢失。
+// USB 路径是物理端口位置，保证唯一。此修复曾被覆盖导致回归，请勿修改！
+		discoveryKey := "pcsc:" + ri.Name
+		if ri.USBPath != "" {
+			discoveryKey = "pcsc:" + filepath.Base(ri.USBPath)
+		}
+		out = append(out, discoveredDevice{
+			DiscoveryKey: discoveryKey,
+			DriverName:   "PC/SC Reader",
 				Mode:         "pcsc",
 				Type:         "pcsc",
 				PCSCUSBPath:  ri.USBPath,

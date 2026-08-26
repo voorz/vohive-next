@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -257,19 +258,22 @@ func applyUpdateFromURL(apiURL string, tag string) error {
 
 	logger.Info("开始下载更新", "url", downloadURL, "tag", release.TagName)
 
-	// 下载二进制
-	dlResp, err := http.Get(downloadURL)
+	// 下载二进制到临时文件（带超时、校验、重试）
+	tmpFile, err := downloadToTempFile(downloadURL, 3)
 	if err != nil {
 		return fmt.Errorf("failed to download update: %w", err)
 	}
-	defer dlResp.Body.Close()
+	defer os.Remove(tmpFile)
 
-	if dlResp.StatusCode != http.StatusOK {
-		return fmt.Errorf("download failed with status %d", dlResp.StatusCode)
+	// 打开临时文件供 selfupdate.Apply 读取
+	f, err := os.Open(tmpFile)
+	if err != nil {
+		return fmt.Errorf("failed to open downloaded file: %w", err)
 	}
+	defer f.Close()
 
 	// 执行替换
-	err = selfupdate.Apply(dlResp.Body, selfupdate.Options{})
+	err = selfupdate.Apply(f, selfupdate.Options{})
 	if err != nil {
 		// 回滚
 		if rerr := selfupdate.RollbackError(err); rerr != nil {
@@ -292,6 +296,90 @@ func applyUpdateFromURL(apiURL string, tag string) error {
 	}()
 
 	return nil
+}
+
+// ⚠️ 警告：downloadToTempFile 下载二进制到临时文件，带超时、Content-Length 校验和重试。
+// 切勿改回 http.Get 直接流式传给 selfupdate.Apply！
+// R0 等网络不稳定环境到 GitHub CDN 会中途断开，截断的流会导致 unexpected EOF。
+// 必须先下载到临时文件、校验完整性后再 Apply。此修复切勿覆盖！
+// maxRetries 为最大重试次数（不含首次），0 表示不重试。
+func downloadToTempFile(url string, maxRetries int) (string, error) {
+	var lastErr error
+
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		if attempt > 0 {
+			logger.Info("下载重试", "attempt", attempt, "url", url)
+			time.Sleep(2 * time.Second)
+		}
+
+		// 使用带超时的 client：连接超时 15s，整体超时 5 分钟（大文件）
+		client := &http.Client{
+			Timeout: 5 * time.Minute,
+		}
+
+		req, err := http.NewRequest(http.MethodGet, url, nil)
+		if err != nil {
+			lastErr = fmt.Errorf("create request failed: %w", err)
+			continue
+		}
+		req.Header.Set("Accept", "application/octet-stream")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			lastErr = fmt.Errorf("download request failed: %w", err)
+			continue
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			resp.Body.Close()
+			lastErr = fmt.Errorf("download failed with status %d", resp.StatusCode)
+			continue
+		}
+
+		// 创建临时文件
+		tmpFile, err := os.CreateTemp("", "vohive_update_*.bin")
+		if err != nil {
+			resp.Body.Close()
+			lastErr = fmt.Errorf("failed to create temp file: %w", err)
+			continue
+		}
+		tmpPath := tmpFile.Name()
+
+		// 流式写入临时文件
+		written, copyErr := io.Copy(tmpFile, resp.Body)
+		resp.Body.Close()
+		tmpFile.Close()
+
+		if copyErr != nil {
+			os.Remove(tmpPath)
+			lastErr = fmt.Errorf("download interrupted: %w", copyErr)
+			logger.Warn("下载中断", "error", copyErr, "attempt", attempt)
+			continue
+		}
+
+		// 校验 Content-Length
+		if contentLength := resp.Header.Get("Content-Length"); contentLength != "" {
+			expected, parseErr := strconv.ParseInt(contentLength, 10, 64)
+			if parseErr == nil && expected > 0 && written != expected {
+				os.Remove(tmpPath)
+				lastErr = fmt.Errorf("download incomplete: got %d bytes, expected %d", written, expected)
+				logger.Warn("下载不完整", "written", written, "expected", expected, "attempt", attempt)
+				continue
+			}
+		}
+
+		// 校验最小文件大小（至少 1MB，防止下到错误页面）
+		if written < 1*1024*1024 {
+			os.Remove(tmpPath)
+			lastErr = fmt.Errorf("downloaded file too small: %d bytes (expected > 1MB)", written)
+			continue
+		}
+
+		logger.Info("下载完成", "bytes", written, "path", tmpPath)
+		return tmpPath, nil
+	}
+
+	return "", fmt.Errorf("download failed after %d attempts: %w", maxRetries+1, lastErr)
 }
 
 // ApplyLocalUpdate 从本地文件 reader 替换当前二进制

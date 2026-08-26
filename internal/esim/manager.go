@@ -569,9 +569,9 @@ func NewManager(opts ManagerOptions) (*Manager, error) {
 			var ch *PCSCExclusiveChannel
 			var err error
 			if opts.PCSCAccessMu != nil {
-				ch, err = NewPCSCExclusiveChannelWithMutex(readerName, opts.PCSCAccessMu)
+				ch, err = NewPCSCExclusiveChannelWithMutex(readerName, usbPath, opts.PCSCAccessMu)
 			} else {
-				ch, err = NewPCSCExclusiveChannel(readerName)
+				ch, err = NewPCSCExclusiveChannel(readerName, usbPath)
 			}
 			if err != nil {
 				return nil, fmt.Errorf("创建 PC/SC 通道失败: %w", err)

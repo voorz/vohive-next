@@ -107,8 +107,9 @@ func releaseGoscard() {
 //
 // 运行时由全局 SetPcscTransport() 切换。
 type PCSCExclusiveChannel struct {
-	mu     sync.Mutex
-	reader string
+	mu      sync.Mutex
+	reader  string
+	usbPath string // sysfs USB 路径，用于区分相同 name 的山寨读卡器
 
 	// USBFS 链路
 	ccidReader *ccid.Reader
@@ -133,12 +134,14 @@ type PCSCExclusiveChannel struct {
 }
 
 // NewPCSCExclusiveChannel 创建指定读卡器的独占通道（此时尚未连接）。
-func NewPCSCExclusiveChannel(reader string) (*PCSCExclusiveChannel, error) {
+// usbPath 用于区分相同 reader name 的山寨读卡器，可为空（正规设备）。
+func NewPCSCExclusiveChannel(reader, usbPath string) (*PCSCExclusiveChannel, error) {
 	if reader == "" {
 		return nil, errors.New("PC/SC 独占通道需要指定读卡器名称")
 	}
 	return &PCSCExclusiveChannel{
 		reader:      reader,
+		usbPath:      usbPath,
 		shareMode:   ccid.ShareExclusive,
 		protocol:    ccid.ProtocolT0,
 		sendTermCap: true,
@@ -147,12 +150,14 @@ func NewPCSCExclusiveChannel(reader string) (*PCSCExclusiveChannel, error) {
 
 // NewPCSCSharedChannel 创建共享模式通道（用于 USIM 访问）。
 // 使用 ShareShared + ProtocolAny，不发送终端能力 APDU。
-func NewPCSCSharedChannel(reader string) (*PCSCExclusiveChannel, error) {
+// usbPath 用于区分相同 reader name 的山寨读卡器，可为空（正规设备）。
+func NewPCSCSharedChannel(reader, usbPath string) (*PCSCExclusiveChannel, error) {
 	if reader == "" {
 		return nil, errors.New("PC/SC 通道需要指定读卡器名称")
 	}
 	return &PCSCExclusiveChannel{
 		reader:      reader,
+		usbPath:      usbPath,
 		shareMode:   ccid.ShareShared,
 		protocol:    ccid.ProtocolAny,
 		sendTermCap: false,
@@ -160,8 +165,8 @@ func NewPCSCSharedChannel(reader string) (*PCSCExclusiveChannel, error) {
 }
 
 // NewPCSCExclusiveChannelWithMutex 创建带共享互斥锁的独占通道。
-func NewPCSCExclusiveChannelWithMutex(reader string, mu *sync.Mutex) (*PCSCExclusiveChannel, error) {
-	ch, err := NewPCSCExclusiveChannel(reader)
+func NewPCSCExclusiveChannelWithMutex(reader, usbPath string, mu *sync.Mutex) (*PCSCExclusiveChannel, error) {
+	ch, err := NewPCSCExclusiveChannel(reader, usbPath)
 	if err != nil {
 		return nil, err
 	}
@@ -170,8 +175,8 @@ func NewPCSCExclusiveChannelWithMutex(reader string, mu *sync.Mutex) (*PCSCExclu
 }
 
 // NewPCSCSharedChannelWithMutex 创建带共享互斥锁的共享模式通道。
-func NewPCSCSharedChannelWithMutex(reader string, mu *sync.Mutex) (*PCSCExclusiveChannel, error) {
-	ch, err := NewPCSCSharedChannel(reader)
+func NewPCSCSharedChannelWithMutex(reader, usbPath string, mu *sync.Mutex) (*PCSCExclusiveChannel, error) {
+	ch, err := NewPCSCSharedChannel(reader, usbPath)
 	if err != nil {
 		return nil, err
 	}
@@ -225,6 +230,10 @@ func (c *PCSCExclusiveChannel) connectUSBFS() error {
 		ShareMode:                c.shareMode,
 		Protocol:                 c.protocol,
 		SendTerminalCapabilities: c.sendTermCap,
+		// ⚠️ 警告：USBPath 切勿删除！山寨读卡器 serial 相同（000000000001），
+		// reader name 完全一样，不传 USBPath 会导致所有同名读卡器打开同一个 USB 设备，
+		// APDU 通信串设备，读到相同的 EID 和 profiles。此修复切勿覆盖！
+		USBPath:                  c.usbPath,
 	})
 	if err != nil {
 		c.releaseAccessMuLocked()

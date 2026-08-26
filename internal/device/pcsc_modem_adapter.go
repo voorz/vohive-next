@@ -46,9 +46,9 @@ func newPCSCModemAdapter(deviceID, usbPath, sn string, mu *sync.Mutex) (*pcscMod
 	var err error
 	if mu != nil {
 		// VoWiFi USIM 访问用共享模式 (ShareShared + ProtocolAny)
-		ch, err = esim.NewPCSCSharedChannelWithMutex(readerName, mu)
+		ch, err = esim.NewPCSCSharedChannelWithMutex(readerName, usbPath, mu)
 	} else {
-		ch, err = esim.NewPCSCSharedChannel(readerName)
+		ch, err = esim.NewPCSCSharedChannel(readerName, usbPath)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("创建 PC/SC 通道失败: %w", err)
@@ -101,9 +101,9 @@ func (a *pcscModemAdapter) ensureConnected() error {
 		var ch *esim.PCSCExclusiveChannel
 		var err error
 		if a.accessMu != nil {
-			ch, err = esim.NewPCSCSharedChannelWithMutex(readerName, a.accessMu)
+			ch, err = esim.NewPCSCSharedChannelWithMutex(readerName, a.usbPath, a.accessMu)
 		} else {
-			ch, err = esim.NewPCSCSharedChannel(readerName)
+			ch, err = esim.NewPCSCSharedChannel(readerName, a.usbPath)
 		}
 		if err != nil {
 			return fmt.Errorf("重建 PC/SC 通道失败: %w", err)
