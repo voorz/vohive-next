@@ -3228,6 +3228,48 @@ paths:
       summary: StopPcscDriver
       tags:
       - settings
+  /system/restart:
+    post:
+      description: Restart the vohive systemd service
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 重启指令已发送
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: 服务不可用
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: SystemRestart
+      tags:
+      - system
+  /system/stop:
+    post:
+      description: Stop the vohive systemd service
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 停止指令已发送
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: 服务不可用
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: SystemStop
+      tags:
+      - system
   /system/update/check:
     get:
       produces:

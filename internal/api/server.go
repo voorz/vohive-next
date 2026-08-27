@@ -339,6 +339,8 @@ func (s *Server) newRouter() *gin.Engine {
 		api.POST("/system/update/apply", s.handleApplyUpdate)              // 应用最新版本更新
 		api.POST("/system/update/apply/:tag", s.handleApplyUpdateByTag)    // 按 tag 应用指定版本更新
 		api.POST("/system/update/local", s.handleLocalUpdate)              // 上传本地二进制更新
+		api.POST("/system/restart", s.handleSystemRestart)              // 重启 vohive 服务
+		api.POST("/system/stop", s.handleSystemStop)                   // 停止 vohive 服务
 		api.GET("/system/pcsc-driver", s.handleGetPcscDriverStatus)        // 检测 PC/SC 驱动状态
 		api.POST("/system/pcsc-driver/install", s.handleInstallPcscDriver) // 安装 PC/SC 驱动
 		api.POST("/system/pcsc-driver/stop", s.handleStopPcscDriver)      // 停止 pcscd 服务
