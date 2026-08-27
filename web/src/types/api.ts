@@ -163,6 +163,7 @@ interface: string
   ip_version?: 'v4' | 'v6' | 'v4v6'
   esim_transport?: 'at' | 'qmi' | 'mbim' | 'pcsc'
   pcsc_usb_path?: string
+  pcsc_serial?: string
   network_enabled?: boolean
   at_port: string
   control_device: string
