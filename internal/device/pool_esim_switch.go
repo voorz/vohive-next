@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/voorz/vohive/internal/backend"
-	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/db"
 	"github.com/voorz/vohive/internal/esim"
 	"github.com/voorz/vohive/pkg/logger"
@@ -1267,13 +1266,6 @@ func (p *Pool) schedulePostSwitchNotificationAutoClean(deviceID string, token ui
 			return
 		}
 		if !settings.ProcessAfterSwitch {
-			return
-		}
-
-		
-		// PC/SC 读卡器没有 modem 网络控制器，通知发送走主机网络，跳过此检查
-		isPCSC := config.NormalizeESIMTransport(worker.Config.ESIMTransport) == config.ESIMTransportPCSC
-		if !isPCSC && !worker.NetworkConnected() {
 			return
 		}
 
