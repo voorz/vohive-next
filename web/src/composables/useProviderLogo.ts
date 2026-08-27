@@ -93,10 +93,12 @@ export function useProviderLogo(): { ready: Ref<boolean> } {
  */
 export function autoDownloadIcon(mcc: string, mnc: string, name?: string, carrierKey?: string) {
   if (!mcc || !mnc) return
-  if (getCachedIcon(mcc, mnc, name, carrierKey)) return
-  downloadIcon(mcc, mnc, name, carrierKey).then(result => {
-    if (result) {
-      window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc, mnc } }))
-    }
+  getCachedIcon(mcc, mnc, name, carrierKey).then(cached => {
+    if (cached) return
+    downloadIcon(mcc, mnc, name, carrierKey).then(result => {
+      if (result) {
+        window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc, mnc } }))
+      }
+    })
   })
 }

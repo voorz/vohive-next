@@ -63,7 +63,7 @@ async function handleAddCarriers(plmns: string[]) {
     // 后台批量下载图标
     for (const c of store.carriers) {
       if (plmns.includes(c.key) || plmns.includes(`${c.mcc}-${c.mnc}`)) {
-        if (!getCachedIcon(c.mcc, c.mnc, c.name, c.key)) {
+        if (!(await getCachedIcon(c.mcc, c.mnc, c.name, c.key))) {
           downloadIcon(c.mcc, c.mnc, c.name, c.key).then(result => {
             if (result) {
               window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc: c.mcc, mnc: c.mnc } }))
@@ -124,7 +124,7 @@ async function handleDelete(key: string, name: string) {
           :class="{ selected: item.key === selectedKey }"
           @click="handleSelect(item.key)"
         >
-          <CarrierIcon :mcc="item.mcc" :mnc="item.mnc" :name="item.name" :carrier-key="item.key" :size="28" />
+          <CarrierIcon :mcc="item.mcc" :mnc="item.mnc" :name="item.name" :carrier-key="item.key" :size="38" />
           <div class="carrier-card-info">
             <div class="carrier-card-name">{{ item.name }}</div>
             <div class="carrier-card-meta">
@@ -149,6 +149,11 @@ async function handleDelete(key: string, name: string) {
             </button>
           </div>
         </div>
+        <!-- 虚线框添加卡片 -->
+        <button class="carrier-add-card" @click="emit('open-search')">
+          <el-icon size="20"><Add24Regular /></el-icon>
+          <span>添加运营商</span>
+        </button>
       </div>
     </div>
 
@@ -189,13 +194,13 @@ async function handleDelete(key: string, name: string) {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 6px;
+  padding: 12px;
 }
 
 .carrier-cards {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 
 .carrier-card {
@@ -203,7 +208,7 @@ async function handleDelete(key: string, name: string) {
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  border: 1px solid transparent;
+  border: 1px solid var(--border);
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
@@ -216,6 +221,30 @@ async function handleDelete(key: string, name: string) {
 .carrier-card.selected {
   background: color-mix(in oklab, var(--brand) 8%, var(--card));
   border-color: color-mix(in oklab, var(--brand) 30%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 20%, transparent);
+}
+
+.carrier-add-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 62px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.carrier-add-card:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: color-mix(in oklab, var(--brand) 5%, transparent);
 }
 
 .carrier-card-info {

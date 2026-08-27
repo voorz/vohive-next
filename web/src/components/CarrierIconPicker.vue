@@ -4,7 +4,7 @@ import { ElMessage } from 'element-plus'
 import { ArrowDownload24Regular, Delete24Regular } from '@vicons/fluent'
 import {
   getAvailableIcons,
-  getIconOverride,
+  getIconOverrideAsync,
   setIconOverride,
   clearIconOverride,
   downloadIcon,
@@ -34,17 +34,26 @@ const availableIcons = computed(() => {
   return getAvailableIcons(props.mcc)
 })
 
-const currentOverride = computed(() => {
-  if (!props.mcc || !props.mnc) return null
-  return getIconOverride(props.mcc, props.mnc, props.carrierKey)
-})
+const currentOverride = ref<{ iconName: string; iconScope: string } | null>(null)
+
+async function loadOverride() {
+  if (!props.mcc || !props.mnc) {
+    currentOverride.value = null
+    return
+  }
+  currentOverride.value = await getIconOverrideAsync(props.mcc, props.mnc, props.carrierKey)
+}
 
 const defaultIcon = computed(() => {
   if (!props.mcc || !props.mnc) return null
   return getIconInfo(props.mcc, props.mnc, props.name, props.carrierKey)
 })
 
-function refreshState() {
+let refreshVersion = 0
+
+async function refreshState() {
+  const version = ++refreshVersion
+  await loadOverride()
   const override = currentOverride.value
   if (override) {
     selectedIcon.value = override.iconName
@@ -56,30 +65,39 @@ function refreshState() {
     selectedIcon.value = ''
     selectedScope.value = ''
   }
-  previewSrc.value = props.mcc && props.mnc ? getCachedIcon(props.mcc, props.mnc, props.name, props.carrierKey) : null
+  if (props.mcc && props.mnc) {
+    const cached = await getCachedIcon(props.mcc, props.mnc, props.name, props.carrierKey)
+    if (version === refreshVersion) {
+      previewSrc.value = cached
+    }
+  } else {
+    previewSrc.value = null
+  }
 }
 
 watch(() => [props.mcc, props.mnc, props.name, props.carrierKey], refreshState, { immediate: true })
 
-function onSelectIcon(icon: string, scope: string) {
+async function onSelectIcon(icon: string, scope: string) {
   selectedIcon.value = icon
   selectedScope.value = scope
   if (props.mcc && props.mnc) {
     // 如果选的不是默认图标，设置 override
     const def = defaultIcon.value
     if (!def || def.iconName !== icon || def.iconScope !== scope) {
-      setIconOverride(props.mcc, props.mnc, icon, scope, props.carrierKey)
+      await setIconOverride(props.mcc, props.mnc, icon, scope, props.carrierKey)
+      await loadOverride()
     } else {
-      clearIconOverride(props.mcc, props.mnc, props.carrierKey)
+      await clearIconOverride(props.mcc, props.mnc, props.carrierKey)
+      await loadOverride()
     }
     emit('change')
   }
 }
 
-function clearOverride() {
+async function clearOverride() {
   if (props.mcc && props.mnc) {
-    clearIconOverride(props.mcc, props.mnc, props.carrierKey)
-    refreshState()
+    await clearIconOverride(props.mcc, props.mnc, props.carrierKey)
+    await refreshState()
     emit('change')
     ElMessage.success('已恢复默认图标')
   }

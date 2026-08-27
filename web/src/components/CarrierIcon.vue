@@ -13,17 +13,32 @@ const props = defineProps<{
 const cachedSrc = ref<string | null>(null)
 const enabled = ref(true)
 
-function refresh() {
+let refreshVersion = 0
+
+async function refresh() {
+  const version = ++refreshVersion
   enabled.value = isPersonalizationEnabled()
-  cachedSrc.value = enabled.value ? getCachedIcon(props.mcc, props.mnc, props.name, props.carrierKey) : null
+  if (!enabled.value) {
+    cachedSrc.value = null
+    return
+  }
+  const result = await getCachedIcon(props.mcc, props.mnc, props.name, props.carrierKey)
+  // 防止竞态：只接受最新一次 refresh 的结果
+  if (version === refreshVersion) {
+    cachedSrc.value = result
+  }
 }
 
 watch(() => [props.mcc, props.mnc, props.name, props.carrierKey], refresh, { immediate: true })
 
 // 监听图标下载完成事件，刷新缓存
+// 规范化 MNC 比较（去前导零），避免 03 和 3 不匹配导致事件不触发刷新
+function mncEqual(a: string, b: string): boolean {
+  return a.replace(/^0+/, '') === b.replace(/^0+/, '')
+}
 function onIconUpdated(e: Event) {
   const detail = (e as CustomEvent).detail
-  if (detail && detail.mcc === props.mcc && detail.mnc === props.mnc) {
+  if (detail && detail.mcc === props.mcc && mncEqual(detail.mnc, props.mnc)) {
     refresh()
   }
 }

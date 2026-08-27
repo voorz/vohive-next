@@ -50,11 +50,11 @@ onMounted(() => {
   // SSE 实时订阅设备列表
   connectStream()
   // 加载 PLMN catalog 并下载运营商图标
-  loadPlmnCatalog().then(() => {
+  loadPlmnCatalog().then(async () => {
     for (const d of list.value) {
       const mcc = d.modem?.native_mcc || ''
       const mnc = d.modem?.native_mnc || ''
-      if (mcc && mnc && !getCachedIcon(mcc, mnc, d.modem?.native_spn)) {
+      if (mcc && mnc && !(await getCachedIcon(mcc, mnc, d.modem?.native_spn))) {
         downloadIcon(mcc, mnc, d.modem?.native_spn).then(result => {
           if (result) {
             window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc, mnc } }))

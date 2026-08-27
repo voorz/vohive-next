@@ -8,6 +8,7 @@ import 'element-plus/dist/index.css'
 import 'element-plus/theme-chalk/dark/css-vars.css'
 import './style.css'
 import { ElLoading } from 'element-plus'
+import { loadOverridesFromIDB } from './composables/useOperatorIcon'
 
 let bootFinished = false
 let bootErrorOverlay: HTMLDivElement | null = null
@@ -80,6 +81,10 @@ app.config.errorHandler = (err) => {
 app.use(createPinia())
 app.use(router)
 app.use(ElLoading)
+
+// 启动时加载用户覆盖的图标选择到内存缓存
+// （getIconInfo 同步接口需要 override 数据在内存中）
+loadOverridesFromIDB().catch(() => { /* 非关键路径，失败静默 */ })
 
 router.onError((err) => {
   showBootError(err, { force: true })
