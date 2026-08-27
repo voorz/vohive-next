@@ -163,17 +163,6 @@ function onPanelMousedown(e: MouseEvent) {
       </div>
     </transition>
 
-    <!-- 已选列表（面板关闭时也能看到完整列表） -->
-    <div v-if="!inputVisible && selectedTags.length > 0" class="selected-summary">
-      <span
-        v-for="tag in selectedTags"
-        :key="tag"
-        class="tag-chip summary-chip"
-        @click="inputRef?.focus()"
-      >
-        {{ tag }}
-      </span>
-    </div>
   </div>
 </template>
 
@@ -329,23 +318,6 @@ function onPanelMousedown(e: MouseEvent) {
   padding: 1px 4px;
   background: var(--el-fill-color-light, #f5f7fa);
   border-radius: 3px;
-}
-
-/* 关闭时的摘要 */
-.selected-summary {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
-}
-
-.summary-chip {
-  cursor: pointer;
-  transition: opacity 0.15s;
-}
-
-.summary-chip:hover {
-  opacity: 0.7;
 }
 
 /* 过渡动画 */
