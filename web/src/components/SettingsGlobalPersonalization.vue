@@ -2,8 +2,8 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ChevronDown20Regular } from '@vicons/fluent'
-import { clearAllIconCache } from '../composables/useOperatorIcon'
-import { clearAllFlagCache } from '../composables/useCountryFlag'
+import { clearAllIconCache, getIconCacheCount } from '../composables/useOperatorIcon'
+import { clearAllFlagCache, countFlagCache } from '../composables/useCountryFlag'
 
 const STORAGE_KEY = 'vohive.personalization'
 
@@ -39,13 +39,12 @@ function save() {
   }
 }
 
-function countIconCache() {
-  let count = 0
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i)
-    if (key && (key.startsWith('vohive.icon.') || key.startsWith('vohive.flag.'))) count++
-  }
-  iconCacheCount.value = count
+async function countIconCache() {
+  const [iconCounts, flagCount] = await Promise.all([
+    getIconCacheCount(),
+    countFlagCache(),
+  ])
+  iconCacheCount.value = iconCounts.icons + iconCounts.overrides + flagCount
 }
 
 async function clearIconCache() {
@@ -60,9 +59,9 @@ async function clearIconCache() {
   }
   clearing.value = true
   try {
-    clearAllIconCache()
+    await clearAllIconCache()
     await clearAllFlagCache()
-    countIconCache()
+    await countIconCache()
     ElMessage.success('图标缓存已清除')
   } catch {
     ElMessage.error('清除失败')

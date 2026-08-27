@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useCarrierStore } from '../stores/carrier'
@@ -13,7 +13,7 @@ import {
 import CarrierIcon from './CarrierIcon.vue'
 import CountryFlag from './CountryFlag.vue'
 import { downloadIcon, getCachedIcon } from '../composables/useOperatorIcon'
-import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
+import { mccToIso, loadPlmnInfo, getPlmnInfo } from '../composables/plmn-info'
 
 const emit = defineEmits<{
   'open-search': []
@@ -24,31 +24,21 @@ const { carriers, selectedKey, loading } = storeToRefs(store)
 
 const searchText = ref('')
 
-// PLMN 索引信息
-const plmnInfoMap = ref<Record<string, PlmnInfoEntry | null>>({})
-const plmInfoLoaded = ref(false)
-
+// PLMN 索引加载（用于 mccToIso 内部查询）
 onMounted(async () => {
   await loadPlmnInfo()
-  plmInfoLoaded.value = true
 })
 
-// 同步刷新 plmnInfoMap
-watch([carriers, plmInfoLoaded], () => {
-  const map: Record<string, PlmnInfoEntry | null> = {}
-  for (const c of carriers.value) {
-    // 子品牌 key 如 "234-33__cmlink" 需取主网 PLMN 查找
-    const baseKey = c.key.split('__')[0]
-    map[c.key] = getPlmnInfo(baseKey)
-  }
-  plmnInfoMap.value = map
-}, { immediate: true })
-
-function getCountryIso(key: string): string {
-  return plmnInfoMap.value[key]?.country?.iso || ''
+// 国旗 ISO — 直接用 MCC+MNC 查询，与 CarrierIcon 使用同一套数据源
+function getCountryIso(mcc: string, mnc: string): string {
+  return mccToIso(mcc, mnc)
 }
-function getCountryCode(key: string): string {
-  return plmnInfoMap.value[key]?.country?.code || ''
+
+// 国家码 — 从 PLMN 信息获取
+function getCountryCode(mcc: string, mnc: string): string {
+  const plmn = mnc ? `${mcc}-${mnc}` : mcc
+  const info = getPlmnInfo(plmn)
+  return info?.country?.code || ''
 }
 
 const filteredCarriers = computed(() => {
@@ -73,7 +63,7 @@ async function handleAddCarriers(plmns: string[]) {
     // 后台批量下载图标
     for (const c of store.carriers) {
       if (plmns.includes(c.key) || plmns.includes(`${c.mcc}-${c.mnc}`)) {
-        if (!getCachedIcon(c.mcc, c.mnc, c.name, c.key)) {
+        if (!(await getCachedIcon(c.mcc, c.mnc, c.name, c.key))) {
           downloadIcon(c.mcc, c.mnc, c.name, c.key).then(result => {
             if (result) {
               window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc: c.mcc, mnc: c.mnc } }))
@@ -134,14 +124,14 @@ async function handleDelete(key: string, name: string) {
           :class="{ selected: item.key === selectedKey }"
           @click="handleSelect(item.key)"
         >
-          <CarrierIcon :mcc="item.mcc" :mnc="item.mnc" :name="item.name" :carrier-key="item.key" :size="28" />
+          <CarrierIcon :mcc="item.mcc" :mnc="item.mnc" :name="item.name" :carrier-key="item.key" :size="38" />
           <div class="carrier-card-info">
             <div class="carrier-card-name">{{ item.name }}</div>
             <div class="carrier-card-meta">
               <span class="carrier-card-plmn">{{ item.mcc }}:{{ item.mnc }}</span>
-              <span v-if="getCountryCode(item.key)" class="carrier-card-code">+{{ getCountryCode(item.key) }}</span>
-              <CountryFlag v-if="getCountryIso(item.key)" :iso="getCountryIso(item.key)" :size="14" class="carrier-card-flag" />
-              <span v-if="getCountryIso(item.key)" class="carrier-card-iso">{{ getCountryIso(item.key) }}</span>
+              <span v-if="getCountryCode(item.mcc, item.mnc)" class="carrier-card-code">+{{ getCountryCode(item.mcc, item.mnc) }}</span>
+              <CountryFlag v-if="getCountryIso(item.mcc, item.mnc)" :iso="getCountryIso(item.mcc, item.mnc)" :size="14" class="carrier-card-flag" />
+              <span v-if="getCountryIso(item.mcc, item.mnc)" class="carrier-card-iso">{{ getCountryIso(item.mcc, item.mnc) }}</span>
             </div>
           </div>
           <div class="carrier-card-badges">
@@ -159,6 +149,11 @@ async function handleDelete(key: string, name: string) {
             </button>
           </div>
         </div>
+        <!-- 虚线框添加卡片 -->
+        <button class="carrier-add-card" @click="emit('open-search')">
+          <el-icon size="20"><Add24Regular /></el-icon>
+          <span>添加运营商</span>
+        </button>
       </div>
     </div>
 
@@ -199,13 +194,13 @@ async function handleDelete(key: string, name: string) {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 6px;
+  padding: 12px;
 }
 
 .carrier-cards {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 
 .carrier-card {
@@ -213,7 +208,7 @@ async function handleDelete(key: string, name: string) {
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  border: 1px solid transparent;
+  border: 1px solid var(--border);
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.12s, border-color 0.12s;
@@ -226,6 +221,30 @@ async function handleDelete(key: string, name: string) {
 .carrier-card.selected {
   background: color-mix(in oklab, var(--brand) 8%, var(--card));
   border-color: color-mix(in oklab, var(--brand) 30%, var(--border));
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--brand) 20%, transparent);
+}
+
+.carrier-add-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 62px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.carrier-add-card:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: color-mix(in oklab, var(--brand) 5%, transparent);
 }
 
 .carrier-card-info {

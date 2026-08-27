@@ -27,26 +27,8 @@ const editDirty = ref(false)
 const saving = ref(false)
 const deleting = ref(false)
 
-// PC/SC 读卡器列表
-const pcscReaders = ref<string[]>([])
-const pcscLoading = ref(false)
-
-async function loadPCSCReaders() {
-  pcscLoading.value = true
-  try {
-    const res = await api.get('/pcsc/readers')
-    pcscReaders.value = res.data?.readers || []
-  } catch {
-    // 忽略，PC/SC 可能不可用
-  } finally {
-    pcscLoading.value = false
-  }
-}
-
 watch(() => editConfig.value?.esim_transport, (val) => {
-  if (val === 'pcsc' && pcscReaders.value.length === 0) {
-    loadPCSCReaders()
-  }
+  // PC/SC 设备的 USB 路径在添加时已确定，编辑时只读展示
 })
 
 // 只读信息来自 device（运行时探测值优先）
@@ -201,14 +183,9 @@ async function handleDelete() {
             <el-option v-for="opt in esimTransportOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </div>
-        <div v-if="editConfig.esim_transport === 'pcsc'" class="field">
-          <label class="form-label">PC/SC 读卡器</label>
-          <div class="flex gap-2">
-            <el-select v-model="editConfig.pcsc_reader" class="!w-full" placeholder="选择读卡器" :loading="pcscLoading" disabled>
-              <el-option v-for="r in pcscReaders" :key="r" :label="r" :value="r" />
-            </el-select>
-            <el-button :loading="pcscLoading" disabled>刷新</el-button>
-          </div>
+          <div v-if="editConfig.esim_transport === 'pcsc'" class="field">
+          <label class="form-label">PC/SC USB 路径</label>
+          <el-input v-model="editConfig.pcsc_usb_path" class="!w-full" placeholder="USB 路径" disabled />
         </div>
       </div>
     </div>

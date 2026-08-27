@@ -850,6 +850,7 @@ func buildQMIManagerConfig(cfg config.DeviceConfig, device qmimanager.ModemDevic
 		NoDNS:           true,          // 关键: 不修改系统 DNS
 		DisableWMSInd:   !isQMIBackend, // 如果是纯 QMI 模式，解禁 QMI WMS 以支持接收短信；否则（AT或Auto）禁用，以防与 AT URC 冲突
 		NoDial:          true,          // 数据面统一走显式 Connect()/Disconnect()，禁止底层自动拨号
+		DataPlane:       qmimanager.DataPlaneSpec{Mode: qmimanager.DataPlaneModeNative},
 		DataPlanePolicy: qmimanager.DataPlanePolicyLazy,
 		Timeouts: qmimanager.TimeoutConfig{
 			Init:               10 * time.Second,

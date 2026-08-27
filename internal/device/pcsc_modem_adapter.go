@@ -21,48 +21,46 @@ var (
 	efIMSI         = []byte{0x6F, 0x07}
 	efICCID        = []byte{0x2F, 0xE2}
 	efAD           = []byte{0x6F, 0xAD}
+	efGID1         = []byte{0x6F, 0x3E} // Group Identifier 1 (3GPP TS 31.102 §4.2.6)
+	efGID2         = []byte{0x6F, 0x3F} // Group Identifier 2 (3GPP TS 31.102 §4.2.7)
 	efMF           = []byte{0x3F, 0x00}
 )
 
 // pcscModemAdapter 通过 PC/SC 读卡器实现 runtimehost.Modem 接口。
 // 用于 PC/SC 设备的 VoWiFi 启动流程，使 AKA 认证可通过 PC/SC 通道执行。
 type pcscModemAdapter struct {
-	deviceID   string
-	readerName string
-	serial    string // 读卡器序列号（SN）
-	imei      string // 设备 IMEI（回退匹配用）
-	channel   *esim.PCSCExclusiveChannel
+	deviceID string
+	usbPath  string // USB 路径，运行时匹配 reader 字符串
+	sn       string // 读卡器 SN（正规设备 USB 路径匹配失败时回退匹配）
+	channel  *esim.PCSCExclusiveChannel
 	connected bool
-	accessMu  *sync.Mutex // 可选：与 eSIM 管理器共享的读卡器访问锁
+	accessMu *sync.Mutex // 可选：与 eSIM 管理器共享的读卡器访问锁
 }
 
 var _ runtimehost.Modem = (*pcscModemAdapter)(nil)
 
-func newPCSCModemAdapter(deviceID, readerName, sn, imei string, mu *sync.Mutex) (*pcscModemAdapter, error) {
-	// 跨模式兼容：用 SN（优先）或 IMEI（回退）匹配当前模式下可用的读卡器名称
-	resolvedName := resolvePCSCReaderName(readerName, sn, imei)
-	if resolvedName != "" && resolvedName != readerName {
-		logger.Info(fmt.Sprintf("[%s] PC/SC 读卡器名称跨模式匹配: %q -> %q", deviceID, readerName, resolvedName))
-		readerName = resolvedName
+func newPCSCModemAdapter(deviceID, usbPath, sn string, mu *sync.Mutex) (*pcscModemAdapter, error) {
+	readerName := esim.ResolveReaderByUSBPath(usbPath, sn)
+	if readerName == "" {
+		return nil, fmt.Errorf("[%s] 未找到 USB 路径 %s 或 SN %s 的读卡器", deviceID, usbPath, sn)
 	}
 	var ch *esim.PCSCExclusiveChannel
 	var err error
 	if mu != nil {
 		// VoWiFi USIM 访问用共享模式 (ShareShared + ProtocolAny)
-		ch, err = esim.NewPCSCSharedChannelWithMutex(readerName, mu)
+		ch, err = esim.NewPCSCSharedChannelWithMutex(readerName, usbPath, mu)
 	} else {
-		ch, err = esim.NewPCSCSharedChannel(readerName)
+		ch, err = esim.NewPCSCSharedChannel(readerName, usbPath)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("创建 PC/SC 通道失败: %w", err)
 	}
 	return &pcscModemAdapter{
-		deviceID:   deviceID,
-		readerName: readerName,
-		serial:    sn,
-		imei:      imei,
-		channel:   ch,
-		accessMu:  mu,
+		deviceID: deviceID,
+		usbPath:  usbPath,
+		sn:      sn,
+		channel: ch,
+		accessMu: mu,
 	}, nil
 }
 
@@ -97,18 +95,17 @@ func (a *pcscModemAdapter) ensureConnected() error {
 	}
 	// 通道已关闭（如上次 AKA 完成后自动断开），需要重建
 	if a.channel == nil || a.channel.IsClosed() {
-		// 重新解析读卡器名称（可能已切换驱动模式）
-		resolvedName := resolvePCSCReaderName(a.readerName, a.serial, a.imei)
-		if resolvedName != "" && resolvedName != a.readerName {
-			logger.Info(fmt.Sprintf("[%s] PC/SC 读卡器名称跨模式匹配: %q -> %q", a.deviceID, a.readerName, resolvedName))
-			a.readerName = resolvedName
+		// 用 USB 路径优先匹配，失败时按 SN 回退匹配（可能已切换驱动模式或换接口）
+		readerName := esim.ResolveReaderByUSBPath(a.usbPath, a.sn)
+		if readerName == "" {
+			return fmt.Errorf("[%s] 未找到 USB 路径 %s 或 SN %s 的读卡器", a.deviceID, a.usbPath, a.sn)
 		}
 		var ch *esim.PCSCExclusiveChannel
 		var err error
 		if a.accessMu != nil {
-			ch, err = esim.NewPCSCSharedChannelWithMutex(a.readerName, a.accessMu)
+			ch, err = esim.NewPCSCSharedChannelWithMutex(readerName, a.usbPath, a.accessMu)
 		} else {
-			ch, err = esim.NewPCSCSharedChannel(a.readerName)
+			ch, err = esim.NewPCSCSharedChannel(readerName, a.usbPath)
 		}
 		if err != nil {
 			return fmt.Errorf("重建 PC/SC 通道失败: %w", err)
@@ -120,7 +117,7 @@ func (a *pcscModemAdapter) ensureConnected() error {
 		return fmt.Errorf("PC/SC 连接失败: %w", err)
 	}
 	a.connected = true
-	logger.Info(fmt.Sprintf("[%s] PC/SC 读卡器已连接 (reader: %s)", a.deviceID, a.readerName))
+	logger.Info(fmt.Sprintf("[%s] PC/SC 读卡器已连接 (usb_path: %s)", a.deviceID, a.usbPath))
 	return nil
 }
 
@@ -576,6 +573,55 @@ func (a *pcscModemAdapter) ReadSIMIdentity() (imsi, iccid, mcc, mnc string, err 
 	}
 	_, mcc, mnc, _, _ = parseIMSIMCCMNC(imsi, mncLen)
 	return
+}
+
+// ReadGID1 通过 PC/SC 读取 EF_GID1 并返回 hex 字符串（去除尾部 0xFF 填充）。
+func (a *pcscModemAdapter) ReadGID1() (string, error) {
+	return a.readEFHex(efGID1, "EF_GID1")
+}
+
+// ReadGID2 通过 PC/SC 读取 EF_GID2 并返回 hex 字符串（去除尾部 0xFF 填充）。
+func (a *pcscModemAdapter) ReadGID2() (string, error) {
+	return a.readEFHex(efGID2, "EF_GID2")
+}
+
+// readEFHex 读取一个透明 EF 文件并返回去除 0xFF 填充后的 hex 字符串。
+func (a *pcscModemAdapter) readEFHex(fid []byte, label string) (string, error) {
+	if err := a.ensureConnected(); err != nil {
+		return "", err
+	}
+	ch, cleanup, err := a.openUSIMChannel()
+	if err != nil {
+		return "", fmt.Errorf("打开 USIM 逻辑通道失败: %w", err)
+	}
+	defer cleanup()
+
+	resp, err := a.transmitOnChannel(ch, selectByFIDCmd(fid))
+	if err != nil {
+		return "", fmt.Errorf("SELECT %s 失败: %w", label, err)
+	}
+	if err := checkSW(resp); err != nil {
+		return "", fmt.Errorf("SELECT %s: %w", label, err)
+	}
+
+	// READ BINARY (最多 32 字节，GID 通常 1-20 字节)
+	resp, err = a.transmitOnChannel(ch, readBinaryCmd(0x20))
+	if err != nil {
+		return "", fmt.Errorf("READ %s 失败: %w", label, err)
+	}
+	if err := checkSW(resp); err != nil {
+		return "", fmt.Errorf("READ %s: %w", label, err)
+	}
+
+	data := resp[:len(resp)-2] // 去掉 SW 字节
+	// 去除尾部 0xFF 填充
+	for len(data) > 0 && data[len(data)-1] == 0xFF {
+		data = data[:len(data)-1]
+	}
+	if len(data) == 0 {
+		return "", nil
+	}
+	return hex.EncodeToString(data), nil
 }
 
 // parseIMSI 解析 EF_IMSI 原始字节为 IMSI/MCC/MNC/MSIN。

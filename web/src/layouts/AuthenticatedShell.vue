@@ -20,7 +20,8 @@ import {
   Desktop24Regular,
   WeatherSunny24Regular,
   WeatherMoon24Regular,
-  ArrowSync24Regular,
+  ArrowReset24Regular,
+  Power24Regular,
   ChevronLeft24Regular,
   ChevronRight24Regular
 } from '@vicons/fluent'
@@ -44,7 +45,9 @@ const headerActions = useHeaderActionsStore()
 const { siteConfig, load: loadSiteConfig } = useSiteConfig()
 const settingsStore = useSettingsStore()
 const debugOpen = ref(false)
-const refreshing = ref(false)
+const restarting = ref(false)
+const restartElapsed = ref(0)
+const stopping = ref(false)
 const lang = ref(localStorage.getItem('lang') || 'zh')
 const isSmallScreen = ref(false)
 const collapsed = ref(false)
@@ -106,11 +109,160 @@ async function handleLogout() {
 }
 
 function handleRefresh() {
-  if (refreshing.value) return
-  refreshing.value = true
-  setTimeout(() => {
-    refreshing.value = false
-  }, 800)
+  // 侧栏刷新已移除，保留函数避免其他地方引用报错
+}
+
+async function handleRestart() {
+  if (restarting.value) return
+  const { ElMessageBox, ElInput } = await import('element-plus')
+  const { h } = await import('vue')
+
+  const confirmValue = ref('')
+
+  const confirmed = await ElMessageBox({
+    title: '重启服务',
+    message: () => h('div', { style: 'display:flex;flex-direction:column;gap:12px' }, [
+      h('div', { style: 'color:var(--el-text-color-regular);font-size:14px;line-height:1.6' },
+        '将重启 vohive 服务，期间页面将短暂不可用。\n请输入 REST 确认操作。'
+      ),
+      h(ElInput, {
+        modelValue: confirmValue.value,
+        'onUpdate:modelValue': (v: string) => { confirmValue.value = v },
+        placeholder: '输入 REST 确认',
+        style: 'width:100%',
+        autofocus: true,
+      })
+    ]),
+    confirmButtonText: '重启',
+    cancelButtonText: '取消',
+    confirmButtonClass: 'el-button--danger',
+    type: 'warning',
+    beforeClose: (action, instance, done) => {
+      if (action === 'confirm') {
+        if (confirmValue.value.trim().toUpperCase() !== 'REST') {
+          return
+        }
+        instance.confirmButtonLoading = true
+        restarting.value = true
+        systemService.restart().then(() => {
+          done()
+          startRestartRecovery()
+        }).catch(() => {
+          instance.confirmButtonLoading = false
+          restarting.value = false
+          done()
+        })
+      } else {
+        done()
+      }
+    }
+  }).then(() => true).catch(() => false)
+
+  if (!confirmed) {
+    restarting.value = false
+  }
+}
+
+async function handleStop() {
+  if (stopping.value) return
+  const { ElMessageBox, ElInput } = await import('element-plus')
+  const { h } = await import('vue')
+
+  const confirmValue = ref('')
+
+  const confirmed = await ElMessageBox({
+    title: '停止服务',
+    message: () => h('div', { style: 'display:flex;flex-direction:column;gap:12px' }, [
+      h('div', { style: 'color:var(--el-text-color-regular);font-size:14px;line-height:1.6' },
+        '将停止 vohive 服务，停止后页面将不可访问。\n请输入 OFF 确认操作。'
+      ),
+      h(ElInput, {
+        modelValue: confirmValue.value,
+        'onUpdate:modelValue': (v: string) => { confirmValue.value = v },
+        placeholder: '输入 OFF 确认',
+        style: 'width:100%',
+        autofocus: true,
+      })
+    ]),
+    confirmButtonText: '停止',
+    cancelButtonText: '取消',
+    confirmButtonClass: 'el-button--danger',
+    type: 'error',
+    beforeClose: (action, instance, done) => {
+      if (action === 'confirm') {
+        if (confirmValue.value.trim().toUpperCase() !== 'OFF') {
+          return
+        }
+        instance.confirmButtonLoading = true
+        stopping.value = true
+        systemService.stop().then(() => {
+          done()
+          startStopRecovery()
+        }).catch(() => {
+          instance.confirmButtonLoading = false
+          stopping.value = false
+          done()
+        })
+      } else {
+        done()
+      }
+    }
+  }).then(() => true).catch(() => false)
+
+  if (!confirmed) {
+    stopping.value = false
+  }
+}
+
+let recoveryTimer: ReturnType<typeof setInterval> | null = null
+let recoveryAttempts = 0
+
+function startRestartRecovery() {
+  restartElapsed.value = 0
+  recoveryAttempts = 0
+  recoveryTimer = setInterval(async () => {
+    recoveryAttempts++
+    restartElapsed.value = recoveryAttempts
+    try {
+      const res = await fetch('/ping')
+      if (res.ok) {
+        if (recoveryTimer) { clearInterval(recoveryTimer); recoveryTimer = null }
+        window.location.reload()
+      }
+    } catch {
+      // 服务尚未恢复，继续等待
+    }
+    if (recoveryAttempts >= 30) {
+      if (recoveryTimer) { clearInterval(recoveryTimer); recoveryTimer = null }
+      window.location.reload()
+    }
+  }, 1000)
+}
+
+function startStopRecovery() {
+  restartElapsed.value = 0
+  recoveryAttempts = 0
+  // 停止服务后，轮询 /ping 直到失败（说明服务已停止）
+  // 然后等待服务恢复（用户手动启动或 systemd Restart=always 会拉起）
+  recoveryTimer = setInterval(async () => {
+    recoveryAttempts++
+    restartElapsed.value = recoveryAttempts
+    try {
+      const res = await fetch('/ping')
+      if (res.ok) {
+        // 服务仍在线，继续等待
+      }
+    } catch {
+      // 服务已停止，刷新页面（会显示连接失败）
+      if (recoveryTimer) { clearInterval(recoveryTimer); recoveryTimer = null }
+      window.location.reload()
+    }
+    // 超时保护：30 次后强制刷新
+    if (recoveryAttempts >= 30) {
+      if (recoveryTimer) { clearInterval(recoveryTimer); recoveryTimer = null }
+      window.location.reload()
+    }
+  }, 1000)
 }
 
 function onKeydown(e: KeyboardEvent) {
@@ -270,12 +422,21 @@ watch(lang, (v) => {
         <div class="sidebar-footer-actions">
           <button
             type="button"
-            class="footer-btn icon-btn"
-            :disabled="refreshing"
-            title="刷新"
-            @click="handleRefresh"
+            class="footer-btn icon-btn stop-btn"
+            :disabled="stopping"
+            title="停止服务"
+            @click="handleStop"
           >
-            <component :is="ArrowSync24Regular" class="footer-icon" :class="{ spin: refreshing }" />
+            <component :is="Power24Regular" class="footer-icon" />
+          </button>
+          <button
+            type="button"
+            class="footer-btn icon-btn restart-btn"
+            :disabled="restarting"
+            title="重启服务"
+            @click="handleRestart"
+          >
+            <component :is="ArrowReset24Regular" class="footer-icon" :class="{ spin: restarting }" />
           </button>
           <button type="button" class="footer-btn" @click="handleLogout">
             <component :is="SignOut24Regular" class="footer-icon" />
@@ -318,6 +479,16 @@ watch(lang, (v) => {
     </div>
 
     <DebugPanel v-model="debugOpen" />
+
+    <!-- 重启/停止全屏遮罩 -->
+    <div v-if="restarting || stopping" class="restart-overlay">
+      <div class="restart-overlay-content">
+        <div class="restart-spinner"></div>
+        <div class="restart-title">{{ stopping ? '服务正在停止' : '服务正在重启' }}</div>
+        <div class="restart-countdown">已等待 {{ restartElapsed }}s</div>
+        <div class="restart-hint">{{ stopping ? '服务停止后页面将不可访问' : '服务恢复后将自动刷新' }}</div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -654,6 +825,68 @@ watch(lang, (v) => {
   width: 15px;
   height: 15px;
   flex-shrink: 0;
+}
+
+.restart-btn:hover {
+  background: color-mix(in oklab, var(--destructive) 12%, var(--accent));
+}
+
+.stop-btn:hover {
+  background: color-mix(in oklab, var(--destructive) 20%, var(--accent));
+}
+
+.spin {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---------- 重启全屏遮罩 ---------- */
+
+.restart-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+}
+
+.restart-overlay-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  color: #fff;
+}
+
+.restart-spinner {
+  width: 48px;
+  height: 48px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.restart-title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.restart-countdown {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.8);
+  font-variant-numeric: tabular-nums;
+}
+
+.restart-hint {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.5);
 }
 
 /* ---------- 主内容区 ---------- */

@@ -22,7 +22,7 @@ func newVoWiFiModemInterface(w *Worker, deviceID string) (runtimehost.Modem, err
 	}
 	// PC/SC 设备：使用 PC/SC 读卡器适配器做 AKA 认证
 	if isPCSCDevice(w) {
-		adapter, err := newPCSCModemAdapter(deviceID, w.Config.PCSCReader, w.Config.PCSCSerial, w.Config.ModemIMEI, w.pcscAccessMu)
+		adapter, err := newPCSCModemAdapter(deviceID, w.Config.PCSCUSBPath, w.Config.PCSCSerial, w.pcscAccessMu)
 		if err != nil {
 			return nil, fmt.Errorf("创建 PC/SC modem 适配器失败: %w", err)
 		}

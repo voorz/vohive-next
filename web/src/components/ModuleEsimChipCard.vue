@@ -1,19 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { EsimChipInfo, EsimEUICCInfo } from '../types/api'
-import { ArrowSync24Regular, Alert24Regular, Eye24Regular, EyeOff24Regular } from '@vicons/fluent'
+import { ArrowSync24Regular, Eye24Regular, EyeOff24Regular } from '@vicons/fluent'
 
 const props = defineProps<{
   chipInfo: EsimChipInfo | null
   showSensitive: boolean
   refreshing?: boolean
-  notificationsLoading?: boolean
-  notificationCount?: number
 }>()
 
 const emit = defineEmits<{
   refresh: []
-  'open-notifications': []
   'toggle-sensitive': []
 }>()
 
@@ -34,9 +31,6 @@ const totalCapacity = computed(() => '')
       <div class="chip-card-actions">
         <button class="chip-icon-btn" :disabled="refreshing" title="刷新" @click="emit('refresh')">
           <el-icon size="16" :class="{ 'spin': refreshing }"><ArrowSync24Regular /></el-icon>
-        </button>
-        <button class="chip-icon-btn" :disabled="notificationsLoading" title="通知" @click="emit('open-notifications')">
-          <el-icon size="16"><Alert24Regular /></el-icon>
         </button>
         <button class="chip-icon-btn" :title="showSensitive ? '隐藏' : '显示'" @click="emit('toggle-sensitive')">
           <el-icon size="16"><Eye24Regular v-if="showSensitive" /><EyeOff24Regular v-else /></el-icon>

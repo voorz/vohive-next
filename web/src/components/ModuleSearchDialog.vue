@@ -347,14 +347,11 @@ function selectDevice(d: DiscoveredDevice) {
   }
   if (d.configured) return
   selectedKey.value = d.discovery_key
-  // PC/SC 设备 ID 生成：从读卡器名称中提取括号内的完整序列号
+  // PC/SC 设备 ID 生成：后端通过 crc32(usb_path) 生成建议ID
   if (d.type === 'pcsc') {
-    const readerName = d.pcsc_reader || 'reader'
-    // 从 USB identity 中提取完整 SN 作为 ID
-    const sn = d.serial || extractReaderSN(readerName)
-    deviceId.value = sn ? `pcsc-${sn}` : `pcsc-${readerName.replace(/[^a-zA-Z0-9]/g, '').slice(-8) || 'reader'}`
-    // PC/SC: 优先 display_name（USB Product），回退 pcsc_reader
-    deviceName.value = uniqueDeviceName(d.display_name || readerName)
+    deviceId.value = d.suggested_id || `pcsc-${(d.serial || 'reader').replace(/[^a-zA-Z0-9]/g, '').slice(-8) || 'reader'}`
+    // PC/SC: 优先 display_name（USB Product），回退 serial
+    deviceName.value = uniqueDeviceName(d.display_name || d.serial || 'reader')
     return
   }
   deviceId.value = d.imei ? `modem-${d.imei.slice(-4)}` : (d.net_interface || d.at_port.split('/').pop() || d.at_port)
@@ -393,8 +390,8 @@ async function handleAdd() {
     usb_path: d.usb_path || '',
     device_backend: isPCSC.value ? 'at' : deviceBackend.value,
     esim_transport: isPCSC.value ? 'pcsc' : 'at',
-    pcsc_reader: isPCSC.value ? (d.pcsc_reader || '') : undefined,
-    pcsc_serial: isPCSC.value ? (d.serial || extractReaderSN(d.pcsc_reader || '')) : undefined,
+    pcsc_usb_path: isPCSC.value ? (d.pcsc_usb_path || '') : undefined,
+    pcsc_serial: isPCSC.value ? (d.serial || '') : undefined,
     network_enabled: !isPCSC.value,
     vowifi_enabled: false
   }
@@ -572,7 +569,7 @@ function modeTagClass(mode?: string): string {
             <!-- 模组：manufacturer（QMI/AT 来源，如 Quectel）；PC/SC：display_name（USB Product，如 ESTKme-RED） -->
             <div class="discovered-card-name">
               <span class="meta-label">名称</span>
-              <span class="device-name-text">{{ d.type === 'pcsc' ? (d.display_name || d.pcsc_reader || '--') : (d.manufacturer || '--') }}</span>
+              <span class="device-name-text">{{ d.type === 'pcsc' ? (d.display_name || d.serial || '--') : (d.manufacturer || '--') }}</span>
               <span class="device-mode-tag" :class="modeTagClass(d.mode)">{{ modeText(d.mode) }}</span>
               <span v-if="d.degraded" class="status-tag status-degraded">降级</span>
               <span v-else-if="d.configured" class="status-tag status-added">已添加</span>

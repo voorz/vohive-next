@@ -1601,6 +1601,188 @@ const docTemplate = `{
                 }
             }
         },
+        "/devices/{device_id}/esim/notification-history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "devices"
+                ],
+                "summary": "EsimListNotificationHistory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "device_id",
+                        "name": "device_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "通知历史记录列表",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/github_com_voorz_vohive_internal_db.EsimNotificationRecord"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "清空指定设备的通知历史记录",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "devices"
+                ],
+                "summary": "EsimClearNotificationHistory",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "device_id",
+                        "name": "device_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "清空成功",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "内部错误",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/devices/{device_id}/esim/notification-settings": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "devices"
+                ],
+                "summary": "EsimGetNotificationSettings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "device_id",
+                        "name": "device_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "devices"
+                ],
+                "summary": "EsimUpdateNotificationSettings",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "device_id",
+                        "name": "device_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/devices/{device_id}/esim/notifications": {
             "get": {
                 "security": [
@@ -4748,6 +4930,72 @@ const docTemplate = `{
                 }
             }
         },
+        "/system/restart": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Restart the vohive systemd service",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "SystemRestart",
+                "responses": {
+                    "200": {
+                        "description": "重启指令已发送",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "服务不可用",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/system/stop": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Stop the vohive systemd service",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "SystemStop",
+                "responses": {
+                    "200": {
+                        "description": "停止指令已发送",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "服务不可用",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/system/update/check": {
             "get": {
                 "security": [
@@ -5224,6 +5472,68 @@ const docTemplate = `{
                             "additionalProperties": true
                         }
                     }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "github_com_voorz_vohive_internal_db.EsimNotificationRecord": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "description": "base64 编码的 PendingNotification",
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "delete_pending": {
+                    "description": "卡上移除失败，待重试",
+                    "type": "boolean"
+                },
+                "eid": {
+                    "type": "string"
+                },
+                "iccid": {
+                    "type": "string"
+                },
+                "mcc": {
+                    "description": "关联 profile 的 MCC（用于国旗显示）",
+                    "type": "string"
+                },
+                "notification_server": {
+                    "description": "RSP 服务器地址",
+                    "type": "string"
+                },
+                "notification_type": {
+                    "description": "install/enable/disable/delete",
+                    "type": "string"
+                },
+                "profile_name": {
+                    "description": "关联 profile 的名称（手机号/卡名）",
+                    "type": "string"
+                },
+                "response_code": {
+                    "description": "HTTP 响应码",
+                    "type": "integer"
+                },
+                "response_content": {
+                    "description": "HTTP 响应内容",
+                    "type": "string"
+                },
+                "seq_number": {
+                    "type": "integer"
+                },
+                "status": {
+                    "description": "0/1/2/3",
+                    "type": "integer"
+                },
+                "timestamp": {
+                    "description": "毫秒时间戳",
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
                 }
             }
         }

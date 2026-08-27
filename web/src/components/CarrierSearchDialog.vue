@@ -180,7 +180,8 @@ function doSearch() {
     const countryIso = entry.country?.iso || ''
     const region = entry.country?.region || ''
 
-    // 匹配：PLMN(234-30) / MCC:MNC(234:30) / brand / operator / country / iso
+    // 匹配：PLMN(234-30) / MCC:MNC(234:30) / brand / operator / country / iso / 区号(+44, 44)
+    const countryCode = entry.country?.code || ''
     const haystackParts = [
       plmn.toLowerCase(),
       `${entry.mcc}:${entry.mnc}`,
@@ -188,6 +189,11 @@ function doSearch() {
       entry.mcc, entry.mnc,
       countryName.toLowerCase(),
       countryIso.toLowerCase(),
+      // 区号两种格式：+44 和 44
+      countryCode ? `+${countryCode}` : '',
+      countryCode ? countryCode.toLowerCase() : '',
+      // 英国别名：标准 ISO 是 GB，但用户常搜 UK
+      countryIso.toLowerCase() === 'gb' ? 'uk' : '',
     ]
 
     for (const op of (entry.operators || [])) {
@@ -243,12 +249,12 @@ watch(searchQuery, () => {
 })
 
 // 搜索结果变化时清空选中 + 下载图标
-watch(searchResults, () => {
+watch(searchResults, async () => {
   selectedCount.value = 0
   nextTick(() => treeRef.value?.setCheckedKeys([]))
   // 下载前 30 个搜索结果的图标
   for (const item of searchResults.value.slice(0, 30)) {
-    if (!getCachedIcon(item.mcc, item.mnc, item.brand)) {
+    if (!(await getCachedIcon(item.mcc, item.mnc, item.brand))) {
       downloadIcon(item.mcc, item.mnc, item.brand).then(result => {
         if (result) {
           window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc: item.mcc, mnc: item.mnc } }))
@@ -275,9 +281,9 @@ watch(() => props.modelValue, async (open) => {
       }
     }
     // 确保 catalog 已加载并下载 preset 图标
-    loadPlmnCatalog().then(() => {
+    loadPlmnCatalog().then(async () => {
       for (const p of presets) {
-        if (!getCachedIcon(p.mcc, p.mnc, p.name)) {
+        if (!(await getCachedIcon(p.mcc, p.mnc, p.name))) {
           downloadIcon(p.mcc, p.mnc, p.name).then(result => {
             if (result) {
               window.dispatchEvent(new CustomEvent('vohive-icon-updated', { detail: { mcc: p.mcc, mnc: p.mnc } }))
@@ -401,19 +407,16 @@ function handleQuickAdd(preset: PresetItem) {
         <span class="preset-name">{{ preset.name }}</span>
         <span class="preset-plmn">{{ preset.mcc }}:{{ preset.mnc }}</span>
         <span v-if="isPresetAdded(preset.key)" class="preset-added">已添加</span>
+        <span v-else class="preset-add-icon">
+          <el-icon size="14"><Add24Regular /></el-icon>
+        </span>
       </button>
     </div>
 
     <!-- 搜索结果 -->
-    <div class="search-results">
+    <div v-show="searching || searchQuery.trim()" class="search-results">
       <div v-if="searching" class="search-loading">
         <span>正在加载运营商索引...</span>
-      </div>
-
-      <div v-else-if="!searchQuery.trim()" class="search-hint">
-        <el-icon size="28"><Search24Regular /></el-icon>
-        <span>输入关键词搜索运营商</span>
-        <span class="search-hint-sub">支持 PLMN、运营商名称、国家名称</span>
       </div>
 
       <div v-else-if="searchResults.length === 0" class="search-empty">
@@ -438,17 +441,19 @@ function handleQuickAdd(preset: PresetItem) {
               :mcc="data.mcc"
               :mnc="data.mnc"
               :name="data.brand"
-              :size="data.isSub ? 24 : 32"
+              :size="32"
             />
             <div class="node-info">
-              <div class="node-brand" :class="{ 'sub-brand': data.isSub }">{{ data.brand }}</div>
+              <div class="node-brand-row">
+                <span class="node-brand" :class="{ 'sub-brand': data.isSub }">{{ data.brand }}</span>
+                <span v-if="data.hasSubs" class="node-subs-count">{{ data.subCount }} 个子品牌</span>
+              </div>
               <div class="node-meta">
                 <span v-if="!data.isSub" class="node-plmn">{{ data.mcc }}:{{ data.mnc }}</span>
                 <span v-if="!data.isSub && data.countryCode" class="node-code">+{{ data.countryCode }}</span>
                 <CountryFlag v-if="!data.isSub && data.countryIso" :iso="data.countryIso" :size="16" class="node-flag" />
                 <span v-if="data.country && !data.isSub" class="node-country">{{ data.country }}</span>
                 <span v-if="!data.isSub && data.operator && data.operator !== data.brand" class="node-operator">{{ data.operator }}</span>
-                <span v-if="data.hasSubs" class="node-subs-count">{{ data.subCount }} 个子品牌</span>
                 <span v-if="data.names?.length" class="sub-names">{{ data.names.join(', ') }}</span>
                 <span v-if="data.gid1" class="sub-gid">GID1: {{ data.gid1 }}</span>
               </div>
@@ -568,7 +573,25 @@ function handleQuickAdd(preset: PresetItem) {
   white-space: nowrap;
 }
 
-/* el-tree 自定义样式 */
+.preset-add-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--brand) 12%, transparent);
+  color: var(--brand);
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.preset-capsule:hover:not(.disabled) .preset-add-icon {
+  opacity: 1;
+}
+
+/* el-tree 样式（仅保留必要的最小覆盖） */
 .result-tree {
   padding: 4px;
   user-select: none;
@@ -577,32 +600,11 @@ function handleQuickAdd(preset: PresetItem) {
 
 :deep(.el-tree-node__content) {
   height: auto !important;
-  min-height: 48px;
-  padding: 4px 6px;
-  border-radius: 6px;
-  transition: background 0.12s;
-}
-
-:deep(.el-tree-node__content:hover) {
-  background: var(--accent);
-}
-
-:deep(.el-checkbox__inner) {
-  border-color: var(--border);
 }
 
 :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
   background-color: var(--brand);
   border-color: var(--brand);
-}
-
-:deep(.el-tree-node__expand-icon) {
-  color: var(--muted-foreground);
-  font-size: 14px;
-}
-
-:deep(.el-tree-node__expand-icon.expanded) {
-  color: var(--brand);
 }
 
 /* 节点内容布局 */
@@ -612,11 +614,18 @@ function handleQuickAdd(preset: PresetItem) {
   gap: 10px;
   flex: 1;
   min-width: 0;
+  padding: 2px 0;
 }
 
 .node-info {
   flex: 1;
   min-width: 0;
+}
+
+.node-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .node-brand {
@@ -668,6 +677,8 @@ function handleQuickAdd(preset: PresetItem) {
 .node-subs-count {
   color: var(--brand);
   opacity: 0.7;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .sub-names {

@@ -6,12 +6,11 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-
-	"github.com/voorz/vohive/internal/esim"
 )
 
 // USBIdentity 描述一个 USB 设备的描述符身份信息
 type USBIdentity struct {
+	SysPath      string // 完整 sysfs 路径，如 /sys/bus/usb/devices/1-1
 	Manufacturer string
 	Product      string
 	Serial       string
@@ -75,6 +74,7 @@ func listUSBIdentitiesFromSysfs() []USBIdentity {
 		// 读取接口驱动信息
 		interfaces := readSysfsInterfaces(dir)
 		out = append(out, USBIdentity{
+			SysPath:      dir,
 			Manufacturer: manufacturer,
 			Product:      product,
 			Serial:       serial,
@@ -291,10 +291,9 @@ func summarizeEndpoints(epTypes []string) string {
 
 var pcscReaderSerialRe = regexp.MustCompile(`\(([^)]+)\)`)
 
-// PcscReaderSerial 从 pcscd/USBFS 读卡器名称中提取序列号，
-// 例如 "Generic Smart Card Reader Interface (2051315E5056) 00 00" → "2051315E5056"
-// 也匹配 "ESTKme-RED (2051315E5056) 00 00" 格式。
-// 导出以便 api 包在设备发现时用序列号匹配已配置设备（两种驱动模式下名称不同但序列号一致）。
+// PcscReaderSerial 从 pcscd/USBFS 读卡器名称中提取序列号。
+// 例如 "ESTKme-RED (2051315E5056) 00 00" → "2051315E5056"
+// 仅用于设备发现页展示 SN，不用于匹配（匹配用 USBPath）。
 func PcscReaderSerial(reader string) string {
 	m := pcscReaderSerialRe.FindStringSubmatch(reader)
 	if m == nil {
@@ -303,63 +302,10 @@ func PcscReaderSerial(reader string) string {
 	return strings.TrimSpace(m[1])
 }
 
-// resolvePCSCReaderName 用 SN（优先）或 IMEI（回退）匹配当前模式下可用的读卡器名称。
-// 返回空串表示无需修改（原名称可用或无法解析）。
-func resolvePCSCReaderName(configuredName, sn, imei string) string {
-	configuredName = strings.TrimSpace(configuredName)
-	// 获取当前模式下可用的读卡器列表
-	readers, err := esim.ListPCSCReaders()
-	if err != nil || len(readers) == 0 {
-		return ""
-	}
-	// 如果配置的名称在当前列表中存在，直接返回（无需修改）
-	for _, r := range readers {
-		if r == configuredName {
-			return ""
-		}
-	}
-	// SN 优先匹配
-	if strings.TrimSpace(sn) != "" {
-		for _, r := range readers {
-			if PcscReaderSerial(r) == sn {
-				return r
-			}
-		}
-	}
-	// 名称中提取序列号匹配
-	if serial := PcscReaderSerial(configuredName); serial != "" {
-		for _, r := range readers {
-			if PcscReaderSerial(r) == serial {
-				return r
-			}
-		}
-	}
-	// IMEI 回退匹配（通过 USB 设备序列号列表间接匹配）
-	if strings.TrimSpace(imei) != "" {
-		identities := ListUSBIdentities()
-		for _, r := range readers {
-			rSerial := PcscReaderSerial(r)
-			if rSerial == "" {
-				continue
-			}
-			for _, id := range identities {
-				if id.Serial == rSerial {
-					// 如果 USB 设备的序列号和读卡器序列号匹配，
-					// 再检查 IMEI（USB Serial 可能就是 IMEI 或关联值）
-					if id.Serial == imei || strings.Contains(id.Serial, imei) {
-						return r
-					}
-				}
-			}
-		}
-	}
-	return ""
-}
-
-// ResolvePCSCReaderDisplayName 通过序列号把 pcscd 读卡器匹配到 USB 设备，
+// ResolvePCSCReaderDisplayName 通过 USB 路径匹配 USB 设备，
 // 返回 "Product · Manufacturer · vid:pid" 格式的可读名称；匹配失败返回空串。
-func ResolvePCSCReaderDisplayName(reader string, identities []USBIdentity) string {
-	product, manufacturer, vid, pid := ResolvePCSCReaderUSBInfo(reader, identities)
+func ResolvePCSCReaderDisplayName(usbPath string, identities []USBIdentity) string {
+	product, manufacturer, vid, pid := ResolvePCSCReaderUSBInfo(usbPath, identities)
 	if product == "" && manufacturer == "" && vid == "" {
 		return ""
 	}
@@ -381,16 +327,16 @@ var clsRe = regexp.MustCompile(`Cls=(\S+\([^)]*\))`)
 var verRe = regexp.MustCompile(`Ver=(\S+)`)
 var driverRe = regexp.MustCompile(`Driver=(\S+)`)
 
-// ResolvePCSCReaderUSBInfo 通过序列号把 pcscd 读卡器匹配到 USB 设备，
-// 返回结构化的 product, manufacturer, vid, pid（全为字符串小写形式）；
-// 匹配失败返回空值。
-func ResolvePCSCReaderUSBInfo(reader string, identities []USBIdentity) (product, manufacturer, vid, pid string) {
-	serial := PcscReaderSerial(reader)
-	if serial == "" {
+// ResolvePCSCReaderUSBInfo 通过 USB 路径匹配 USB 设备，
+// 返回结构化的 product, manufacturer, vid, pid；匹配失败返回空值。
+// usbPath 可以是完整 sysfs 路径（/sys/bus/usb/devices/1-1）或简短路径（1-1）。
+func ResolvePCSCReaderUSBInfo(usbPath string, identities []USBIdentity) (product, manufacturer, vid, pid string) {
+	usbPath = strings.TrimSpace(usbPath)
+	if usbPath == "" {
 		return
 	}
 	for _, id := range identities {
-		if id.Serial != "" && strings.EqualFold(id.Serial, serial) {
+		if id.SysPath == usbPath || strings.HasSuffix(id.SysPath, "/"+usbPath) {
 			product = id.Product
 			manufacturer = id.Manufacturer
 			vid = id.VendorID
@@ -401,15 +347,15 @@ func ResolvePCSCReaderUSBInfo(reader string, identities []USBIdentity) (product,
 	return
 }
 
-// ResolvePCSCReaderUSBDetail 通过序列号把 pcscd 读卡器匹配到 USB 设备，
+// ResolvePCSCReaderUSBDetail 通过 USB 路径匹配 USB 设备，
 // 返回完整的 USBIdentity（含 USBVersion/DeviceClass/Interfaces 等扩展信息）。
-func ResolvePCSCReaderUSBDetail(reader string, identities []USBIdentity) *USBIdentity {
-	serial := PcscReaderSerial(reader)
-	if serial == "" {
+func ResolvePCSCReaderUSBDetail(usbPath string, identities []USBIdentity) *USBIdentity {
+	usbPath = strings.TrimSpace(usbPath)
+	if usbPath == "" {
 		return nil
 	}
 	for i := range identities {
-		if identities[i].Serial != "" && strings.EqualFold(identities[i].Serial, serial) {
+		if identities[i].SysPath == usbPath || strings.HasSuffix(identities[i].SysPath, "/"+usbPath) {
 			return &identities[i]
 		}
 	}
@@ -440,9 +386,6 @@ func FormatUSBInfoLine(id *USBIdentity, isReader bool) string {
 	}
 	if isReader {
 		var parts []string
-		if id.Serial != "" {
-			parts = append(parts, "SN:"+id.Serial)
-		}
 		if id.USBVersion != "" {
 			parts = append(parts, "USB-"+id.USBVersion)
 		}

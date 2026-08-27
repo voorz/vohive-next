@@ -3,6 +3,7 @@ package esim
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -23,6 +24,7 @@ import (
 	sgp22 "github.com/damonto/euicc-go/v2"
 	"github.com/voorz/vohive/internal/apduarbiter"
 	backendpkg "github.com/voorz/vohive/internal/backend"
+	"github.com/voorz/vohive/internal/db"
 	"github.com/voorz/vohive/internal/modem"
 	"github.com/voorz/vohive/pkg/logger"
 )
@@ -320,6 +322,11 @@ type Manager struct {
 	// 如果不为 nil，由 smartCardChannelFactory 新建的 QMIChannel 会自动继承该 context，
 	// 从而允许 BPP 安装阶段的长时延迟得到正确处理而不被默认超时中断。
 	downloadCtx atomic.Pointer[context.Context]
+
+	// workingAID 缓存最近一次成功命中的 ISD-R AID（对标 NekoKo _workingAidCache）。
+	// 下次打开通知列表时优先尝试该 AID，避免全量扫描 9 个候选 AID。
+	workingAIDMu sync.RWMutex
+	workingAID   []byte
 }
 
 // ErrOperationInProgress 表示当前有写操作（下载/切换/删除）正在进行中
@@ -335,7 +342,8 @@ type ManagerOptions struct {
 	Modem                *modem.Manager
 	Backend              backendpkg.DeviceBackend
 	QMITransport         QMIAPDUTransport
-	PCSCReader           string // PC/SC 读卡器名称（仅 transport=pcsc 时有效）
+	PCSCUSBPath         string             // PC/SC 读卡器 USB 路径（仅 transport=pcsc 时有效，运行时匹配 reader）
+	PCSCSerial          string             // PC/SC 读卡器 SN（正规设备 SN 回退匹配，插拔换接口后仍可解析）
 	PCSCAccessMu         *sync.Mutex // 可选：PC/SC 读卡器访问互斥锁（跨 eSIM/VoWiFi 共享）
 	IMEIProvider         func(ctx context.Context) (string, error)
 	OnBeforeSwitch       func(SwitchOperation, string) uint64
@@ -544,24 +552,57 @@ func NewManager(opts ManagerOptions) (*Manager, error) {
 			return ch, nil
 		}
 	case transportPCSC:
-		readerName := strings.TrimSpace(opts.PCSCReader)
-		if readerName == "" {
-			return nil, fmt.Errorf("PC/SC 传输需要指定读卡器名称")
+		usbPath := strings.TrimSpace(opts.PCSCUSBPath)
+		sn := strings.TrimSpace(opts.PCSCSerial)
+		if usbPath == "" && sn == "" {
+			return nil, fmt.Errorf("PC/SC 传输需要指定 USB 路径或 SN")
 		}
+		// pcscChannelTracker 在 channelFactory 中保存底层 PCSCExclusiveChannel 引用，
+		// 用于 closeClient 中在 CloseLogicalChannel 失败时强制 Disconnect 释放 accessMu。
+		var pcscChannelTracker atomic.Pointer[PCSCExclusiveChannel]
 		mgr.smartCardChannelFactory = func() (driver.SmartCardChannel, error) {
-			// 独占模式通道（对齐 lpac）：部分 eUICC 在共享模式下
-			// EnableProfile 恒定返回 910B，独占 + T=0 + 断开下电可避免
+			// 用 USB 路径优先匹配，失败时按 SN 回退匹配当前模式下的 reader 名称
+			readerName := ResolveReaderByUSBPath(usbPath, sn)
+			if readerName == "" {
+				return nil, fmt.Errorf("未找到 USB 路径 %s 或 SN %s 的读卡器", usbPath, sn)
+			}
 			var ch *PCSCExclusiveChannel
 			var err error
 			if opts.PCSCAccessMu != nil {
-				ch, err = NewPCSCExclusiveChannelWithMutex(readerName, opts.PCSCAccessMu)
+				ch, err = NewPCSCExclusiveChannelWithMutex(readerName, usbPath, opts.PCSCAccessMu)
 			} else {
-				ch, err = NewPCSCExclusiveChannel(readerName)
+				ch, err = NewPCSCExclusiveChannel(readerName, usbPath)
 			}
 			if err != nil {
 				return nil, fmt.Errorf("创建 PC/SC 通道失败: %w", err)
 			}
+			pcscChannelTracker.Store(ch)
 			return ch, nil
+		}
+		// PC/SC 模式下 euicc-go 的 cardTransmitter.Close() 在 CloseLogicalChannel
+		// 失败时（如切卡后卡片 reset 返回 6200）不会调用 Disconnect()，导致
+		// PCSCExclusiveChannel 的 accessMu 锁永远不释放，后续所有 PC/SC 操作
+		// （identity refresh、VoWiFi AKA 认证等）全部永久阻塞。
+		// 自定义 closeClient 确保即使 CloseLogicalChannel 失败也强制 Disconnect。
+		mgr.closeClient = func(client *lpa.Client) error {
+			if client == nil {
+				return nil
+			}
+			closeErr := client.Close()
+			if closeErr != nil {
+				// client.Close() 失败意味着 CloseLogicalChannel 报错，
+				// euicc-go 不会继续调用 Disconnect()，accessMu 仍被持有。
+				// 通过 tracker 获取底层 channel，强制 Disconnect 释放锁。
+				ch := pcscChannelTracker.Load()
+				if ch != nil {
+					logger.Warn("PC/SC closeClient: Close 失败，强制 Disconnect 释放 accessMu",
+						"device", opts.DeviceID,
+						"close_err", closeErr)
+					_ = ch.Disconnect()
+					pcscChannelTracker.Store(nil)
+				}
+			}
+			return closeErr
 		}
 	default:
 		return nil, fmt.Errorf("不支持的 eSIM transport: %s", transport)
@@ -895,8 +936,15 @@ func isExpectedPostResetLPAClientCloseError(operation string, err error) bool {
 		return false
 	}
 	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "close logical channel") &&
-		(strings.Contains(msg, "qmi_uim_card_reset") || strings.Contains(msg, "error=0x0030"))
+	if !strings.Contains(msg, "close logical channel") && !strings.Contains(msg, "关闭逻辑通道") {
+		return false
+	}
+	// QMI 模式：qmi_uim_card_reset 或 error=0x0030
+	if strings.Contains(msg, "qmi_uim_card_reset") || strings.Contains(msg, "error=0x0030") {
+		return true
+	}
+	// PC/SC 模式：切卡后卡片 reset，关闭逻辑通道返回 6xxx 警告 SW（如 6200）
+	return strings.Contains(msg, "6200") || strings.Contains(msg, "6xxx")
 }
 
 func (m *Manager) closeLPAClientForOperation(operation string, client *lpa.Client) error {
@@ -1313,8 +1361,9 @@ func (m *Manager) GetEUICCChipInfo(forceRefresh bool) (*EUICCChipInfo, error) {
 
 // EsimOverview 合并的 eSIM 总览信息（芯片信息 + 按 eUICC 分组的 profiles）
 type EsimOverview struct {
-	ChipInfo *EUICCChipInfo  `json:"chip_info"` // 芯片硬件信息
-	Profiles []EUICCProfiles `json:"profiles"`  // 按 eUICC 分组的 profile 列表
+	ChipInfo          *EUICCChipInfo  `json:"chip_info"`           // 芯片硬件信息
+	Profiles          []EUICCProfiles `json:"profiles"`            // 按 eUICC 分组的 profile 列表
+	NotificationCount int             `json:"notification_count"` // 待处理通知数量（不含 autoClean 的 enable/disable）
 }
 
 // parseEUICCInfo2ForEID 从标准 eUICC 信息接口解析单个 eUICC 的可用空间、固件版本、制造商和证书信息。
@@ -1435,8 +1484,9 @@ func cloneOverview(overview *EsimOverview) *EsimOverview {
 		return nil
 	}
 	return &EsimOverview{
-		ChipInfo: cloneChipInfo(overview.ChipInfo),
-		Profiles: cloneProfiles(overview.Profiles),
+		ChipInfo:          cloneChipInfo(overview.ChipInfo),
+		Profiles:          cloneProfiles(overview.Profiles),
+		NotificationCount: overview.NotificationCount,
 	}
 }
 
@@ -1457,6 +1507,31 @@ func (m *Manager) setOverviewCache(overview *EsimOverview, err error, generation
 	if overview != nil {
 		m.chipInfoCache = cloneChipInfo(overview.ChipInfo)
 	}
+}
+
+// InvalidateOverviewCache 导出版本，供外部包（如 device）调用强制清空 overview 缓存。
+// lookupProfileByICCID 从 overview 缓存中通过 ICCID 查找 profile 的 Name 和 MCC。
+func (m *Manager) lookupProfileByICCID(iccid string) (name, mcc string) {
+	if iccid == "" {
+		return "", ""
+	}
+	m.cacheMu.RLock()
+	defer m.cacheMu.RUnlock()
+	if m.overviewCache == nil {
+		return "", ""
+	}
+	for _, group := range m.overviewCache.Profiles {
+		for _, p := range group.Profiles {
+			if p.ICCID == iccid {
+				return p.Name, p.MCC
+			}
+		}
+	}
+	return "", ""
+}
+
+func (m *Manager) InvalidateOverviewCache(reason string) {
+	m.invalidateOverviewCache(reason)
 }
 
 func (m *Manager) invalidateOverviewCache(reason string) {
@@ -1643,6 +1718,8 @@ func (m *Manager) loadOverview() (*EsimOverview, error) {
 		}
 		m.setOverviewCache(overview, nil, generation)
 		m.resetScanBackoff()
+		// 异步统计通知数量，避免首次加载时 safeListNotification 的同步延迟
+		m.refreshNotificationCountAsync()
 		return cloneOverview(overview), nil
 	})
 	if err != nil {
@@ -1937,6 +2014,9 @@ func (m *Manager) loadOverviewFresh() (*EsimOverview, error) {
 			"EID", eidStr)
 		profiles, profileErr := listBasicProfiles(client)
 
+		// 通知统计已移至异步（refreshNotificationCountAsync），
+		// 避免首次加载时 safeListNotification + DB 查询增加 200-500ms 延迟。
+		// 收集 EID 用于后续异步通知统计。
 		fnMu.Lock()
 		defer fnMu.Unlock()
 		info.EIDs = append(info.EIDs, euiccInfo)
@@ -1999,9 +2079,74 @@ func (m *Manager) loadOverviewFresh() (*EsimOverview, error) {
 	}
 
 	return &EsimOverview{
-		ChipInfo: info,
-		Profiles: profileGroups,
+		ChipInfo:          info,
+		Profiles:          profileGroups,
+		NotificationCount: 0, // 通知数异步统计，首次返回 0
 	}, nil
+}
+
+// refreshNotificationCountAsync 异步统计待处理通知数量并更新 overviewCache。
+// 在 loadOverviewFresh 返回后调用，避免首次加载时 safeListNotification + DB 查询的同步延迟。
+func (m *Manager) refreshNotificationCountAsync() {
+	if m == nil {
+		return
+	}
+	go func() {
+		count, err := m.countPendingNotifications()
+		if err != nil {
+			logger.Debug("异步通知统计失败",
+				"device", m.deviceID,
+				"err", err)
+			return
+		}
+		m.cacheMu.Lock()
+		if m.overviewCache != nil {
+			m.overviewCache.NotificationCount = count
+		}
+		m.cacheMu.Unlock()
+		logger.Debug("异步通知统计完成",
+			"device", m.deviceID,
+			"count", count)
+	}()
+}
+
+// countPendingNotifications 统计所有 eUICC 的待处理通知数量（排除 DB 中已发送的）。
+// 需要独立打开 LPA 通道，不依赖 loadOverviewFresh 的 forEachEUICC 上下文。
+func (m *Manager) countPendingNotifications() (int, error) {
+	var total int
+	var fnMu sync.Mutex
+	if err := m.forEachEUICC(func(client *lpa.Client, aid []byte, eidStr string) error {
+		notifs, notifErr := safeListNotification(client)
+		if notifErr != nil || len(notifs) == 0 {
+			return nil
+		}
+		count := len(notifs)
+		if eidStr != "" {
+			if sentCount, sentErr := db.CountSentNotificationsByEID(eidStr); sentErr == nil && sentCount > 0 {
+				sentSeqs, seqErr := db.GetSentNotificationSeqsByEID(eidStr)
+				if seqErr == nil {
+					sentSet := make(map[sgp22.SequenceNumber]bool, len(sentSeqs))
+					for _, s := range sentSeqs {
+						sentSet[sgp22.SequenceNumber(s)] = true
+					}
+					actualPending := 0
+					for _, n := range notifs {
+						if n != nil && !sentSet[n.SequenceNumber] {
+							actualPending++
+						}
+					}
+					count = actualPending
+				}
+			}
+		}
+		fnMu.Lock()
+		total += count
+		fnMu.Unlock()
+		return nil
+	}); err != nil {
+		return 0, err
+	}
+	return total, nil
 }
 
 // GetEsimOverview 获取 eSIM 总览信息（一次遍历同时获取芯片信息和 profiles）
@@ -3084,13 +3229,18 @@ func (m *Manager) readFreeNvramBytesWithRetry(client *lpa.Client, attempts int, 
 	return 0
 }
 
+// NotificationItem 通知列表项（对标 NekoKo NotificationCard 数据）。
+// Status 值: "pending"(未发送/卡上), "sent"(已发送), "failed"(发送失败)
 type NotificationItem struct {
 	SequenceNumber int64  `json:"sequence_number"`
 	Event          string `json:"event"`
 	ICCID          string `json:"iccid,omitempty"`
+	ProfileName    string `json:"profile_name,omitempty"` // 关联 profile 的名称（手机号/卡名）
+	MCC            string `json:"mcc,omitempty"`          // 关联 profile 的 MCC（用于前端国旗显示）
 	Address        string `json:"address,omitempty"`
 	AIDHex         string `json:"aid_hex,omitempty"`
 	CanRetry       bool   `json:"can_retry"`
+	Status         string `json:"status"` // pending / sent / failed
 }
 
 type NotificationErrorCode string
@@ -3233,6 +3383,25 @@ func safeRetrieveNotificationList(client *lpa.Client, seq sgp22.SequenceNumber) 
 	return pendingNotifications, nil
 }
 
+// safeRetrieveAllNotifications 使用 combined 策略一次获取全量 PendingNotification（对标 NekoKo NotificationStrategy.combined）。
+// searchCriteria=nil 时卡片返回所有待处理通知，无需后续逐个 retrieve，减少 APDU 往返。
+func safeRetrieveAllNotifications(client *lpa.Client) (pendingNotifications []*sgp22.PendingNotification, err error) {
+	if client == nil {
+		return nil, fmt.Errorf("LPA client 为空")
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("解析全量通知响应失败: %v", r)
+			pendingNotifications = nil
+		}
+	}()
+	pendingNotifications, err = client.RetrieveNotificationList(nil)
+	if err != nil {
+		return nil, wrapNotificationParseError("解析全量通知响应失败", err)
+	}
+	return pendingNotifications, nil
+}
+
 func wrapNotificationParseError(prefix string, err error) error {
 	if err == nil {
 		return nil
@@ -3331,11 +3500,75 @@ func buildNotificationItems(notifications []*sgp22.NotificationMetadata, aidHex 
 	return items
 }
 
+// buildNotificationItemsFromPending 从 combined 策略获取的 PendingNotification 列表构建 NotificationItem。
+// 每个 PendingNotification 内含 NotificationMetadata，无需额外 retrieve。
+// dbStatusMap 为 DB 中该 EID 的通知状态映射（seq→status int），用于合并状态。
+func buildNotificationItemsFromPending(pendingNotifications []*sgp22.PendingNotification, aidHex string, dbStatusMap map[int64]int, profiles []ProfileItem) []NotificationItem {
+	// 构建 ICCID → Profile 索引，用于关联卡名和国旗
+	profileByICCID := make(map[string]ProfileItem, len(profiles))
+	for _, p := range profiles {
+		profileByICCID[p.ICCID] = p
+	}
+
+	items := make([]NotificationItem, 0, len(pendingNotifications))
+	for _, pn := range pendingNotifications {
+		if pn == nil || pn.Notification == nil {
+			continue
+		}
+		meta := pn.Notification
+		seq := int64(meta.SequenceNumber)
+
+		// 合并 DB 状态：status==1(已发送) 的跳过不返回
+		if dbStatus, ok := dbStatusMap[seq]; ok && dbStatus == 1 {
+			continue
+		}
+
+		item := NotificationItem{
+			SequenceNumber: seq,
+			Event:          notificationEventName(meta.ProfileManagementOperation),
+			Address:        meta.Address,
+			AIDHex:         aidHex,
+			CanRetry:       meta.Address != "",
+			Status:         "pending",
+		}
+		// DB 中 status==2 → failed
+		if dbStatus, ok := dbStatusMap[seq]; ok && dbStatus == 2 {
+			item.Status = "failed"
+		}
+		if len(meta.ICCID) > 0 {
+			item.ICCID = meta.ICCID.String()
+			// 通过 ICCID 关联 profile 信息（卡名 + MCC）
+			if p, ok := profileByICCID[item.ICCID]; ok {
+				item.ProfileName = p.Name
+				item.MCC = p.MCC
+			}
+		}
+		items = append(items, item)
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		return items[i].SequenceNumber > items[j].SequenceNumber
+	})
+	return items
+}
+
 func isAutoCleanableLoadedNotification(notification *sgp22.NotificationMetadata) bool {
 	if notification == nil || notification.SequenceNumber <= 0 {
 		return false
 	}
 	switch notification.ProfileManagementOperation {
+	case sgp22.NotificationEventEnable, sgp22.NotificationEventDisable:
+		return true
+	default:
+		return false
+	}
+}
+
+// isAutoCleanablePendingNotification 检查 PendingNotification 是否为可自动清理的 enable/disable 类型。
+func isAutoCleanablePendingNotification(pn *sgp22.PendingNotification) bool {
+	if pn == nil || pn.Notification == nil || pn.Notification.SequenceNumber <= 0 {
+		return false
+	}
+	switch pn.Notification.ProfileManagementOperation {
 	case sgp22.NotificationEventEnable, sgp22.NotificationEventDisable:
 		return true
 	default:
@@ -3356,43 +3589,68 @@ func filterCleanedNotifications(notifications []*sgp22.NotificationMetadata, cle
 	return filtered
 }
 
-func (m *Manager) autoCleanLoadedNotifications(client *lpa.Client, notifications []*sgp22.NotificationMetadata, aidHex string) map[sgp22.SequenceNumber]bool {
-	cleaned := make(map[sgp22.SequenceNumber]bool)
-	for _, metadata := range notifications {
-		if !isAutoCleanableLoadedNotification(metadata) {
+// filterCleanedPendingNotifications 从 PendingNotification 列表中移除已清理的通知。
+func filterCleanedPendingNotifications(pendingNotifications []*sgp22.PendingNotification, cleaned map[sgp22.SequenceNumber]bool) []*sgp22.PendingNotification {
+	if len(cleaned) == 0 {
+		return pendingNotifications
+	}
+	filtered := make([]*sgp22.PendingNotification, 0, len(pendingNotifications))
+	for _, pn := range pendingNotifications {
+		if pn == nil || pn.Notification == nil || cleaned[pn.Notification.SequenceNumber] {
 			continue
 		}
-		seq := metadata.SequenceNumber
-		eventName := notificationEventName(metadata.ProfileManagementOperation)
+		filtered = append(filtered, pn)
+	}
+	return filtered
+}
 
-		var pendingNotifications []*sgp22.PendingNotification
-		if err := retryWithBackoff(3, 300*time.Millisecond,
-			func(attempt int, wait time.Duration, err error) {
-				logger.Warn("eSIM 加载通知自动清理获取待发送通知失败，稍后重试",
+// autoCleanPendingNotifications 在当前 channel 内按设备通知设置自动处理通知（对标 NekoKo _backgroundProcess）。
+// 使用 combined 策略已获取的 PendingNotification，无需重新 retrieve。
+// 按事件类型(install/enable/disable/delete)查对应开关决定 shouldSend / shouldRemove / shouldDeleteWithoutSending。
+// eid 参数用于备份通知内容到 DB（G6）和更新发送状态（G5）。
+func (m *Manager) autoCleanPendingNotifications(client *lpa.Client, pendingNotifications []*sgp22.PendingNotification, aidHex, eid string) map[sgp22.SequenceNumber]bool {
+	cleaned := make(map[sgp22.SequenceNumber]bool)
+
+	// G8: 读取设备通知设置
+	settings, _ := db.GetEsimNotificationSettings(m.deviceID)
+
+	for _, pn := range pendingNotifications {
+		if pn == nil || pn.Notification == nil {
+			continue
+		}
+		meta := pn.Notification
+		seq := meta.SequenceNumber
+		eventName := notificationEventName(meta.ProfileManagementOperation)
+
+		// G8: 按事件类型查对应开关
+		shouldSend, shouldRemove, shouldDeleteWithoutSending := getNotificationActionSettings(meta.ProfileManagementOperation, settings)
+
+		// shouldDeleteWithoutSending: 直接从卡上移除，不发送，DB status=3
+		if shouldDeleteWithoutSending {
+			if err := retryWithBackoff(3, 300*time.Millisecond, nil, func() error {
+				err := client.RemoveNotificationFromList(seq)
+				if errors.Is(err, sgp22.ErrNothingToDelete) {
+					return nil
+				}
+				return err
+			}); err != nil {
+				logger.Warn("eSIM 通知直接移除失败（deleteWithoutSending）",
 					"device", m.deviceID,
 					"AID", aidHex,
 					"sequence", seq,
-					"event", eventName,
-					"attempt", fmt.Sprintf("%d/%d", attempt, 3),
-					"wait_ms", wait.Milliseconds(),
 					"err", err)
-			},
-			func() error {
-				var err error
-				pendingNotifications, err = safeRetrieveNotificationList(client, seq)
-				return err
-			},
-		); err != nil {
-			logger.Warn("eSIM 加载通知自动清理失败，获取待发送通知失败",
-				"device", m.deviceID,
-				"AID", aidHex,
-				"sequence", seq,
-				"event", eventName,
-				"err", err)
-			continue
-		}
-		if len(pendingNotifications) == 0 {
-			logger.Warn("eSIM 加载通知自动清理跳过，卡片未返回待发送通知",
+				continue
+			}
+			// DB status=3(deleted without sending)
+			if eid != "" {
+				iccidStr := ""
+				if len(meta.ICCID) > 0 {
+					iccidStr = meta.ICCID.String()
+				}
+				_ = db.UpdateEsimNotificationStatus(eid, int64(seq), iccidStr, 3, nil, "")
+			}
+			cleaned[seq] = true
+			logger.Info("eSIM 通知已直接移除（不发送）",
 				"device", m.deviceID,
 				"AID", aidHex,
 				"sequence", seq,
@@ -3400,15 +3658,11 @@ func (m *Manager) autoCleanLoadedNotifications(client *lpa.Client, notifications
 			continue
 		}
 
-		handledAny := false
-		handleErr := false
-		for _, notification := range pendingNotifications {
-			if notification == nil {
-				continue
-			}
+		// shouldSend: 发送到 RSP 服务器
+		if shouldSend {
 			if err := retryWithBackoff(3, 300*time.Millisecond,
 				func(attempt int, wait time.Duration, err error) {
-					logger.Warn("eSIM 加载通知自动清理发送通知失败，稍后重试",
+					logger.Warn("eSIM 通知自动清理发送失败，稍后重试",
 						"device", m.deviceID,
 						"AID", aidHex,
 						"sequence", seq,
@@ -3418,62 +3672,103 @@ func (m *Manager) autoCleanLoadedNotifications(client *lpa.Client, notifications
 						"err", err)
 				},
 				func() error {
-					return client.HandleNotification(notification)
+					return client.HandleNotification(pn)
 				},
 			); err != nil {
-				logger.Warn("eSIM 加载通知自动清理失败，发送通知失败",
-					"device", m.deviceID,
-					"AID", aidHex,
-					"sequence", seq,
-					"event", eventName,
-					"err", err)
-				handleErr = true
-				break
-			}
-			handledAny = true
-		}
-		if handleErr {
-			continue
-		}
-		if !handledAny {
-			logger.Warn("eSIM 加载通知自动清理跳过，卡片返回空待发送通知",
-				"device", m.deviceID,
-				"AID", aidHex,
-				"sequence", seq,
-				"event", eventName)
-			continue
-		}
-
-		if err := retryWithBackoff(3, 300*time.Millisecond,
-			func(attempt int, wait time.Duration, err error) {
-				logger.Warn("eSIM 加载通知自动清理移除卡内通知失败，稍后重试",
-					"device", m.deviceID,
-					"AID", aidHex,
-					"sequence", seq,
-					"event", eventName,
-					"attempt", fmt.Sprintf("%d/%d", attempt, 3),
-					"wait_ms", wait.Milliseconds(),
-					"err", err)
-			},
-			func() error {
-				err := client.RemoveNotificationFromList(seq)
-				if errors.Is(err, sgp22.ErrNothingToDelete) {
-					return nil
+				// G5: 发送失败 → 更新 DB status=2(failed)
+				if eid != "" {
+					iccidStr := ""
+					if len(meta.ICCID) > 0 {
+						iccidStr = meta.ICCID.String()
+					}
+					_ = db.UpdateEsimNotificationStatus(eid, int64(seq), iccidStr, 2, nil, err.Error())
 				}
-				return err
-			},
-		); err != nil {
-			logger.Warn("eSIM 加载通知自动清理失败，移除卡内通知失败",
-				"device", m.deviceID,
-				"AID", aidHex,
-				"sequence", seq,
-				"event", eventName,
-				"err", err)
-			continue
+				logger.Warn("eSIM 通知自动清理失败，发送通知失败",
+					"device", m.deviceID,
+					"AID", aidHex,
+					"sequence", seq,
+					"event", eventName,
+					"err", err)
+				continue
+			}
+
+			// G6: 发送成功 → 备份通知内容到 DB（status=1, sent）
+			if eid != "" {
+				iccidStr := ""
+				if len(meta.ICCID) > 0 {
+					iccidStr = meta.ICCID.String()
+				}
+				contentBase64 := encodePendingNotificationBase64(pn)
+				// 从 overview 缓存关联 profile 名称和国旗 MCC
+				profileName, mcc := m.lookupProfileByICCID(iccidStr)
+				record := db.EsimNotificationRecord{
+					EID:                eid,
+					SeqNumber:          int64(seq),
+					ICCID:              iccidStr,
+					ProfileName:        profileName,
+					MCC:                mcc,
+					Content:            contentBase64,
+					Timestamp:          time.Now().UnixMilli(),
+					Status:             1, // sent
+					NotificationServer: meta.Address,
+					NotificationType:   eventName,
+				}
+				if saveErr := db.SaveEsimNotification(record); saveErr != nil {
+					logger.Warn("eSIM 通知 DB 备份失败",
+						"device", m.deviceID,
+						"AID", aidHex,
+						"sequence", seq,
+						"err", saveErr)
+				}
+			}
 		}
 
+		// shouldRemove: 发送后从卡上移除
+		if shouldRemove {
+			if err := retryWithBackoff(3, 300*time.Millisecond,
+				func(attempt int, wait time.Duration, err error) {
+					logger.Warn("eSIM 通知自动清理移除卡内通知失败，稍后重试",
+						"device", m.deviceID,
+						"AID", aidHex,
+						"sequence", seq,
+						"event", eventName,
+						"attempt", fmt.Sprintf("%d/%d", attempt, 3),
+						"wait_ms", wait.Milliseconds(),
+						"err", err)
+				},
+				func() error {
+					err := client.RemoveNotificationFromList(seq)
+					if errors.Is(err, sgp22.ErrNothingToDelete) {
+						return nil
+					}
+					return err
+				},
+			); err != nil {
+				// 移除卡内失败 → 标记 deletePending=true
+				if eid != "" {
+					iccidStr := ""
+					if len(meta.ICCID) > 0 {
+						iccidStr = meta.ICCID.String()
+					}
+					_ = db.SetEsimNotificationDeletePending(eid, int64(seq), iccidStr, true)
+				}
+				logger.Warn("eSIM 通知自动清理失败，移除卡内通知失败",
+					"device", m.deviceID,
+					"AID", aidHex,
+					"sequence", seq,
+					"event", eventName,
+					"err", err)
+				continue
+			}
+		}
+
+		// 只有实际执行了操作（发送或移除）的通知才标记为 cleaned
+		// 对标 NekoKo: 只有 shouldSend/shouldRemove/deleteWithoutSending 为 true 时才处理
+		if !shouldSend && !shouldRemove && !shouldDeleteWithoutSending {
+			continue
+		}
 		cleaned[seq] = true
-		logger.Info("eSIM 加载通知已自动清理状态通知",
+		logger.Info("eSIM 通知已自动清理",
 			"device", m.deviceID,
 			"AID", aidHex,
 			"sequence", seq,
@@ -3482,25 +3777,113 @@ func (m *Manager) autoCleanLoadedNotifications(client *lpa.Client, notifications
 	return cleaned
 }
 
-func (m *Manager) listNotificationItemsWithCleanup(client *lpa.Client, aidHex string) ([]NotificationItem, error) {
-	notifications, err := safeListNotification(client)
+// getNotificationActionSettings 按事件类型返回 (shouldSend, shouldRemove, shouldDeleteWithoutSending) 三元组。
+// settings 为 nil 时使用默认值（对标 NekoKo AppSettings 的 notif* 字段）。
+func getNotificationActionSettings(event sgp22.NotificationEvent, settings *db.EsimNotificationSettings) (bool, bool, bool) {
+	if settings == nil {
+		// 默认值：enable/disable 自动发送+移除，install 自动发送+移除，delete 自动发送不移除（对齐 NekoKo）
+		switch event {
+		case sgp22.NotificationEventEnable, sgp22.NotificationEventDisable:
+			return true, true, false
+		case sgp22.NotificationEventInstall:
+			return true, true, false
+		case sgp22.NotificationEventDelete:
+			return true, false, false
+		default:
+			return false, false, false
+		}
+	}
+	switch event {
+	case sgp22.NotificationEventEnable:
+		return settings.AutoSendEnable, settings.AutoRemoveEnable, settings.DeleteWithoutSendingEnable
+	case sgp22.NotificationEventDisable:
+		return settings.AutoSendDisable, settings.AutoRemoveDisable, settings.DeleteWithoutSendingDisable
+	case sgp22.NotificationEventInstall:
+		return settings.AutoSendInstall, settings.AutoRemoveInstall, false
+	case sgp22.NotificationEventDelete:
+		return settings.AutoSendDelete, settings.AutoRemoveDelete, false
+	default:
+		return false, false, false
+	}
+}
+
+// encodePendingNotificationBase64 将 PendingNotification 序列化为 base64 字符串用于 DB 备份。
+func encodePendingNotificationBase64(pn *sgp22.PendingNotification) string {
+	if pn == nil || pn.PendingNotification == nil {
+		return ""
+	}
+	data := pn.PendingNotification.Bytes()
+	if len(data) == 0 {
+		return ""
+	}
+	return base64.StdEncoding.EncodeToString(data)
+}
+
+// listNotificationItemsWithCleanup 使用 combined 策略一次获取全量 PendingNotification（对标 NekoKo NotificationStrategy.combined）。
+// 注意：此处不再同步执行 autoClean（对标 NekoKo _backgroundProcess 的延迟触发）。
+// autoClean 改由 SSE 接口 ProcessNotificationsSSE 逐条异步执行，让用户先看到列表再感知处理过程。
+// eid 参数用于合并 DB 中的通知状态（对标 NekoKo _refreshStatusMap + syncAndGetCount）。
+func (m *Manager) listNotificationItemsWithCleanup(client *lpa.Client, aidHex, eid string) ([]NotificationItem, error) {
+	pendingNotifications, err := safeRetrieveAllNotifications(client)
 	if err != nil {
 		return nil, err
 	}
-	cleaned := m.autoCleanLoadedNotifications(client, notifications, aidHex)
-	if len(cleaned) > 0 {
-		refreshed, refreshErr := safeListNotification(client)
-		if refreshErr != nil {
-			logger.Warn("eSIM 加载通知自动清理后刷新列表失败，使用本地过滤结果",
-				"device", m.deviceID,
-				"AID", aidHex,
-				"err", refreshErr)
-			notifications = filterCleanedNotifications(notifications, cleaned)
-		} else {
-			notifications = refreshed
+
+	// G3: syncNotificationsWithDB — 对比 DB 和卡上通知，清理不一致的记录
+	dbStatusMap := m.syncNotificationsWithDB(eid, pendingNotifications)
+
+	// 从 overview 缓存获取 profiles，用于关联卡名和国旗（对标 NekoKo _preloadProfileMetadata）。
+	// 仅读缓存，不触发同步加载——切卡后 overview 缓存为空时 profile_name 留空，
+	// 前端先展示通知列表，overview 异步加载完成后下次请求自然补全。
+	var profiles []ProfileItem
+	m.cacheMu.RLock()
+	if m.overviewCache != nil {
+		for _, group := range m.overviewCache.Profiles {
+			profiles = append(profiles, group.Profiles...)
 		}
 	}
-	return buildNotificationItems(notifications, aidHex), nil
+	m.cacheMu.RUnlock()
+
+	// G2: 合并 DB 状态构建 NotificationItem（status==1 的不返回）
+	return buildNotificationItemsFromPending(pendingNotifications, aidHex, dbStatusMap, profiles), nil
+}
+
+// syncNotificationsWithDB 对比 DB 记录和卡上通知列表，清理不一致的记录（对标 NekoKo syncAndGetCount）。
+// 返回 DB 中该 EID 的通知状态映射（seq→status int），供 buildNotificationItemsFromPending 合并。
+func (m *Manager) syncNotificationsWithDB(eid string, pendingNotifications []*sgp22.PendingNotification) map[int64]int {
+	if eid == "" {
+		return nil
+	}
+	// 收集卡上通知的 seq 列表
+	seqsOnCard := make([]int64, 0, len(pendingNotifications))
+	for _, pn := range pendingNotifications {
+		if pn != nil && pn.Notification != nil {
+			seqsOnCard = append(seqsOnCard, int64(pn.Notification.SequenceNumber))
+		}
+	}
+
+	// 删除 DB 中 status∈(0,2) 但不在卡上的记录（卡上已不存在，未发送的记录无意义）
+	if err := db.DeleteEsimUnsentNotOnCard(eid, seqsOnCard); err != nil {
+		logger.Warn("eSIM 通知 DB sync 清理失败",
+			"device", m.deviceID,
+			"eid", eid,
+			"err", err)
+	}
+
+	// 从 DB 获取该 EID 的所有通知记录，构建 statusMap
+	records, err := db.GetEsimNotificationsByEID(eid)
+	if err != nil {
+		logger.Warn("eSIM 通知 DB 查询失败",
+			"device", m.deviceID,
+			"eid", eid,
+			"err", err)
+		return nil
+	}
+	statusMap := make(map[int64]int, len(records))
+	for _, r := range records {
+		statusMap[r.SeqNumber] = r.Status
+	}
+	return statusMap
 }
 
 func (m *Manager) resolveNotificationAID(aidHex string) ([]byte, error) {
@@ -3527,6 +3910,36 @@ func (m *Manager) notificationCandidateAIDs() [][]byte {
 	return candidates
 }
 
+// getWorkingAID 返回缓存的最近一次成功命中的 ISD-R AID（对标 NekoKo getWorkingAid）。
+// 返回 nil 表示无缓存，调用方应回退到全量 AID 扫描。
+func (m *Manager) getWorkingAID() []byte {
+	m.workingAIDMu.RLock()
+	defer m.workingAIDMu.RUnlock()
+	if m.workingAID == nil {
+		return nil
+	}
+	return append([]byte(nil), m.workingAID...)
+}
+
+// setWorkingAID 缓存成功命中的 ISD-R AID（对标 NekoKo setWorkingAid）。
+func (m *Manager) setWorkingAID(aid []byte) {
+	m.workingAIDMu.Lock()
+	defer m.workingAIDMu.Unlock()
+	m.workingAID = append([]byte(nil), aid...)
+}
+
+// firstEID 返回缓存的第一个 EID（对标 NekoKo getEid），用于通知 DB 状态合并。
+func (m *Manager) firstEID() string {
+	m.cacheMu.RLock()
+	defer m.cacheMu.RUnlock()
+	for _, info := range m.discoveredEUICCs {
+		if info.EID != "" {
+			return info.EID
+		}
+	}
+	return ""
+}
+
 func (m *Manager) listNotificationsForCurrentCard() ([]NotificationItem, error) {
 	unlock, err := m.lockOperation("list_notifications_current_card")
 	if err != nil {
@@ -3541,21 +3954,49 @@ func (m *Manager) listNotificationsForCurrentCard() ([]NotificationItem, error) 
 	items := make([]NotificationItem, 0)
 	var lastErr error
 	var successCount int
-	for _, aid := range m.notificationCandidateAIDs() {
+
+	// 获取 EID 用于 DB 状态合并（对标 NekoKo _runProcess 中 getEid）
+	eid := m.firstEID()
+
+	// 优先尝试缓存的 working AID（对标 NekoKo _workingAidCache）
+	candidates := m.notificationCandidateAIDs()
+	if cached := m.getWorkingAID(); cached != nil {
+		candidates = append([][]byte{cached}, candidates...)
+	}
+
+	for _, aid := range candidates {
+		createStart := time.Now()
 		client, err := m.createLPAWithAID(aid)
+		createMs := time.Since(createStart).Milliseconds()
 		if err != nil {
 			lastErr = err
 			continue
 		}
 		aidHex := strings.ToUpper(hex.EncodeToString(aid))
-		aidItems, listErr := m.listNotificationItemsWithCleanup(client, aidHex)
-		_ = m.closeLPAClientForOperation("list_notifications_current_card", client)
+		listStart := time.Now()
+		aidItems, listErr := m.listNotificationItemsWithCleanup(client, aidHex, eid)
+		listMs := time.Since(listStart).Milliseconds()
+		closeStart := time.Now()
+		closeErr := m.closeLPAClientForOperation("list_notifications_current_card", client)
+		closeMs := time.Since(closeStart).Milliseconds()
+		logger.Info("通知列表耗时分解",
+			"device", m.deviceID,
+			"AID", aidHex,
+			"create_ms", createMs,
+			"list_ms", listMs,
+			"close_ms", closeMs,
+			"close_err", closeErr,
+			"items_count", len(aidItems))
 		if listErr != nil {
 			lastErr = listErr
 			continue
 		}
 		successCount++
 		items = append(items, aidItems...)
+		// 缓存成功命中的 AID（对标 NekoKo setWorkingAid）
+		m.setWorkingAID(aid)
+		// 命中第一个成功 AID 后提前退出（对标 NekoKo selectAid 命中即返回）
+		break
 	}
 	if len(items) > 0 {
 		sort.SliceStable(items, func(i, j int) bool {
@@ -3593,13 +4034,16 @@ func (m *Manager) ListNotifications(aidHex string) ([]NotificationItem, error) {
 	if err != nil {
 		return nil, NewNotificationError(NotificationErrorInternal, fmt.Sprintf("创建 LPA client 失败: %v", err), err)
 	}
-	items, err := m.listNotificationItemsWithCleanup(client, strings.ToUpper(hex.EncodeToString(targetAID)))
+	eid := m.firstEID()
+	items, err := m.listNotificationItemsWithCleanup(client, strings.ToUpper(hex.EncodeToString(targetAID)), eid)
 	if closeErr := m.closeLPAClientForOperation("list_notifications", client); closeErr != nil && err == nil {
 		err = closeErr
 	}
 	if err != nil {
 		return nil, NewNotificationError(NotificationErrorInternal, fmt.Sprintf("获取通知列表失败: %v", err), err)
 	}
+	// 缓存成功命中的 AID
+	m.setWorkingAID(targetAID)
 	return items, nil
 }
 
@@ -3634,6 +4078,7 @@ func (m *Manager) RetryNotification(sequenceNumber int64, aidHex string) error {
 	if len(pendingNotifications) == 0 {
 		return NewNotificationError(NotificationErrorNotFound, fmt.Sprintf("通知 %d 不存在", sequenceNumber), nil)
 	}
+	eid := m.firstEID()
 	for _, notification := range pendingNotifications {
 		if notification == nil {
 			continue
@@ -3641,7 +4086,51 @@ func (m *Manager) RetryNotification(sequenceNumber int64, aidHex string) error {
 		if err := retryWithBackoff(3, 300*time.Millisecond, nil, func() error {
 			return client.HandleNotification(notification)
 		}); err != nil {
+			// G5: 发送失败 → 更新 DB status=2(failed)
+			if eid != "" {
+				meta := notification.Notification
+				iccidStr := ""
+				if meta != nil && len(meta.ICCID) > 0 {
+					iccidStr = meta.ICCID.String()
+				}
+				_ = db.UpdateEsimNotificationStatus(eid, sequenceNumber, iccidStr, 2, nil, err.Error())
+			}
 			return NewNotificationError(NotificationErrorInternal, fmt.Sprintf("重试发送通知失败: %v", err), err)
+		}
+		// G5: 发送成功 → 备份通知内容到 DB（status=1, sent）
+		if eid != "" {
+			meta := notification.Notification
+			iccidStr := ""
+			eventName := ""
+			address := ""
+			if meta != nil {
+				if len(meta.ICCID) > 0 {
+					iccidStr = meta.ICCID.String()
+				}
+				eventName = notificationEventName(meta.ProfileManagementOperation)
+				address = meta.Address
+			}
+			contentBase64 := encodePendingNotificationBase64(notification)
+			// 从 overview 缓存关联 profile 名称和国旗 MCC
+			profileName, mcc := m.lookupProfileByICCID(iccidStr)
+			record := db.EsimNotificationRecord{
+				EID:                eid,
+				SeqNumber:          sequenceNumber,
+				ICCID:              iccidStr,
+				ProfileName:        profileName,
+				MCC:                mcc,
+				Content:            contentBase64,
+				Timestamp:          time.Now().UnixMilli(),
+				Status:             1, // sent
+				NotificationServer: address,
+				NotificationType:   eventName,
+			}
+			if saveErr := db.SaveEsimNotification(record); saveErr != nil {
+				logger.Warn("eSIM 通知重试 DB 备份失败",
+					"device", m.deviceID,
+					"sequence", sequenceNumber,
+					"err", saveErr)
+			}
 		}
 	}
 	return nil
@@ -4260,5 +4749,263 @@ func retryWithBackoff(maxRetries int, baseDelay time.Duration, onRetry func(atte
 		}
 		return nil
 	}
+	return nil
+}
+
+// NotificationProcessEvent 是逐条处理通知时通过回调推送的 SSE 事件。
+type NotificationProcessEvent struct {
+	Step           string `json:"step"`            // "processing" | "sent" | "removed" | "deleted" | "failed" | "skipped" | "done"
+	SequenceNumber int64  `json:"sequence_number"` // 通知序号
+	Event          string `json:"event"`           // install/enable/disable/delete
+	ICCID          string `json:"iccid,omitempty"`
+	Message        string `json:"message"`          // 描述信息
+	ProcessedCount int    `json:"processed_count"`  // 已处理数
+	TotalCount     int    `json:"total_count"`      // 总数
+}
+
+// ProcessNotifications 逐条处理通知（对标 NekoKo 逐条 autoClean + SSE 进度推送）。
+// 每处理完一条调用 progressFn 推送事件，让前端实时感知每条通知的处理过程。
+func (m *Manager) ProcessNotifications(progressFn func(NotificationProcessEvent)) error {
+	// 1. 获取通知列表（不 autoClean）
+	items, err := m.ListNotifications("")
+	if err != nil {
+		return err
+	}
+	if len(items) == 0 {
+		progressFn(NotificationProcessEvent{Step: "done", Message: "没有待处理的通知", ProcessedCount: 0, TotalCount: 0})
+		return nil
+	}
+
+	total := len(items)
+	processed := 0
+
+	// 2. 读取通知设置
+	settings, _ := db.GetEsimNotificationSettings(m.deviceID)
+
+	// 3. 获取 AID + 创建 LPA client
+	targetAID, err := m.resolveNotificationAID("")
+	if err != nil {
+		return err
+	}
+	if len(targetAID) == 0 {
+		candidates := m.notificationCandidateAIDs()
+		if cached := m.getWorkingAID(); cached != nil {
+			candidates = append([][]byte{cached}, candidates...)
+		}
+		if len(candidates) == 0 {
+			return NewNotificationError(NotificationErrorInternal, "无可用 AID", nil)
+		}
+		targetAID = candidates[0]
+	}
+
+	m.opMu.Lock()
+	defer func() {
+		m.logWriteOperationHold("process_notifications", time.Now())
+		m.opMu.Unlock()
+		m.notifyWriteDone()
+	}()
+
+	if err := m.waitForAPDUIdleForRead(); err != nil {
+		return err
+	}
+	m.preCleanChannels()
+	client, err := m.createLPAWithAID(targetAID)
+	if err != nil {
+		return NewNotificationError(NotificationErrorInternal, fmt.Sprintf("创建 LPA client 失败: %v", err), err)
+	}
+	defer func() {
+		_ = m.closeLPAClientForOperation("process_notifications", client)
+	}()
+
+	m.setWorkingAID(targetAID)
+	eid := m.firstEID()
+
+	// 4. 重新获取卡上的 PendingNotification（ListNotifications 返回的是 NotificationItem，
+	//    需要原始 pn 用于 HandleNotification）
+	pendingNotifications, err := safeRetrieveAllNotifications(client)
+	if err != nil {
+		return err
+	}
+
+	pendingMap := make(map[int64]*sgp22.PendingNotification, len(pendingNotifications))
+	for _, pn := range pendingNotifications {
+		if pn != nil && pn.Notification != nil {
+			pendingMap[int64(pn.Notification.SequenceNumber)] = pn
+		}
+	}
+
+	// 5. 逐条处理
+	for _, item := range items {
+		seq := item.SequenceNumber
+		eventName := item.Event
+
+		progressFn(NotificationProcessEvent{
+			Step:           "processing",
+			SequenceNumber: seq,
+			Event:          eventName,
+			ICCID:          item.ICCID,
+			Message:        fmt.Sprintf("正在处理 #%d %s", seq, eventName),
+			ProcessedCount: processed,
+			TotalCount:     total,
+		})
+
+		pn, ok := pendingMap[seq]
+		if !ok || pn == nil || pn.Notification == nil {
+			progressFn(NotificationProcessEvent{
+				Step:           "skipped",
+				SequenceNumber: seq,
+				Event:          eventName,
+				Message:        fmt.Sprintf("#%d 不在卡上，跳过", seq),
+				ProcessedCount: processed,
+				TotalCount:     total,
+			})
+			continue
+		}
+
+		meta := pn.Notification
+		shouldSend, shouldRemove, shouldDeleteWithoutSending := getNotificationActionSettings(meta.ProfileManagementOperation, settings)
+
+		if !shouldSend && !shouldRemove && !shouldDeleteWithoutSending {
+			progressFn(NotificationProcessEvent{
+				Step:           "skipped",
+				SequenceNumber: seq,
+				Event:          eventName,
+				Message:        fmt.Sprintf("#%d 设置未开启自动处理，跳过", seq),
+				ProcessedCount: processed,
+				TotalCount:     total,
+			})
+			continue
+		}
+
+		iccidStr := ""
+		if len(meta.ICCID) > 0 {
+			iccidStr = meta.ICCID.String()
+		}
+
+		// deleteWithoutSending
+		if shouldDeleteWithoutSending {
+			if err := retryWithBackoff(3, 300*time.Millisecond, nil, func() error {
+				err := client.RemoveNotificationFromList(meta.SequenceNumber)
+				if errors.Is(err, sgp22.ErrNothingToDelete) {
+					return nil
+				}
+				return err
+			}); err != nil {
+				progressFn(NotificationProcessEvent{
+					Step:           "failed",
+					SequenceNumber: seq,
+					Event:          eventName,
+					Message:        fmt.Sprintf("#%d 移除失败: %v", seq, err),
+					ProcessedCount: processed,
+					TotalCount:     total,
+				})
+				continue
+			}
+			if eid != "" {
+				_ = db.UpdateEsimNotificationStatus(eid, seq, iccidStr, 3, nil, "")
+			}
+			processed++
+			progressFn(NotificationProcessEvent{
+				Step:           "deleted",
+				SequenceNumber: seq,
+				Event:          eventName,
+				ICCID:          iccidStr,
+				Message:        fmt.Sprintf("#%d 已直接删除（不发送）", seq),
+				ProcessedCount: processed,
+				TotalCount:     total,
+			})
+			continue
+		}
+
+		// shouldSend
+		if shouldSend {
+			if err := retryWithBackoff(3, 300*time.Millisecond, nil, func() error {
+				return client.HandleNotification(pn)
+			}); err != nil {
+				if eid != "" {
+					_ = db.UpdateEsimNotificationStatus(eid, seq, iccidStr, 2, nil, err.Error())
+				}
+				progressFn(NotificationProcessEvent{
+					Step:           "failed",
+					SequenceNumber: seq,
+					Event:          eventName,
+					Message:        fmt.Sprintf("#%d 发送失败: %v", seq, err),
+					ProcessedCount: processed,
+					TotalCount:     total,
+				})
+				continue
+			}
+			if eid != "" {
+				contentBase64 := encodePendingNotificationBase64(pn)
+			record := db.EsimNotificationRecord{
+				EID:                eid,
+				SeqNumber:          seq,
+				ICCID:              iccidStr,
+				ProfileName:        item.ProfileName,
+				MCC:                item.MCC,
+				Content:            contentBase64,
+					Timestamp:          time.Now().UnixMilli(),
+					Status:             1,
+					NotificationServer: meta.Address,
+					NotificationType:   eventName,
+				}
+				_ = db.SaveEsimNotification(record)
+			}
+		}
+
+		// shouldRemove
+		if shouldRemove {
+			if err := retryWithBackoff(3, 300*time.Millisecond, nil, func() error {
+				err := client.RemoveNotificationFromList(meta.SequenceNumber)
+				if errors.Is(err, sgp22.ErrNothingToDelete) {
+					return nil
+				}
+				return err
+			}); err != nil {
+				if eid != "" {
+					_ = db.SetEsimNotificationDeletePending(eid, seq, iccidStr, true)
+				}
+				progressFn(NotificationProcessEvent{
+					Step:           "failed",
+					SequenceNumber: seq,
+					Event:          eventName,
+					Message:        fmt.Sprintf("#%d 移除失败: %v", seq, err),
+					ProcessedCount: processed,
+					TotalCount:     total,
+				})
+				continue
+			}
+		}
+
+		processed++
+		action := "已发送"
+		if shouldSend && shouldRemove {
+			action = "已发送并移除"
+		} else if !shouldSend && shouldRemove {
+			action = "已移除"
+		}
+		progressFn(NotificationProcessEvent{
+			Step:           "sent",
+			SequenceNumber: seq,
+			Event:          eventName,
+			ICCID:          iccidStr,
+			Message:        fmt.Sprintf("#%d %s", seq, action),
+			ProcessedCount: processed,
+			TotalCount:     total,
+		})
+	}
+
+	// 6. 完成
+	progressFn(NotificationProcessEvent{
+		Step:           "done",
+		Message:        fmt.Sprintf("全部处理完成 (%d/%d)", processed, total),
+		ProcessedCount: processed,
+		TotalCount:     total,
+	})
+
+	// 7. 刷新 overview 缓存
+	m.invalidateOverviewCache("process_notifications")
+	m.triggerOverviewReload("process_notifications")
+
 	return nil
 }

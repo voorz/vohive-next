@@ -12,19 +12,56 @@ defineEmits<{
 </script>
 
 <template>
-  <el-button :disabled="disabled || loading" class="refresh-btn" @click="$emit('click')">
-    <el-icon :class="{ 'is-spinning': loading }"><ArrowSync24Regular /></el-icon>
-    刷新
-  </el-button>
+  <button
+    type="button"
+    class="refresh-icon-btn"
+    :disabled="disabled || loading"
+    title="刷新"
+    @click="$emit('click')"
+  >
+    <component :is="ArrowSync24Regular" class="refresh-icon" :class="{ spin: loading }" />
+    <span class="refresh-label">刷新</span>
+  </button>
 </template>
 
 <style scoped>
-.refresh-btn {
-  min-width: 80px;
+.refresh-icon-btn {
+  display: inline-flex;
+  align-items: center;
   justify-content: center;
+  gap: 6px;
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--background);
+  box-shadow: var(--console-shadow-sm);
+  color: var(--foreground);
+  cursor: pointer;
+  transition: background 150ms ease, transform 150ms ease;
+  font-size: 13px;
 }
 
-.is-spinning {
+.refresh-icon-btn:hover {
+  background: var(--accent);
+}
+
+.refresh-icon-btn:active {
+  transform: translateY(0.5px);
+}
+
+.refresh-icon-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.refresh-icon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.spin {
   animation: spin 0.8s linear infinite;
 }
 

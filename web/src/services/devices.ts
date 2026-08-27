@@ -312,7 +312,8 @@ export const devicesService = {
       }))
       return {
         chipInfo: res.data?.chip_info || null,
-        profiles: res.data?.profiles || []
+        profiles: res.data?.profiles || [],
+        notificationCount: res.data?.notification_count ?? 0
       }
     })
   },
@@ -343,6 +344,30 @@ export const devicesService = {
         status: typeof res.data?.status === 'string' ? res.data.status : 'ok',
         message: typeof res.data?.message === 'string' ? res.data.message : '通知重试发送成功'
       }
+    })
+  },
+  getEsimNotificationSettings(id: string) {
+    return callService(async () => {
+      const res = await api.get(`/devices/${id}/esim/notification-settings`)
+      return res.data
+    })
+  },
+  updateEsimNotificationSettings(id: string, settings: Record<string, unknown>) {
+    return callService(async () => {
+      const res = await api.put(`/devices/${id}/esim/notification-settings`, settings)
+      return res.data
+    })
+  },
+  getEsimNotificationHistory(id: string) {
+    return callService(async () => {
+      const res = await api.get(`/devices/${id}/esim/notification-history`)
+      return res.data
+    })
+  },
+  clearEsimNotificationHistory(id: string) {
+    return callService(async () => {
+      const res = await api.delete(`/devices/${id}/esim/notification-history`)
+      return res.data
     })
   },
   switchEsimProfile(id: string, payload: { iccid: string; aid_hex: string; state: number }) {

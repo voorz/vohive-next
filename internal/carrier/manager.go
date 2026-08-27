@@ -2,7 +2,7 @@
 // for carrier configuration management.
 //
 // The package defines request/response types used by the API layer
-// and provides Resolve* helpers that convert profiles.CarrierProfile
+// and provides Resolve* helpers that convert carrier.CarrierProfile
 // to runtime types (voiceclient.RegisterProfile, etc.).
 package carrier
 
@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/voorz/vohive/internal/db"
-	"github.com/voorz/vowifi-core/profiles"
+	corevcarrier "github.com/voorz/vowifi-core/runtimehost/carrier"
 	"github.com/voorz/vowifi-core/runtimehost/voiceclient"
 
 	"github.com/voorz/vohive/pkg/logger"
@@ -42,8 +42,8 @@ type Detail struct {
 	IKEAddr         string                 `json:"ike_addr"`
 	DeviceIMSTAC    int                    `json:"device_ims_tac"`
 	DeviceIMSCellID int                    `json:"device_ims_cell_id"`
-	SystemDefault   *profiles.CarrierProfile `json:"system_default"`
-	UserConfig      *profiles.CarrierProfile `json:"user_config"`
+	SystemDefault   *corevcarrier.CarrierProfile `json:"system_default"`
+	UserConfig      *corevcarrier.CarrierProfile `json:"user_config"`
 	Active          bool                   `json:"active"`
 }
 
@@ -53,7 +53,7 @@ type SavePayload struct {
 	IKEAddr         string                 `json:"ike_addr"`
 	DeviceIMSTAC    int                    `json:"device_ims_tac"`
 	DeviceIMSCellID int                    `json:"device_ims_cell_id"`
-	Config          *profiles.CarrierProfile `json:"config"`
+	Config          *corevcarrier.CarrierProfile `json:"config"`
 	Active          bool                   `json:"active"`
 }
 
@@ -73,13 +73,13 @@ func LoadActiveOverrides() error {
 		if err != nil || tpl == nil || tpl.ProfileJSON == "" {
 			continue
 		}
-		var p profiles.CarrierProfile
-		if err := json.Unmarshal([]byte(tpl.ProfileJSON), &p); err != nil {
-			logger.Warn("解析运营商配置 JSON 失败，跳过",
-				"key", v.PLMN, "err", err)
-			continue
-		}
-		profiles.SetUserOverrideByKey(v.PLMN, &p)
+	var p corevcarrier.CarrierProfile
+	if err := json.Unmarshal([]byte(tpl.ProfileJSON), &p); err != nil {
+		logger.Warn("解析运营商配置 JSON 失败，跳过",
+			"key", v.PLMN, "err", err)
+		continue
+	}
+	corevcarrier.SetUserOverrideByKey(v.PLMN, &p)
 		loaded++
 	}
 	if loaded > 0 {
@@ -89,16 +89,16 @@ func LoadActiveOverrides() error {
 }
 
 // ResolveRegisterProfile 从 CarrierProfile 解析出 voiceclient.RegisterProfile。
-func ResolveRegisterProfile(p *profiles.CarrierProfile) voiceclient.RegisterProfile {
+func ResolveRegisterProfile(p *corevcarrier.CarrierProfile) voiceclient.RegisterProfile {
 	if p == nil {
 		return voiceclient.RegisterProfile{}
 	}
-	return voiceclient.CarrierProfileToRegisterProfile(p)
+	return voiceclient.CarrierProfileToRegisterProfile(corevcarrier.ProfileToIMSFields(p))
 }
 
 // ResolveSIPInstanceURN 从 CarrierProfile 解析出 SIP Instance URN。
 // 使用 FormatGSMAIMEIURN 进行 GSMA 标准格式化 (TAC-SNR-SVN)。
-func ResolveSIPInstanceURN(p *profiles.CarrierProfile) string {
+func ResolveSIPInstanceURN(p *corevcarrier.CarrierProfile) string {
 	if p == nil || p.Device.IMEI == "" {
 		return ""
 	}
@@ -106,7 +106,7 @@ func ResolveSIPInstanceURN(p *profiles.CarrierProfile) string {
 }
 
 // ResolveRegisterExpiry 从 CarrierProfile 解析出 REGISTER Expires。
-func ResolveRegisterExpiry(p *profiles.CarrierProfile) time.Duration {
+func ResolveRegisterExpiry(p *corevcarrier.CarrierProfile) time.Duration {
 	if p == nil || p.IMS.Expires <= 0 {
 		return 0
 	}
@@ -114,7 +114,7 @@ func ResolveRegisterExpiry(p *profiles.CarrierProfile) time.Duration {
 }
 
 // ResolvePCSCFAddr 从 CarrierProfile 解析出 P-CSCF 地址。
-func ResolvePCSCFAddr(p *profiles.CarrierProfile) string {
+func ResolvePCSCFAddr(p *corevcarrier.CarrierProfile) string {
 	if p == nil {
 		return ""
 	}

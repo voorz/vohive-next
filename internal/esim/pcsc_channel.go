@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/ElMostafaIdrassi/goscard"
 	"github.com/voorz/wwan-go/ccid"
@@ -20,6 +22,7 @@ import (
 const (
 	pcscMaxLogicalChannel      = 19
 	pcscMaxShortAPDUDataLength = 255
+	pcscAPDUTimeout            = 30 * time.Second // APDU 传输超时，防止卡片不响应时永久阻塞
 )
 
 // 终端能力 APDU（与 lpac APDU_TERMINAL_CAPABILITIES 一致），失败忽略。
@@ -104,8 +107,9 @@ func releaseGoscard() {
 //
 // 运行时由全局 SetPcscTransport() 切换。
 type PCSCExclusiveChannel struct {
-	mu     sync.Mutex
-	reader string
+	mu      sync.Mutex
+	reader  string
+	usbPath string // sysfs USB 路径，用于区分相同 name 的山寨读卡器
 
 	// USBFS 链路
 	ccidReader *ccid.Reader
@@ -130,12 +134,14 @@ type PCSCExclusiveChannel struct {
 }
 
 // NewPCSCExclusiveChannel 创建指定读卡器的独占通道（此时尚未连接）。
-func NewPCSCExclusiveChannel(reader string) (*PCSCExclusiveChannel, error) {
+// usbPath 用于区分相同 reader name 的山寨读卡器，可为空（正规设备）。
+func NewPCSCExclusiveChannel(reader, usbPath string) (*PCSCExclusiveChannel, error) {
 	if reader == "" {
 		return nil, errors.New("PC/SC 独占通道需要指定读卡器名称")
 	}
 	return &PCSCExclusiveChannel{
 		reader:      reader,
+		usbPath:      usbPath,
 		shareMode:   ccid.ShareExclusive,
 		protocol:    ccid.ProtocolT0,
 		sendTermCap: true,
@@ -144,12 +150,14 @@ func NewPCSCExclusiveChannel(reader string) (*PCSCExclusiveChannel, error) {
 
 // NewPCSCSharedChannel 创建共享模式通道（用于 USIM 访问）。
 // 使用 ShareShared + ProtocolAny，不发送终端能力 APDU。
-func NewPCSCSharedChannel(reader string) (*PCSCExclusiveChannel, error) {
+// usbPath 用于区分相同 reader name 的山寨读卡器，可为空（正规设备）。
+func NewPCSCSharedChannel(reader, usbPath string) (*PCSCExclusiveChannel, error) {
 	if reader == "" {
 		return nil, errors.New("PC/SC 通道需要指定读卡器名称")
 	}
 	return &PCSCExclusiveChannel{
 		reader:      reader,
+		usbPath:      usbPath,
 		shareMode:   ccid.ShareShared,
 		protocol:    ccid.ProtocolAny,
 		sendTermCap: false,
@@ -157,8 +165,8 @@ func NewPCSCSharedChannel(reader string) (*PCSCExclusiveChannel, error) {
 }
 
 // NewPCSCExclusiveChannelWithMutex 创建带共享互斥锁的独占通道。
-func NewPCSCExclusiveChannelWithMutex(reader string, mu *sync.Mutex) (*PCSCExclusiveChannel, error) {
-	ch, err := NewPCSCExclusiveChannel(reader)
+func NewPCSCExclusiveChannelWithMutex(reader, usbPath string, mu *sync.Mutex) (*PCSCExclusiveChannel, error) {
+	ch, err := NewPCSCExclusiveChannel(reader, usbPath)
 	if err != nil {
 		return nil, err
 	}
@@ -167,8 +175,8 @@ func NewPCSCExclusiveChannelWithMutex(reader string, mu *sync.Mutex) (*PCSCExclu
 }
 
 // NewPCSCSharedChannelWithMutex 创建带共享互斥锁的共享模式通道。
-func NewPCSCSharedChannelWithMutex(reader string, mu *sync.Mutex) (*PCSCExclusiveChannel, error) {
-	ch, err := NewPCSCSharedChannel(reader)
+func NewPCSCSharedChannelWithMutex(reader, usbPath string, mu *sync.Mutex) (*PCSCExclusiveChannel, error) {
+	ch, err := NewPCSCSharedChannel(reader, usbPath)
 	if err != nil {
 		return nil, err
 	}
@@ -216,17 +224,30 @@ func (c *PCSCExclusiveChannel) Connect() error {
 
 // connectUSBFS 通过 wwan-go/ccid 包连接（内置 USBFS 驱动）。
 func (c *PCSCExclusiveChannel) connectUSBFS() error {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), pcscAPDUTimeout)
+	defer cancel()
 	r, err := ccid.OpenWithOptions(ctx, c.reader, ccid.OpenOptions{
 		ShareMode:                c.shareMode,
 		Protocol:                 c.protocol,
 		SendTerminalCapabilities: c.sendTermCap,
+		// ⚠️ 警告：USBPath 切勿删除！山寨读卡器 serial 相同（000000000001），
+		// reader name 完全一样，不传 USBPath 会导致所有同名读卡器打开同一个 USB 设备，
+		// APDU 通信串设备，读到相同的 EID 和 profiles。此修复切勿覆盖！
+		USBPath:                  c.usbPath,
 	})
 	if err != nil {
 		c.releaseAccessMuLocked()
 		return fmt.Errorf("连接读卡器 %q 失败: %w", c.reader, err)
 	}
 	c.ccidReader = r
+	// ⚠️ 警告：此终端能力 APDU 补发不可省略！
+	// ccid.OpenWithOptions 在 Linux 上忽略 OpenOptions（包括 SendTerminalCapabilities），
+	// 因为 USBFS 连接本质上是独占的。但部分 eSIM 卡在不收到终端能力 APDU 时
+	// 会对 STORE DATA (EnableProfile) 返回 6A81 (Function not supported)。
+	// 此修复曾被后续改动意外覆盖导致 6A81 复现，请勿移除！
+	if c.sendTermCap {
+		_, _ = r.Transmit(ctx, pcscTerminalCapabilitiesAPDU)
+	}
 	c.connected = true
 	return nil
 }
@@ -360,7 +381,9 @@ func (c *PCSCExclusiveChannel) Transmit(command []byte) ([]byte, error) {
 	var err error
 
 	if c.ccidReader != nil {
-		recv, err = c.ccidReader.Transmit(context.Background(), command)
+		ctx, cancel := context.WithTimeout(context.Background(), pcscAPDUTimeout)
+		defer cancel()
+		recv, err = c.ccidReader.Transmit(ctx, command)
 	} else if c.gcard != nil && c.gioSend != nil {
 		recv, _, err = c.gcard.Transmit(c.gioSend, command, nil)
 	} else {
@@ -421,7 +444,9 @@ func (c *PCSCExclusiveChannel) OpenLogicalChannel(AID []byte) (byte, error) {
 // transmitLocked 在已持有 c.mu 的前提下发送 APDU。
 func (c *PCSCExclusiveChannel) transmitLocked(command []byte) ([]byte, error) {
 	if c.ccidReader != nil {
-		return c.ccidReader.Transmit(context.Background(), command)
+		ctx, cancel := context.WithTimeout(context.Background(), pcscAPDUTimeout)
+		defer cancel()
+		return c.ccidReader.Transmit(ctx, command)
 	}
 	if c.gcard != nil && c.gioSend != nil {
 		recv, _, err := c.gcard.Transmit(c.gioSend, command, nil)
@@ -489,6 +514,108 @@ func ListPCSCReaders() ([]string, error) {
 		return listReadersPCSC()
 	}
 	return ccid.ListReaders(context.Background())
+}
+
+// ListPCSCReaderInfo 列出系统可用的 PC/SC 读卡器完整信息（含 USBPath）。
+// USBFS 模式下通过 wwan-go/ccid 枚举（含 USBPath）。
+// pcscd 模式下通过 goscard 枚举读卡器名称，同时从 sysfs 读取 USBPath 补充。
+// sysfs 枚举只读 /sys/bus/usb/devices/ 下的属性文件，不连接 USB 设备，不与 pcscd 冲突。
+func ListPCSCReaderInfo() ([]ccid.ReaderInfo, error) {
+	if isPcscNativeMode() {
+		names, err := listReadersPCSC()
+		if err != nil {
+			return nil, err
+		}
+		// 从 sysfs 枚举 CCID 设备获取 USBPath（只读 sysfs，不连接设备）。
+		// goscard 返回的读卡器名称中包含 SN，通过 SN 关联 sysfs 的 USBPath。
+		sysfsInfos, sysfsErr := ccid.ListReaderInfo(context.Background())
+		infos := make([]ccid.ReaderInfo, 0, len(names))
+		for _, name := range names {
+			info := ccid.ReaderInfo{Name: name, ChannelAvailable: true, Transport: "pcsc"}
+			if sysfsErr == nil {
+				sn := extractSerialFromReaderName(name)
+				if sn != "" {
+					for _, si := range sysfsInfos {
+						if si.USBSerial == sn {
+							info.USBPath = si.USBPath
+							info.USBSerial = si.USBSerial
+							info.VendorID = si.VendorID
+							info.ProductID = si.ProductID
+							break
+						}
+					}
+				}
+			}
+			infos = append(infos, info)
+		}
+		return infos, nil
+	}
+	return ccid.ListReaderInfo(context.Background())
+}
+
+// extractSerialFromReaderName 从 PC/SC 读卡器名称中提取序列号（SN）。
+// goscard/pcscd 返回的名称格式通常为 "Product Name (SN) Slot Index"，
+// 例如 "Generic Smart Card Reader Interface (2051315E5056) 00 00"。
+func extractSerialFromReaderName(name string) string {
+	start := strings.LastIndex(name, "(")
+	if start < 0 {
+		return ""
+	}
+	end := strings.Index(name[start:], ")")
+	if end < 0 {
+		return ""
+	}
+	return strings.TrimSpace(name[start+1 : start+end])
+}
+
+// ResolveReaderByUSBPath 用 USB 路径和可选 SN 匹配当前模式下可用的读卡器名称。
+// 匹配优先级：USB 路径 > SN（仅正规设备）。
+// USB 路径是稳定标识（如 1-2），不受驱动模式影响，适用于所有读卡器。
+// 当 USB 路径匹配失败时，若 SN 非空且非固定值（山寨读卡器常见 "000000000001"），
+// 则回退到 SN 匹配——正规设备插拔换 USB 接口后 SN 不变，仍可正确解析 reader。
+// 返回空串表示未匹配到可用读卡器。
+func ResolveReaderByUSBPath(usbPath, sn string) string {
+	usbPath = strings.TrimSpace(usbPath)
+	sn = strings.TrimSpace(sn)
+	infos, err := ListPCSCReaderInfo()
+	if err != nil || len(infos) == 0 {
+		return ""
+	}
+	// 优先按 USB 路径匹配（容错：支持完整路径和简短路径两种格式）
+	if usbPath != "" {
+		for _, info := range infos {
+			if matchUSBPath(info.USBPath, usbPath) {
+				return info.Name
+			}
+		}
+	}
+	// USB 路径匹配失败时，按 SN 回退匹配（排除山寨读卡器固定 SN）
+	if sn != "" && !strings.Contains(sn, "000000000001") {
+		for _, info := range infos {
+			if info.USBSerial == sn {
+				return info.Name
+			}
+		}
+	}
+	return ""
+}
+
+// matchUSBPath 容错匹配两个 USB 路径。
+// 支持完整路径（/sys/bus/usb/devices/1-2）和简短路径（1-2）之间的互相匹配。
+func matchUSBPath(a, b string) bool {
+	a = strings.TrimSpace(a)
+	b = strings.TrimSpace(b)
+	if a == "" || b == "" {
+		return false
+	}
+	if a == b {
+		return true
+	}
+	// 一方是完整路径时，检查另一方是否是其后缀
+	if strings.HasSuffix(a, "/"+b) || strings.HasSuffix(b, "/"+a) {
+		return true
+	}
+	return false
 }
 
 // listReadersPCSC 通过 goscard 枚举读卡器。

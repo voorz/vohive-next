@@ -2,76 +2,13 @@
  * 国家旗帜图标管理
  * - 主动下载（与运营商图标不同）
  * - 镜像优先 2 次 → 直链兜底
- * - IndexedDB 缓存（配额大，适合存图片 base64）
+ * - IndexedDB 缓存（共享 vohive DB，flags store）
  */
+
+import { idbGet, idbSet, idbClear, idbCount, STORE_FLAGS } from './useIDB'
 
 const FLAG_BASE = 'https://raw.githubusercontent.com/iebb/NekokoLPA2/master/assets/flags'
 const FLAG_MIRROR = 'https://cdn.jsdelivr.net/gh/iebb/NekokoLPA2@master/assets/flags'
-const DB_NAME = 'vohive'
-const DB_STORE = 'flags'
-const DB_VERSION = 1
-
-// ── IndexedDB 初始化 ──
-
-let dbPromise: Promise<IDBDatabase> | null = null
-
-function getDB(): Promise<IDBDatabase> {
-  if (dbPromise) return dbPromise
-  dbPromise = new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, DB_VERSION)
-    req.onupgradeneeded = () => {
-      const db = req.result
-      if (!db.objectStoreNames.contains(DB_STORE)) {
-        db.createObjectStore(DB_STORE)
-      }
-    }
-    req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
-  })
-  return dbPromise
-}
-
-async function idbGet(key: string): Promise<string | null> {
-  try {
-    const db = await getDB()
-    return new Promise((resolve) => {
-      const tx = db.transaction(DB_STORE, 'readonly')
-      const req = tx.objectStore(DB_STORE).get(key)
-      req.onsuccess = () => resolve(req.result ?? null)
-      req.onerror = () => resolve(null)
-    })
-  } catch {
-    return null
-  }
-}
-
-async function idbSet(key: string, value: string): Promise<void> {
-  try {
-    const db = await getDB()
-    await new Promise<void>((resolve) => {
-      const tx = db.transaction(DB_STORE, 'readwrite')
-      tx.objectStore(DB_STORE).put(value, key)
-      tx.oncomplete = () => resolve()
-      tx.onerror = () => resolve()
-    })
-  } catch {
-    // 放弃缓存
-  }
-}
-
-async function idbClear(): Promise<void> {
-  try {
-    const db = await getDB()
-    await new Promise<void>((resolve) => {
-      const tx = db.transaction(DB_STORE, 'readwrite')
-      tx.objectStore(DB_STORE).clear()
-      tx.oncomplete = () => resolve()
-      tx.onerror = () => resolve()
-    })
-  } catch {
-    // ignore
-  }
-}
 
 // ── 旧 localStorage 缓存迁移清理 ──
 
@@ -95,7 +32,7 @@ export function getFlagUrl(iso: string): string {
 }
 
 export async function getCachedFlag(iso: string): Promise<string | null> {
-  return await idbGet(iso.toUpperCase())
+  return await idbGet(STORE_FLAGS, iso.toUpperCase())
 }
 
 /** 主动下载国旗（自动调用，非用户触发） */
@@ -108,14 +45,14 @@ export async function downloadFlag(iso: string): Promise<string | null> {
   for (let i = 0; i < 2; i++) {
     const result = await tryFetch(mirrorUrl)
     if (result) {
-      await idbSet(code, result)
+      await idbSet(STORE_FLAGS, code, result)
       return result
     }
   }
 
   const result = await tryFetch(directUrl)
   if (result) {
-    await idbSet(code, result)
+    await idbSet(STORE_FLAGS, code, result)
     return result
   }
 
@@ -130,7 +67,11 @@ export async function getOrDownloadFlag(iso: string): Promise<string | null> {
 }
 
 export async function clearAllFlagCache() {
-  await idbClear()
+  await idbClear(STORE_FLAGS)
+}
+
+export async function countFlagCache(): Promise<number> {
+  return await idbCount(STORE_FLAGS)
 }
 
 // ── 内部工具 ──

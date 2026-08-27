@@ -489,4 +489,16 @@ export const systemService = {
       return res.data
     })
   },
+  restart() {
+    return callService(async () => {
+      const res = await api.post<{ status: string; message: string }>('/system/restart')
+      return res.data
+    })
+  },
+  stop() {
+    return callService(async () => {
+      const res = await api.post<{ status: string; message: string }>('/system/stop')
+      return res.data
+    })
+  },
 }

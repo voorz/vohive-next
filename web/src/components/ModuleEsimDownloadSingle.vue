@@ -212,21 +212,20 @@ async function downloadProfile(force = false) {
 
 <template>
   <div class="single-download">
-    <!-- 二维码上传/扫描 -->
-    <div class="single-section">
-      <label class="single-label">上传或通过相机扫描</label>
-      <ModuleEsimDownloadQrScanner @scanned="onQrScanned" />
-    </div>
-
     <!-- 完整激活码 -->
     <div class="single-field">
-      <label class="single-label">完整激活码</label>
+      <label class="single-label">输入完整激活码/上传或通过相机扫描</label>
       <input
         v-model="lpaCode"
         class="single-input"
         type="text"
         placeholder="LPA:1$smdp.example$XXXX-XXXX-XXXX"
       />
+    </div>
+
+    <!-- 二维码上传/扫描 -->
+    <div class="single-section">
+      <ModuleEsimDownloadQrScanner @scanned="onQrScanned" />
     </div>
 
     <!-- SM-DP+ 地址 -->

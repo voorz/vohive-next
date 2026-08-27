@@ -9,6 +9,7 @@ import (
 	"io"
 	stdhttp "net/http"
 	"reflect"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -2457,12 +2458,13 @@ func TestRecoverDownloadInstallFinalizeErrorSendsInstallNotification(t *testing.
 }
 
 type fakeNotificationTransmitter struct {
-	list        []*sgp22.NotificationMetadata
-	retrieve    map[sgp22.SequenceNumber][]*sgp22.PendingNotification
-	retrieveErr map[sgp22.SequenceNumber]error
-	removeErr   map[sgp22.SequenceNumber]error
-	retrieved   []sgp22.SequenceNumber
-	removed     []sgp22.SequenceNumber
+	list              []*sgp22.NotificationMetadata
+	retrieve          map[sgp22.SequenceNumber][]*sgp22.PendingNotification
+	retrieveErr       map[sgp22.SequenceNumber]error
+	removeErr         map[sgp22.SequenceNumber]error
+	retrieved         []sgp22.SequenceNumber
+	removed           []sgp22.SequenceNumber
+	combinedRetrieved bool
 }
 
 func (f *fakeNotificationTransmitter) Transmit(request bertlv.Marshaler, response bertlv.Unmarshaler) error {
@@ -2480,7 +2482,22 @@ func (f *fakeNotificationTransmitter) Transmit(request bertlv.Marshaler, respons
 			return errors.New("unexpected retrieve response type")
 		}
 		if req.SearchCriteria == nil {
-			return errors.New("missing search criteria")
+			// combined 策略：一次返回全量 PendingNotification（按 seq 排序保证确定性）
+			f.combinedRetrieved = true
+			seqs := make([]sgp22.SequenceNumber, 0, len(f.retrieve))
+			for seq := range f.retrieve {
+				if err := f.retrieveErr[seq]; err != nil {
+					continue
+				}
+				seqs = append(seqs, seq)
+			}
+			sort.Slice(seqs, func(i, j int) bool { return seqs[i] < seqs[j] })
+			all := make([]*sgp22.PendingNotification, 0, len(seqs))
+			for _, seq := range seqs {
+				all = append(all, f.retrieve[seq]...)
+			}
+			resp.NotificationList = all
+			return nil
 		}
 		var seq sgp22.SequenceNumber
 		if err := req.SearchCriteria.UnmarshalValue(primitive.UnmarshalInt(&seq)); err != nil {
@@ -2668,10 +2685,11 @@ func TestListNotificationsMapsCurrentNotificationItems(t *testing.T) {
 		if got := strings.ToUpper(hex.EncodeToString(aid)); got != "A0000005591010FFFFFFFF8900000100" {
 			t.Fatalf("aid=%s want GSMA default AID", got)
 		}
-		client, _ := newTestNotificationClient([]*sgp22.NotificationMetadata{
-			{SequenceNumber: 9, ProfileManagementOperation: sgp22.NotificationEventDelete, ICCID: iccid, Address: "delete.example.com"},
-			{SequenceNumber: 11, ProfileManagementOperation: sgp22.NotificationEventInstall, ICCID: iccid, Address: "install.example.com"},
-		}, nil, nil, nil)
+		client, _ := newTestNotificationClient(nil,
+			map[sgp22.SequenceNumber][]*sgp22.PendingNotification{
+				9:  {testPendingNotification(9, sgp22.NotificationEventDelete, iccid, "delete.example.com")},
+				11: {testPendingNotification(11, sgp22.NotificationEventInstall, iccid, "install.example.com")},
+			}, nil, nil)
 		return client, nil
 	}, nil, nil, nil)
 	var waitCalled atomic.Int32
@@ -2712,7 +2730,9 @@ func TestListNotificationsAutoCleansEnableDisableNotifications(t *testing.T) {
 			{SequenceNumber: 13, ProfileManagementOperation: sgp22.NotificationEventDisable, ICCID: iccid, Address: "disable.example.com"},
 		},
 		map[sgp22.SequenceNumber][]*sgp22.PendingNotification{
+			9:  {testPendingNotification(9, sgp22.NotificationEventDelete, iccid, "delete.example.com")},
 			12: {testPendingNotification(12, sgp22.NotificationEventEnable, iccid, "enable.example.com")},
+			11: {testPendingNotification(11, sgp22.NotificationEventInstall, iccid, "install.example.com")},
 			13: {testPendingNotification(13, sgp22.NotificationEventDisable, iccid, "disable.example.com")},
 		},
 		nil,
@@ -2728,12 +2748,16 @@ func TestListNotificationsAutoCleansEnableDisableNotifications(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListNotifications() error=%v", err)
 	}
-	if got := fmt.Sprint(roundTripper.handledHosts); got != "[enable.example.com disable.example.com]" {
-		t.Fatalf("handledHosts=%v want [enable.example.com disable.example.com]", roundTripper.handledHosts)
+	// combined 策略应被使用
+	if !transmitter.combinedRetrieved {
+		t.Fatalf("combinedRetrieved=false, want true (combined strategy should be used)")
 	}
-	if got := fmt.Sprint(transmitter.retrieved); got != "[12 13]" {
-		t.Fatalf("retrieved=%v want [12 13]", transmitter.retrieved)
+	// handledHosts 和 removed 顺序不保证（map 遍历），按集合比较
+	sort.Strings(roundTripper.handledHosts)
+	if got := fmt.Sprint(roundTripper.handledHosts); got != "[disable.example.com enable.example.com]" {
+		t.Fatalf("handledHosts=%v want [disable.example.com enable.example.com]", roundTripper.handledHosts)
 	}
+	sort.Slice(transmitter.removed, func(i, j int) bool { return transmitter.removed[i] < transmitter.removed[j] })
 	if got := fmt.Sprint(transmitter.removed); got != "[12 13]" {
 		t.Fatalf("removed=%v want [12 13]", transmitter.removed)
 	}
@@ -2753,17 +2777,17 @@ func TestListNotificationsKeepsVisibleItemsWhenAutoCleanupFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewICCID() error=%v", err)
 	}
-	client, roundTripper, transmitter := newTestNotificationClientWithTransmitter(
-		[]*sgp22.NotificationMetadata{
-			{SequenceNumber: 11, ProfileManagementOperation: sgp22.NotificationEventInstall, ICCID: iccid, Address: "install.example.com"},
-			{SequenceNumber: 12, ProfileManagementOperation: sgp22.NotificationEventEnable, ICCID: iccid, Address: "enable.example.com"},
-		},
+	// combined 策略下，HandleNotification 失败时通知应保留可见
+	handleErrByHost := map[string]error{"enable.example.com": errors.New("handle notification failed")}
+	client, _, transmitter := newTestNotificationClientWithTransmitter(
+		nil,
 		map[sgp22.SequenceNumber][]*sgp22.PendingNotification{
+			11: {testPendingNotification(11, sgp22.NotificationEventInstall, iccid, "install.example.com")},
 			12: {testPendingNotification(12, sgp22.NotificationEventEnable, iccid, "enable.example.com")},
 		},
-		map[sgp22.SequenceNumber]error{12: errors.New("retrieve failed")},
 		nil,
 		nil,
+		handleErrByHost,
 	)
 	mgr := newManagerWithChannelFactory("dev-esim", func(aid []byte) (*lpa.Client, error) {
 		return client, nil
@@ -2774,17 +2798,19 @@ func TestListNotificationsKeepsVisibleItemsWhenAutoCleanupFails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListNotifications() error=%v", err)
 	}
-	if got := fmt.Sprint(transmitter.retrieved); got != "[12 12 12 12]" {
-		t.Fatalf("retrieved=%v want cleanup retries for sequence 12", transmitter.retrieved)
+	if !transmitter.combinedRetrieved {
+		t.Fatalf("combinedRetrieved=false, want true")
 	}
-	if len(roundTripper.handledHosts) != 0 {
-		t.Fatalf("handledHosts=%v want none when retrieve fails", roundTripper.handledHosts)
+	// HandleNotification 失败时，enable 通知不应被 removed
+	if len(transmitter.removed) != 0 {
+		t.Fatalf("removed=%v want empty when handle fails", transmitter.removed)
 	}
+	// 失败的通知仍应保留在返回列表中
 	if len(items) != 2 {
-		t.Fatalf("len(items)=%d want original visible notifications when cleanup fails", len(items))
+		t.Fatalf("len(items)=%d want 2 (failed cleanup notification preserved)", len(items))
 	}
 	if items[0].SequenceNumber != 12 || items[0].Event != "enable" {
-		t.Fatalf("items[0]=%#v want failed cleanup notification to remain visible", items[0])
+		t.Fatalf("items[0]=%#v want enable notification preserved when cleanup fails", items[0])
 	}
 	if items[1].SequenceNumber != 11 || items[1].Event != "install" {
 		t.Fatalf("items[1]=%#v want install notification preserved", items[1])
@@ -2803,20 +2829,17 @@ func TestListNotificationsWithoutAIDReadsStaticAIDsUnderReadArbitration(t *testi
 		seenAIDs = append(seenAIDs, got)
 		switch got {
 		case strings.ToUpper(hex.EncodeToString(AIDs[0])):
-			client, _ := newTestNotificationClient([]*sgp22.NotificationMetadata{{
-				SequenceNumber:             9,
-				ProfileManagementOperation: sgp22.NotificationEventDelete,
-				ICCID:                      iccid,
-				Address:                    "delete.example.com",
-			}}, nil, nil, nil)
+			// 第一个 AID 返回通知（combined 策略）
+			client, _ := newTestNotificationClient(nil,
+				map[sgp22.SequenceNumber][]*sgp22.PendingNotification{
+					9: {testPendingNotification(9, sgp22.NotificationEventDelete, iccid, "delete.example.com")},
+				}, nil, nil)
 			return client, nil
 		case strings.ToUpper(hex.EncodeToString(AIDs[1])):
-			client, _ := newTestNotificationClient([]*sgp22.NotificationMetadata{{
-				SequenceNumber:             11,
-				ProfileManagementOperation: sgp22.NotificationEventInstall,
-				ICCID:                      iccid,
-				Address:                    "install.example.com",
-			}}, nil, nil, nil)
+			client, _ := newTestNotificationClient(nil,
+				map[sgp22.SequenceNumber][]*sgp22.PendingNotification{
+					11: {testPendingNotification(11, sgp22.NotificationEventInstall, iccid, "install.example.com")},
+				}, nil, nil)
 			return client, nil
 		default:
 			return nil, fmt.Errorf("unsupported AID %s", got)
@@ -2836,17 +2859,18 @@ func TestListNotificationsWithoutAIDReadsStaticAIDsUnderReadArbitration(t *testi
 	if waitCalled.Load() != 1 {
 		t.Fatalf("WaitIdle calls=%d want 1", waitCalled.Load())
 	}
-	if got, want := seenAIDs, aidHexList(AIDs); !reflect.DeepEqual(got, want) {
-		t.Fatalf("seenAIDs=%v want full static AIDs in order %v", got, want)
+	// E1: 命中第一个成功 AID 后提前退出，不应遍历全部 AID
+	if len(seenAIDs) != 1 {
+		t.Fatalf("seenAIDs=%v want only first AID (early exit)", seenAIDs)
 	}
-	if len(items) != 2 {
-		t.Fatalf("len(items)=%d want 2", len(items))
+	if seenAIDs[0] != strings.ToUpper(hex.EncodeToString(AIDs[0])) {
+		t.Fatalf("seenAIDs[0]=%s want %s", seenAIDs[0], strings.ToUpper(hex.EncodeToString(AIDs[0])))
 	}
-	if items[0].SequenceNumber != 11 || items[0].AIDHex != strings.ToUpper(hex.EncodeToString(AIDs[1])) {
-		t.Fatalf("items[0]=%#v want highest-sequence item from second AID", items[0])
+	if len(items) != 1 {
+		t.Fatalf("len(items)=%d want 1 from first AID", len(items))
 	}
-	if items[1].SequenceNumber != 9 || items[1].AIDHex != strings.ToUpper(hex.EncodeToString(AIDs[0])) {
-		t.Fatalf("items[1]=%#v want lower-sequence item from first AID", items[1])
+	if items[0].SequenceNumber != 9 || items[0].AIDHex != strings.ToUpper(hex.EncodeToString(AIDs[0])) {
+		t.Fatalf("items[0]=%#v want delete notification from first AID", items[0])
 	}
 }
 
@@ -2862,15 +2886,12 @@ func TestListNotificationsWithoutAIDAutoCleansStaticAIDNotifications(t *testing.
 		got := strings.ToUpper(hex.EncodeToString(aid))
 		switch got {
 		case strings.ToUpper(hex.EncodeToString(AIDs[0])):
+			// 第一个 AID 有 enable（会被 autoClean）和 install（保留）
 			client, rt, tx := newTestNotificationClientWithTransmitter(
-				[]*sgp22.NotificationMetadata{{
-					SequenceNumber:             21,
-					ProfileManagementOperation: sgp22.NotificationEventEnable,
-					ICCID:                      iccid,
-					Address:                    "enable.example.com",
-				}},
+				nil,
 				map[sgp22.SequenceNumber][]*sgp22.PendingNotification{
 					21: {testPendingNotification(21, sgp22.NotificationEventEnable, iccid, "enable.example.com")},
+					11: {testPendingNotification(11, sgp22.NotificationEventInstall, iccid, "install.example.com")},
 				},
 				nil,
 				nil,
@@ -2880,12 +2901,10 @@ func TestListNotificationsWithoutAIDAutoCleansStaticAIDNotifications(t *testing.
 			cleanedTransmitter = tx
 			return client, nil
 		case strings.ToUpper(hex.EncodeToString(AIDs[1])):
-			client, _ := newTestNotificationClient([]*sgp22.NotificationMetadata{{
-				SequenceNumber:             11,
-				ProfileManagementOperation: sgp22.NotificationEventInstall,
-				ICCID:                      iccid,
-				Address:                    "install.example.com",
-			}}, nil, nil, nil)
+			client, _ := newTestNotificationClient(nil,
+				map[sgp22.SequenceNumber][]*sgp22.PendingNotification{
+					11: {testPendingNotification(11, sgp22.NotificationEventInstall, iccid, "install.example.com")},
+				}, nil, nil)
 			return client, nil
 		default:
 			return nil, fmt.Errorf("unsupported AID %s", got)
@@ -2897,17 +2916,19 @@ func TestListNotificationsWithoutAIDAutoCleansStaticAIDNotifications(t *testing.
 	if err != nil {
 		t.Fatalf("ListNotifications() error=%v", err)
 	}
+	// E1: 只试第一个 AID，autoClean 同步执行
 	if got := fmt.Sprint(cleanedRoundTripper.handledHosts); got != "[enable.example.com]" {
 		t.Fatalf("handledHosts=%v want [enable.example.com]", cleanedRoundTripper.handledHosts)
 	}
 	if got := fmt.Sprint(cleanedTransmitter.removed); got != "[21]" {
 		t.Fatalf("removed=%v want [21]", cleanedTransmitter.removed)
 	}
+	// enable 被 autoClean 清理后，只剩 install
 	if len(items) != 1 {
-		t.Fatalf("len(items)=%d want only install notification after cleanup", len(items))
+		t.Fatalf("len(items)=%d want 1 (install only after cleanup)", len(items))
 	}
-	if items[0].SequenceNumber != 11 || items[0].Event != "install" || items[0].AIDHex != strings.ToUpper(hex.EncodeToString(AIDs[1])) {
-		t.Fatalf("items[0]=%#v want install notification from second AID", items[0])
+	if items[0].SequenceNumber != 11 || items[0].Event != "install" || items[0].AIDHex != strings.ToUpper(hex.EncodeToString(AIDs[0])) {
+		t.Fatalf("items[0]=%#v want install notification from first AID", items[0])
 	}
 }
 
@@ -3032,6 +3053,12 @@ func TestExpectedPostResetLPAClientCloseError(t *testing.T) {
 			operation: "switch_profile_deferred",
 			err:       errors.New("transport timeout"),
 			want:      false,
+		},
+		{
+			name:      "pcsc switch deferred close 6200",
+			operation: "switch_profile_deferred",
+			err:       errors.New("关闭逻辑通道返回异常: 6200"),
+			want:      true,
 		},
 	}
 	for _, tt := range tests {

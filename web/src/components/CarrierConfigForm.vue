@@ -4,6 +4,9 @@ import { storeToRefs } from 'pinia'
 import { useCarrierStore } from '../stores/carrier'
 import { ChevronDown20Regular } from '@vicons/fluent'
 import type { CarrierProfile } from '../types/api'
+import ConfigFieldLabel from './ConfigFieldLabel.vue'
+import TagInputWithPresets from './TagInputWithPresets.vue'
+import { configAnnotations } from '../data/carrier-config-annotations'
 
 const store = useCarrierStore()
 const { editingConfig } = storeToRefs(store)
@@ -117,35 +120,75 @@ function generateRandomPANI() {
   onInput()
 }
 
-// 数组 ↔ 逗号分隔文本
-const ikeProposalsText = computed({
-  get: () => (cfg.value.ike?.proposals || []).join(', '),
-  set: (v: string) => { ensureIke(); cfg.value.ike!.proposals = v.split(',').map(s => s.trim()).filter(Boolean); onInput() }
+// ===== Tag 输入预设数据 =====
+
+const ikeProposalsPresets: Record<string, string> = {
+  'aes256-sha256-prfsha256-modp2048': 'AES-256-SHA256 (推荐)',
+  'aes128-sha256-prfsha256-modp2048': 'AES-128-SHA256',
+  'aes256-sha1-prfsha1-modp2048': 'AES-256-SHA1 (旧 ePDG 兼容)',
+  'aes128-sha1-prfsha1-modp2048': 'AES-128-SHA1 (最旧)',
+  'aes256gcm16-prfsha256-modp2048': 'AES-256-GCM',
+  'aes128gcm16-prfsha256-modp2048': 'AES-128-GCM',
+}
+
+const espProposalsPresets: Record<string, string> = {
+  'aes256-sha256': 'AES-256-SHA256 (推荐)',
+  'aes128-sha256': 'AES-128-SHA256',
+  'aes256-sha1': 'AES-256-SHA1 (旧)',
+  'aes128-sha1': 'AES-128-SHA1 (最旧)',
+  'aes256gcm16': 'AES-256-GCM',
+  'aes128gcm16': 'AES-128-GCM',
+}
+
+const contactParamOrderPresets: Record<string, string> = {
+  'access_type': 'Access Type',
+  'audio': 'Audio',
+  'smsip': 'SMS over IP',
+  'icsi_ref': 'ICSI Ref',
+  'sip_instance': 'SIP Instance',
+}
+
+const sipStatusCodesPresets: Record<string, string> = {
+  '400': '400 Bad Request',
+  '403': '403 Forbidden',
+  '408': '408 Request Timeout',
+  '480': '480 Temporarily Unavailable',
+  '500': '500 Server Internal Error',
+  '502': '502 Bad Gateway',
+  '503': '503 Service Unavailable',
+  '504': '504 Server Timeout',
+}
+
+// 数组 computed（直接绑定 TagInputWithPresets）
+const ikeProposalsArr = computed({
+  get: () => cfg.value.ike?.proposals || [],
+  set: (v: string[]) => { ensureIke(); cfg.value.ike!.proposals = v; onInput() }
 })
 
-const espProposalsText = computed({
-  get: () => (cfg.value.ike?.esp_proposals || []).join(', '),
-  set: (v: string) => { ensureIke(); cfg.value.ike!.esp_proposals = v.split(',').map(s => s.trim()).filter(Boolean); onInput() }
+const espProposalsArr = computed({
+  get: () => cfg.value.ike?.esp_proposals || [],
+  set: (v: string[]) => { ensureIke(); cfg.value.ike!.esp_proposals = v; onInput() }
 })
 
-const contactParamOrderText = computed({
-  get: () => (cfg.value.ims?.contact_param_order || []).join(', '),
-  set: (v: string) => { ensureIms(); cfg.value.ims!.contact_param_order = v.split(',').map(s => s.trim()).filter(Boolean); onInput() }
+const contactParamOrderArr = computed({
+  get: () => cfg.value.ims?.contact_param_order || [],
+  set: (v: string[]) => { ensureIms(); cfg.value.ims!.contact_param_order = v; onInput() }
 })
 
-const tempStatusCodesText = computed({
-  get: () => (cfg.value.ims?.register_policy?.temporary_status_codes || []).join(', '),
-  set: (v: string) => { ensureRegPolicy(); cfg.value.ims!.register_policy!.temporary_status_codes = v.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)); onInput() }
+// 状态码：number[] ↔ string[]
+const tempStatusCodesArr = computed({
+  get: () => (cfg.value.ims?.register_policy?.temporary_status_codes || []).map(String),
+  set: (v: string[]) => { ensureRegPolicy(); cfg.value.ims!.register_policy!.temporary_status_codes = v.map(s => parseInt(s)).filter(n => !isNaN(n)); onInput() }
 })
 
-const forbiddenStatusCodesText = computed({
-  get: () => (cfg.value.ims?.register_policy?.forbidden_status_codes || []).join(', '),
-  set: (v: string) => { ensureRegPolicy(); cfg.value.ims!.register_policy!.forbidden_status_codes = v.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)); onInput() }
+const forbiddenStatusCodesArr = computed({
+  get: () => (cfg.value.ims?.register_policy?.forbidden_status_codes || []).map(String),
+  set: (v: string[]) => { ensureRegPolicy(); cfg.value.ims!.register_policy!.forbidden_status_codes = v.map(s => parseInt(s)).filter(n => !isNaN(n)); onInput() }
 })
 
-const fallbackStatusCodesText = computed({
-  get: () => (cfg.value.ims?.register_policy?.initial_reject_fallback_status_codes || []).join(', '),
-  set: (v: string) => { ensureRegPolicy(); cfg.value.ims!.register_policy!.initial_reject_fallback_status_codes = v.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)); onInput() }
+const fallbackStatusCodesArr = computed({
+  get: () => (cfg.value.ims?.register_policy?.initial_reject_fallback_status_codes || []).map(String),
+  set: (v: string[]) => { ensureRegPolicy(); cfg.value.ims!.register_policy!.initial_reject_fallback_status_codes = v.map(s => parseInt(s)).filter(n => !isNaN(n)); onInput() }
 })
 </script>
 
@@ -160,57 +203,57 @@ const fallbackStatusCodesText = computed({
       <div v-show="expanded.ike" class="faq-body">
         <div class="form-grid">
           <div class="field">
-            <label class="form-label">ePDG 地址</label>
+            <ConfigFieldLabel label="ePDG 地址" section="ike" :annotations="configAnnotations" />
             <el-input :model-value="cfg.ike?.addr || ''" @update:model-value="(v: string) => { ensureIke(); cfg.ike!.addr = v; onInput() }" placeholder="空则自动生成 3GPP FQDN" />
           </div>
           <div class="field">
-            <label class="form-label">ePDG 端口</label>
+            <ConfigFieldLabel label="ePDG 端口" section="ike" :annotations="configAnnotations" />
             <el-input-number :model-value="cfg.ike?.port || 0" @update:model-value="(v: number | undefined) => { ensureIke(); cfg.ike!.port = v || 0; onInput() }" :min="0" :max="65535" placeholder="500" class="!w-full" />
           </div>
           <div class="field col-span-2">
-            <label class="form-label">IKE 提议 (逗号分隔)</label>
-            <el-input v-model="ikeProposalsText" placeholder="aes256-sha256-prfsha256-modp2048" />
+            <ConfigFieldLabel label="IKE 提议" section="ike" :annotations="configAnnotations" />
+            <TagInputWithPresets v-model="ikeProposalsArr" :presets="ikeProposalsPresets" placeholder="手动输入或从预设选择" />
           </div>
           <div class="field col-span-2">
-            <label class="form-label">ESP 提议 (逗号分隔)</label>
-            <el-input v-model="espProposalsText" placeholder="aes256-sha256" />
+            <ConfigFieldLabel label="ESP 提议" section="ike" :annotations="configAnnotations" />
+            <TagInputWithPresets v-model="espProposalsArr" :presets="espProposalsPresets" placeholder="手动输入或从预设选择" />
           </div>
           <div class="field">
-            <label class="form-label">DPD 间隔 (秒)</label>
+            <ConfigFieldLabel label="DPD 间隔 (秒)" section="ike" :annotations="configAnnotations" />
             <el-input-number :model-value="cfg.ike?.dpd_interval || 0" @update:model-value="(v: number | undefined) => { ensureIke(); cfg.ike!.dpd_interval = v || 0; onInput() }" :min="0" placeholder="0=禁用" class="!w-full" />
           </div>
           <div class="field">
-            <label class="form-label">NAT 保活 (秒)</label>
+            <ConfigFieldLabel label="NAT 保活 (秒)" section="ike" :annotations="configAnnotations" />
             <el-input-number :model-value="cfg.ike?.nat_keepalive || 0" @update:model-value="(v: number | undefined) => { ensureIke(); cfg.ike!.nat_keepalive = v || 0; onInput() }" :min="0" placeholder="20" class="!w-full" />
           </div>
           <div class="field">
-            <label class="form-label">重认证间隔 (秒)</label>
+            <ConfigFieldLabel label="重认证间隔 (秒)" section="ike" :annotations="configAnnotations" />
             <el-input-number :model-value="cfg.ike?.reauth_interval || 0" @update:model-value="(v: number | undefined) => { ensureIke(); cfg.ike!.reauth_interval = v || 0; onInput() }" :min="0" placeholder="0=不强制" class="!w-full" />
           </div>
           <div class="field">
-            <label class="form-label">抗重放窗口</label>
+            <ConfigFieldLabel label="抗重放窗口" section="ike" :annotations="configAnnotations" />
             <el-input-number :model-value="cfg.ike?.replay_window || 0" @update:model-value="(v: number | undefined) => { ensureIke(); cfg.ike!.replay_window = v || 0; onInput() }" :min="0" placeholder="32" class="!w-full" />
           </div>
           <div class="field">
-            <label class="form-label">IP 协议栈</label>
+            <ConfigFieldLabel label="IP 协议栈" section="ike" :annotations="configAnnotations" />
             <el-select :model-value="cfg.ike?.ip_stack || ''" @update:model-value="(v: string) => { ensureIke(); cfg.ike!.ip_stack = v; onInput() }" class="!w-full">
               <el-option v-for="opt in ipStackOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
             </el-select>
           </div>
           <div class="field">
-            <label class="form-label">APN</label>
+            <ConfigFieldLabel label="APN" section="ike" :annotations="configAnnotations" />
             <el-input :model-value="cfg.ike?.apn || ''" @update:model-value="(v: string) => { ensureIke(); cfg.ike!.apn = v; onInput() }" placeholder="ims" />
           </div>
           <div class="field">
-            <label class="form-label">RFOff 延迟 (秒)</label>
+            <ConfigFieldLabel label="RFOff 延迟 (秒)" section="ike" :annotations="configAnnotations" />
             <el-input-number :model-value="cfg.ike?.rf_off_delay || 0" @update:model-value="(v: number | undefined) => { ensureIke(); cfg.ike!.rf_off_delay = v || 0; onInput() }" :min="0" placeholder="5" class="!w-full" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">启用 ESN</div><div class="switch-desc">Extended Sequence Numbers</div></div>
+            <div><ConfigFieldLabel label="启用 ESN" section="ike" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">Extended Sequence Numbers</div></div>
             <el-switch :model-value="cfg.ike?.enable_esn || false" @update:model-value="(v: string | number | boolean) => { ensureIke(); cfg.ike!.enable_esn = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">禁用 EAP MAC 校验</div><div class="switch-desc">disable_eap_mac_validation</div></div>
+            <div><ConfigFieldLabel label="禁用 EAP MAC 校验" section="ike" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">disable_eap_mac_validation</div></div>
             <el-switch :model-value="cfg.ike?.disable_eap_mac_validation || false" @update:model-value="(v: string | number | boolean) => { ensureIke(); cfg.ike!.disable_eap_mac_validation = Boolean(v); onInput() }" />
           </div>
         </div>
@@ -226,29 +269,29 @@ const fallbackStatusCodesText = computed({
       <div v-show="expanded.eap" class="faq-body">
         <div class="form-grid">
           <div class="field">
-            <label class="form-label">挑战模式</label>
+            <ConfigFieldLabel label="挑战模式" section="eap" :annotations="configAnnotations" />
             <el-select :model-value="cfg.eap?.challenge_mode || ''" @update:model-value="(v: string) => { ensureEap(); cfg.eap!.challenge_mode = v; onInput() }" class="!w-full">
               <el-option v-for="opt in challengeModeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
             </el-select>
           </div>
           <div class="field">
-            <label class="form-label">USIM/ISIM 偏好</label>
+            <ConfigFieldLabel label="USIM/ISIM 偏好" section="eap" :annotations="configAnnotations" />
             <el-select :model-value="cfg.eap?.app_preference || ''" @update:model-value="(v: string) => { ensureEap(); cfg.eap!.app_preference = v; onInput() }" class="!w-full">
               <el-option v-for="opt in appPreferenceOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
             </el-select>
           </div>
           <div class="field">
-            <label class="form-label">身份来源</label>
+            <ConfigFieldLabel label="身份来源" section="eap" :annotations="configAnnotations" />
             <el-select :model-value="cfg.eap?.identity_source || ''" @update:model-value="(v: string) => { ensureEap(); cfg.eap!.identity_source = v; onInput() }" class="!w-full">
               <el-option v-for="opt in identitySourceOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
             </el-select>
           </div>
           <div class="field">
-            <label class="form-label">设备型号</label>
+            <ConfigFieldLabel label="设备型号" section="eap" :annotations="configAnnotations" />
             <el-input :model-value="cfg.eap?.device_model || ''" @update:model-value="(v: string) => { ensureEap(); cfg.eap!.device_model = v; onInput() }" placeholder="例如 rmx3366" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">发送设备身份通知</div><div class="switch-desc">EAP 阶段是否发送 DEVICE_IDENTITY notify</div></div>
+            <div><ConfigFieldLabel label="发送设备身份通知" section="eap" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">EAP 阶段是否发送 DEVICE_IDENTITY notify</div></div>
             <el-switch :model-value="cfg.eap?.device_identity_enabled || false" @update:model-value="(v: string | number | boolean) => { ensureEap(); cfg.eap!.device_identity_enabled = Boolean(v); onInput() }" />
           </div>
         </div>
@@ -264,79 +307,79 @@ const fallbackStatusCodesText = computed({
       <div v-show="expanded.ims" class="faq-body">
         <div class="form-grid">
           <div class="field">
-            <label class="form-label">安全协商模式</label>
+            <ConfigFieldLabel label="安全协商模式" section="ims" :annotations="configAnnotations" />
             <el-select :model-value="cfg.ims?.sec_agree_mode || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.sec_agree_mode = v; onInput() }" class="!w-full">
               <el-option v-for="opt in secAgreeModeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
             </el-select>
           </div>
           <div class="field">
-            <label class="form-label">传输模式</label>
+            <ConfigFieldLabel label="传输模式" section="ims" :annotations="configAnnotations" />
             <el-select :model-value="cfg.ims?.transport_mode || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.transport_mode = v; onInput() }" class="!w-full">
               <el-option v-for="opt in transportModeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
             </el-select>
           </div>
           <div class="field">
-            <label class="form-label">首次认证变体</label>
+            <ConfigFieldLabel label="首次认证变体" section="ims" :annotations="configAnnotations" />
             <el-select :model-value="cfg.ims?.initial_authorization || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.initial_authorization = v; onInput() }" class="!w-full">
               <el-option v-for="opt in initialAuthOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
             </el-select>
           </div>
           <div class="field">
-            <label class="form-label">注册有效期 (秒)</label>
+            <ConfigFieldLabel label="注册有效期 (秒)" section="ims" :annotations="configAnnotations" />
             <el-input-number :model-value="cfg.ims?.expires || 0" @update:model-value="(v: number | undefined) => { ensureIms(); cfg.ims!.expires = v || 0; onInput() }" :min="0" placeholder="600" class="!w-full" />
           </div>
           <div class="field">
-            <label class="form-label">认证身份格式</label>
+            <ConfigFieldLabel label="认证身份格式" section="ims" :annotations="configAnnotations" />
             <el-select :model-value="cfg.ims?.authorization_identity || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.authorization_identity = v; onInput() }" class="!w-full">
               <el-option v-for="opt in authIdentityOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
             </el-select>
           </div>
           <div class="field">
-            <label class="form-label">本地 SIP 端口</label>
+            <ConfigFieldLabel label="本地 SIP 端口" section="ims" :annotations="configAnnotations" />
             <el-input-number :model-value="cfg.ims?.local_port || 0" @update:model-value="(v: number | undefined) => { ensureIms(); cfg.ims!.local_port = v || 0; onInput() }" :min="0" :max="65535" placeholder="5060" class="!w-full" />
           </div>
           <div class="field col-span-2">
-            <label class="form-label">User-Agent</label>
+            <ConfigFieldLabel label="User-Agent" section="ims" :annotations="configAnnotations" />
             <el-input :model-value="cfg.ims?.user_agent || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.user_agent = v; onInput() }" placeholder="User-Agent: Apple iPhone17,2/26.6 (17,2; iOS 26.6; 23G82) Boot/3.0.0 VoIP/1.0 Carrier/59.0" />
           </div>
           <div class="field col-span-2">
-            <label class="form-label">Supported 头</label>
+            <ConfigFieldLabel label="Supported 头" section="ims" :annotations="configAnnotations" />
             <el-input :model-value="cfg.ims?.supported_header || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.supported_header = v; onInput() }" placeholder="path,sec-agree,gruu" />
           </div>
           <div class="field col-span-2">
-            <label class="form-label">Allow 头</label>
+            <ConfigFieldLabel label="Allow 头" section="ims" :annotations="configAnnotations" />
             <el-input :model-value="cfg.ims?.allow_header || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.allow_header = v; onInput() }" placeholder="空=默认" />
           </div>
           <div class="field">
-            <label class="form-label">P-CSCF 地址</label>
+            <ConfigFieldLabel label="P-CSCF 地址" section="ims" :annotations="configAnnotations" />
             <el-input :model-value="cfg.ims?.pcscf_addr || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.pcscf_addr = v; onInput() }" placeholder="覆盖自动发现" />
           </div>
           <div class="field">
-            <label class="form-label">IMS 域名</label>
+            <ConfigFieldLabel label="IMS 域名" section="ims" :annotations="configAnnotations" />
             <el-input :model-value="cfg.ims?.domain || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.domain = v; onInput() }" placeholder="自动生成" />
           </div>
           <div class="field">
-            <label class="form-label">Realm</label>
+            <ConfigFieldLabel label="Realm" section="ims" :annotations="configAnnotations" />
             <el-input :model-value="cfg.ims?.realm || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.realm = v; onInput() }" placeholder="自动生成" />
           </div>
           <div class="field">
-            <label class="form-label">ICSI Ref</label>
+            <ConfigFieldLabel label="ICSI Ref" section="ims" :annotations="configAnnotations" />
             <el-input :model-value="cfg.ims?.icsi_ref || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.icsi_ref = v; onInput() }" placeholder="urn%3Aurn-7%3A3gpp-service.ims.icsi.mmtel" />
           </div>
           <div class="field">
-            <label class="form-label">Contact 特性</label>
+            <ConfigFieldLabel label="Contact 特性" section="ims" :annotations="configAnnotations" />
             <el-select :model-value="cfg.ims?.contact_features || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.contact_features = v; onInput() }" class="!w-full">
               <el-option v-for="opt in contactFeaturesOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
             </el-select>
           </div>
           <div class="field">
-            <label class="form-label">Security-Client 格式</label>
+            <ConfigFieldLabel label="Security-Client 格式" section="ims" :annotations="configAnnotations" />
             <el-select :model-value="cfg.ims?.security_client_format || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.security_client_format = v; onInput() }" class="!w-full">
               <el-option v-for="opt in securityClientFormatOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
             </el-select>
           </div>
           <div class="field col-span-2">
-            <label class="form-label">固定 PANI</label>
+            <ConfigFieldLabel label="固定 PANI" section="ims" :annotations="configAnnotations" />
             <div class="flex gap-2">
               <el-input :model-value="cfg.ims?.fixed_pani || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.fixed_pani = v; onInput() }" placeholder="空=自动生成 IEEE-802.11;i-wlan-node-id=000000000000" class="!flex-1" />
               <el-button @click="generateRandomPANI" class="!shrink-0">随机生成</el-button>
@@ -344,133 +387,133 @@ const fallbackStatusCodesText = computed({
             </div>
           </div>
           <div class="field">
-            <label class="form-label">TCP Keepalive (秒)</label>
+            <ConfigFieldLabel label="TCP Keepalive (秒)" section="ims" :annotations="configAnnotations" />
             <el-input-number :model-value="cfg.ims?.tcp_keepalive_seconds || 0" @update:model-value="(v: number | undefined) => { ensureIms(); cfg.ims!.tcp_keepalive_seconds = v || 0; onInput() }" :min="0" placeholder="30" class="!w-full" />
           </div>
           <div class="field">
-            <label class="form-label">OPTIONS Ping (秒)</label>
+            <ConfigFieldLabel label="OPTIONS Ping (秒)" section="ims" :annotations="configAnnotations" />
             <el-input-number :model-value="cfg.ims?.options_ping_interval_seconds || 0" @update:model-value="(v: number | undefined) => { ensureIms(); cfg.ims!.options_ping_interval_seconds = v || 0; onInput() }" :min="0" placeholder="45" class="!w-full" />
           </div>
           <div class="field col-span-2">
-            <label class="form-label">Contact 参数顺序 (逗号分隔)</label>
-            <el-input v-model="contactParamOrderText" placeholder="access_type, audio, smsip, icsi_ref, sip_instance" />
+            <ConfigFieldLabel label="Contact 参数顺序" section="ims" :annotations="configAnnotations" />
+            <TagInputWithPresets v-model="contactParamOrderArr" :presets="contactParamOrderPresets" placeholder="手动输入或从预设选择" />
           </div>
 
           <!-- 注册策略 -->
           <div class="field col-span-2 section-divider">注册策略</div>
           <div class="field col-span-2">
-            <label class="form-label">临时失败状态码 (逗号分隔)</label>
-            <el-input v-model="tempStatusCodesText" placeholder="408, 480, 500, 502, 503, 504" />
+            <ConfigFieldLabel label="临时失败状态码" section="ims" :annotations="configAnnotations" />
+            <TagInputWithPresets v-model="tempStatusCodesArr" :presets="sipStatusCodesPresets" placeholder="手动输入或从预设选择" />
           </div>
           <div class="field col-span-2">
-            <label class="form-label">禁止状态码 (逗号分隔)</label>
-            <el-input v-model="forbiddenStatusCodesText" placeholder="403" />
+            <ConfigFieldLabel label="禁止状态码" section="ims" :annotations="configAnnotations" />
+            <TagInputWithPresets v-model="forbiddenStatusCodesArr" :presets="sipStatusCodesPresets" placeholder="手动输入或从预设选择" />
           </div>
           <div class="field col-span-2">
-            <label class="form-label">首次拒绝回退状态码 (逗号分隔)</label>
-            <el-input v-model="fallbackStatusCodesText" placeholder="400, 403, 480, 500" />
+            <ConfigFieldLabel label="首次拒绝回退状态码" section="ims" :annotations="configAnnotations" />
+            <TagInputWithPresets v-model="fallbackStatusCodesArr" :presets="sipStatusCodesPresets" placeholder="手动输入或从预设选择" />
           </div>
           <div class="field">
-            <label class="form-label">临时失败重试间隔 (秒)</label>
+            <ConfigFieldLabel label="临时失败重试间隔 (秒)" section="ims" :annotations="configAnnotations" />
             <el-input-number :model-value="cfg.ims?.register_policy?.temporary_retry_seconds || 0" @update:model-value="(v: number | undefined) => { ensureRegPolicy(); cfg.ims!.register_policy!.temporary_retry_seconds = v || 0; onInput() }" :min="0" placeholder="0=默认" class="!w-full" />
           </div>
 
           <!-- 布尔开关组 -->
           <div class="field col-span-2 section-divider">布尔开关</div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">首次 REGISTER 带 PANI</div><div class="switch-desc">include_pani</div></div>
+            <div><ConfigFieldLabel label="首次 REGISTER 带 PANI" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">include_pani</div></div>
             <el-switch :model-value="cfg.ims?.include_pani || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.include_pani = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">认证后 REGISTER 带 PANI</div><div class="switch-desc">include_pani_authenticated</div></div>
+            <div><ConfigFieldLabel label="认证后 REGISTER 带 PANI" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">include_pani_authenticated</div></div>
             <el-switch :model-value="cfg.ims?.include_pani_authenticated || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.include_pani_authenticated = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">Require: sec-agree</div><div class="switch-desc">require_sec_agree</div></div>
+            <div><ConfigFieldLabel label="Require: sec-agree" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">require_sec_agree</div></div>
             <el-switch :model-value="cfg.ims?.require_sec_agree || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.require_sec_agree = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">Proxy-Require: sec-agree</div><div class="switch-desc">proxy_require_sec_agree</div></div>
+            <div><ConfigFieldLabel label="Proxy-Require: sec-agree" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">proxy_require_sec_agree</div></div>
             <el-switch :model-value="cfg.ims?.proxy_require_sec_agree || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.proxy_require_sec_agree = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">首次 REGISTER 带空 AKA Authorization</div><div class="switch-desc">use_plain_digest_placeholder</div></div>
+            <div><ConfigFieldLabel label="首次 REGISTER 带空 AKA Authorization" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">use_plain_digest_placeholder</div></div>
             <el-switch :model-value="cfg.ims?.use_plain_digest_placeholder || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.use_plain_digest_placeholder = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">严格匹配 Security-Server</div><div class="switch-desc">strict_security_server_offer</div></div>
+            <div><ConfigFieldLabel label="严格匹配 Security-Server" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">strict_security_server_offer</div></div>
             <el-switch :model-value="cfg.ims?.strict_security_server_offer || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.strict_security_server_offer = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">首次拒绝后回退重试</div><div class="switch-desc">enable_initial_reject_fallback</div></div>
+            <div><ConfigFieldLabel label="首次拒绝后回退重试" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">enable_initial_reject_fallback</div></div>
             <el-switch :model-value="cfg.ims?.enable_initial_reject_fallback || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.enable_initial_reject_fallback = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">省略 Route 头</div><div class="switch-desc">omit_route — 认证后 REGISTER 不带 Route</div></div>
+            <div><ConfigFieldLabel label="省略 Route 头" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">omit_route — 认证后 REGISTER 不带 Route</div></div>
             <el-switch :model-value="cfg.ims?.omit_route || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.omit_route = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">首次 REGISTER 精简头</div><div class="switch-desc">minimal_initial_headers</div></div>
+            <div><ConfigFieldLabel label="首次 REGISTER 精简头" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">minimal_initial_headers</div></div>
             <el-switch :model-value="cfg.ims?.minimal_initial_headers || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.minimal_initial_headers = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">强制头中端口 5060</div><div class="switch-desc">force_header_port_5060</div></div>
+            <div><ConfigFieldLabel label="强制头中端口 5060" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">force_header_port_5060</div></div>
             <el-switch :model-value="cfg.ims?.force_header_port_5060 || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.force_header_port_5060 = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">Security-Client 省略 prot/mod</div><div class="switch-desc">omit_initial_security_client_protocol</div></div>
+            <div><ConfigFieldLabel label="Security-Client 省略 prot/mod" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">omit_initial_security_client_protocol</div></div>
             <el-switch :model-value="cfg.ims?.omit_initial_security_client_protocol || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.omit_initial_security_client_protocol = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">400 时探测 Security-Client</div><div class="switch-desc">probe_initial_security_client_on_bad_request</div></div>
+            <div><ConfigFieldLabel label="400 时探测 Security-Client" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">probe_initial_security_client_on_bad_request</div></div>
             <el-switch :model-value="cfg.ims?.probe_initial_security_client_on_bad_request || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.probe_initial_security_client_on_bad_request = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">Authorization 含 Connection-Keepalive</div><div class="switch-desc">include_connection_keepalive_in_auth</div></div>
+            <div><ConfigFieldLabel label="Authorization 含 Connection-Keepalive" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">include_connection_keepalive_in_auth</div></div>
             <el-switch :model-value="cfg.ims?.include_connection_keepalive_in_auth || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.include_connection_keepalive_in_auth = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">Security-Client 含服务器参数</div><div class="switch-desc">security_client_includes_server_params</div></div>
+            <div><ConfigFieldLabel label="Security-Client 含服务器参数" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">security_client_includes_server_params</div></div>
             <el-switch :model-value="cfg.ims?.security_client_includes_server_params || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.security_client_includes_server_params = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">回退时 Security-Client 含服务器参数</div><div class="switch-desc">fallback_includes_server_params_in_sec_cl</div></div>
+            <div><ConfigFieldLabel label="回退时 Security-Client 含服务器参数" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">fallback_includes_server_params_in_sec_cl</div></div>
             <el-switch :model-value="cfg.ims?.fallback_includes_server_params_in_sec_cl || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.fallback_includes_server_params_in_sec_cl = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">Accept-Contact 头</div><div class="switch-desc">include_accept_contact</div></div>
+            <div><ConfigFieldLabel label="Accept-Contact 头" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">include_accept_contact</div></div>
             <el-switch :model-value="cfg.ims?.include_accept_contact || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.include_accept_contact = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">P-Preferred-Identity 头</div><div class="switch-desc">include_p_preferred_id</div></div>
+            <div><ConfigFieldLabel label="P-Preferred-Identity 头" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">include_p_preferred_id</div></div>
             <el-switch :model-value="cfg.ims?.include_p_preferred_id || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.include_p_preferred_id = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">P-Visited-Network-ID 头</div><div class="switch-desc">include_p_visited_network_id</div></div>
+            <div><ConfigFieldLabel label="P-Visited-Network-ID 头" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">include_p_visited_network_id</div></div>
             <el-switch :model-value="cfg.ims?.include_p_visited_network_id || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.include_p_visited_network_id = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">P-Access-Network-Info 头</div><div class="switch-desc">include_p_access_network_info</div></div>
+            <div><ConfigFieldLabel label="P-Access-Network-Info 头" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">include_p_access_network_info</div></div>
             <el-switch :model-value="cfg.ims?.include_p_access_network_info || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.include_p_access_network_info = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">Route 头</div><div class="switch-desc">include_route</div></div>
+            <div><ConfigFieldLabel label="Route 头" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">include_route</div></div>
             <el-switch :model-value="cfg.ims?.include_route || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.include_route = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">Cellular-Network-Info 头</div><div class="switch-desc">include_cellular_network</div></div>
+            <div><ConfigFieldLabel label="Cellular-Network-Info 头" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">include_cellular_network</div></div>
             <el-switch :model-value="cfg.ims?.include_cellular_network || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.include_cellular_network = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">Security-Client 头</div><div class="switch-desc">include_security_client</div></div>
+            <div><ConfigFieldLabel label="Security-Client 头" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">include_security_client</div></div>
             <el-switch :model-value="cfg.ims?.include_security_client || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.include_security_client = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">Require: sec-agree 头</div><div class="switch-desc">include_require_sec_agree</div></div>
+            <div><ConfigFieldLabel label="Require: sec-agree 头" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">include_require_sec_agree</div></div>
             <el-switch :model-value="cfg.ims?.include_require_sec_agree || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.include_require_sec_agree = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">Contact URI 随机 UUID</div><div class="switch-desc">contact_user_random</div></div>
+            <div><ConfigFieldLabel label="Contact URI 随机 UUID" section="ims" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">contact_user_random</div></div>
             <el-switch :model-value="cfg.ims?.contact_user_random || false" @update:model-value="(v: string | number | boolean) => { ensureIms(); cfg.ims!.contact_user_random = Boolean(v); onInput() }" />
           </div>
         </div>
@@ -489,19 +532,19 @@ const fallbackStatusCodesText = computed({
             非 REGISTER 请求 (INVITE/MESSAGE/UPDATE 等) 的 SIP 头配置。空值=使用默认或继承 REGISTER 配置。
           </div>
           <div class="field">
-            <label class="form-label">Supported</label>
+            <ConfigFieldLabel label="Supported" section="voice" :annotations="configAnnotations" />
             <el-input :model-value="cfg.ims?.voice_supported_header || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_supported_header = v; onInput() }" placeholder="空=继承 REGISTER Supported" />
           </div>
           <div class="field">
-            <label class="form-label">Allow</label>
+            <ConfigFieldLabel label="Allow" section="voice" :annotations="configAnnotations" />
             <el-input :model-value="cfg.ims?.voice_allow_header || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_allow_header = v; onInput() }" placeholder="空=INVITE,ACK,CANCEL,BYE,..." />
           </div>
           <div class="field">
-            <label class="form-label">Accept-Contact</label>
+            <ConfigFieldLabel label="Accept-Contact" section="voice" :annotations="configAnnotations" />
             <el-input :model-value="cfg.ims?.voice_accept_contact || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_accept_contact = v; onInput() }" placeholder="空=不发送 Accept-Contact" />
           </div>
           <div class="field">
-            <label class="form-label">P-Preferred-Service</label>
+            <ConfigFieldLabel label="P-Preferred-Service" section="voice" :annotations="configAnnotations" />
             <el-input :model-value="cfg.ims?.voice_p_preferred_service || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_p_preferred_service = v; onInput() }" placeholder="空=不发送 P-Preferred-Service" />
           </div>
         </div>
@@ -517,19 +560,19 @@ const fallbackStatusCodesText = computed({
       <div v-show="expanded.e911" class="faq-body">
         <div class="form-grid">
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">启用 E911</div><div class="switch-desc">美国运营商需要支持紧急呼叫定位</div></div>
+            <div><ConfigFieldLabel label="启用 E911" section="e911" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">美国运营商需要支持紧急呼叫定位</div></div>
             <el-switch :model-value="cfg.e911?.enabled || false" @update:model-value="(v: string | number | boolean) => { ensureE911(); cfg.e911!.enabled = Boolean(v); onInput() }" />
           </div>
           <div class="field">
-            <label class="form-label">服务商</label>
+            <ConfigFieldLabel label="服务商" section="e911" :annotations="configAnnotations" />
             <el-input :model-value="cfg.e911?.provider || ''" @update:model-value="(v: string) => { ensureE911(); cfg.e911!.provider = v; onInput() }" placeholder="例如 intrado" />
           </div>
           <div class="field">
-            <label class="form-label">Entitlement 端点</label>
+            <ConfigFieldLabel label="Entitlement 端点" section="e911" :annotations="configAnnotations" />
             <el-input :model-value="cfg.e911?.entitlement_endpoint || ''" @update:model-value="(v: string) => { ensureE911(); cfg.e911!.entitlement_endpoint = v; onInput() }" placeholder="https://..." />
           </div>
           <div class="field col-span-2">
-            <label class="form-label">Websheet URL</label>
+            <ConfigFieldLabel label="Websheet URL" section="e911" :annotations="configAnnotations" />
             <el-input :model-value="cfg.e911?.websheet || ''" @update:model-value="(v: string) => { ensureE911(); cfg.e911!.websheet = v; onInput() }" placeholder="E911 地址 websheet" />
           </div>
         </div>
@@ -545,29 +588,29 @@ const fallbackStatusCodesText = computed({
       <div v-show="expanded.device" class="faq-body">
         <div class="form-grid">
           <div class="field">
-            <label class="form-label">IMEI</label>
+            <ConfigFieldLabel label="IMEI" section="device" :annotations="configAnnotations" />
             <el-input :model-value="cfg.device?.imei || ''" @update:model-value="(v: string) => { ensureDevice(); cfg.device!.imei = v; onInput() }" placeholder="15 位数字" />
           </div>
           <div class="field">
-            <label class="form-label">Cell ID 模式</label>
+            <ConfigFieldLabel label="Cell ID 模式" section="device" :annotations="configAnnotations" />
             <el-select :model-value="cfg.device?.ims_cell_id_mode || ''" @update:model-value="(v: string) => { ensureDevice(); cfg.device!.ims_cell_id_mode = v; onInput() }" class="!w-full">
               <el-option v-for="opt in cellIdModeOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
             </el-select>
           </div>
           <div class="field">
-            <label class="form-label">LTE TAC</label>
+            <ConfigFieldLabel label="LTE TAC" section="device" :annotations="configAnnotations" />
             <el-input-number :model-value="cfg.device?.ims_tac || 0" @update:model-value="(v: number | undefined) => { ensureDevice(); cfg.device!.ims_tac = v || 0; onInput() }" :min="0" class="!w-full" />
           </div>
           <div class="field">
-            <label class="form-label">LTE Cell ID</label>
+            <ConfigFieldLabel label="LTE Cell ID" section="device" :annotations="configAnnotations" />
             <el-input-number :model-value="cfg.device?.ims_cell_id || 0" @update:model-value="(v: number | undefined) => { ensureDevice(); cfg.device!.ims_cell_id = v || 0; onInput() }" :min="0" class="!w-full" />
           </div>
           <div class="field col-span-2">
-            <label class="form-label">REGISTER 模拟档案</label>
+            <ConfigFieldLabel label="REGISTER 模拟档案" section="device" :annotations="configAnnotations" />
             <el-input :model-value="cfg.device?.ims_register_profile || ''" @update:model-value="(v: string) => { ensureDevice(); cfg.device!.ims_register_profile = v; onInput() }" placeholder="例如 xiaomi_mi11" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><div class="switch-title">禁止此运营商 VoWiFi</div><div class="switch-desc">blocked = true 时不发起 VoWiFi 注册</div></div>
+            <div><ConfigFieldLabel label="禁止此运营商 VoWiFi" section="device" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">blocked = true 时不发起 VoWiFi 注册</div></div>
             <el-switch :model-value="cfg.blocked || false" @update:model-value="(v: string | number | boolean) => { cfg.blocked = Boolean(v); onInput() }" />
           </div>
         </div>

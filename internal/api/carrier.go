@@ -8,7 +8,7 @@ import (
 
 	carrierconfig "github.com/voorz/vohive/internal/carrier"
 	"github.com/voorz/vohive/internal/db"
-	"github.com/voorz/vowifi-core/profiles"
+	"github.com/voorz/vowifi-core/runtimehost/carrier"
 	"github.com/voorz/vohive/pkg/logger"
 
 	"github.com/gin-gonic/gin"
@@ -109,7 +109,7 @@ func (s *Server) handleListCarriers(c *gin.Context) {
 		}
 
 		// 检查是否有系统默认模板
-		if p, err := profiles.LookupWithSPN(item.MCC, item.MNC, brandSuffix); err == nil && p != nil {
+		if p, err := carrier.LookupWithIdentity(item.MCC, item.MNC, "", "", brandSuffix); err == nil && p != nil {
 			item.HasSystemDefault = true
 		}
 
@@ -142,7 +142,7 @@ func (s *Server) handleListCarriers(c *gin.Context) {
 // @Router       /carrier/generic [get]
 // @Security     BearerAuth
 func (s *Server) handleGetGenericProfile(c *gin.Context) {
-	p, err := profiles.Generic()
+	p, err := carrier.Generic()
 	if err != nil || p == nil {
 		c.JSON(http.StatusNotFound, gin.H{"status": "error", "message": "通用模板不可用"})
 		return
@@ -163,8 +163,8 @@ func (s *Server) handleGetCarrier(c *gin.Context) {
 	key := makeKey(mcc, mnc, brand)
 
 	// 系统默认
-	var sysDefault *profiles.CarrierProfile
-	if p, err := profiles.LookupWithSPN(mcc, mnc, brand); err == nil && p != nil {
+	var sysDefault *carrier.CarrierProfile
+	if p, err := carrier.LookupWithIdentity(mcc, mnc, "", "", brand); err == nil && p != nil {
 		sysDefault = p
 	}
 
@@ -201,9 +201,9 @@ func (s *Server) handleGetCarrier(c *gin.Context) {
 
 	// 用户配置
 	tpl, _ := db.GetCarrierTemplateByKey(key)
-	var userConfig *profiles.CarrierProfile
+	var userConfig *carrier.CarrierProfile
 	if tpl != nil && tpl.ProfileJSON != "" {
-		var p profiles.CarrierProfile
+		var p carrier.CarrierProfile
 		if err := json.Unmarshal([]byte(tpl.ProfileJSON), &p); err == nil {
 			userConfig = &p
 		}
@@ -322,10 +322,10 @@ func (s *Server) handleSaveCarrierConfig(c *gin.Context) {
 
 	// 热更新
 	if payload.Active {
-		profiles.SetUserOverrideByKey(key, payload.Config)
+		carrier.SetUserOverrideByKey(key, payload.Config)
 		logger.Info("运营商配置已热更新", "key", key, "event", "CARRIER_CONFIG_HOT_RELOAD")
 	} else {
-		profiles.SetUserOverrideByKey(key, nil)
+		carrier.SetUserOverrideByKey(key, nil)
 	}
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "配置已保存"})
@@ -356,7 +356,7 @@ func (s *Server) handleDeleteCarrierConfig(c *gin.Context) {
 		_ = db.DeleteCarrierTemplate(tpl.ID)
 	}
 	_ = db.ClearCarrierActivation(key)
-	profiles.SetUserOverrideByKey(key, nil)
+	carrier.SetUserOverrideByKey(key, nil)
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "用户配置已删除"})
 }
@@ -389,12 +389,12 @@ func (s *Server) handleActivateCarrier(c *gin.Context) {
 	}
 	_ = db.SetCarrierActivation(key, &tpl.ID)
 
-	var p profiles.CarrierProfile
+	var p carrier.CarrierProfile
 	if err := json.Unmarshal([]byte(tpl.ProfileJSON), &p); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "解析模板失败: " + err.Error()})
 		return
 	}
-	profiles.SetUserOverrideByKey(key, &p)
+	carrier.SetUserOverrideByKey(key, &p)
 	logger.Info("运营商配置已激活", "key", key, "event", "CARRIER_CONFIG_ACTIVATED")
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "运营商配置已激活"})
@@ -422,7 +422,7 @@ func (s *Server) handleDeactivateCarrier(c *gin.Context) {
 	key := makeKey(mcc, mnc, brand)
 
 	_ = db.ClearCarrierActivation(key)
-	profiles.SetUserOverrideByKey(key, nil)
+	carrier.SetUserOverrideByKey(key, nil)
 	logger.Info("运营商配置已禁用", "key", key, "event", "CARRIER_CONFIG_DEACTIVATED")
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "运营商配置已禁用"})

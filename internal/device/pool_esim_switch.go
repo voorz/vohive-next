@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/voorz/vohive/internal/backend"
+	"github.com/voorz/vohive/internal/db"
 	"github.com/voorz/vohive/internal/esim"
 	"github.com/voorz/vohive/pkg/logger"
 )
@@ -576,13 +577,24 @@ func (p *Pool) refreshPostSwitchIdentityPCSC(deviceID string, worker *Worker, sn
 
 	var newICCID, newIMSI string
 	pollDeadline := time.Now().Add(pollTimeout)
+	pollAttempt := 0
 	for {
-		adapter, err := newPCSCModemAdapter(worker.ID, worker.Config.PCSCReader, worker.Config.PCSCSerial, worker.Config.ModemIMEI, worker.pcscAccessMu)
+		pollAttempt++
+		readStart := time.Now()
+		adapter, err := newPCSCModemAdapter(worker.ID, worker.Config.PCSCUSBPath, worker.Config.PCSCSerial, worker.pcscAccessMu)
 		if err != nil {
 			logger.Debug("切卡后 PC/SC 创建适配器失败", "device", deviceID, "err", err)
 		} else {
 			imsi, iccid, mcc, mnc, readErr := adapter.ReadSIMIdentity()
+			readMS := time.Since(readStart).Milliseconds()
 			adapter.Stop()
+			if readErr != nil {
+				logger.Warn("切卡后 PC/SC 读取 SIM 身份失败",
+					"device", deviceID,
+					"attempt", pollAttempt,
+					"read_ms", readMS,
+					"err", readErr)
+			}
 			if readErr == nil {
 				newICCID = normalizeSIMIdentity(iccid)
 				newIMSI = normalizeSIMIdentity(imsi)
@@ -1214,8 +1226,57 @@ func (p *Pool) handleESIMSwitchAfter(deviceID string, token uint64) {
 
 	// 切卡过程中 SIM power cycle 会导致 overview 缓存被清空且重载失败（模组正在重置），
 	// 此处模组已恢复，触发一次 overview 重新加载以恢复 profile 列表。
+	// 此时 overview 会统计卡上通知数量（不触发 autoClean），红点先出现。
 	if worker.EsimMgr != nil {
+		// 强制清空缓存（patchCachedActiveProfile 只修改了 profile 状态，notificationCount 仍是旧值）
+		worker.EsimMgr.InvalidateOverviewCache("post_switch_finalize")
 		worker.EsimMgr.WarmOverviewAsync("post_switch_finalize")
 	}
+
+	// 对齐 NekoKo：切卡后延迟 autoClean 通知
+	// 1. overview 先加载（红点出现）
+	// 2. 延迟 5 分钟后检查 process_after_switch 设置，执行 autoClean
+	// 3. autoClean 完成后再次 WarmOverviewAsync（红点递减）
+	if worker.EsimMgr != nil {
+		p.schedulePostSwitchNotificationAutoClean(deviceID, token, worker)
+	}
 	finalizeOK = true
+}
+
+// schedulePostSwitchNotificationAutoClean 对齐 NekoKo notifProcessAfterSwitch：
+// 切卡后延迟执行通知 autoClean，让用户先看到红点再看到通知被处理。
+func (p *Pool) schedulePostSwitchNotificationAutoClean(deviceID string, token uint64, worker *Worker) {
+	go func() {
+		// 5 分钟延迟：让用户有充足时间感知通知红点
+		select {
+		case <-time.After(5 * time.Minute):
+		case <-p.ctx.Done():
+			return
+		case <-worker.stop:
+			return
+		}
+
+		if !p.switchTokenStillCurrent(deviceID, token, "notif_autoclean") {
+			return
+		}
+
+		// 检查 process_after_switch 设置
+		settings, err := db.GetEsimNotificationSettings(deviceID)
+		if err != nil {
+			return
+		}
+		if !settings.ProcessAfterSwitch {
+			return
+		}
+
+		// 检查是否有任何 autoSend 开启
+		if !settings.AutoSendInstall && !settings.AutoSendEnable &&
+				!settings.AutoSendDisable && !settings.AutoSendDelete &&
+				!settings.DeleteWithoutSendingEnable && !settings.DeleteWithoutSendingDisable {
+			return
+		}
+
+		// 调用 AutoCleanNotifications 批量处理卡上通知（无感，只更新红点计数）
+		_ = worker.EsimMgr.AutoCleanNotifications()
+	}()
 }

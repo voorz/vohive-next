@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -41,8 +42,8 @@ ModemIMEI             string  `json:"modem_imei"`
 	QMIProxyPath          *string `json:"qmi_proxy_path,omitempty"`
 	QMIProxyExecutable    *string `json:"qmi_proxy_executable,omitempty"`
 	ESIMTransport         string  `json:"esim_transport,omitempty"`
-	PCSCReader            string  `json:"pcsc_reader,omitempty"`
 	PCSCSerial            string  `json:"pcsc_serial,omitempty"`
+	PCSCUSBPath           string  `json:"pcsc_usb_path,omitempty"`
 	BaudRate              int     `json:"baud_rate,omitempty"`
 	DataBits              int     `json:"data_bits,omitempty"`
 	StopBits              int     `json:"stop_bits,omitempty"`
@@ -74,7 +75,8 @@ ModemIMEI:             c.ModemIMEI,
 		QMIProxyPath:          stringPtr(c.QMIProxyPath),
 		QMIProxyExecutable:    stringPtr(c.QMIProxyExecutable),
 		ESIMTransport:         config.NormalizeESIMTransport(c.ESIMTransport),
-		PCSCReader:            c.PCSCReader,
+		PCSCSerial:            c.PCSCSerial,
+		PCSCUSBPath:           c.PCSCUSBPath,
 		BaudRate:              c.BaudRate,
 		DataBits:              c.DataBits,
 		StopBits:              c.StopBits,
@@ -118,18 +120,22 @@ func deviceConfigFromDTOWithBase(d deviceConfigDTO, base *config.DeviceConfig) c
 		qmiProxyExecutable = strings.TrimSpace(*d.QMIProxyExecutable)
 	}
 	esimTransport := strings.TrimSpace(d.ESIMTransport)
-	pcscReader := strings.TrimSpace(d.PCSCReader)
 	pcscSerial := strings.TrimSpace(d.PCSCSerial)
+	pcscUSBPath := strings.TrimSpace(d.PCSCUSBPath)
+	usbManufacturer := ""
+	usbProduct := ""
 	if base != nil {
 		if esimTransport == "" {
 			esimTransport = base.ESIMTransport
 		}
-		if pcscReader == "" {
-			pcscReader = base.PCSCReader
-		}
 		if pcscSerial == "" {
 			pcscSerial = base.PCSCSerial
 		}
+		if pcscUSBPath == "" {
+			pcscUSBPath = base.PCSCUSBPath
+		}
+		usbManufacturer = base.USBManufacturer
+		usbProduct = base.USBProduct
 	}
 	return config.DeviceConfig{
 		ID:                    id,
@@ -144,8 +150,8 @@ func deviceConfigFromDTOWithBase(d deviceConfigDTO, base *config.DeviceConfig) c
 		QMIProxyPath:          qmiProxyPath,
 		QMIProxyExecutable:    qmiProxyExecutable,
 		ESIMTransport:         config.NormalizeESIMTransport(esimTransport),
-		PCSCReader:            pcscReader,
 		PCSCSerial:            pcscSerial,
+		PCSCUSBPath:           pcscUSBPath,
 		BaudRate:              d.BaudRate,
 		DataBits:              d.DataBits,
 		StopBits:              d.StopBits,
@@ -159,6 +165,8 @@ func deviceConfigFromDTOWithBase(d deviceConfigDTO, base *config.DeviceConfig) c
 		NetworkEnabled:        d.NetworkEnabled,
 		VoWiFiEnabled:         d.VoWiFiEnabled,
 		DeviceBackend:         d.DeviceBackend,
+		USBManufacturer:       usbManufacturer,
+		USBProduct:           usbProduct,
 	}
 }
 
@@ -393,7 +401,7 @@ type deviceMgmtOverviewLiteItem struct {
 	Interface              string             `json:"interface,omitempty"`
 	ControlDevice          string             `json:"control_device,omitempty"`
 	ESIMTransport          string             `json:"esim_transport,omitempty"`
-	PCSCReader             string             `json:"pcsc_reader,omitempty"`
+	PCSCUSBPath           string             `json:"pcsc_usb_path,omitempty"`
 ATPort                 string             `json:"at_port,omitempty"`
 USBPath                string             `json:"usb_path,omitempty"`
 AudioDevice            string             `json:"audio_device,omitempty"`
@@ -458,7 +466,7 @@ Running                bool                `json:"running"`
 	PublicIPv6             string              `json:"public_ipv6,omitempty"`
 	Interface              string              `json:"interface,omitempty"`
 	ESIMTransport          string              `json:"esim_transport,omitempty"`
-	PCSCReader             string              `json:"pcsc_reader,omitempty"`
+	PCSCUSBPath           string              `json:"pcsc_usb_path,omitempty"`
 	SMSEnabled             bool                `json:"sms_enabled"`
 	NetworkEnabled         bool                `json:"network_enabled"`
 	FlightMode             bool                `json:"flight_mode"`
@@ -666,13 +674,13 @@ func (s *Server) buildOverviewLiteItemFromWorkerWithModem(w *device.Worker, cfg 
 		Interface:              cfg.Interface,
 		ControlDevice:          cfg.ControlDevice,
 		ESIMTransport:          config.NormalizeESIMTransport(cfg.ESIMTransport),
-		PCSCReader:             cfg.PCSCReader,
+		PCSCUSBPath:             cfg.PCSCUSBPath,
 ATPort:                 w.ResolvedATPort(),
 USBPath:                cfg.USBPath,
 AudioDevice:            cfg.AudioDevice,
 Manufacturer:           firstNonEmpty(modemStatus.Manufacturer, cfg.USBManufacturer),
-USBProduct:             cfg.USBProduct,
-		LocalPhone:             overviewLocalPhone(effectiveOverviewIMSI(w, status), strings.TrimSpace(status.ICCID)),
+	USBProduct:             cfg.USBProduct,
+	LocalPhone:             overviewLocalPhone(effectiveOverviewIMSI(w, status), strings.TrimSpace(status.ICCID)),
 		E911SetupAvailable:     e911.SetupAvailable(modemStatus),
 		SMSEnabled:             cfg.SMSEnabled,
 		NetworkEnabled:         cfg.NetworkEnabled,
@@ -824,15 +832,15 @@ item := deviceMgmtListItem{
 ID:                     w.ID,
 Name:                   cfg.Name,
 Manufacturer:           firstNonEmpty(status.Manufacturer, cfg.USBManufacturer),
-USBProduct:             cfg.USBProduct,
-Running:                true,
+	USBProduct:             cfg.USBProduct,
+	Running:                true,
 			Healthy:                controlOnline,
 			ControlOnline:          controlOnline,
 			PublicIP:               w.GetCachedIP(),
 			PublicIPv6:             w.GetCachedIPv6(),
 			Interface:              cfg.Interface,
 		ESIMTransport:          config.NormalizeESIMTransport(cfg.ESIMTransport),
-		PCSCReader:             cfg.PCSCReader,
+		PCSCUSBPath:             cfg.PCSCUSBPath,
 		SMSEnabled:             cfg.SMSEnabled,
 			NetworkEnabled:         cfg.NetworkEnabled,
 			FlightMode:             status.OperatingMode != nil && isFlightModeEnabled(*status.OperatingMode),
@@ -875,6 +883,8 @@ NativeSPN:     status.NativeSPN,
 		item := deviceMgmtListItem{
 			ID:                     dc.ID,
 			Name:                   dc.Name,
+			Manufacturer:           dc.USBManufacturer,
+			USBProduct:             dc.USBProduct,
 			Running:                false,
 			Healthy:                false,
 			ControlOnline:          false,
@@ -1152,7 +1162,7 @@ type discoveredDevice struct {
 	ConfiguredID   string   `json:"configured_id,omitempty"`
 	Degraded       bool     `json:"degraded,omitempty"` // 探不到 IMEI,无法确立身份,不可直接添加
 	Type           string   `json:"type,omitempty"`    // modem/pcsc
-	PCSCReader     string   `json:"pcsc_reader,omitempty"`
+	PCSCUSBPath    string `json:"pcsc_usb_path,omitempty"`
 	DisplayName    string `json:"display_name,omitempty"` // USB sysfs product 字段（USB 描述符产品名，非模组真实厂商）
 	Manufacturer  string `json:"manufacturer,omitempty"`  // 模组厂商（ATI 获取，如 "Quectel"）
 	Model          string `json:"model,omitempty"`           // 模组描述（QMI DMS GetModel 获取，如 "QUECTEL Mobile Broadband Module"）
@@ -1160,6 +1170,7 @@ type discoveredDevice struct {
 	Firmware       string `json:"firmware,omitempty"`        // 固件版本（ATI Revision 获取）
 	Serial         string `json:"serial,omitempty"`        // USB Serial Number
 	Info           string `json:"info,omitempty"`           // USB 技术信息行（SSN/USB版本/设备类/端点摘要 或 接口驱动统计）
+	SuggestedID    string `json:"suggested_id,omitempty"` // 后端生成的建议设备ID（PC/SC 用 crc32(usb_path)）
 }
 
 var discoverQMIForMgmtFn = device.DiscoverQMIDevices
@@ -1313,32 +1324,33 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 	}
 
 	// 追加 PC/SC 读卡器到发现列表（使用 wwan-go/ccid 统一枚举读卡器）
-	readerNames, pcscErr := esim.ListPCSCReaders()
-	logger.Debug(fmt.Sprintf("设备发现: ListPCSCReaders readers=%d err=%v", len(readerNames), pcscErr))
+	readerInfos, pcscErr := esim.ListPCSCReaderInfo()
+	logger.Debug(fmt.Sprintf("设备发现: ListPCSCReaderInfo readers=%d err=%v", len(readerInfos), pcscErr))
 	if pcscErr == nil {
 		configuredDevices := managed
-		for _, r := range readerNames {
+		for _, ri := range readerInfos {
 			configuredID := ""
-			rSerial := device.PcscReaderSerial(r)
 			for _, d := range configuredDevices {
 				if config.NormalizeESIMTransport(d.ESIMTransport) != config.ESIMTransportPCSC {
 					continue
 				}
-				// 优先用序列号匹配（兼容 USBFS/pcscd 两种模式下读卡器名称不同的场景），
-				// 序列号提取失败时回退到全名精确匹配。
-				if rSerial != "" && device.PcscReaderSerial(d.PCSCReader) == rSerial {
+				// 优先用 USB 路径匹配（容错：支持完整路径和简短路径）
+				if ri.USBPath != "" && matchPCSCUSBPath(d.PCSCUSBPath, ri.USBPath) {
 					configuredID = d.ID
 					break
 				}
-				if d.PCSCReader == r {
+				// USB 路径匹配失败时，按 SN 回退匹配（正规设备插拔换接口后 SN 不变）
+				if ri.USBSerial != "" && !strings.Contains(ri.USBSerial, "000000000001") && d.PCSCSerial == ri.USBSerial {
 					configuredID = d.ID
 					break
 				}
 			}
 		// 从 USB 设备中提取结构化信息
-			product, manufacturer, vid, pid := device.ResolvePCSCReaderUSBInfo(r, usbIdentities)
+			product, manufacturer, vid, pid := device.ResolvePCSCReaderUSBInfo(ri.USBPath, usbIdentities)
 			var serialStr, infoStr string
-			if detail := device.ResolvePCSCReaderUSBDetail(r, usbIdentities); detail != nil {
+			var pcscDetail *device.USBIdentity
+			if detail := device.ResolvePCSCReaderUSBDetail(ri.USBPath, usbIdentities); detail != nil {
+				pcscDetail = detail
 				serialStr = detail.Serial
 				infoStr = device.FormatUSBInfoLine(detail, true)
 			}
@@ -1352,12 +1364,20 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 					}
 				}
 			}
-			out = append(out, discoveredDevice{
-				DiscoveryKey: "pcsc:" + r,
-				DriverName:   "PC/SC Reader",
+// ⚠️ 警告：DiscoveryKey 必须用 USB 路径区分，切勿改回 ri.Name！
+// 山寨读卡器（如 Holtek 04d9:c001）serial 固定为 000000000001，导致 ri.Name 完全一样。
+// 用 name 做 key 会产生重复，Vue v-for :key 冲突，设备卡片合并/信息丢失。
+// USB 路径是物理端口位置，保证唯一。此修复曾被覆盖导致回归，请勿修改！
+		discoveryKey := "pcsc:" + ri.Name
+		if ri.USBPath != "" {
+			discoveryKey = "pcsc:" + filepath.Base(ri.USBPath)
+		}
+		out = append(out, discoveredDevice{
+			DiscoveryKey: discoveryKey,
+			DriverName:   "PC/SC Reader",
 				Mode:         "pcsc",
 				Type:         "pcsc",
-				PCSCReader:   r,
+				PCSCUSBPath:  ri.USBPath,
 				DisplayName:  product,
 				Manufacturer: manufacturer,
 				VendorID:     parseHexUint16(vid),
@@ -1367,6 +1387,7 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 				IMEI:         imei,
 				Configured:   configuredID != "",
 				ConfiguredID: configuredID,
+				SuggestedID:  pcscSuggestedID(pcscDetail),
 			})
 		}
 	}
@@ -1375,11 +1396,12 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 }
 
 func buildDiscoveredDevice(hw device.CompatibleModem, configured bool, configuredID string, degraded bool) discoveredDevice {
-	// 厂商优先使用 QMI/AT 来源，回退 USB sysfs
-	manufacturer := strings.TrimSpace(hw.Manufacturer)
-	if manufacturer == "" {
-		manufacturer = strings.TrimSpace(hw.USBManufacturer)
-	}
+	// 名称(DisplayName)：sysfs USBProduct 优先——USB 描述符的产品名更适合做显示名。
+	// 厂商(Manufacturer)：ATI/QMI 优先，sysfs 回退——ATI 返回的厂商名(如 Quectel)更准确。
+	// 型号(Model)：ATI/QMI 优先，sysfs 回退——ATI 返回的型号(如 EC20F)更准确。
+	// validOrFallback 会过滤 AT/ERROR 等无效值，确保 ATI 无效时回退到 sysfs。
+	manufacturer := validOrFallback(hw.Manufacturer, hw.USBManufacturer)
+	model := validOrFallback(hw.Model, hw.USBProduct)
 	return discoveredDevice{
 		DiscoveryKey:   hw.DiscoveryKey(),
 		ControlPath:    hw.ControlPath,
@@ -1399,7 +1421,7 @@ func buildDiscoveredDevice(hw device.CompatibleModem, configured bool, configure
 		Degraded:       degraded,
 		DisplayName:    strings.TrimSpace(hw.USBProduct),
 		Manufacturer:   manufacturer,
-		Model:          strings.TrimSpace(hw.Model),
+		Model:          model,
 		ChipVendor:     strings.TrimSpace(hw.ChipVendor),
 		Firmware:       strings.TrimSpace(hw.Firmware),
 	}
@@ -1808,8 +1830,8 @@ func (s *Server) handleDeviceMgmtAddDevice(c *gin.Context) {
 
 	// PC/SC 设备跳过 modem 相关校验和 IMEI 探测
 	if config.NormalizeESIMTransport(newCfg.ESIMTransport) == config.ESIMTransportPCSC {
-		if strings.TrimSpace(newCfg.PCSCReader) == "" {
-			c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "PC/SC 设备需要指定读卡器名称"})
+	if strings.TrimSpace(newCfg.PCSCUSBPath) == "" && strings.TrimSpace(newCfg.PCSCSerial) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "PC/SC 设备需要指定 USB 路径或 SN"})
 			return
 		}
 		if existing, err := config.GetDeviceByID(newCfg.ID); err == nil && existing != nil {
@@ -2319,7 +2341,62 @@ func (s *Server) handleEsimListNotifications(c *gin.Context) {
 		c.JSON(esimNotificationHTTPStatus(err), gin.H{"error": err.Error()})
 		return
 	}
+	// autoClean 可能在 ListNotifications 内部处理了通知（发送/删除），
+	// 异步刷新 overview 缓存让下次请求时红点计数同步递减。
+	go worker.EsimMgr.WarmOverviewAsync("list_notifications_cleanup")
 	c.JSON(http.StatusOK, gin.H{"items": items})
+}
+
+// handleEsimProcessNotifications 逐条处理通知（SSE 流式进度推送）
+// 对标 NekoKoLPA2：用户点开通知列表后 5s 倒计时，然后逐条发送/删除，实时显示进度。
+//
+// 响应为 text/event-stream，每条事件 data 为 JSON：
+//
+//	{"step":"processing","sequence_number":3,"event":"enable","message":"正在处理 #3 enable","processed_count":0,"total_count":4}
+//	{"step":"sent","sequence_number":3,"event":"enable","message":"#3 已发送并移除","processed_count":1,"total_count":4}
+//	{"step":"done","message":"全部处理完成 (4/4)","processed_count":4,"total_count":4}
+func (s *Server) handleEsimProcessNotifications(c *gin.Context) {
+	id := deviceIDParam(c)
+	worker := s.pool.GetWorker(id)
+	if worker == nil || worker.EsimMgr == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "设备或esim管理器未找到"})
+		return
+	}
+
+	// 设置 SSE 响应头
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
+
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "流式输出不支持"})
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 3*time.Minute)
+	defer cancel()
+
+	progressFn := func(event esim.NotificationProcessEvent) {
+		data, _ := json.Marshal(event)
+		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+		flusher.Flush()
+	}
+
+	err := worker.EsimMgr.ProcessNotifications(progressFn)
+	if err != nil {
+		errEvent := esim.NotificationProcessEvent{
+			Step:    "error",
+			Message: err.Error(),
+		}
+		data, _ := json.Marshal(errEvent)
+		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+		flusher.Flush()
+		return
+	}
+
+	_ = ctx
 }
 
 // handleEsimRetryNotification 
@@ -2357,6 +2434,128 @@ func (s *Server) handleEsimRetryNotification(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "通知重试发送成功"})
+}
+
+// handleEsimGetNotificationSettings
+//
+// @Summary      EsimGetNotificationSettings
+// @Tags         devices
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/esim/notification-settings [get]
+// @Security     BearerAuth
+func (s *Server) handleEsimGetNotificationSettings(c *gin.Context) {
+	id := deviceIDParam(c)
+	settings, err := db.GetEsimNotificationSettings(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取通知设置失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, settings)
+}
+
+// handleEsimUpdateNotificationSettings
+//
+// @Summary      EsimUpdateNotificationSettings
+// @Tags         devices
+// @Accept       json
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]interface{}  "成功"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/esim/notification-settings [put]
+// @Security     BearerAuth
+func (s *Server) handleEsimUpdateNotificationSettings(c *gin.Context) {
+	id := deviceIDParam(c)
+	var settings db.EsimNotificationSettings
+	if err := c.ShouldBindJSON(&settings); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "参数错误: " + err.Error()})
+		return
+	}
+	settings.DeviceID = id
+	if err := db.UpsertEsimNotificationSettings(settings); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存通知设置失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "settings": settings})
+}
+
+// handleEsimListNotificationHistory
+//
+// @Summary      EsimListNotificationHistory
+// @Tags         devices
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {array}   db.EsimNotificationRecord  "通知历史记录列表"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Router       /devices/{device_id}/esim/notification-history [get]
+// @Security     BearerAuth
+func (s *Server) handleEsimListNotificationHistory(c *gin.Context) {
+	id := deviceIDParam(c)
+	worker := s.pool.GetWorker(id)
+	if worker == nil {
+		c.JSON(http.StatusOK, []interface{}{})
+		return
+	}
+	// 获取该设备的 EID
+	eid := ""
+	if worker.EsimMgr != nil {
+		e, err := worker.EsimMgr.GetEID()
+		if err == nil {
+			eid = e
+		}
+	}
+	if eid == "" {
+		c.JSON(http.StatusOK, []interface{}{})
+		return
+	}
+	records, err := db.GetEsimNotificationsByEID(eid)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取通知历史记录失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, records)
+}
+
+// handleEsimClearNotificationHistory
+//
+// @Summary      EsimClearNotificationHistory
+// @Description  清空指定设备的通知历史记录
+// @Tags         devices
+// @Produce      json
+// @Param        device_id  path      string  true  "device_id"
+// @Success      200  {object}  map[string]string  "清空成功"
+// @Failure      401  {object}  map[string]interface{}  "未授权"
+// @Failure      500  {object}  map[string]interface{}  "内部错误"
+// @Router       /devices/{device_id}/esim/notification-history [delete]
+// @Security     BearerAuth
+func (s *Server) handleEsimClearNotificationHistory(c *gin.Context) {
+	id := deviceIDParam(c)
+	worker := s.pool.GetWorker(id)
+	if worker == nil {
+		c.JSON(http.StatusOK, gin.H{"message": "设备不在线，无需清理"})
+		return
+	}
+	// 获取该设备的 EID
+	eid := ""
+	if worker.EsimMgr != nil {
+		e, err := worker.EsimMgr.GetEID()
+		if err == nil {
+			eid = e
+		}
+	}
+	if eid == "" {
+		c.JSON(http.StatusOK, gin.H{"message": "未检测到 eUICC，无需清理"})
+		return
+	}
+	if err := db.DeleteEsimNotificationsByEID(eid); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "清空通知历史记录失败: " + err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "通知历史记录已清空"})
 }
 
 // handleEsimSwitchProfile 切换 eSIM Profile
