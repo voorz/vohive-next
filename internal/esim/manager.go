@@ -1718,6 +1718,8 @@ func (m *Manager) loadOverview() (*EsimOverview, error) {
 		}
 		m.setOverviewCache(overview, nil, generation)
 		m.resetScanBackoff()
+		// 异步统计通知数量，避免首次加载时 safeListNotification 的同步延迟
+		m.refreshNotificationCountAsync()
 		return cloneOverview(overview), nil
 	})
 	if err != nil {
@@ -1999,7 +2001,6 @@ func (m *Manager) replaceCachedProfileGroup(group EUICCProfiles) {
 func (m *Manager) loadOverviewFresh() (*EsimOverview, error) {
 	info := &EUICCChipInfo{}
 	var profileGroups []EUICCProfiles
-	var notifCount int
 	var fnMu sync.Mutex
 
 	if err := m.forEachEUICC(func(client *lpa.Client, aid []byte, eidStr string) error {
@@ -2013,34 +2014,9 @@ func (m *Manager) loadOverviewFresh() (*EsimOverview, error) {
 			"EID", eidStr)
 		profiles, profileErr := listBasicProfiles(client)
 
-		// 顺便获取通知数量（仅一次 APDU，不触发 autoClean）
-		notifCountForAID := 0
-		if profileErr == nil {
-			if notifs, notifErr := safeListNotification(client); notifErr == nil && len(notifs) > 0 {
-				// G4: 排除 DB 中 status==1(已发送) 的通知，只统计真正待处理的通知数
-				notifCountForAID = len(notifs)
-				if eidStr != "" {
-					if sentCount, sentErr := db.CountSentNotificationsByEID(eidStr); sentErr == nil && sentCount > 0 {
-						// 逐条排除 DB 中已发送的 seq
-						sentSeqs, seqErr := db.GetSentNotificationSeqsByEID(eidStr)
-						if seqErr == nil {
-							sentSet := make(map[sgp22.SequenceNumber]bool, len(sentSeqs))
-							for _, s := range sentSeqs {
-								sentSet[sgp22.SequenceNumber(s)] = true
-							}
-							actualPending := 0
-							for _, n := range notifs {
-								if n != nil && !sentSet[n.SequenceNumber] {
-									actualPending++
-								}
-							}
-							notifCountForAID = actualPending
-						}
-					}
-				}
-			}
-		}
-
+		// 通知统计已移至异步（refreshNotificationCountAsync），
+		// 避免首次加载时 safeListNotification + DB 查询增加 200-500ms 延迟。
+		// 收集 EID 用于后续异步通知统计。
 		fnMu.Lock()
 		defer fnMu.Unlock()
 		info.EIDs = append(info.EIDs, euiccInfo)
@@ -2060,21 +2036,18 @@ func (m *Manager) loadOverviewFresh() (*EsimOverview, error) {
 		}
 		group := buildProfileGroup(eidStr, aid, profiles)
 		profileGroups = append(profileGroups, group)
-		notifCount += notifCountForAID
 		logger.Debug("eUICC AID 扫描阶段",
 			"device", m.deviceID,
 			"stage", "profiles_ok",
 			"AID", aidHex,
 			"EID", eidStr,
-			"profileCount", len(profiles),
-			"notificationCount", notifCountForAID)
+			"profileCount", len(profiles))
 		logger.Info("获取 eUICC 信息和 profiles",
 			"device", m.deviceID,
 			"AID", aidHex,
 			"EID", eidStr,
 			"freeNvram", euiccInfo.FreeNvram,
-			"profileCount", len(profiles),
-			"notificationCount", notifCountForAID)
+			"profileCount", len(profiles))
 		return nil
 	}); err != nil {
 		return nil, err
@@ -2108,8 +2081,72 @@ func (m *Manager) loadOverviewFresh() (*EsimOverview, error) {
 	return &EsimOverview{
 		ChipInfo:          info,
 		Profiles:          profileGroups,
-		NotificationCount: notifCount,
+		NotificationCount: 0, // 通知数异步统计，首次返回 0
 	}, nil
+}
+
+// refreshNotificationCountAsync 异步统计待处理通知数量并更新 overviewCache。
+// 在 loadOverviewFresh 返回后调用，避免首次加载时 safeListNotification + DB 查询的同步延迟。
+func (m *Manager) refreshNotificationCountAsync() {
+	if m == nil {
+		return
+	}
+	go func() {
+		count, err := m.countPendingNotifications()
+		if err != nil {
+			logger.Debug("异步通知统计失败",
+				"device", m.deviceID,
+				"err", err)
+			return
+		}
+		m.cacheMu.Lock()
+		if m.overviewCache != nil {
+			m.overviewCache.NotificationCount = count
+		}
+		m.cacheMu.Unlock()
+		logger.Debug("异步通知统计完成",
+			"device", m.deviceID,
+			"count", count)
+	}()
+}
+
+// countPendingNotifications 统计所有 eUICC 的待处理通知数量（排除 DB 中已发送的）。
+// 需要独立打开 LPA 通道，不依赖 loadOverviewFresh 的 forEachEUICC 上下文。
+func (m *Manager) countPendingNotifications() (int, error) {
+	var total int
+	var fnMu sync.Mutex
+	if err := m.forEachEUICC(func(client *lpa.Client, aid []byte, eidStr string) error {
+		notifs, notifErr := safeListNotification(client)
+		if notifErr != nil || len(notifs) == 0 {
+			return nil
+		}
+		count := len(notifs)
+		if eidStr != "" {
+			if sentCount, sentErr := db.CountSentNotificationsByEID(eidStr); sentErr == nil && sentCount > 0 {
+				sentSeqs, seqErr := db.GetSentNotificationSeqsByEID(eidStr)
+				if seqErr == nil {
+					sentSet := make(map[sgp22.SequenceNumber]bool, len(sentSeqs))
+					for _, s := range sentSeqs {
+						sentSet[sgp22.SequenceNumber(s)] = true
+					}
+					actualPending := 0
+					for _, n := range notifs {
+						if n != nil && !sentSet[n.SequenceNumber] {
+							actualPending++
+						}
+					}
+					count = actualPending
+				}
+			}
+		}
+		fnMu.Lock()
+		total += count
+		fnMu.Unlock()
+		return nil
+	}); err != nil {
+		return 0, err
+	}
+	return total, nil
 }
 
 // GetEsimOverview 获取 eSIM 总览信息（一次遍历同时获取芯片信息和 profiles）

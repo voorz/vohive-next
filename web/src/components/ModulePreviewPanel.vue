@@ -97,6 +97,8 @@ async function fetchOverview(refresh = false) {
     chipInfo.value = result.data.chipInfo
     profiles.value = result.data.profiles || []
     notificationCount.value = result.data.notificationCount ?? 0
+    // 首次加载通知数为 0 时，延迟静默刷新以拿取异步统计结果
+    maybeScheduleNotifCountRefresh(notificationCount.value, !refresh)
   } catch (e: unknown) {
     if (result.ok === false && result.error.code === 'ERR_CANCELED') {
       return
@@ -113,6 +115,22 @@ async function fetchOverview(refresh = false) {
         loading.value = false
       }
     }
+  }
+}
+
+// 首次加载后通知数为 0 时，延迟静默刷新一次以拿取异步统计的通知数
+// 后端 refreshNotificationCountAsync 在 overview 返回后异步执行，约 1-2s 完成
+let notifCountRefreshTimer: ReturnType<typeof setTimeout> | null = null
+function maybeScheduleNotifCountRefresh(count: number, wasFirstLoad: boolean) {
+  if (notifCountRefreshTimer) {
+    clearTimeout(notifCountRefreshTimer)
+    notifCountRefreshTimer = null
+  }
+  if (wasFirstLoad && count === 0) {
+    notifCountRefreshTimer = setTimeout(() => {
+      notifCountRefreshTimer = null
+      void fetchOverviewSilent(true)
+    }, 2500)
   }
 }
 
@@ -244,6 +262,10 @@ onBeforeUnmount(() => {
   if (postSwitchRefreshTimer) {
     clearTimeout(postSwitchRefreshTimer)
     postSwitchRefreshTimer = null
+  }
+  if (notifCountRefreshTimer) {
+    clearTimeout(notifCountRefreshTimer)
+    notifCountRefreshTimer = null
   }
 })
 </script>
