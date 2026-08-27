@@ -304,10 +304,6 @@ func (m *Manager) NotifyIPRotated(deviceID, oldIP, newIP string, duration time.D
 
 // NotifyIncomingCall 实现 voice.CallNotifier 接口 — 来电通知
 func (m *Manager) NotifyIncomingCall(deviceID, caller, callee string) {
-	if len(m.channels) == 0 {
-		return
-	}
-
 	msg := fmt.Sprintf("来电通知\n设备    %s\n主叫    %s\n被叫    %s",
 		deviceID, caller, callee)
 
@@ -345,6 +341,9 @@ func (m *Manager) broadcastWithContext(ctx NotificationContext) {
 		ctx.Event = "notification"
 	}
 
+	// 同步广播到前端 SSE（非阻塞，无订阅者时直接返回）
+	m.broadcastToFrontend(ctx)
+
 	for _, ch := range m.channels {
 		ch := ch // capture variable
 		go func() {
@@ -359,6 +358,66 @@ func (m *Manager) broadcastWithContext(ctx NotificationContext) {
 			}
 		}()
 	}
+}
+
+// broadcastToFrontend 将通知推送给前端 SSE 订阅者
+func (m *Manager) broadcastToFrontend(ctx NotificationContext) {
+	if GlobalNotificationBroadcaster.ClientCount() == 0 {
+		return
+	}
+
+	n := FrontendNotification{
+		Event:      ctx.Event,
+		Body:       ctx.Text,
+		DeviceID:   ctx.DeviceID,
+		DeviceName: ctx.DeviceName,
+		Timestamp:  ctx.Timestamp.Format(time.RFC3339),
+	}
+
+	switch ctx.Event {
+	case "incoming_call":
+		n.Level = "high"
+		n.Title = "来电通知"
+	case "sms_received":
+		n.Level = "low"
+		n.Title = "收到新短信"
+	case "ip_rotated":
+		n.Level = "low"
+		n.Title = "公网切换"
+	case "device_online":
+		n.Level = "low"
+		n.Title = "设备上线"
+	case "device_offline":
+		n.Level = "low"
+		n.Title = "设备离线"
+	default:
+		n.Level = "low"
+		n.Title = "通知"
+	}
+
+	GlobalNotificationBroadcaster.Broadcast(n)
+}
+
+// NotifyDeviceOnline 设备上线通知
+func (m *Manager) NotifyDeviceOnline(deviceID string) {
+	m.broadcastWithContext(NotificationContext{
+		Event:      "device_online",
+		Text:       fmt.Sprintf("设备已上线\n设备  %s", deviceID),
+		DeviceID:   deviceID,
+		DeviceName: m.resolveDeviceName(deviceID),
+		Timestamp:  time.Now(),
+	})
+}
+
+// NotifyDeviceOffline 设备离线通知
+func (m *Manager) NotifyDeviceOffline(deviceID string) {
+	m.broadcastWithContext(NotificationContext{
+		Event:      "device_offline",
+		Text:       fmt.Sprintf("设备已离线\n设备  %s", deviceID),
+		DeviceID:   deviceID,
+		DeviceName: m.resolveDeviceName(deviceID),
+		Timestamp:  time.Now(),
+	})
 }
 
 // GetChannelNames 返回所有已启用渠道的名称列表

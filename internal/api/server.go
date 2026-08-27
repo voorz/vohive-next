@@ -326,6 +326,9 @@ func (s *Server) newRouter() *gin.Engine {
 		api.DELETE("/devices/:device_id/voice/history", s.handleDeleteAllVoiceHistory)  // 删除所有通话记录
 		api.DELETE("/devices/:device_id/voice/history/:id", s.handleDeleteVoiceHistory) // 删除单条通话记录
 
+		// ===== 全局通知 =====
+		api.GET("/notifications/stream", s.handleNotificationStream) // SSE 全局通知实时流
+
 		// ===== 系统设置 =====
 		api.GET("/settings/notifications", s.handleGetNotificationSettings)    // 获取通知设置
 		api.PUT("/settings/notifications", s.handleUpdateNotificationSettings) // 更新通知设置
@@ -367,14 +370,14 @@ func (s *Server) newRouter() *gin.Engine {
 		api.GET("/settings/voice-gateway", s.handleGetVoiceGateway)        // 获取语音网关配置
 		api.PUT("/settings/voice-gateway", s.handleUpdateVoiceGateway)     // 更新语音网关配置
 		api.POST("/settings/voice-gateway/regenerate-password", s.handleRegenerateVoicePassword) // 重新生成授权码
-	api.POST("/settings/voice-gateway/test-linphone-push", s.handleTestLinphonePush)     // 测试 Linphone 推送账户
+		api.POST("/settings/voice-gateway/test-linphone-push", s.handleTestLinphonePush)     // 测试 Linphone 推送账户
 
 		// MCP Streamable HTTP（需鉴权，复用 authMiddleware）
 		api.POST("/mcp", s.handleMcpRequest)
 
-api.GET("/devices", s.handleDeviceMgmtList)                                            // 获取设备列表（管理页用）
-api.GET("/devices/stream", s.handleDeviceMgmtListStream)                              // SSE 设备列表实时状态流
-api.POST("/devices", s.handleDeviceMgmtAddDevice)                                      // 添加新设备
+		api.GET("/devices", s.handleDeviceMgmtList)                                            // 获取设备列表（管理页用）
+		api.GET("/devices/stream", s.handleDeviceMgmtListStream)                              // SSE 设备列表实时状态流
+		api.POST("/devices", s.handleDeviceMgmtAddDevice)                                      // 添加新设备
 		api.GET("/devices/discovered", s.handleDeviceMgmtDiscovered)                           // 获取已发现的硬件设备
 		api.POST("/devices/actions/rescan", s.handleDeviceRescan)                              // 手动触发设备重扫描
 		api.GET("/devices/:device_id/overview/stream", s.handleDeviceMgmtOverviewStreamSingle) // SSE 单体深层实时流

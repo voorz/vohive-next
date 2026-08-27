@@ -373,6 +373,11 @@ func main() {
 
 		// 通话结束时自动写入 voice_history
 		_voiceBus.OnEvent(func(event voice.CallEvent) {
+			// 来电振铃时触发前端通知
+			if event.State == voice.CallStateRinging && event.Direction == voice.CallDirectionIncoming {
+				notifyMgr.NotifyIncomingCall(event.DeviceID, event.Number, "")
+			}
+
 			if event.State != voice.CallStateEnded {
 				return
 			}

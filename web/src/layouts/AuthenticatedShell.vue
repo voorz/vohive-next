@@ -6,6 +6,7 @@ import { useHeaderActionsStore } from '../stores/headerActions'
 import ErrorBoundary from '../components/ErrorBoundary.vue'
 import { debugCollector } from '../debug/collector'
 import { useSiteConfig } from '../composables/useSiteConfig'
+import { useNotificationStream } from '../composables/useNotificationStream'
 import { useSettingsStore } from '../stores/settings'
 import { systemService } from '../services/system'
 import {
@@ -45,6 +46,7 @@ const headerActions = useHeaderActionsStore()
 const { siteConfig, load: loadSiteConfig } = useSiteConfig()
 const settingsStore = useSettingsStore()
 const debugOpen = ref(false)
+const { highNotification, dismissHigh, connect: connectNotificationStream, disconnect: disconnectNotificationStream } = useNotificationStream()
 const restarting = ref(false)
 const restartElapsed = ref(0)
 const stopping = ref(false)
@@ -53,6 +55,7 @@ const isSmallScreen = ref(false)
 const collapsed = ref(false)
 const repoUrl = ref('')
 const DebugPanel = defineAsyncComponent(() => import('../components/DebugPanel.vue'))
+const IncomingCallOverlay = defineAsyncComponent(() => import('../components/IncomingCallOverlay.vue'))
 
 function syncScreenSize() {
   if (typeof window === 'undefined') return
@@ -279,6 +282,7 @@ function toggleCollapse() {
 
 onMounted(() => {
   syncScreenSize()
+  connectNotificationStream()
   window.addEventListener('resize', syncScreenSize, { passive: true })
   const saved = localStorage.getItem('debug_panel_open')
   debugOpen.value = saved === '1'
@@ -308,6 +312,7 @@ const appVersion = computed(() => settingsStore.systemInfo.version || 'v0.0.0')
 onUnmounted(() => {
   window.removeEventListener('resize', syncScreenSize)
   window.removeEventListener('keydown', onKeydown)
+  disconnectNotificationStream()
 })
 
 watch(
@@ -479,6 +484,9 @@ watch(lang, (v) => {
     </div>
 
     <DebugPanel v-model="debugOpen" />
+
+    <!-- 来电通知浮窗 -->
+    <IncomingCallOverlay v-if="highNotification" :notification="highNotification" @dismiss="dismissHigh" />
 
     <!-- 重启/停止全屏遮罩 -->
     <div v-if="restarting || stopping" class="restart-overlay">
