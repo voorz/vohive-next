@@ -294,7 +294,7 @@ const hasUserConfig = computed(() => !!detail.value?.user_config || !!editingCon
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 14px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -360,7 +360,7 @@ const hasUserConfig = computed(() => !!detail.value?.user_config || !!editingCon
 .mode-tabs {
   display: flex;
   gap: 2px;
-  padding: 6px 14px;
+  padding: 6px 12px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -397,7 +397,7 @@ const hasUserConfig = computed(() => !!detail.value?.user_config || !!editingCon
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 14px;
+  padding: 12px;
 }
 
 /* 代码编辑器 */

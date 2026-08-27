@@ -268,7 +268,7 @@ function downloadJson() {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 0 14px;
+  padding: 0 12px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -366,7 +366,7 @@ function downloadJson() {
 
 /* 参数模式 */
 .preview-params {
-  padding: 10px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   gap: 10px;

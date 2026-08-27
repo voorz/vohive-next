@@ -139,7 +139,7 @@ const activationStatus = computed(() => {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 16px;
+  padding: 0 12px;
   border-bottom: 1px solid var(--border);
   overflow: hidden;
 }
@@ -251,7 +251,7 @@ const activationStatus = computed(() => {
 .edit-area-wrap {
   flex: 1;
   min-height: 0;
-  padding: 10px;
+  padding: 12px;
 }
 
 /* 响应式：窄屏显示下拉选择器 */
