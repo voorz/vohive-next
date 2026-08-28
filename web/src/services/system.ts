@@ -218,6 +218,34 @@ export type TestEmailResponse = {
   message: string
 }
 
+export type TestTelegramPayload = {
+  enabled: boolean
+  bot_token: string
+  chat_id: number
+  admin_id: number
+  base_url: string
+  proxy: string
+}
+
+export type TestFeishuPayload = {
+  enabled: boolean
+  app_id: string
+  app_secret: string
+  chat_ids: string[]
+}
+
+export type TestPushplusPayload = {
+  enabled: boolean
+  token: string
+  topic: string
+  channel: string
+}
+
+export type TestChannelResponse = {
+  ok: boolean
+  message: string
+}
+
 export const systemService = {
   getInfo() {
     return callService(async () => {
@@ -261,6 +289,24 @@ export const systemService = {
   testEmail(payload: TestEmailPayload) {
     return callService(async () => {
       const res = await api.post<TestEmailResponse>('/settings/notifications/email/test', payload)
+      return res.data
+    })
+  },
+  testTelegram(payload: TestTelegramPayload) {
+    return callService(async () => {
+      const res = await api.post<TestChannelResponse>('/settings/notifications/telegram/test', payload)
+      return res.data
+    })
+  },
+  testFeishu(payload: TestFeishuPayload) {
+    return callService(async () => {
+      const res = await api.post<TestChannelResponse>('/settings/notifications/feishu/test', payload)
+      return res.data
+    })
+  },
+  testPushplus(payload: TestPushplusPayload) {
+    return callService(async () => {
+      const res = await api.post<TestChannelResponse>('/settings/notifications/pushplus/test', payload)
       return res.data
     })
   },

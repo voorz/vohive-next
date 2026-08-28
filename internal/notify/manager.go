@@ -21,10 +21,13 @@ type Manager struct {
 
 type NotificationContext struct {
 	Event      string
-	Text       string
+	Text       string // 已拼装的全文（向后兼容）
 	DeviceID   string
 	DeviceName string
 	Timestamp  time.Time
+	// 结构化字段（供渠道自行组装格式）
+	Sender string // 短信发送方号码
+	Source string // 来源（蜂窝/VoWiFi）
 }
 
 func (c NotificationContext) DeviceLabel() string {
@@ -40,6 +43,26 @@ func (c NotificationContext) DeviceLabel() string {
 		return id
 	}
 	return "未知设备"
+}
+
+// FormatText 将结构化字段拼装为单行全文文本
+// 供未实现 SendWithContext 的渠道和前端 SSE 使用
+func (c NotificationContext) FormatText() string {
+	switch c.Event {
+	case "sms_received":
+		source := c.Source
+		if source == "" {
+			source = "蜂窝"
+		}
+		return fmt.Sprintf("收到新短信 / %s\n设备  %s\n号码  %s\n时间  %s\n内容  %s",
+			source, c.DeviceID, c.Sender, c.Timestamp.Format("2006-01-02 15:04:05"), c.Text)
+	case "ip_rotated":
+		return c.Text // IP 切换通知已有完整文本
+	case "incoming_call":
+		return c.Text // 来电通知已有完整文本
+	default:
+		return c.Text
+	}
 }
 
 type contextualChannel interface {
@@ -257,8 +280,6 @@ func (m *Manager) NotifySMSWithSource(deviceID, sender, content, source string, 
 	if source == "" {
 		source = "蜂窝"
 	}
-	msg := fmt.Sprintf("收到新短信 / %s\n设备  %s\n号码  %s\n时间  %s\n内容  %s",
-		source, deviceID, sender, timestamp.Format("2006-01-02 15:04:05"), content)
 
 	logger.Info("开始发送短信通知",
 		"event", "sms_received",
@@ -266,12 +287,15 @@ func (m *Manager) NotifySMSWithSource(deviceID, sender, content, source string, 
 		"source", source,
 		"channel_count", len(m.channels))
 
+	// ctx.Text 为纯短信内容，各渠道通过 FormatText() 或 SendWithContext 自行组装
 	m.broadcastWithContext(NotificationContext{
 		Event:      "sms_received",
-		Text:       msg,
+		Text:       content,
 		DeviceID:   deviceID,
 		DeviceName: m.resolveDeviceName(deviceID),
 		Timestamp:  timestamp,
+		Sender:     sender,
+		Source:     source,
 	})
 }
 
@@ -341,19 +365,27 @@ func (m *Manager) broadcastWithContext(ctx NotificationContext) {
 		ctx.Event = "notification"
 	}
 
+	// 给未实现 SendWithContext 的渠道和前端 SSE 用的拼装文本
+	formattedText := ctx.FormatText()
+
 	// 同步广播到前端 SSE（非阻塞，无订阅者时直接返回）
-	m.broadcastToFrontend(ctx)
+	// 前端使用拼装好的全文
+	sseCtx := ctx
+	sseCtx.Text = formattedText
+	m.broadcastToFrontend(sseCtx)
 
 	for _, ch := range m.channels {
 		ch := ch // capture variable
 		go func() {
 			if withCtx, ok := ch.(contextualChannel); ok {
+				// 实现了 SendWithContext 的渠道：传原始 ctx，自行组装格式
 				if err := withCtx.SendWithContext(ctx); err != nil {
 					logger.Warn("通知渠道发送失败", "channel", ch.Name(), "event", ctx.Event, "err", err)
 				}
 				return
 			}
-			if err := ch.Send(ctx.Text); err != nil {
+			// 未实现 SendWithContext 的渠道：使用拼装好的全文
+			if err := ch.Send(formattedText); err != nil {
 				logger.Warn("通知渠道发送失败", "channel", ch.Name(), "event", ctx.Event, "err", err)
 			}
 		}()

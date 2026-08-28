@@ -2,9 +2,9 @@ package notify
 
 import (
 	"fmt"
-	"html"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -81,11 +81,117 @@ func buildTelegramTextMessage(chatID int64, text string) tgbotapi.MessageConfig 
 		return r
 	}, text)
 
-	escaped := html.EscapeString(cleanText)
-	msg := tgbotapi.NewMessage(chatID, escaped)
-	// 使用 HTML 模式，但先转义短信原文，避免 "<#>" 等内容被当作标签解析。
-	msg.ParseMode = "HTML"
+	// Send 路径（命令回复等）：纯文本转义，验证码用代码块高亮
+	code := extractVerificationCode(cleanText)
+
+	var buf strings.Builder
+	buf.WriteString(escapeMarkdownV2(cleanText))
+	if code != "" {
+	buf.WriteString("\n\n")
+	buf.WriteString(escapeMarkdownV2("验证码："))
+	buf.WriteString("```\n")
+	buf.WriteString(code)
+	buf.WriteString("\n```")
+	}
+
+	msg := tgbotapi.NewMessage(chatID, buf.String())
+	msg.ParseMode = tgbotapi.ModeMarkdownV2
 	return msg
+}
+
+// verificationCodePattern 匹配短信中的验证码：
+// 1. 关键词（验证码/verification code/code/OTP/动态码/校验码/验证码为）后跟 4-8 位数字
+// 2. 独立的 4-8 位纯数字（前后有空白或行首行尾）
+var verificationCodePattern = regexp.MustCompile(
+	`(?i)(?:验证码|verification\s*code|code|OTP|动态码|校验码|验证码为)\s*[:：]?\s*(\d{4,8})` +
+		`|(?:(?:^|\s)(\d{4,8})(?:\s|$|\n))`,
+)
+
+// markdownV2EscapeChars 需要转义的字符（MarkdownV2 规范）
+const markdownV2EscapeChars = `_*[]()~` + "`" + `>#+-=|{}.!`
+
+// escapeMarkdownV2 转义 MarkdownV2 特殊字符
+func escapeMarkdownV2(s string) string {
+	var buf strings.Builder
+	for _, r := range s {
+		if strings.ContainsRune(markdownV2EscapeChars, r) {
+			buf.WriteByte('\\')
+		}
+		buf.WriteRune(r)
+	}
+	return buf.String()
+}
+
+// renderTelegramMarkdownV2 将通知上下文渲染为 Telegram MarkdownV2
+// 格式：元信息正常显示 + 短信内容代码块 + 验证码高亮
+func renderTelegramMarkdownV2(ctx NotificationContext) string {
+	var buf strings.Builder
+
+	// 元信息（正常文本，需转义 MarkdownV2 特殊字符）
+	source := ctx.Source
+	if source == "" {
+		source = "通知"
+	}
+
+	buf.WriteString(escapeMarkdownV2("收到新短信 / " + source))
+	buf.WriteString("\n")
+	buf.WriteString(escapeMarkdownV2("设备  " + ctx.DeviceLabel()))
+	buf.WriteString("\n")
+	buf.WriteString(escapeMarkdownV2("号码  " + ctx.Sender))
+	buf.WriteString("\n")
+	buf.WriteString(escapeMarkdownV2("时间  " + ctx.Timestamp.Format("2006-01-02 15:04:05")))
+	buf.WriteString("\n\n")
+
+	// 短信内容用代码块包裹（``` 后换行，内容在新行，避免同行文字被标记为代码类型）
+	buf.WriteString("```\n")
+	buf.WriteString(ctx.Text)
+	buf.WriteString("\n```")
+
+	// 如果提取到验证码，在下方单独用代码块高亮
+	code := extractVerificationCode(ctx.Text)
+	if code != "" {
+		buf.WriteString("\n")
+	buf.WriteString(escapeMarkdownV2("验证码："))
+	buf.WriteString("```\n")
+	buf.WriteString(code)
+	buf.WriteString("\n```")
+	}
+
+	return buf.String()
+}
+
+// extractVerificationCode 从文本中提取验证码数字（4-8位）
+func extractVerificationCode(text string) string {
+	matches := verificationCodePattern.FindAllStringSubmatch(text, -1)
+	for _, m := range matches {
+		// m[1] = 关键词后的数字组, m[2] = 独立数字组
+		if m[1] != "" {
+			return m[1]
+		}
+		if m[2] != "" {
+			return m[2]
+		}
+	}
+	return ""
+}
+
+// SendWithContext 实现 contextualChannel 接口
+// Telegram 自行组装格式：元信息正常显示 + 短信内容代码块 + 验证码高亮
+func (t *TelegramChannel) SendWithContext(ctx NotificationContext) error {
+	if t == nil || t.api == nil {
+		return nil
+	}
+
+	rendered := renderTelegramMarkdownV2(ctx)
+	msg := tgbotapi.NewMessage(t.chatID, rendered)
+	msg.ParseMode = tgbotapi.ModeMarkdownV2
+
+	_, err := t.api.Send(msg)
+	if err != nil {
+		logger.Error("发送 telegram 消息失败", "err", err)
+		return err
+	}
+	return nil
 }
 
 func (t *TelegramChannel) Send(text string) error {

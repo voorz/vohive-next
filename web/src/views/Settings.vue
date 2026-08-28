@@ -17,7 +17,7 @@ import {
 } from '@vicons/fluent'
 
 const settingsStore = useSettingsStore()
-const { systemInfo, loadingNotifications, savingNotifications, testingWebhook, testingBark, testingEmail, changingPassword, passwordForm, telegramForm, feishuForm, qqForm, webhookSettings, barkSettings, emailForm, pushplusForm } = storeToRefs(settingsStore)
+const { systemInfo, loadingNotifications, savingNotifications, testingWebhook, testingBark, testingEmail, testingTelegram, testingFeishu, testingPushplus, changingPassword, passwordForm, telegramForm, feishuForm, qqForm, webhookSettings, barkSettings, emailForm, pushplusForm } = storeToRefs(settingsStore)
 const activeNotifyTab = ref('telegram')
 
 const activeTab = ref('notify')
@@ -231,6 +231,54 @@ async function testBarkNotification() {
   } catch (e: unknown) {
     ElMessage.error(e instanceof Error ? e.message : 'Bark 测试失败')
   }
+}
+
+async function testTelegramNotification() {
+try {
+const result = await settingsStore.testTelegramFromForm()
+if (!result.ok) {
+throw new Error(result.error.message || 'Telegram 测试失败')
+}
+if (result.data.ok) {
+ElMessage.success(result.data.message || '测试通知已发送')
+} else {
+ElMessage.error(result.data.message || 'Telegram 测试失败')
+}
+} catch (e: unknown) {
+ElMessage.error(e instanceof Error ? e.message : 'Telegram 测试失败')
+}
+}
+
+async function testFeishuNotification() {
+try {
+const result = await settingsStore.testFeishuFromForm()
+if (!result.ok) {
+throw new Error(result.error.message || '飞书测试失败')
+}
+if (result.data.ok) {
+ElMessage.success(result.data.message || '测试通知已发送')
+} else {
+ElMessage.error(result.data.message || '飞书测试失败')
+}
+} catch (e: unknown) {
+ElMessage.error(e instanceof Error ? e.message : '飞书测试失败')
+}
+}
+
+async function testPushplusNotification() {
+try {
+const result = await settingsStore.testPushplusFromForm()
+if (!result.ok) {
+throw new Error(result.error.message || 'Pushplus 测试失败')
+}
+if (result.data.ok) {
+ElMessage.success(result.data.message || '测试通知已发送')
+} else {
+ElMessage.error(result.data.message || 'Pushplus 测试失败')
+}
+} catch (e: unknown) {
+ElMessage.error(e instanceof Error ? e.message : 'Pushplus 测试失败')
+}
 }
 
 async function testEmailNotification() {
@@ -469,7 +517,19 @@ onBeforeUnmount(() => {
                   <div class="flex items-center gap-2">
                     <div class="settings-toggle-title">启用 Telegram 机器人</div>
                   </div>
-                  <el-switch v-model="telegramForm.enabled" />
+                  <div class="flex items-center gap-2">
+                    <el-button
+                      size="small"
+                      type="primary"
+                      plain
+                      :loading="testingTelegram"
+                      :disabled="!telegramForm.enabled"
+                      @click="testTelegramNotification"
+                    >
+                      测试通知
+                    </el-button>
+                    <el-switch v-model="telegramForm.enabled" />
+                  </div>
                 </div>
 
                 <div class="space-y-4">
@@ -506,7 +566,19 @@ onBeforeUnmount(() => {
                   <div class="flex items-center gap-2">
                     <div class="settings-toggle-title">启用飞书机器人</div>
                   </div>
-                  <el-switch v-model="feishuForm.enabled" />
+                  <div class="flex items-center gap-2">
+                    <el-button
+                      size="small"
+                      type="primary"
+                      plain
+                      :loading="testingFeishu"
+                      :disabled="!feishuForm.enabled"
+                      @click="testFeishuNotification"
+                    >
+                      测试通知
+                    </el-button>
+                    <el-switch v-model="feishuForm.enabled" />
+                  </div>
                 </div>
 
                 <div class="space-y-4">
@@ -706,7 +778,19 @@ onBeforeUnmount(() => {
                   <div class="flex items-center gap-2">
                     <div class="settings-toggle-title">启用 Pushplus 推送</div>
                   </div>
-                  <el-switch v-model="pushplusForm.enabled" />
+                  <div class="flex items-center gap-2">
+                    <el-button
+                      size="small"
+                      type="primary"
+                      plain
+                      :loading="testingPushplus"
+                      :disabled="!pushplusForm.enabled"
+                      @click="testPushplusNotification"
+                    >
+                      测试通知
+                    </el-button>
+                    <el-switch v-model="pushplusForm.enabled" />
+                  </div>
                 </div>
 
                 <div class="space-y-4">
@@ -1263,5 +1347,27 @@ onBeforeUnmount(() => {
 .faq-field-unit {
   font-size: 13px;
   color: var(--muted-foreground);
+}
+
+/* ── plain 测试按钮 hover 修复（暗色主题下白底白字问题） ── */
+.settings-inner-card :deep(.el-button.is-plain.el-button--primary) {
+  --el-button-hover-bg-color: var(--brand);
+  --el-button-hover-text-color: var(--brand-foreground);
+  --el-button-hover-border-color: var(--brand);
+  --el-button-active-bg-color: var(--brand);
+  --el-button-active-text-color: var(--brand-foreground);
+  --el-button-active-border-color: var(--brand);
+}
+
+.settings-inner-card :deep(.el-button.is-plain.el-button--primary:hover) {
+  background-color: var(--brand);
+  color: var(--brand-foreground);
+  border-color: var(--brand);
+}
+
+.settings-inner-card :deep(.el-button.is-plain.el-button--danger:hover) {
+  background-color: var(--destructive);
+  color: white;
+  border-color: var(--destructive);
 }
 </style>

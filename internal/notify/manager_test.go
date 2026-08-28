@@ -33,7 +33,7 @@ func (c *captureChannel) SendWithContext(ctx NotificationContext) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.calls = append(c.calls, ctx)
-	c.msgs = append(c.msgs, ctx.Text)
+	c.msgs = append(c.msgs, ctx.FormatText())
 	return nil
 }
 

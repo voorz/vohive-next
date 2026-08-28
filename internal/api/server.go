@@ -335,6 +335,10 @@ func (s *Server) newRouter() *gin.Engine {
 		api.POST("/settings/notifications/webhook/test", s.handleTestWebhookNotification)
 		api.POST("/settings/notifications/bark/test", s.handleTestBarkNotification)
 		api.POST("/settings/notifications/email/test", s.handleTestEmailNotification)
+		api.POST("/settings/notifications/telegram/test", s.handleTestTelegramNotification)
+		api.POST("/settings/notifications/feishu/test", s.handleTestFeishuNotification)
+		api.POST("/settings/notifications/qq/test", s.handleTestQQNotification)
+		api.POST("/settings/notifications/pushplus/test", s.handleTestPushplusNotification)
 		api.POST("/settings/password", s.handleChangePassword)             // 修改登录密码
 		api.GET("/system/info", s.handleSystemInfo)                        // 获取系统运行与版本信息
 		api.GET("/system/update/check", s.handleCheckUpdate)               // 检查系统更新
