@@ -2014,6 +2014,26 @@ paths:
       summary: McpRequest
       tags:
       - mcp
+  /notifications/stream:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: 未授权
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: NotificationStream
+      tags:
+      - notifications
   /pcsc/readers:
     get:
       produces:
