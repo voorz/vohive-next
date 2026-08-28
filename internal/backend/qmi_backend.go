@@ -355,27 +355,31 @@ func (q *QMIBackend) GetSignalInfo(ctx context.Context) (*SignalInfo, error) {
 		}
 		if fresh {
 			if sigInfo, _, valid := snap.NASSignalInfo(); valid && sigInfo != nil {
-				if sigInfo.LTERSRP != 0 {
-					info.RSRP = int(sigInfo.LTERSRP)
+				if sigInfo.LTE != nil {
+					if sigInfo.LTE.RSRP != nil {
+						info.RSRP = int(*sigInfo.LTE.RSRP)
+					}
+					if sigInfo.LTE.RSRQ != nil {
+						info.RSRQ = int(*sigInfo.LTE.RSRQ)
+					}
+					if sigInfo.LTE.SNR != nil {
+						info.SINR = qmiSNRToDB(*sigInfo.LTE.SNR)
+					}
 				}
-				if sigInfo.LTERSRQ != 0 {
-					info.RSRQ = int(sigInfo.LTERSRQ)
-				}
-				if sigInfo.LTERSSNR != 0 {
-					info.SINR = qmiSNRToDB(sigInfo.LTERSSNR)
-				}
-				if sigInfo.NR5GRSRP != 0 {
-					info.NR5GRSRP = int(sigInfo.NR5GRSRP)
-				}
-				if sigInfo.NR5GRSRQ != 0 {
-					info.NR5GRSRQ = int(sigInfo.NR5GRSRQ)
-				}
-				if sigInfo.NR5GSINR != 0 {
-					info.NR5GSINR = qmiSNRToDB(sigInfo.NR5GSINR)
+				if sigInfo.NR5G != nil {
+					if sigInfo.NR5G.RSRP != nil {
+						info.NR5GRSRP = int(*sigInfo.NR5G.RSRP)
+					}
+					if sigInfo.NR5G.RSRQ != nil {
+						info.NR5GRSRQ = int(*sigInfo.NR5G.RSRQ)
+					}
+					if sigInfo.NR5G.SNR != nil {
+						info.NR5GSINR = qmiSNRToDB(*sigInfo.NR5G.SNR)
+					}
 				}
 				hasSnapshotData = true
 			}
-			if sig, _ := snap.Signal(); sig != nil {
+			if sig, _ := snap.Signal(); sig != nil && sig.HasMeasurement() {
 				info.RSSI = int(sig.RSSI)
 				if info.RSRP == 0 && sig.RSRP != 0 {
 					info.RSRP = int(sig.RSRP)
@@ -394,30 +398,34 @@ func (q *QMIBackend) GetSignalInfo(ctx context.Context) (*SignalInfo, error) {
 
 	// 首先使用 NAS GetSignalInfo（字段最全，1 次 IPC）
 	if sigInfo, err := q.source.GetSignalInfo(ctx); err == nil && sigInfo != nil {
-		if sigInfo.LTERSRP != 0 {
-			info.RSRP = int(sigInfo.LTERSRP)
-		}
-		if sigInfo.LTERSRQ != 0 {
-			info.RSRQ = int(sigInfo.LTERSRQ)
-		}
-		if sigInfo.LTERSSNR != 0 {
-			info.SINR = qmiSNRToDB(sigInfo.LTERSSNR)
+		if sigInfo.LTE != nil {
+			if sigInfo.LTE.RSRP != nil {
+				info.RSRP = int(*sigInfo.LTE.RSRP)
+			}
+			if sigInfo.LTE.RSRQ != nil {
+				info.RSRQ = int(*sigInfo.LTE.RSRQ)
+			}
+			if sigInfo.LTE.SNR != nil {
+				info.SINR = qmiSNRToDB(*sigInfo.LTE.SNR)
+			}
 		}
 		// 5G
-		if sigInfo.NR5GRSRP != 0 {
-			info.NR5GRSRP = int(sigInfo.NR5GRSRP)
-		}
-		if sigInfo.NR5GRSRQ != 0 {
-			info.NR5GRSRQ = int(sigInfo.NR5GRSRQ)
-		}
-		if sigInfo.NR5GSINR != 0 {
-			info.NR5GSINR = qmiSNRToDB(sigInfo.NR5GSINR)
+		if sigInfo.NR5G != nil {
+			if sigInfo.NR5G.RSRP != nil {
+				info.NR5GRSRP = int(*sigInfo.NR5G.RSRP)
+			}
+			if sigInfo.NR5G.RSRQ != nil {
+				info.NR5GRSRQ = int(*sigInfo.NR5G.RSRQ)
+			}
+			if sigInfo.NR5G.SNR != nil {
+				info.NR5GSINR = qmiSNRToDB(*sigInfo.NR5G.SNR)
+			}
 		}
 	}
 
 	// 层 3：仅当 RSSI 仍为空时才补发 GetSignalStrength（从 2 次 IPC 降为条件性 1 次）
 	if info.RSSI == 0 {
-		if sig, err := q.source.GetSignalStrength(ctx); err == nil && sig != nil {
+		if sig, err := q.source.GetSignalStrength(ctx); err == nil && sig != nil && sig.HasMeasurement() {
 			info.RSSI = int(sig.RSSI)
 			if info.RSRP == 0 && sig.RSRP != 0 {
 				info.RSRP = int(sig.RSRP)
