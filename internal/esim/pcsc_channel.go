@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/ElMostafaIdrassi/goscard"
 	"github.com/voorz/wwan-go/ccid"
 )
 
@@ -34,78 +33,37 @@ var pcscTerminalCapabilitiesAPDU = []byte{
 // --- 全局传输模式切换 ---
 
 // PCSC 驱动模式常量。
+// 注意：原生 PC/SC (goscard) 驱动已移除（引入 purego/fakecgo 导致 ARM64 动态链接，
+// 在无 ld-linux 的嵌入式设备上无法执行）。仅保留 USBFS 内置驱动。
 const (
 	PCSCTransportUSBFS = "usbfs" // 内置 USBFS 直连（不依赖 pcscd）
-	PCSCTransportPCSC  = "pcsc"  // 原生 PC/SC 驱动（通过 pcscd + libccid）
+	PCSCTransportPCSC  = "pcsc"  // 原生 PC/SC 驱动（已移除，仅保留常量兼容配置）
 )
 
 // pcscTransportMode 控制全局使用哪条链路。
-// 0 = PCSCTransportUSBFS（默认，内置驱动）
-// 1 = PCSCTransportPCSC（原生驱动）
+// 始终为 USBFS（0），因为原生 PC/SC 驱动已移除。
 var pcscTransportMode atomic.Int32
 
 // SetPcscTransport 设置全局 PC/SC 传输模式。
-// mode: "usbfs"（默认）或 "pcsc"。
+// 原生 PC/SC 驱动已移除，此函数仅保留兼容性，始终设置为 USBFS。
 func SetPcscTransport(mode string) {
-	switch mode {
-	case PCSCTransportPCSC, "pcscd":
-		pcscTransportMode.Store(1)
-	default:
-		pcscTransportMode.Store(0)
-	}
+	// 忽略任何 pcscd/pcsc 模式，强制 USBFS
+	pcscTransportMode.Store(0)
 }
 
 // PcscTransport 返回当前传输模式字符串。
 func PcscTransport() string {
-	if pcscTransportMode.Load() == 1 {
-		return PCSCTransportPCSC
-	}
 	return PCSCTransportUSBFS
 }
 
 func isPcscNativeMode() bool {
-	return pcscTransportMode.Load() == 1
-}
-
-// --- goscard 引用计数 ---
-
-var goscardInit struct {
-	mu   sync.Mutex
-	refs int
-}
-
-func acquireGoscard() error {
-	goscardInit.mu.Lock()
-	defer goscardInit.mu.Unlock()
-	if goscardInit.refs == 0 {
-		if err := goscard.Initialize(goscard.NewDefaultLogger(goscard.LogLevelNone)); err != nil {
-			return fmt.Errorf("初始化 PC/SC 库失败: %w", err)
-		}
-	}
-	goscardInit.refs++
-	return nil
-}
-
-func releaseGoscard() {
-	goscardInit.mu.Lock()
-	defer goscardInit.mu.Unlock()
-	if goscardInit.refs == 0 {
-		return
-	}
-	goscardInit.refs--
-	if goscardInit.refs == 0 {
-		goscard.Finalize()
-	}
+	return false
 }
 
 // --- PCSCExclusiveChannel ---
 
 // PCSCExclusiveChannel 是以独占模式访问读卡器的 driver.SmartCardChannel 实现。
-// 底层支持两条链路：
-//   - USBFS：通过 wwan-go/ccid 包内置驱动（Linux 专用）
-//   - PC/SC：通过 goscard 库调用系统 pcscd 服务
-//
-// 运行时由全局 SetPcscTransport() 切换。
+// 底层仅支持 USBFS 链路（通过 wwan-go/ccid 包内置驱动，Linux 专用）。
 type PCSCExclusiveChannel struct {
 	mu      sync.Mutex
 	reader  string
@@ -113,12 +71,6 @@ type PCSCExclusiveChannel struct {
 
 	// USBFS 链路
 	ccidReader *ccid.Reader
-
-	// PC/SC (goscard) 链路
-	pcscAcquired bool
-	gctx         *goscard.Context
-	gcard        *goscard.Card
-	gioSend      *goscard.SCardIORequest
 
 	channel   byte
 	connected bool
@@ -198,7 +150,7 @@ func (c *PCSCExclusiveChannel) CurrentChannel() byte {
 	return c.channel
 }
 
-// Connect 连接到读卡器。根据全局传输模式选择 USBFS 或 PC/SC 链路。
+// Connect 连接到读卡器。仅使用 USBFS 链路。
 func (c *PCSCExclusiveChannel) Connect() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -216,9 +168,6 @@ func (c *PCSCExclusiveChannel) Connect() error {
 		c.muHeld = true
 	}
 
-	if isPcscNativeMode() {
-		return c.connectPCSC()
-	}
 	return c.connectUSBFS()
 }
 
@@ -233,7 +182,7 @@ func (c *PCSCExclusiveChannel) connectUSBFS() error {
 		// ⚠️ 警告：USBPath 切勿删除！山寨读卡器 serial 相同（000000000001），
 		// reader name 完全一样，不传 USBPath 会导致所有同名读卡器打开同一个 USB 设备，
 		// APDU 通信串设备，读到相同的 EID 和 profiles。此修复切勿覆盖！
-		USBPath:                  c.usbPath,
+		USBPath: c.usbPath,
 	})
 	if err != nil {
 		c.releaseAccessMuLocked()
@@ -248,58 +197,6 @@ func (c *PCSCExclusiveChannel) connectUSBFS() error {
 	if c.sendTermCap {
 		_, _ = r.Transmit(ctx, pcscTerminalCapabilitiesAPDU)
 	}
-	c.connected = true
-	return nil
-}
-
-// connectPCSC 通过 goscard 库连接（原生 PC/SC 驱动）。
-func (c *PCSCExclusiveChannel) connectPCSC() error {
-	if err := acquireGoscard(); err != nil {
-		c.releaseAccessMuLocked()
-		return err
-	}
-	ctx, _, err := goscard.NewContext(goscard.SCardScopeSystem, nil, nil)
-	if err != nil {
-		releaseGoscard()
-		c.releaseAccessMuLocked()
-		return fmt.Errorf("创建 PC/SC 上下文失败: %w", err)
-	}
-	c.gctx = &ctx
-	c.pcscAcquired = true
-
-	shareMode := goscard.SCardShareShared
-	if c.shareMode == ccid.ShareExclusive {
-		shareMode = goscard.SCardShareExclusive
-	}
-	var protocol goscard.SCardProtocol
-	switch c.protocol {
-	case ccid.ProtocolT0:
-		protocol = goscard.SCardProtocolT0
-	case ccid.ProtocolT1:
-		protocol = goscard.SCardProtocolT1
-	default:
-		protocol = goscard.SCardProtocolAny
-	}
-
-	card, _, err := ctx.Connect(c.reader, shareMode, protocol)
-	if err != nil {
-		c.releaseLocked()
-		return fmt.Errorf("连接读卡器 %q 失败: %w", c.reader, err)
-	}
-	ioSend, err := pcscIORequestForProtocol(card.ActiveProtocol())
-	if err != nil {
-		_, _ = card.Disconnect(goscard.SCardUnpowerCard)
-		c.releaseLocked()
-		return err
-	}
-	c.gcard = &card
-	c.gioSend = ioSend
-
-	// 终端能力握手：与 lpac 行为一致，忽略响应与错误。
-	if c.sendTermCap {
-		_, _, _ = card.Transmit(ioSend, pcscTerminalCapabilitiesAPDU, nil)
-	}
-
 	c.connected = true
 	return nil
 }
@@ -337,25 +234,6 @@ func (c *PCSCExclusiveChannel) ReleaseAccessMu() {
 func (c *PCSCExclusiveChannel) releaseLocked() error {
 	var errs []error
 
-	// 释放 PC/SC (goscard) 链路
-	if c.gcard != nil {
-		if _, err := c.gcard.Disconnect(goscard.SCardUnpowerCard); err != nil {
-			errs = append(errs, fmt.Errorf("断开卡片失败: %w", err))
-		}
-		c.gcard = nil
-		c.gioSend = nil
-	}
-	if c.gctx != nil {
-		if _, err := c.gctx.Release(); err != nil {
-			errs = append(errs, fmt.Errorf("释放 PC/SC 上下文失败: %w", err))
-		}
-		c.gctx = nil
-	}
-	if c.pcscAcquired {
-		c.pcscAcquired = false
-		releaseGoscard()
-	}
-
 	// 释放 USBFS (ccid) 链路
 	if c.ccidReader != nil {
 		if err := c.ccidReader.Close(); err != nil {
@@ -384,8 +262,6 @@ func (c *PCSCExclusiveChannel) Transmit(command []byte) ([]byte, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), pcscAPDUTimeout)
 		defer cancel()
 		recv, err = c.ccidReader.Transmit(ctx, command)
-	} else if c.gcard != nil && c.gioSend != nil {
-		recv, _, err = c.gcard.Transmit(c.gioSend, command, nil)
 	} else {
 		return nil, errors.New("PC/SC 通道未连接")
 	}
@@ -412,7 +288,7 @@ func (c *PCSCExclusiveChannel) OpenLogicalChannel(AID []byte) (byte, error) {
 	if c.closed {
 		return 0, errors.New("PC/SC 通道已关闭")
 	}
-	if c.ccidReader == nil && (c.gcard == nil || c.gioSend == nil) {
+	if c.ccidReader == nil {
 		return 0, errors.New("PC/SC 通道未连接")
 	}
 	if len(AID) > pcscMaxShortAPDUDataLength {
@@ -448,10 +324,6 @@ func (c *PCSCExclusiveChannel) transmitLocked(command []byte) ([]byte, error) {
 		defer cancel()
 		return c.ccidReader.Transmit(ctx, command)
 	}
-	if c.gcard != nil && c.gioSend != nil {
-		recv, _, err := c.gcard.Transmit(c.gioSend, command, nil)
-		return recv, err
-	}
 	return nil, errors.New("PC/SC 通道未连接")
 }
 
@@ -484,7 +356,7 @@ func (c *PCSCExclusiveChannel) CloseLogicalChannel(channel byte) error {
 	if c.closed {
 		return nil
 	}
-	if c.ccidReader == nil && (c.gcard == nil || c.gioSend == nil) {
+	if c.ccidReader == nil {
 		return errors.New("PC/SC 通道未连接")
 	}
 	return c.closeLogicalChannelLocked(channel)
@@ -508,54 +380,18 @@ func (c *PCSCExclusiveChannel) closeLogicalChannelLocked(channel byte) error {
 }
 
 // ListPCSCReaders 列出系统可用的 PC/SC 读卡器名称。
-// USBFS 模式下通过 wwan-go/ccid 枚举，PC/SC 模式下通过 goscard 枚举。
+// 通过 wwan-go/ccid 枚举（USBFS 内置驱动）。
 func ListPCSCReaders() ([]string, error) {
-	if isPcscNativeMode() {
-		return listReadersPCSC()
-	}
 	return ccid.ListReaders(context.Background())
 }
 
 // ListPCSCReaderInfo 列出系统可用的 PC/SC 读卡器完整信息（含 USBPath）。
-// USBFS 模式下通过 wwan-go/ccid 枚举（含 USBPath）。
-// pcscd 模式下通过 goscard 枚举读卡器名称，同时从 sysfs 读取 USBPath 补充。
-// sysfs 枚举只读 /sys/bus/usb/devices/ 下的属性文件，不连接 USB 设备，不与 pcscd 冲突。
+// 通过 wwan-go/ccid 枚举（含 USBPath）。
 func ListPCSCReaderInfo() ([]ccid.ReaderInfo, error) {
-	if isPcscNativeMode() {
-		names, err := listReadersPCSC()
-		if err != nil {
-			return nil, err
-		}
-		// 从 sysfs 枚举 CCID 设备获取 USBPath（只读 sysfs，不连接设备）。
-		// goscard 返回的读卡器名称中包含 SN，通过 SN 关联 sysfs 的 USBPath。
-		sysfsInfos, sysfsErr := ccid.ListReaderInfo(context.Background())
-		infos := make([]ccid.ReaderInfo, 0, len(names))
-		for _, name := range names {
-			info := ccid.ReaderInfo{Name: name, ChannelAvailable: true, Transport: "pcsc"}
-			if sysfsErr == nil {
-				sn := extractSerialFromReaderName(name)
-				if sn != "" {
-					for _, si := range sysfsInfos {
-						if si.USBSerial == sn {
-							info.USBPath = si.USBPath
-							info.USBSerial = si.USBSerial
-							info.VendorID = si.VendorID
-							info.ProductID = si.ProductID
-							break
-						}
-					}
-				}
-			}
-			infos = append(infos, info)
-		}
-		return infos, nil
-	}
 	return ccid.ListReaderInfo(context.Background())
 }
 
 // extractSerialFromReaderName 从 PC/SC 读卡器名称中提取序列号（SN）。
-// goscard/pcscd 返回的名称格式通常为 "Product Name (SN) Slot Index"，
-// 例如 "Generic Smart Card Reader Interface (2051315E5056) 00 00"。
 func extractSerialFromReaderName(name string) string {
 	start := strings.LastIndex(name, "(")
 	if start < 0 {
@@ -618,33 +454,7 @@ func matchUSBPath(a, b string) bool {
 	return false
 }
 
-// listReadersPCSC 通过 goscard 枚举读卡器。
-func listReadersPCSC() ([]string, error) {
-	if err := acquireGoscard(); err != nil {
-		return nil, err
-	}
-	defer releaseGoscard()
-	ctx, _, err := goscard.NewContext(goscard.SCardScopeSystem, nil, nil)
-	if err != nil {
-		return nil, fmt.Errorf("创建 PC/SC 上下文失败: %w", err)
-	}
-	defer ctx.Release()
-	readers, _, err := ctx.ListReaders(nil)
-	return readers, err
-}
-
 // --- 辅助函数 ---
-
-func pcscIORequestForProtocol(protocol goscard.SCardProtocol) (*goscard.SCardIORequest, error) {
-	switch protocol {
-	case goscard.SCardProtocolT0:
-		return &goscard.SCardIoRequestT0, nil
-	case goscard.SCardProtocolT1:
-		return &goscard.SCardIoRequestT1, nil
-	default:
-		return nil, fmt.Errorf("不支持的 PC/SC 协议: %s", protocol.String())
-	}
-}
 
 func pcscClassByteForChannel(cla, channel byte) (byte, error) {
 	if channel < 4 {

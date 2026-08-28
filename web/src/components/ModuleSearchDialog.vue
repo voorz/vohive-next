@@ -327,10 +327,7 @@ watch(() => props.modelValue, async (open) => {
     searchQuery.value = ''
     selectedKey.value = ''
     await scanDevices(false)
-    await loadDriverMode()
-    if (useNativeDriver.value) {
-      checkPcscDriver()
-    }
+    // 原生 PC/SC 驱动已移除，不再加载驱动模式
     // 启动 SSE 监听，热插拔后自动刷新发现列表
     connectDiscoveryStream()
   } else {
@@ -486,8 +483,9 @@ function modeTagClass(mode?: string): string {
       </el-button>
     </div>
 
-    <!-- 驱动模式开关（仅有 PC/SC 读卡器时显示） -->
-    <div v-if="hasPCSCReader" class="driver-mode-switch">
+    <!-- 驱动模式开关：已移除原生 PC/SC 驱动（goscard/purego 导致 ARM64 动态链接） -->
+    <!-- 仅保留内置 USBFS 驱动，无需用户切换 -->
+    <div v-if="hasPCSCReader" v-show="false" class="driver-mode-switch">
       <div class="driver-mode-info">
         <span class="driver-mode-title">使用原生PC/SC驱动</span>
         <span class="driver-mode-desc">应用已内置读卡器驱动，仅在遇到euicc兼容性问题时请开启</span>
@@ -499,8 +497,8 @@ function modeTagClass(mode?: string): string {
       />
     </div>
 
-    <!-- PC/SC 驱动管理卡片（仅原生模式时显示） -->
-    <div v-if="useNativeDriver && pcscDriverStatus" class="pcsc-driver-card" :class="pcscDriverStatus.all_ready ? 'ready' : 'not-ready'">
+    <!-- PC/SC 驱动管理卡片：已移除 -->
+    <div v-if="useNativeDriver && pcscDriverStatus" v-show="false" class="pcsc-driver-card" :class="pcscDriverStatus.all_ready ? 'ready' : 'not-ready'">
       <div class="pcsc-driver-info">
         <div class="pcsc-driver-text">
           <span class="pcsc-driver-title">原生 PC/SC 驱动</span>
