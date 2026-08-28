@@ -10,6 +10,8 @@ func TestQMIErrorIndicatesTransportDown(t *testing.T) {
 	}{
 		{"broken_pipe", "write failed: write unix @->@qmi-proxy: write: broken pipe", true},
 		{"eof", "QMI: read failed: EOF", true},
+		{"io_error", "QMI: read failed: read /dev/cdc-wdm2: input/output error", true},
+		{"io_error_raw", "input/output error", true},
 		{"connection_closed", "connection closed", true},
 		{"no_such_device", "open /dev/cdc-wdm2: no such device", true},
 		{"failed_open", "failed to open qmi device", true},

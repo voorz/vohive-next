@@ -121,6 +121,7 @@ func isPostSwitchQMIStallError(err error) bool {
 		"device or resource busy",
 		"qmi: read failed",
 		"read failed: eof",
+		"input/output error",
 		"broken pipe",
 		"client closed",
 	} {

@@ -20,6 +20,7 @@ func isMBIMTransportFatal(err error) bool {
 	}
 	for _, fragment := range []string{
 		"read failed: eof",
+		"input/output error",
 		"broken pipe",
 		"no such device",
 		"no such file or directory",

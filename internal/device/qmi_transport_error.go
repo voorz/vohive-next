@@ -19,6 +19,8 @@ func qmiErrorIndicatesTransportDown(message string) bool {
 	for _, fragment := range []string{
 		"broken pipe",
 		"read failed: eof",
+		"read failed: input/output error",
+		"input/output error",
 		"connection closed",
 		"no such device",
 		"no such file or directory",
