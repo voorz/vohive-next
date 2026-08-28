@@ -6,7 +6,7 @@ import { carrierService } from '../services/carrier'
 
 // 注入运营商基础字段作为模板身份标签
 function injectCarrierIdentity(profile: CarrierProfile, carrierName: string, key: string, detail: CarrierDetail): CarrierProfile {
-  profile.id = `${carrierName}_${key.replace(/-/g, '')}`
+  profile.id = `${carrierName}_${detail.mcc}${detail.mnc}`
   profile.name = detail.name
   profile.mcc = detail.mcc
   profile.mnc = detail.mnc
