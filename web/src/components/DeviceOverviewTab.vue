@@ -203,9 +203,16 @@ const networkPanelMessage = computed(() => {
             }">
               <template v-if="vowifiStatus === 'ok'">WiFi-Calling · 全部就绪</template>
               <template v-else-if="vowifiStatus === 'partial'">{{ notReadyNames.join(' · ') }} 未就绪</template>
+              <template v-else-if="device?.vowifi_enabled && (device?.vowifi_runtime?.stage_label || device?.vowifi_runtime?.last_reason)">
+                {{ device.vowifi_runtime?.stage_label || device.vowifi_runtime?.last_reason }}
+              </template>
               <template v-else>VoWiFi 未连接</template>
             </div>
             <div v-if="vowifiStatus === 'partial' && device?.vowifi_runtime?.last_reason"
+              class="text-xs text-amber-600 dark:text-amber-400 mt-0.5 truncate">
+              {{ device.vowifi_runtime.last_reason }}
+            </div>
+            <div v-else-if="vowifiStatus === 'off' && device?.vowifi_enabled && device?.vowifi_runtime?.last_reason"
               class="text-xs text-amber-600 dark:text-amber-400 mt-0.5 truncate">
               {{ device.vowifi_runtime.last_reason }}
             </div>

@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import type { DeviceOverviewItem, CarrierWebsheetInfo } from '../types/api'
 import { useSensitiveVisibility } from '../composables/useSensitiveVisibility'
+import { useSimOperatorDisplay } from '../composables/useSimOperatorDisplay'
 import { activeEsimProfileDisplayName } from './deviceOverviewActiveEsim'
 import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
 import { Eye24Regular, EyeOff24Regular, Sim24Regular } from '@vicons/fluent'
@@ -27,7 +28,11 @@ if (m === 'pcsc') return 'PC/SC'
 return m || '--'
 })
 
-// 原运营商（SIM 卡原始运营商）
+// 原运营商（SIM 卡原始运营商）— 使用三层 fallback composable
+// SPN → PNN/OPL → mcc-mnc 码表（避免 all.json 的多品牌拼接问题）
+const { simOperatorDisplay } = useSimOperatorDisplay(() => props.device)
+
+// PLMN 信息（国家/国旗，仍从 all.json 获取）
 const plmnInfo = ref<PlmnInfoEntry | null>(null)
 
 onMounted(() => loadPlmnInfo())
@@ -40,15 +45,6 @@ watch(
   },
   { immediate: true }
 )
-
-const simOperatorDisplay = computed(() => {
-  const mcc = props.device?.modem?.native_mcc || ''
-  const mnc = props.device?.modem?.native_mnc || ''
-  const plmn = mcc && mnc ? `${mcc}${mnc}` : ''
-  const spn = props.device?.modem?.native_spn
-  const name = spn || plmnInfo.value?.operators?.[0]?.brand || plmnInfo.value?.operators?.[0]?.operator || '--'
-  return plmn ? `${name} | ${plmn}` : name
-})
 
 // E911
 const e911Starting = ref(false)

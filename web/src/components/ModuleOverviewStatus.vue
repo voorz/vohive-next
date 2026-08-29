@@ -53,6 +53,18 @@ const vowifiStatus = computed<'ok' | 'partial' | 'off'>(() => {
   return 'off'
 })
 
+// VoWiFi 已开启但未就绪时的实时状态文本
+const vowifiStartingText = computed(() => {
+  const rt = props.device?.vowifi_runtime
+  if (!rt) return ''
+  // 优先显示 stage_label（实时进度）
+  if (rt.stage_label) return rt.stage_label
+  // 其次显示 last_reason
+  if (rt.last_reason) return rt.last_reason
+  // 默认
+  return '等待启动...'
+})
+
 // VoWiFi 启动过程追踪：只在同一设备启动过程中变为 ok 才触发礼花
 const isStarting = ref(false)
 const lastDeviceId = ref<string | undefined>()
@@ -242,10 +254,14 @@ const networkModeIcon = computed(() => {
               <div class="hero-title">
                 <template v-if="vowifiStatus === 'ok'">WiFi-Calling · 全部就绪</template>
                 <template v-else-if="vowifiStatus === 'partial'">{{ notReadyNames.join(' · ') }} 未就绪</template>
+                <template v-else-if="vowifiEnabled && vowifiStartingText">{{ vowifiStartingText }}</template>
                 <template v-else>VoWiFi 未连接</template>
               </div>
               <div v-if="vowifiStatus === 'ok'" class="hero-sub">通过 ePDG 隧道连接 IMS 核心网</div>
               <div v-else-if="vowifiStatus === 'partial' && device?.vowifi_runtime?.last_reason" class="hero-sub">
+                {{ device.vowifi_runtime.last_reason }}
+              </div>
+              <div v-else-if="vowifiStatus === 'off' && vowifiEnabled && device?.vowifi_runtime?.last_reason" class="hero-sub">
                 {{ device.vowifi_runtime.last_reason }}
               </div>
             </div>

@@ -31,7 +31,10 @@ const statusText = computed(() => {
   const rt = props.device?.vowifi_runtime
   if (!rt) return 'VoWiFi OFF'
   if (allReady.value) return 'VoWiFi Running'
-  return 'VoWiFi OFF'
+  // 已开启但未就绪时显示实时状态
+  if (rt.stage_label) return rt.stage_label
+  if (rt.last_reason) return rt.last_reason
+  return 'VoWiFi 启动中...'
 })
 
 function onToggle(val: boolean) {

@@ -55,7 +55,7 @@ require (
 	github.com/pion/transport/v4 v4.0.2 // indirect
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8 // indirect
 	github.com/strongswan/govici v0.8.2 // indirect
-	github.com/voorz/swu-go v0.3.2 // indirect
+	github.com/voorz/swu-go v0.3.3 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gvisor.dev/gvisor v0.0.0-20240521174809-5eedbf551134 // indirect

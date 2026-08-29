@@ -94,11 +94,15 @@ function statusTagType(d: DeviceMgmtListItem): 'success' | 'warning' | 'danger' 
 
 // 次要状态文本（如 WiFi-Calling / 运营商·网络模式）
 function secondaryStatusText(d: DeviceMgmtListItem): string {
-  if (d?.vowifi_enabled) {
-    const state = vowifiState(d)
-    if (state === 'ready') return 'WiFi-Calling 已就绪'
-    return 'WiFi-Calling 未就绪'
-  }
+if (d?.vowifi_enabled) {
+const state = vowifiState(d)
+if (state === 'ready') return 'WiFi-Calling 已就绪'
+// 显示实时状态
+const rt = d?.vowifi_runtime
+if (rt?.stage_label) return rt.stage_label
+if (rt?.last_reason) return rt.last_reason
+return 'WiFi-Calling 启动中...'
+}
   // PC/SC 读卡器无 modem，不具备驻网能力
   if (d?.esim_transport === 'pcsc') return '未启用'
   if (isRadioRegistered(d)) {

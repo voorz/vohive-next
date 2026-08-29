@@ -50,6 +50,15 @@ func (p *Pool) waitRadioRecoveryReady(deviceID string, timeout time.Duration) er
 	waitCtx, cancel := context.WithTimeout(p.ctx, timeout)
 	defer cancel()
 
+	// 先等待 QMI core 完全就绪（包括 modem reset 后的恢复）。
+	if coreWaiter, ok := w.Backend.(interface {
+		WaitCoreReady(context.Context) error
+	}); ok {
+		if err := coreWaiter.WaitCoreReady(waitCtx); err != nil {
+			return fmt.Errorf("等待设备 %s QMI Core 恢复就绪失败: %w", deviceID, err)
+		}
+	}
+
 	if b, ok := w.Backend.(interface {
 		GetUIMReadiness(context.Context) (qmimanager.UIMReadiness, error)
 	}); ok {
@@ -80,6 +89,16 @@ func (p *Pool) waitQMICoreReady(deviceID string, timeout time.Duration) error {
 	}
 	waitCtx, cancel := context.WithTimeout(p.ctx, timeout)
 	defer cancel()
+
+	// 先等待 QMI core 完全就绪（包括 modem reset 后的恢复），
+	// 避免在 core recovery 期间 UIM session 不可用时启动 VoWiFi。
+	if coreWaiter, ok := w.Backend.(interface {
+		WaitCoreReady(context.Context) error
+	}); ok {
+		if err := coreWaiter.WaitCoreReady(waitCtx); err != nil {
+			return fmt.Errorf("等待设备 %s QMI Core 恢复就绪失败: %w", deviceID, err)
+		}
+	}
 
 	if b, ok := w.Backend.(interface {
 		GetUIMReadiness(context.Context) (qmimanager.UIMReadiness, error)

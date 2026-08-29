@@ -11,7 +11,7 @@ import (
 	"github.com/voorz/vowifi-core/runtimehost"
 )
 
-const lifecycleReadyTimeout = 3 * time.Second
+const lifecycleReadyTimeout = 15 * time.Second
 
 type runtimeEnableRequest struct {
 	DeviceID     string
@@ -250,9 +250,23 @@ func (m *Manager) enableWhenReady(ctx context.Context, deviceID string, timeout 
 	if generation == 0 {
 		logger.Debug("VoWiFi ready-enable received zero generation; runtime fallback may allocate one", "device", strings.TrimSpace(deviceID), "reason", strings.TrimSpace(reason))
 	}
+	// 上报等待 QMI Core 就绪状态，让前端显示实时进度
+	m.RecordStartupState(deviceID, runtimehost.State{
+		DeviceID:   deviceID,
+		Phase:      "waiting_core_ready",
+		LastReason: "等待 QMI Core 就绪...",
+		UpdatedAt:  time.Now(),
+	})
 	if err := adapter.WaitQMICoreReady(deviceID, timeout); err != nil {
 		return fmt.Errorf("等待设备 %s QMI Core 就绪失败(%s): %w", deviceID, reason, err)
 	}
+	// 上报等待 Worker 就绪状态
+	m.RecordStartupState(deviceID, runtimehost.State{
+		DeviceID:   deviceID,
+		Phase:      "waiting_worker_ready",
+		LastReason: "等待设备就绪...",
+		UpdatedAt:  time.Now(),
+	})
 	if err := adapter.WaitWorkerReady(deviceID, timeout); err != nil {
 		return fmt.Errorf("等待设备 %s 就绪失败(%s): %w", deviceID, reason, err)
 	}

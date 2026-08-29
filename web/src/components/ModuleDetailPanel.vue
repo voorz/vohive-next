@@ -22,6 +22,7 @@ import ModuleSmsTab from './ModuleSmsTab.vue'
 import ModuleOverviewTab from './ModuleOverviewTab.vue'
 import ModuleVoiceTab from './ModuleVoiceTab.vue'
 import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
+import { useSimOperatorDisplay } from '../composables/useSimOperatorDisplay'
 import { ArrowSync24Regular, Add24Regular } from '@vicons/fluent'
 import { cardsService } from '../services/cards'
 import type { CardPolicy } from '../types/api'
@@ -42,16 +43,13 @@ const emit = defineEmits<{
 const store = useDevicesStore()
 const { list, detail, loading } = storeToRefs(store)
 
+// 顶部运营商名：
+// - VoWiFi 模式（未连基站）：显示 SIM 卡原始运营商名（SPN → PNN/OPL → mcc-mnc 码表）
+// - 窝蜂模式（连基站）：优先显示当前驻留网络运营商名（modem.operator），fallback 到 SIM 卡运营商名
+const { simOperatorDisplay: simOperatorName } = useSimOperatorDisplay(detail)
 const operatorName = computed(() => {
-  const spn = detail.value?.modem?.native_spn
-  if (spn) return spn
-  const op = detail.value?.modem?.operator
-  if (op) return op
-  const brand = plmnInfo.value?.operators?.[0]?.brand
-  if (brand) return brand
-  const operator = plmnInfo.value?.operators?.[0]?.operator
-  if (operator) return operator
-  return ''
+  if (detail.value?.vowifi_enabled) return simOperatorName.value
+  return detail.value?.modem?.operator || simOperatorName.value || ''
 })
 const deviceDisplayName = computed(() => detail.value?.name || '未选择')
 const selectedImei = computed(() => detail.value?.modem?.imei || '')
