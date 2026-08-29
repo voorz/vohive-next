@@ -214,8 +214,15 @@ function doSearch() {
 
     if (!normalizedHaystack.includes(q)) continue
 
+    // 过滤子品牌：1) 空品牌名 2) 与父品牌同名/包含关系（视为同一运营商别名）
+    const parentBrandLower = (brand || operator || '').toLowerCase()
     const subs: SubBrand[] = (firstOp?.subs || [])
       .filter(s => s.brand)
+      .filter(s => {
+        const subLower = s.brand!.toLowerCase()
+        // 子品牌包含父品牌 或 父品牌包含子品牌 → 视为重复，不显示
+        return !subLower.includes(parentBrandLower) && !parentBrandLower.includes(subLower)
+      })
       .map(s => ({
         brand: s.brand || '',
         names: s.names || [],

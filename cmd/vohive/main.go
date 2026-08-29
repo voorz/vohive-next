@@ -140,10 +140,8 @@ func main() {
 	}
 	logger.Info("数据库已初始化", "path", dbPath, "resolved_path", dbResolvedPath)
 
-	// 从 DB 加载活跃的运营商用户配置到 profiles 内存覆盖
-	if err := carrierconfig.LoadActiveOverrides(); err != nil {
-		logger.Warn("加载运营商用户配置失败，使用系统默认", "err", err)
-	}
+	// 注入 DB-backed 运营商配置 resolver（替代内存缓存层）
+	carrierconfig.InitProfileResolver()
 
 	// 启动 plmn-index 同步（首次空库时拉取，之后每 24h 定期同步）
 	plmnindex.StartPeriodicSync(context.Background())

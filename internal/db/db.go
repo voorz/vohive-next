@@ -166,7 +166,6 @@ func Init(dbPath string) error {
 		&CarrierIndex{},
 		&CarrierVisible{},
 		&CarrierTemplate{},
-		&CarrierActivation{},
 		&VoiceHistory{},
 		&VoiceGateway{},
 		&EsimNotificationRecord{},

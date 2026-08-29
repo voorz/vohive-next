@@ -7,16 +7,11 @@
 package carrier
 
 import (
-	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
-	"github.com/voorz/vohive/internal/db"
 	corevcarrier "github.com/voorz/vowifi-core/runtimehost/carrier"
 	"github.com/voorz/vowifi-core/runtimehost/voiceclient"
-
-	"github.com/voorz/vohive/pkg/logger"
 )
 
 // ListItem 对应前端 CarrierListItem 类型。
@@ -57,36 +52,7 @@ type SavePayload struct {
 	Active          bool                   `json:"active"`
 }
 
-// LoadActiveOverrides 在启动时从 carrier_templates + carrier_activation 加载 active 的用户配置到 profiles 内存。
-func LoadActiveOverrides() error {
-	visible, err := db.ListCarrierVisible()
-	if err != nil {
-		return fmt.Errorf("list carrier visible: %w", err)
-	}
-	loaded := 0
-	for _, v := range visible {
-		act, _ := db.GetCarrierActivation(v.PLMN)
-		if act == nil || act.TemplateID == nil {
-			continue
-		}
-		tpl, err := db.GetCarrierTemplate(*act.TemplateID)
-		if err != nil || tpl == nil || tpl.ProfileJSON == "" {
-			continue
-		}
-	var p corevcarrier.CarrierProfile
-	if err := json.Unmarshal([]byte(tpl.ProfileJSON), &p); err != nil {
-		logger.Warn("解析运营商配置 JSON 失败，跳过",
-			"key", v.PLMN, "err", err)
-		continue
-	}
-	corevcarrier.SetUserOverrideByKey(v.PLMN, &p)
-		loaded++
-	}
-	if loaded > 0 {
-		logger.Info("已从数据库加载运营商用户配置", "count", loaded, "event", "CARRIER_CONFIG_DB_LOADED")
-	}
-	return nil
-}
+// LoadActiveOverrides 已移除：运营商配置现在纯 DB 查询，不需要启动时加载到内存。
 
 // ResolveRegisterProfile 从 CarrierProfile 解析出 voiceclient.RegisterProfile。
 func ResolveRegisterProfile(p *corevcarrier.CarrierProfile) voiceclient.RegisterProfile {

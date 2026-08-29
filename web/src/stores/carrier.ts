@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import type { AppError } from '../types/domain'
 import type { CarrierListItem, CarrierDetail, CarrierProfile } from '../types/api'
 import { carrierService } from '../services/carrier'
+import { parseKey } from '../services/carrier'
 
 // 注入运营商基础字段作为模板身份标签
 // ID 优先用系统模板 ID（如 "3_hk"、"vodafone_de"），fallback 用运营商名
@@ -235,7 +236,10 @@ export const useCarrierStore = defineStore('carrier', () => {
   }
 
 async function removeCarrier(key: string) {
-  // 新架构：只从 carrier_visible 删除
+  // 先清理用户模板+激活记录+运行时 override
+  const { mcc, mnc, brand } = parseKey(key)
+  await carrierService.deleteCarrierConfig(mcc, mnc, brand || undefined)
+  // 再从 carrier_visible 删除
   const visibleResult = await carrierService.removeCarrierVisible(key)
   if (visibleResult.ok) {
       const idx = carriers.value.findIndex(c => c.key === key)

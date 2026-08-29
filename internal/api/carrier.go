@@ -115,7 +115,7 @@ func (s *Server) handleListCarriers(c *gin.Context) {
 		}
 
 		// 检查用户配置是否已激活
-		if act, _ := db.GetCarrierActivation(v.PLMN); act != nil && act.TemplateID != nil {
+		if tpl, _ := db.GetCarrierTemplateByKey(v.PLMN); tpl != nil && tpl.Active {
 			item.Active = true
 		}
 
@@ -207,8 +207,7 @@ func (s *Server) handleGetCarrier(c *gin.Context) {
 	}
 
 	// 激活状态
-	act, _ := db.GetCarrierActivation(key)
-	active := act != nil && act.TemplateID != nil
+	active := tpl != nil && tpl.Active
 
 	// ePDG 地址、设备信息
 	ikeAddr := ""
@@ -287,6 +286,8 @@ func (s *Server) handleSaveCarrierConfig(c *gin.Context) {
 	if tpl != nil {
 		tpl.Name = strings.TrimSpace(payload.Name)
 		tpl.ProfileJSON = string(jsonBytes)
+		tpl.Source = "user"
+		tpl.Active = payload.Active
 		if err := db.UpdateCarrierTemplate(tpl); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "更新模板失败: " + err.Error()})
 			return
@@ -295,6 +296,8 @@ func (s *Server) handleSaveCarrierConfig(c *gin.Context) {
 		tpl = &db.CarrierTemplate{
 			Key:         key,
 			Name:        strings.TrimSpace(payload.Name),
+			Source:      "user",
+			Active:      payload.Active,
 			ProfileJSON: string(jsonBytes),
 		}
 		if err := db.CreateCarrierTemplate(tpl); err != nil {
@@ -303,20 +306,12 @@ func (s *Server) handleSaveCarrierConfig(c *gin.Context) {
 		}
 	}
 
-	// 激活状态
-	var templateID *int64
+	// 如果激活，禁用同 key 的其他行
 	if payload.Active {
-		templateID = &tpl.ID
+		_ = db.ActivateCarrierTemplate(key, "user")
 	}
-	_ = db.SetCarrierActivation(key, templateID)
 
-	// 热更新
-	if payload.Active {
-		carrier.SetUserOverrideByKey(key, payload.Config)
-		logger.Info("运营商配置已热更新", "key", key, "event", "CARRIER_CONFIG_HOT_RELOAD")
-	} else {
-		carrier.SetUserOverrideByKey(key, nil)
-	}
+	logger.Info("运营商配置已保存", "key", key, "active", payload.Active, "event", "CARRIER_CONFIG_SAVED")
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "配置已保存"})
 }
@@ -345,8 +340,6 @@ func (s *Server) handleDeleteCarrierConfig(c *gin.Context) {
 	if tpl != nil {
 		_ = db.DeleteCarrierTemplate(tpl.ID)
 	}
-	_ = db.ClearCarrierActivation(key)
-	carrier.SetUserOverrideByKey(key, nil)
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "用户配置已删除"})
 }
@@ -377,14 +370,7 @@ func (s *Server) handleActivateCarrier(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "无用户模板可激活"})
 		return
 	}
-	_ = db.SetCarrierActivation(key, &tpl.ID)
-
-	var p carrier.CarrierProfile
-	if err := json.Unmarshal([]byte(tpl.ProfileJSON), &p); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "解析模板失败: " + err.Error()})
-		return
-	}
-	carrier.SetUserOverrideByKey(key, &p)
+	_ = db.ActivateCarrierTemplate(key, "user")
 	logger.Info("运营商配置已激活", "key", key, "event", "CARRIER_CONFIG_ACTIVATED")
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "运营商配置已激活"})
@@ -411,8 +397,11 @@ func (s *Server) handleDeactivateCarrier(c *gin.Context) {
 	brand := strings.TrimSpace(c.Query("brand"))
 	key := makeKey(mcc, mnc, brand)
 
-	_ = db.ClearCarrierActivation(key)
-	carrier.SetUserOverrideByKey(key, nil)
+	// 禁用用户模板，回退到系统默认
+	if tpl, _ := db.GetCarrierTemplateByKey(key); tpl != nil {
+		tpl.Active = false
+		_ = db.UpdateCarrierTemplate(tpl)
+	}
 	logger.Info("运营商配置已禁用", "key", key, "event", "CARRIER_CONFIG_DEACTIVATED")
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "运营商配置已禁用"})
@@ -473,8 +462,6 @@ func (s *Server) handleRemoveVisible(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "移除失败: " + err.Error()})
 		return
 	}
-	// 同时清除激活记录
-	_ = db.ClearCarrierActivation(plmn)
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "已移除"})
 }
 

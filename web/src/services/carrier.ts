@@ -104,5 +104,14 @@ export const carrierService = {
       await api.delete(`/carriers/visible/${plmn}`)
       return true
     })
+  },
+
+  /** 删除用户模板+激活记录+运行时 override */
+  deleteCarrierConfig(mcc: string, mnc: string, brand?: string) {
+    return callService(async () => {
+      const params = brand ? `?brand=${encodeURIComponent(brand)}` : ''
+      await api.delete(`/carrier/${mcc}/${mnc}/config${params}`)
+      return true
+    })
   }
 }

@@ -3,6 +3,8 @@ package db
 import (
 	"strings"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // CarrierIndex 存储从 plmn-index 仓库同步的运营商索引数据。
@@ -31,27 +33,21 @@ type CarrierVisible struct {
 
 func (CarrierVisible) TableName() string { return "carrier_visible" }
 
-// CarrierTemplate 存储用户创建/导入的 VoWiFi 配置模板。
-// 一个运营商可以有多个模板，通过 carrier_activation 选择激活哪个。
+// CarrierTemplate 存储运营商 VoWiFi 配置模板。
+// 每个运营商+来源一行，通过 active 字段标记当前生效行。
+// source: "system"（系统默认）或 "user"（用户自定义）
 type CarrierTemplate struct {
 	ID          int64     `gorm:"column:id;primaryKey;autoIncrement" json:"id"`
 	Key         string    `gorm:"column:key;index" json:"key"` // PLMN 或 PLMN__brand
 	Name        string    `gorm:"column:name" json:"name"`
+	Source      string    `gorm:"column:source;default:user" json:"source"` // system | user
+	Active      bool      `gorm:"column:active;default:false" json:"active"`
 	ProfileJSON string    `gorm:"column:profile_json" json:"profile_json"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 func (CarrierTemplate) TableName() string { return "carrier_templates" }
-
-// CarrierActivation 记录每个运营商当前激活的模板。
-// template_id 为 NULL 表示使用内置模板（profiles/*.json）或 3GPP 默认。
-type CarrierActivation struct {
-	Key        string  `gorm:"column:key;primaryKey" json:"key"`
-	TemplateID *int64  `gorm:"column:template_id" json:"template_id"`
-}
-
-func (CarrierActivation) TableName() string { return "carrier_activation" }
 
 // --- CarrierIndex CRUD ---
 
@@ -326,24 +322,18 @@ func UpdateCarrierTemplate(t *CarrierTemplate) error {
 }
 
 // DeleteCarrierTemplate 删除模板。
-// 如果该模板已激活，同时清除激活记录。
 func DeleteCarrierTemplate(id int64) error {
 	if DB == nil {
 		return nil
 	}
-	// 先检查是否被激活
-	var act CarrierActivation
-	if err := DB.Where("template_id = ?", id).First(&act).Error; err == nil {
-		// 清除激活
-		DB.Model(&CarrierActivation{}).Where("template_id = ?", id).Update("template_id", nil)
-	}
 	return DB.Where("id = ?", id).Delete(&CarrierTemplate{}).Error
 }
 
-// --- CarrierActivation CRUD ---
+// --- CarrierTemplate 激活管理 ---
 
-// GetCarrierActivation 查询指定运营商的激活模板。
-func GetCarrierActivation(key string) (*CarrierActivation, error) {
+// GetActiveCarrierTemplate 返回指定 key 的当前激活模板。
+// 先精确匹配 key，查不到则用 PLMN 前缀模糊匹配（处理无 SPN 但 DB 有 brand 后缀的情况）。
+func GetActiveCarrierTemplate(key string) (*CarrierTemplate, error) {
 	if DB == nil {
 		return nil, nil
 	}
@@ -351,20 +341,29 @@ func GetCarrierActivation(key string) (*CarrierActivation, error) {
 	if key == "" {
 		return nil, nil
 	}
-	var out CarrierActivation
-	err := DB.Where("key = ?", key).First(&out).Error
-	if err != nil {
-		if isRecordNotFound(err) {
-			return nil, nil
-		}
+	var out CarrierTemplate
+	// 1. 精确匹配
+	err := DB.Where("key = ? AND active = ?", key, true).First(&out).Error
+	if err == nil {
+		return &out, nil
+	}
+	if !isRecordNotFound(err) {
 		return nil, err
 	}
-	return &out, nil
+	// 2. PLMN 前缀模糊匹配（key 或 key + "__%"）
+	//    例如 key="262-002"，匹配 "262-002__Vodafone DE"
+	err = DB.Where("key LIKE ? AND active = ?", key+"__%", true).First(&out).Error
+	if err == nil {
+		return &out, nil
+	}
+	if !isRecordNotFound(err) {
+		return nil, err
+	}
+	return nil, nil
 }
 
-// SetCarrierActivation 设置指定运营商的激活模板。
-// templateID 为 nil 表示取消激活（回退到内置模板）。
-func SetCarrierActivation(key string, templateID *int64) error {
+// ActivateCarrierTemplate 激活指定 key 的模板（source 类型），同时禁用同 key 其他行。
+func ActivateCarrierTemplate(key, source string) error {
 	if DB == nil {
 		return nil
 	}
@@ -372,22 +371,14 @@ func SetCarrierActivation(key string, templateID *int64) error {
 	if key == "" {
 		return nil
 	}
-	return DB.Save(&CarrierActivation{
-		Key:        key,
-		TemplateID: templateID,
-	}).Error
-}
-
-// ClearCarrierActivation 清除指定运营商的激活记录。
-func ClearCarrierActivation(key string) error {
-	if DB == nil {
-		return nil
-	}
-	key = strings.TrimSpace(key)
-	if key == "" {
-		return nil
-	}
-	return DB.Where("key = ?", key).Delete(&CarrierActivation{}).Error
+	return DB.Transaction(func(tx *gorm.DB) error {
+		// 先禁用同 key 的所有行
+		if err := tx.Model(&CarrierTemplate{}).Where("key = ?", key).Update("active", false).Error; err != nil {
+			return err
+		}
+		// 激活指定 source 行
+		return tx.Model(&CarrierTemplate{}).Where("key = ? AND source = ?", key, source).Update("active", true).Error
+	})
 }
 
 // --- Helpers ---
