@@ -5,26 +5,23 @@ import type { CarrierListItem, CarrierDetail, CarrierProfile } from '../types/ap
 import { carrierService } from '../services/carrier'
 
 // 注入运营商基础字段作为模板身份标签
+// ID 优先用系统模板 ID（如 "3_hk"、"vodafone_de"），fallback 用运营商名
+// template_level 强制为 "user"
 function injectCarrierIdentity(profile: CarrierProfile, carrierName: string, key: string, detail: CarrierDetail): CarrierProfile {
-  profile.id = `${carrierName}_${detail.mcc}${detail.mnc}`
+  // ID：优先用 system_default 的 ID，没有则用运营商名生成
+  if (detail.system_default?.id) {
+    profile.id = detail.system_default.id
+  } else {
+    profile.id = carrierName
+  }
+  profile.template_level = 'user'
   profile.name = detail.name
   profile.mcc = detail.mcc
   profile.mnc = detail.mnc
-  if (detail.ike_addr) {
-    if (!profile.ike) profile.ike = {}
-    profile.ike.addr = detail.ike_addr
-  }
-  if (detail.device_ims_tac) {
-    if (!profile.device) profile.device = {}
-    profile.device.ims_tac = detail.device_ims_tac
-  }
-  if (detail.device_ims_cell_id) {
-    if (!profile.device) profile.device = {}
-    profile.device.ims_cell_id = detail.device_ims_cell_id
-  }
   return {
     id: profile.id,
     name: profile.name,
+    template_level: profile.template_level,
     mcc: profile.mcc,
     mnc: profile.mnc,
     ike: profile.ike,
@@ -122,7 +119,7 @@ export const useCarrierStore = defineStore('carrier', () => {
   function createFromSystemDefault() {
     if (!detail.value?.system_default) return
     const sys = JSON.parse(JSON.stringify(detail.value.system_default)) as CarrierProfile
-    const carrierName = detail.value.name.toLowerCase().replace(/\s+/g, '')
+    const carrierName = detail.value.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
     injectCarrierIdentity(sys, carrierName, selectedKey.value, detail.value)
     editingConfig.value = sys
     dirty.value = true
@@ -135,7 +132,7 @@ export const useCarrierStore = defineStore('carrier', () => {
     const result = await carrierService.getGenericProfile()
     if (!result.ok) return
     const tpl = JSON.parse(JSON.stringify(result.data)) as CarrierProfile
-    const carrierName = detail.value.name.toLowerCase().replace(/\s+/g, '')
+    const carrierName = detail.value.name.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
     injectCarrierIdentity(tpl, carrierName, selectedKey.value, detail.value)
     editingConfig.value = tpl
     dirty.value = true
@@ -159,9 +156,9 @@ export const useCarrierStore = defineStore('carrier', () => {
       selectedKey.value,
       {
         name: detail.value.name,
-        ike_addr: detail.value.ike_addr,
-        device_ims_tac: detail.value.device_ims_tac,
-        device_ims_cell_id: detail.value.device_ims_cell_id,
+        ike_addr: '',
+        device_ims_tac: 0,
+        device_ims_cell_id: 0,
         config: editingConfig.value,
         active: detail.value.active
       }

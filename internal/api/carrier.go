@@ -15,13 +15,9 @@ import (
 )
 
 // makeKey constructs a profile key from path params + optional brand query param.
+// Uses carrier.PlmnKey as the single source of truth for PLMN key normalization.
 func makeKey(mcc, mnc, brand string) string {
-	// reuse the same plmnKey logic as the carrier package
-	trimmed := strings.TrimLeft(strings.TrimSpace(mnc), "0")
-	if trimmed == "" && strings.TrimSpace(mnc) != "" {
-		trimmed = "0"
-	}
-	key := strings.TrimSpace(mcc) + "-" + trimmed
+	key := carrier.PlmnKey(mcc, mnc)
 	brand = strings.TrimSpace(brand)
 	if brand != "" {
 		key = key + "__" + brand
@@ -205,6 +201,7 @@ func (s *Server) handleGetCarrier(c *gin.Context) {
 	if tpl != nil && tpl.ProfileJSON != "" {
 		var p carrier.CarrierProfile
 		if err := json.Unmarshal([]byte(tpl.ProfileJSON), &p); err == nil {
+			p.TemplateLevel = "user"
 			userConfig = &p
 		}
 	}
@@ -276,15 +273,8 @@ func (s *Server) handleSaveCarrierConfig(c *gin.Context) {
 	payload.Config.MCC = mcc
 	payload.Config.MNC = mnc
 	payload.Config.Name = strings.TrimSpace(payload.Name)
-	if payload.Config.IKE.Addr == "" {
-		payload.Config.IKE.Addr = strings.TrimSpace(payload.IKEAddr)
-	}
-	if payload.Config.Device.IMSTAC == 0 {
-		payload.Config.Device.IMSTAC = payload.DeviceIMSTAC
-	}
-	if payload.Config.Device.IMSCellID == 0 {
-		payload.Config.Device.IMSCellID = payload.DeviceIMSCellID
-	}
+	// 用户保存的配置始终标记为 user level
+	payload.Config.TemplateLevel = "user"
 
 	jsonBytes, err := json.Marshal(payload.Config)
 	if err != nil {

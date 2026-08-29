@@ -18,6 +18,7 @@ import (
 
 	"github.com/voorz/vohive/internal/db"
 	"github.com/voorz/vohive/pkg/logger"
+	"github.com/voorz/vowifi-core/runtimehost/carrier"
 )
 
 const (
@@ -172,12 +173,8 @@ func entryToCarrierIndex(entry PlmnEntry) *db.CarrierIndex {
 		return nil
 	}
 
-	// MNC normalization: trim leading zeros for key (matching profiles plmnKey convention)
-	mncTrimmed := strings.TrimLeft(mnc, "0")
-	if mncTrimmed == "" && mnc != "" {
-		mncTrimmed = "0"
-	}
-	plmn := mcc + "-" + mncTrimmed
+	// Use carrier.PlmnKey as the single source of truth for PLMN key normalization
+	plmn := carrier.PlmnKey(mcc, mnc)
 
 	// Serialize full entry as raw_json for search
 	raw, _ := json.Marshal(entry)

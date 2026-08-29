@@ -81,6 +81,9 @@ func BatchUpsertCarrierIndex(items []*CarrierIndex) error {
 }
 
 // GetCarrierIndex 按 PLMN 查询运营商索引。
+// 支持 trimmed/padded 兼容查询：如果精确匹配失败，会尝试对 MNC 部分
+// 进行 trim/padding 后再查。例如传入 "234-015" 会先查 "234-015"，
+// 找不到再查 "234-15"（stripped）；反之亦然。
 func GetCarrierIndex(plmn string) (*CarrierIndex, error) {
 	if DB == nil {
 		return nil, nil
@@ -89,15 +92,51 @@ func GetCarrierIndex(plmn string) (*CarrierIndex, error) {
 	if plmn == "" {
 		return nil, nil
 	}
+	// 1. 尝试精确匹配
 	var out CarrierIndex
 	err := DB.Where("plmn = ?", plmn).First(&out).Error
-	if err != nil {
-		if isRecordNotFound(err) {
-			return nil, nil
-		}
+	if err == nil {
+		return &out, nil
+	}
+	if !isRecordNotFound(err) {
 		return nil, err
 	}
-	return &out, nil
+	// 2. 尝试 MNC 前导零兼容
+	altKey := altPlmnKey(plmn)
+	if altKey != "" && altKey != plmn {
+		err = DB.Where("plmn = ?", altKey).First(&out).Error
+		if err == nil {
+			return &out, nil
+		}
+		if !isRecordNotFound(err) {
+			return nil, err
+		}
+	}
+	return nil, nil
+}
+
+// altPlmnKey 生成一个 PLMN key 的替代形式（trimmed ↔ padded）。
+// "234-015" → "234-15"（strip）；"234-15" → "234-015"（pad to 3 digits）。
+// 如果无法生成替代形式，返回空字符串。
+func altPlmnKey(plmn string) string {
+	parts := strings.SplitN(plmn, "-", 2)
+	if len(parts) != 2 {
+		return ""
+	}
+	mcc, mnc := parts[0], parts[1]
+	// 如果 MNC 有前导零，strip 掉
+	trimmed := strings.TrimLeft(mnc, "0")
+	if trimmed == "" && mnc != "" {
+		trimmed = "0"
+	}
+	if trimmed != mnc {
+		return mcc + "-" + trimmed
+	}
+	// 如果 MNC 是 2 位（stripped），尝试 padding 到 3 位
+	if len(mnc) == 2 {
+		return mcc + "-0" + mnc
+	}
+	return ""
 }
 
 // SearchCarrierIndex 搜索运营商索引（按 PLMN/名称/国家）。

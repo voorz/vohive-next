@@ -687,14 +687,15 @@ export type DeviceConfig = {
 export type CarrierProfile = {
 id?: string
 name?: string
+template_level?: string  // "default" | "user"
 mcc?: string
 mnc?: string
-  ike?: IKEConfig
-  eap?: EAPConfig
-  ims?: IMSConfig
-  e911?: E911Config
-  device?: DeviceConfig
-  blocked?: boolean
+ike?: IKEConfig
+eap?: EAPConfig
+ims?: IMSConfig
+e911?: E911Config
+device?: DeviceConfig
+blocked?: boolean
 }
 
 // 运营商列表项 (GET /api/carrier)

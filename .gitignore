@@ -79,6 +79,7 @@ bin/
 dist/
 build.ps1
 build-arm.ps1
+embed-frontend.ps1/
 deploy/
 dev
 /internal/backend/frontend/

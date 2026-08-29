@@ -127,8 +127,16 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 
 			// 打印实际使用的 carrier 模板信息（1 条，带设备 ID）
 			source := "系统默认"
+			templateLevel := p.TemplateLevel
 			if userP, _ := carrier.LookupWithSPN(mcc, mnc, profile.SPN); userP != nil {
 				source = "用户自定义"
+				templateLevel = userP.TemplateLevel
+				if templateLevel == "" {
+					templateLevel = "user"
+				}
+			}
+			if templateLevel == "" {
+				templateLevel = "default"
 			}
 			profileName := p.Name
 			if profileName == "" {
@@ -136,9 +144,10 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 			}
 			logger.Info(fmt.Sprintf("[%s] 🧩IMS 运营商模板已匹配", deviceID),
 				"trace_id", strings.TrimSpace(req.TraceID),
-				"plmn", mcc+"-"+mnc,
+				"plmn", carrier.PlmnKey(mcc, mnc),
 				"source", source,
 				"template", profileName,
+				"template_level", templateLevel,
 				"gid1", profile.GID1,
 				"gid2", profile.GID2)
 		}

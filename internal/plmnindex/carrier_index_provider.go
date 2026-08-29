@@ -23,6 +23,7 @@ func (carrierIndexProvider) GetCarrierIndexRawJSON(plmnKey string) string {
 	if plmnKey == "" {
 		return ""
 	}
+	// Try the key as-is first (it should already be normalized via PlmnKey).
 	idx, err := db.GetCarrierIndex(plmnKey)
 	if err != nil || idx == nil {
 		return ""
