@@ -517,6 +517,9 @@ type voWiFiRuntimeDTO struct {
 	MaxChallengeRounds   int    `json:"max_challenge_rounds,omitempty"`
 	LastSIPStatus        int    `json:"last_sip_status,omitempty"`
 	LastSIPReason        string `json:"last_sip_reason,omitempty"`
+
+	// —— UIM 门控倒计时 ——
+	RetryInSeconds int `json:"retry_in_seconds,omitempty"`
 }
 
 func runtimeStateToDTO(st runtimehost.State, status modem.DeviceStatus) *voWiFiRuntimeDTO {
@@ -567,7 +570,18 @@ func (s *Server) getVoWiFiRuntimeDTO(deviceID string) *voWiFiRuntimeDTO {
 	if w := s.pool.GetWorker(deviceID); w != nil {
 		status = w.ProjectDeviceStatus()
 	}
-	return runtimeStateToDTO(st, status)
+	dto := runtimeStateToDTO(st, status)
+	// UIM 门控：从 DesiredRecoverStore 获取剩余倒计时秒数
+	if dto.Phase == "uim_unavailable" {
+		if snap, ok := s.pool.GetDesiredRecoverSnapshot(deviceID); ok {
+			remaining := int(time.Until(snap.NextAt).Seconds())
+			if remaining < 0 {
+				remaining = 0
+			}
+			dto.RetryInSeconds = remaining
+		}
+	}
+	return dto
 }
 
 func isLifecycleActiveForAPI(phase string) bool {
@@ -733,6 +747,7 @@ type overviewStreamEmitVersion struct {
 	AttemptIndex    int
 	RegisterRound   int
 	Generation      uint64
+	RetryInSeconds  int
 }
 
 func newOverviewStreamEmitVersion(item deviceMgmtOverviewLiteItem) overviewStreamEmitVersion {
@@ -752,6 +767,7 @@ func newOverviewStreamEmitVersion(item deviceMgmtOverviewLiteItem) overviewStrea
 		v.AttemptIndex = item.VoWiFiRuntime.AttemptIndex
 		v.RegisterRound = item.VoWiFiRuntime.RegisterRound
 		v.Generation = item.VoWiFiRuntime.Generation
+		v.RetryInSeconds = item.VoWiFiRuntime.RetryInSeconds
 	}
 	return v
 }
@@ -3484,13 +3500,7 @@ func (s *Server) handleDeviceMgmtOverviewStreamSingle(c *gin.Context) {
 			return
 		}
 		lastSent = &curr
-		if fromStateEvent {
-			phase := ""
-			if item.VoWiFiRuntime != nil {
-				phase = item.VoWiFiRuntime.Phase
-			}
-			logger.Debug("overview SSE 推送 VoWiFi 状态变更", "device", deviceID, "phase", phase)
-		}
+		// 省略 DEBUG 日志：高频 SSE 推送（如 uim_unavailable 倒计时）时不记录
 
 		// 仍然使用 devices 结构体包裹返回单项从而无缝对接前台旧结构
 		c.SSEvent("overview", gin.H{"devices": []deviceMgmtOverviewLiteItem{item}})

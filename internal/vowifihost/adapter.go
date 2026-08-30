@@ -27,6 +27,11 @@ type Adapter interface {
 	IsVoWiFiDesired(deviceID string) bool
 	WaitQMICoreReady(deviceID string, timeout time.Duration) error
 	WaitWorkerReady(deviceID string, timeout time.Duration) error
+	// EUICCAvailable 返回 eUICC 可用状态的三态指针：
+	// - nil: overview 缓存未加载（尚未扫描），不阻止启动
+	// - &true: eUICC 可用，不阻止启动
+	// - &false: eUICC 不可用（UIM 状态不佳），阻止 VoWiFi 启动
+	EUICCAvailable(deviceID string) *bool
 	PrepareStart(deviceID, traceID, runtimeEPDGOverride string) (PreparedStart, error)
 	BeforeStart(deviceID string, modem runtimehost.Modem, proxy *runtimehost.ProxyConfig) func(context.Context, runtimehost.SessionConfig) error
 	HandleStartupError(req StartupErrorRequest) error

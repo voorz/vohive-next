@@ -67,6 +67,7 @@ export type VoWiFiRuntimeState = {
   max_challenge_rounds?: number
   last_sip_status?: number
   last_sip_reason?: string
+  retry_in_seconds?: number
 }
 
 export type DeviceLifecyclePhase =

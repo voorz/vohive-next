@@ -2,6 +2,7 @@ package vowifihost
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -12,6 +13,15 @@ import (
 )
 
 const lifecycleReadyTimeout = 15 * time.Second
+
+// ErrUIMUnavailable 表示 VoWiFi 启动门控因 UIM 不可用（eUICC 状态异常）而中止。
+// ScheduleDesiredRecover 识别此错误后设置 60s cooldown，避免快速重试。
+var ErrUIMUnavailable = errors.New("USIM 逻辑通道状态异常")
+
+const uimGateCooldown = 60 * time.Second
+
+// UIMGateCooldown 返回 UIM 门控冷却时间，供外部包使用。
+func UIMGateCooldown() time.Duration { return uimGateCooldown }
 
 type runtimeEnableRequest struct {
 	DeviceID     string
@@ -269,6 +279,18 @@ func (m *Manager) enableWhenReady(ctx context.Context, deviceID string, timeout 
 	})
 	if err := adapter.WaitWorkerReady(deviceID, timeout); err != nil {
 		return fmt.Errorf("等待设备 %s 就绪失败(%s): %w", deviceID, reason, err)
+	}
+	// UIM 门控：检查 eUICC 可用状态，如果 UIM 不可用则阻止进入注定失败的 IKEv2 流程
+	if avail := adapter.EUICCAvailable(deviceID); avail != nil && !*avail {
+		m.RecordStartupState(deviceID, runtimehost.State{
+			DeviceID:   deviceID,
+			Phase:      "uim_unavailable",
+			LastReason: "USIM 逻辑通道状态异常",
+			UpdatedAt:  time.Now(),
+		})
+		// 启动 1s ticker 广播倒计时，60s 后自动停止
+		go m.broadcastUIMGateCountdown(deviceID)
+		return fmt.Errorf("设备 %s VoWiFi 启动门控: %w", deviceID, ErrUIMUnavailable)
 	}
 	return m.enableRuntime(ctx, runtimeEnableRequest{
 		DeviceID:     deviceID,

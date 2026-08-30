@@ -158,6 +158,15 @@ func (p *Pool) WorkerExists(deviceID string) bool {
 	return p.GetWorker(deviceID) != nil
 }
 
+// EUICCAvailable 返回 eUICC 可用状态的三态指针，供 VoWiFi 启动门控使用。
+func (p *Pool) EUICCAvailable(deviceID string) *bool {
+	w := p.GetWorker(deviceID)
+	if w == nil || w.EsimMgr == nil {
+		return nil
+	}
+	return w.EsimMgr.EUICCAvailable()
+}
+
 func (p *Pool) IsSwitching(deviceID string) bool {
 	return p.IsESIMSwitching(deviceID)
 }

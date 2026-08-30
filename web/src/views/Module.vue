@@ -8,6 +8,8 @@ import ModuleDetailPanel from '../components/ModuleDetailPanel.vue'
 import ModulePreviewPanel from '../components/ModulePreviewPanel.vue'
 import ModuleSearchDialog from '../components/ModuleSearchDialog.vue'
 import { Eye24Regular } from '@vicons/fluent'
+import { ElMessage } from 'element-plus'
+import { devicesService } from '../services/devices'
 
 const store = useDevicesStore()
 const route = useRoute()
@@ -80,6 +82,28 @@ function handleDeviceDeleted() {
   void store.fetchList()
   void store.fetchDiscovered()
 }
+
+// 重载 SIM（eSIM 管理右栏底部按钮触发）
+const reloadingSIM = ref(false)
+async function reloadSIM(deviceId: string) {
+  if (!deviceId || reloadingSIM.value) return
+  reloadingSIM.value = true
+  try {
+    const result = await devicesService.reloadSIM(deviceId)
+    if (!result.ok) throw new Error(result.error.message || '重载 SIM 失败')
+    ElMessage.success('SIM 卡重载完成，VoWiFi 将自动恢复')
+    void store.fetchDetail(deviceId).catch(() => {})
+    void store.fetchList().catch(() => {})
+    setTimeout(() => {
+      void store.fetchDetail(deviceId).catch(() => {})
+      void store.fetchList().catch(() => {})
+    }, 3000)
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : '重载 SIM 失败')
+  } finally {
+    reloadingSIM.value = false
+  }
+}
 </script>
 
 <template>
@@ -108,7 +132,16 @@ function handleDeviceDeleted() {
 
       <!-- 右栏：预览（宽屏显示） -->
       <div v-if="showThreeColumn" class="module-col-preview">
-        <ModulePreviewPanel :device-id="selectedId" :device-imei="detail?.modem?.imei" :device-online="detail?.running" :is-p-c-s-c="detail?.esim_transport === 'pcsc'" />
+        <ModulePreviewPanel
+          :device-id="selectedId"
+          :device-imei="detail?.modem?.imei"
+          :device-online="detail?.running"
+          :is-p-c-s-c="detail?.esim_transport === 'pcsc'"
+          :euicc-available="detail?.euicc_available"
+          :vowifi-enabled="!!detail?.vowifi_enabled"
+          :reloading-s-i-m="reloadingSIM"
+          @reload-sim="reloadSIM"
+        />
       </div>
     </div>
 
@@ -119,7 +152,17 @@ function handleDeviceDeleted() {
       size="400px"
       direction="rtl"
     >
-      <ModulePreviewPanel v-if="detail" :device-id="selectedId" :device-imei="detail?.modem?.imei" :device-online="detail?.running" :is-p-c-s-c="detail?.esim_transport === 'pcsc'" />
+      <ModulePreviewPanel
+        v-if="detail"
+        :device-id="selectedId"
+        :device-imei="detail?.modem?.imei"
+        :device-online="detail?.running"
+        :is-p-c-s-c="detail?.esim_transport === 'pcsc'"
+        :euicc-available="detail?.euicc_available"
+        :vowifi-enabled="!!detail?.vowifi_enabled"
+        :reloading-s-i-m="reloadingSIM"
+        @reload-sim="reloadSIM"
+      />
     </el-drawer>
 
     <!-- 搜索添加设备弹窗 -->

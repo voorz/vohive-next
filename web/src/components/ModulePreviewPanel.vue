@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, onBeforeUnmount, onMounted } from 'vue'
+import { ref, computed, watch, onBeforeUnmount, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { devicesService } from '../services/devices'
 import { errorMessage } from '../services/http'
@@ -19,7 +19,21 @@ const props = defineProps<{
   deviceImei?: string
   deviceOnline?: boolean
   isPCSC?: boolean
+  euiccAvailable?: boolean
+  vowifiEnabled?: boolean
+  reloadingSIM?: boolean
 }>()
+
+const emit = defineEmits<{
+  'reload-sim': [deviceId: string]
+}>()
+
+// 重载按钮可点击条件：VoWiFi 已开启且 eUICC 不可用（UIM 状态不佳）
+const canReload = computed(() => {
+  if (!props.deviceId) return false
+  if (!props.vowifiEnabled && !props.isPCSC) return false
+  return props.euiccAvailable === false
+})
 
 // Data
 const loading = ref(false)
@@ -372,7 +386,16 @@ onBeforeUnmount(() => {
       </template>
 
       <!-- 底部预留栏 -->
-      <div class="preview-footer" />
+      <div class="preview-footer">
+        <button
+          class="preview-reload-btn"
+          :class="{ disabled: !canReload }"
+          :disabled="!canReload || reloadingSIM"
+          @click="emit('reload-sim', deviceId || '')"
+        >
+          <span>{{ reloadingSIM ? '重启中...' : '重启 eUICC' }}</span>
+        </button>
+      </div>
 
       <!-- 设置弹窗 -->
       <ModuleEsimSettingsDialog
@@ -515,6 +538,41 @@ onBeforeUnmount(() => {
   border-top: 1px solid var(--border);
   padding: 8px 12px;
   min-height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 重载 SIM 按钮 — 始终可见，UIM 不佳时可点击 */
+.preview-reload-btn {
+  display: inline-flex;
+  align-items: center;
+  height: 28px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 0 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--muted);
+  color: var(--muted-foreground);
+  cursor: not-allowed;
+  transition: all 0.12s;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.preview-reload-btn:not(:disabled) {
+  border-color: var(--foreground);
+  background: var(--foreground);
+  color: var(--background);
+  cursor: pointer;
+}
+.preview-reload-btn:not(:disabled):hover {
+  background: var(--accent);
+  color: var(--foreground);
+  border-color: var(--border);
+}
+.preview-reload-btn:disabled {
+  opacity: 0.5;
 }
 
 .preview-empty {

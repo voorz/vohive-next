@@ -2,6 +2,7 @@ package vowifihost
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -68,8 +69,16 @@ func (m *Manager) ScheduleDesiredRecover(ctx context.Context, req DesiredRecover
 		if req.OnResult != nil {
 			req.OnResult(deviceID, reason, err)
 		} else if err != nil {
-			m.MarkDesiredRecoverFailed(deviceID, time.Now(), err)
-			logger.Warn("VoWiFi 目标态恢复失败，已设置退避", "event", "VOWIFI_DESIRED_RECOVER_FAILED", "device", deviceID, "reason", reason, "err", err)
+			if errors.Is(err, ErrUIMUnavailable) {
+				// UIM 门控失败：设置 60s cooldown，不走正常递增退避
+				m.SetDesiredRecoverCooldown(deviceID, uimGateCooldown)
+				logger.Warn("VoWiFi 启动门控：USIM 逻辑通道状态异常，60s 后重试",
+					"event", "VOWIFI_UIM_GATE_BLOCKED",
+					"device", deviceID, "reason", reason)
+			} else {
+				m.MarkDesiredRecoverFailed(deviceID, time.Now(), err)
+				logger.Warn("VoWiFi 目标态恢复失败，已设置退避", "event", "VOWIFI_DESIRED_RECOVER_FAILED", "device", deviceID, "reason", reason, "err", err)
+			}
 		} else {
 			// Recover returned nil but the tunnel has not yet been confirmed
 			// (runtimehost.Start is async). Set a cooldown to prevent tight

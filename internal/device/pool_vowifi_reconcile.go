@@ -1,6 +1,7 @@
 package device
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -220,6 +221,14 @@ func (p *Pool) markDesiredVoWiFiRecoverResult(deviceID string, err error) {
 	if carrier.IsVoWiFiPolicyBlockedError(err) {
 		p.clearDesiredVoWiFiRecoverState(deviceID)
 		logger.Warn("VoWiFi 目标态恢复跳过：策略禁止", "event", "VOWIFI_DESIRED_RECOVER_SKIPPED_POLICY", "device", deviceID, "err", err)
+		return
+	}
+	// UIM 门控失败：设置 60s cooldown，不走正常递增退避
+	if errors.Is(err, vowifihost.ErrUIMUnavailable) {
+		p.voWiFiHost().SetDesiredRecoverCooldown(deviceID, vowifihost.UIMGateCooldown())
+		logger.Warn("VoWiFi 启动门控：USIM 逻辑通道状态异常，60s 后重试",
+			"event", "VOWIFI_UIM_GATE_BLOCKED",
+			"device", deviceID, "err", err)
 		return
 	}
 	snapshot := p.voWiFiHost().MarkDesiredRecoverFailed(deviceID, time.Now(), err)
