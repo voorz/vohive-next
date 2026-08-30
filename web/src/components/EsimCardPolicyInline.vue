@@ -22,14 +22,15 @@ const loadFailed = ref(false)
 const loading = ref(false)
 
 // eSIM 设置弹窗始终走 stored 模式：只写 DB，决定卡下次激活时的行为。
-// 当前生效的系统级控制由策略 Tab（ModuleCardPolicy）负责。
+// 当前生效的系统级控制由配置 Tab 的卡策略卡片负责。
 
 const mirror = computed<PolicyMirror | null>(() =>
   policy.value
     ? {
         network_enabled: policy.value.network_enabled,
         vowifi_enabled: policy.value.vowifi_enabled,
-        airplane_enabled: policy.value.airplane_enabled
+        airplane_enabled: policy.value.airplane_enabled,
+        volte_enabled: false
       }
     : null
 )
@@ -178,7 +179,7 @@ const {
   color: #f59e0b;
 }
 
-/* switch-row — 参照 ModuleCardPolicy .form-switch-row */
+/* switch-row — 参照 ModuleConfigCards .form-switch-row */
 .form-switch-row {
   display: flex;
   flex-direction: row;

@@ -1,12 +1,14 @@
 <script setup lang="ts">
-import type { DeviceOverviewItem } from '../types/api'
-import ModuleStatusCard from './ModuleStatusCard.vue'
+import type { DeviceOverviewItem, CardPolicy } from '../types/api'
+import ModuleControlGrid from './ModuleControlGrid.vue'
 import ModuleOverviewStatus from './ModuleOverviewStatus.vue'
 import ModuleOverviewDevice from './ModuleOverviewDevice.vue'
 import ModuleOverviewNetwork from './ModuleOverviewNetwork.vue'
 
 defineProps<{
   device: DeviceOverviewItem | null
+  policy: CardPolicy | null
+  deviceOnline: boolean
   trafficSpeedRx?: string
   trafficSpeedTx?: string
   trafficMinuteRx?: string
@@ -14,22 +16,25 @@ defineProps<{
   isPCSC?: boolean
   reconnectingVoWiFi?: boolean
   rotating?: boolean
-  togglingVoWiFi?: boolean
 }>()
 
 defineEmits<{
   'reconnect-vowifi': []
   'rotate-ip': []
   'toggle-vowifi': [enabled: boolean]
+  changed: []
 }>()
 </script>
 
 <template>
   <div class="ov-overview">
-    <ModuleStatusCard
+    <ModuleControlGrid
       :device="device"
-      :toggling-vo-wi-fi="togglingVoWiFi"
+      :policy="policy"
+      :device-online="deviceOnline"
+      :is-p-c-s-c="isPCSC"
       @toggle-vowifi="$emit('toggle-vowifi', $event)"
+      @changed="$emit('changed')"
     />
     <ModuleOverviewStatus
       :device="device"

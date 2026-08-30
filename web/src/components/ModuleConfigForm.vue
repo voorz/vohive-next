@@ -208,10 +208,6 @@ async function handleDelete() {
   border-radius: 8px;
   background: var(--background);
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
 }
 
 .terminal-card-header {
@@ -284,9 +280,6 @@ async function handleDelete() {
 
 .config-body {
   padding: 16px;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 16px;

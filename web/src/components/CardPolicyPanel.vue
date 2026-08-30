@@ -29,7 +29,8 @@ const mirror = computed<PolicyMirror | null>(() =>
     ? {
         network_enabled: props.policy.network_enabled,
         vowifi_enabled: props.policy.vowifi_enabled,
-        airplane_enabled: props.policy.airplane_enabled
+        airplane_enabled: props.policy.airplane_enabled,
+        volte_enabled: false
       }
     : null
 )

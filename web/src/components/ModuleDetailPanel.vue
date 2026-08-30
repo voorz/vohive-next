@@ -16,8 +16,7 @@ function detailDeviceIcon(item: { esim_transport?: string; manufacturer?: string
 }
 import ModuleAtTerminal from './ModuleAtTerminal.vue'
 import ModuleUssdTerminal from './ModuleUssdTerminal.vue'
-import ModuleCardPolicy from './ModuleCardPolicy.vue'
-import ModuleConfigForm from './ModuleConfigForm.vue'
+import ModuleConfigTab from './ModuleConfigTab.vue'
 import ModuleSmsTab from './ModuleSmsTab.vue'
 import ModuleOverviewTab from './ModuleOverviewTab.vue'
 import ModuleVoiceTab from './ModuleVoiceTab.vue'
@@ -226,7 +225,6 @@ const allTabs = [
   { name: 'sms', label: '短信' },
   { name: 'at', label: 'AT' },
   { name: 'ussd', label: 'USSD' },
-  { name: 'card', label: '控制' },
   { name: 'config', label: '配置' }
 ]
 const tabs = computed(() =>
@@ -321,6 +319,8 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
         <div v-if="activeTab === 'overview'" class="tab-pane tab-pane--auto">
           <ModuleOverviewTab
             :device="detail"
+            :policy="cardPolicy"
+            :device-online="detail.running"
             :traffic-speed-rx="trafficSpeedRx"
             :traffic-speed-tx="trafficSpeedTx"
             :traffic-minute-rx="rollingMinuteRx"
@@ -328,10 +328,10 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
             :is-p-c-s-c="isPCSC"
             :reconnecting-vo-wi-fi="reconnectingVoWiFi"
             :rotating="rotating"
-            :toggling-vo-wi-fi="togglingVoWiFi"
             @reconnect-vowifi="reconnectVoWiFi"
             @rotate-ip="rotateIP"
             @toggle-vowifi="toggleVoWiFi"
+            @changed="onCardPolicyChanged"
           />
         </div>
 
@@ -363,21 +363,15 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
           />
         </div>
 
-        <!-- 卡策略 -->
-        <div v-else-if="activeTab === 'card'" class="tab-pane">
-          <ModuleCardPolicy
-            :device-id="detail.id"
-            :iccid="detail.modem?.iccid"
+        <!-- 配置 -->
+        <div v-else-if="activeTab === 'config'" class="tab-pane tab-pane--auto">
+          <ModuleConfigTab
+            :device="detail"
             :policy="cardPolicy"
-            :device-online="detail.running"
             :is-p-c-s-c="isPCSC"
+            @device-deleted="onDeviceDeleted"
             @policy-changed="onCardPolicyChanged"
           />
-        </div>
-
-        <!-- 配置 -->
-        <div v-else-if="activeTab === 'config'" class="tab-pane">
-          <ModuleConfigForm :device-id="detail.id" :device="detail" @device-deleted="onDeviceDeleted" />
                 </div>
     </div>
 

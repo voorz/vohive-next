@@ -273,7 +273,7 @@ const eventCards = [
   gap: 8px;
 }
 
-/* 标准开关行 — 参照 ModuleCardPolicy / CarrierConfigForm .form-switch-row */
+/* 标准开关行 — 参照 CarrierConfigForm .form-switch-row */
 .form-switch-row {
   display: flex;
   flex-direction: row;
