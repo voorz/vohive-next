@@ -193,6 +193,11 @@ type Pool struct {
 	discoveryEventMu          sync.RWMutex
 	discoveryEventSubscribers []chan struct{}
 
+	// euiccStateSubscribers 用于 eUICC 状态变化通知 SSE 流。
+	// eSIM overview 缓存更新后向按设备订阅者发送信号，触发 overview 事件推送。
+	euiccStateMu          sync.RWMutex
+	euiccStateSubscribers map[string][]chan struct{}
+
 	// SIP 注册器 (用于 CS 域语音桥接查路由)
 	sipRegistrar   *sipgw.Registrar
 	voiceGateway   *voicehost.Gateway
@@ -2089,6 +2094,7 @@ func newESIMManagerForWorker(
 		APDUArbiter:          w.APDUArbiter,
 		PostSwitchMinDelay:   defaultESIMPostSwitchMinDelay,
 		SwitchUseRefreshTrue: w.Config.ESIMSwitch.UseRefreshTrue,
+		OnOverviewUpdated:    w.Pool.onEUICCOverviewUpdated,
 	})
 	if err != nil {
 		return nil, err

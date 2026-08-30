@@ -276,6 +276,9 @@ type Manager struct {
 	controlDevice string
 	imeiProvider  func(ctx context.Context) (string, error)
 
+	// onOverviewUpdated 在 overview 缓存更新后被调用（可选），用于 SSE 推送通知
+	onOverviewUpdated OverviewStateCallback
+
 	// channelFactory 是通道工厂函数，不同模式下注入不同实现
 	// Modem 模式：基于 AT 命令
 	// PC/SC 模式：基于 scard.Card APDU 透传
@@ -302,9 +305,9 @@ type Manager struct {
 
 	// eUICC 扫描退避：连续失败时自动重试间隔递增，耗尽后停止自动重试。
 	// 手动刷新（RefreshOverview）会重置计数器。
-	scanBackoffMu     sync.Mutex
-	scanBackoffCount  int       // 连续失败次数
-	scanBackoffUntil  time.Time // 下次允许自动重试的时间；zero 表示无限制
+	scanBackoffMu    sync.Mutex
+	scanBackoffCount int       // 连续失败次数
+	scanBackoffUntil time.Time // 下次允许自动重试的时间；zero 表示无限制
 
 	onBeforeSwitch       func(SwitchOperation, string) uint64              // 切卡前执行的回调，返回本次 switch token
 	onAfterSwitch        func(SwitchOperation, uint64)                     // 切卡后网络就绪后执行的回调
@@ -342,8 +345,8 @@ type ManagerOptions struct {
 	Modem                *modem.Manager
 	Backend              backendpkg.DeviceBackend
 	QMITransport         QMIAPDUTransport
-	PCSCUSBPath         string             // PC/SC 读卡器 USB 路径（仅 transport=pcsc 时有效，运行时匹配 reader）
-	PCSCSerial          string             // PC/SC 读卡器 SN（正规设备 SN 回退匹配，插拔换接口后仍可解析）
+	PCSCUSBPath          string      // PC/SC 读卡器 USB 路径（仅 transport=pcsc 时有效，运行时匹配 reader）
+	PCSCSerial           string      // PC/SC 读卡器 SN（正规设备 SN 回退匹配，插拔换接口后仍可解析）
 	PCSCAccessMu         *sync.Mutex // 可选：PC/SC 读卡器访问互斥锁（跨 eSIM/VoWiFi 共享）
 	IMEIProvider         func(ctx context.Context) (string, error)
 	OnBeforeSwitch       func(SwitchOperation, string) uint64
@@ -354,6 +357,7 @@ type ManagerOptions struct {
 	APDUArbiter          *apduarbiter.Arbiter
 	PostSwitchMinDelay   time.Duration
 	SwitchUseRefreshTrue bool
+	OnOverviewUpdated    OverviewStateCallback // 可选：overview 缓存更新后回调（用于 SSE 推送）
 }
 
 type SwitchOperation string
@@ -498,6 +502,7 @@ func NewManager(opts ManagerOptions) (*Manager, error) {
 		onSwitchFailed:       opts.OnSwitchFailed,
 		onSwitchDegraded:     opts.OnSwitchDegraded,
 		onSwitchPhase:        opts.OnSwitchPhase,
+		onOverviewUpdated:    opts.OnOverviewUpdated,
 		switchSignal:         make(chan string, 16),
 		switchUseRefreshTrue: opts.SwitchUseRefreshTrue,
 		opDone:               make(chan struct{}),
@@ -1361,8 +1366,8 @@ func (m *Manager) GetEUICCChipInfo(forceRefresh bool) (*EUICCChipInfo, error) {
 
 // EsimOverview 合并的 eSIM 总览信息（芯片信息 + 按 eUICC 分组的 profiles）
 type EsimOverview struct {
-	ChipInfo          *EUICCChipInfo  `json:"chip_info"`           // 芯片硬件信息
-	Profiles          []EUICCProfiles `json:"profiles"`            // 按 eUICC 分组的 profile 列表
+	ChipInfo          *EUICCChipInfo  `json:"chip_info"`          // 芯片硬件信息
+	Profiles          []EUICCProfiles `json:"profiles"`           // 按 eUICC 分组的 profile 列表
 	NotificationCount int             `json:"notification_count"` // 待处理通知数量（不含 autoClean 的 enable/disable）
 }
 
@@ -1498,8 +1503,8 @@ func (m *Manager) cachedOverview() *EsimOverview {
 
 func (m *Manager) setOverviewCache(overview *EsimOverview, err error, generation uint64) {
 	m.cacheMu.Lock()
-	defer m.cacheMu.Unlock()
 	if generation != m.overviewGeneration {
+		m.cacheMu.Unlock()
 		return
 	}
 	m.overviewCache = cloneOverview(overview)
@@ -1507,6 +1512,9 @@ func (m *Manager) setOverviewCache(overview *EsimOverview, err error, generation
 	if overview != nil {
 		m.chipInfoCache = cloneChipInfo(overview.ChipInfo)
 	}
+	m.cacheMu.Unlock()
+	// 通知外部 overview 状态已变化（触发 SSE 推送）
+	m.notifyOverviewStateChange()
 }
 
 // InvalidateOverviewCache 导出版本，供外部包（如 device）调用强制清空 overview 缓存。
@@ -4758,9 +4766,9 @@ type NotificationProcessEvent struct {
 	SequenceNumber int64  `json:"sequence_number"` // 通知序号
 	Event          string `json:"event"`           // install/enable/disable/delete
 	ICCID          string `json:"iccid,omitempty"`
-	Message        string `json:"message"`          // 描述信息
-	ProcessedCount int    `json:"processed_count"`  // 已处理数
-	TotalCount     int    `json:"total_count"`      // 总数
+	Message        string `json:"message"`         // 描述信息
+	ProcessedCount int    `json:"processed_count"` // 已处理数
+	TotalCount     int    `json:"total_count"`     // 总数
 }
 
 // ProcessNotifications 逐条处理通知（对标 NekoKo 逐条 autoClean + SSE 进度推送）。
@@ -4937,13 +4945,13 @@ func (m *Manager) ProcessNotifications(progressFn func(NotificationProcessEvent)
 			}
 			if eid != "" {
 				contentBase64 := encodePendingNotificationBase64(pn)
-			record := db.EsimNotificationRecord{
-				EID:                eid,
-				SeqNumber:          seq,
-				ICCID:              iccidStr,
-				ProfileName:        item.ProfileName,
-				MCC:                item.MCC,
-				Content:            contentBase64,
+				record := db.EsimNotificationRecord{
+					EID:                eid,
+					SeqNumber:          seq,
+					ICCID:              iccidStr,
+					ProfileName:        item.ProfileName,
+					MCC:                item.MCC,
+					Content:            contentBase64,
 					Timestamp:          time.Now().UnixMilli(),
 					Status:             1,
 					NotificationServer: meta.Address,

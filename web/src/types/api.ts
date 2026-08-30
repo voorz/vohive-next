@@ -110,6 +110,7 @@ running: boolean
   audio_device?: string
   e911_setup_available?: boolean
   active_esim_profile_name?: string
+  euicc_available?: boolean
   network_enabled: boolean
   vowifi_enabled?: boolean
   vowifi_active?: boolean

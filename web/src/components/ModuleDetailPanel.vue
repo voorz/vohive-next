@@ -98,6 +98,7 @@ async function onCardPolicyChanged() {
 }
 
 const reconnectingVoWiFi = ref(false)
+const reloadingSIM = ref(false)
 const rebooting = ref(false)
 const rotating = ref(false)
 const togglingVoWiFi = ref(false)
@@ -189,13 +190,6 @@ async function rebootModem() {
 async function reconnectVoWiFi() {
   if (!detail.value?.id) return
   const id = detail.value.id
-  const confirmed = await ElMessageBox.confirm(
-    `确定对设备 ${id} 发起 VoWiFi 环境的重新连接拨号？这将在后台重新注册 IMS 链路。`,
-    '重连 VoWiFi',
-    { confirmButtonText: '确定重连', cancelButtonText: '取消', type: 'info' }
-  ).then(() => true).catch(() => false)
-  if (!confirmed) return
-
   reconnectingVoWiFi.value = true
   try {
     const result = await devicesService.reconnectVoWiFi(id)
@@ -208,11 +202,30 @@ async function reconnectVoWiFi() {
       void store.fetchList().catch(() => {})
     }, 4000)
   } catch (e: unknown) {
-    if (e !== 'cancel' && e !== undefined) {
-      ElMessage.error(e instanceof Error ? e.message : '重连请求失败')
-    }
+    ElMessage.error(e instanceof Error ? e.message : '重连请求失败')
   } finally {
     reconnectingVoWiFi.value = false
+  }
+}
+
+async function reloadSIM() {
+  if (!detail.value?.id) return
+  const id = detail.value.id
+  reloadingSIM.value = true
+  try {
+    const result = await devicesService.reloadSIM(id)
+    if (!result.ok) throw new Error(result.error.message || '重载 SIM 失败')
+    ElMessage.success('SIM 卡重载完成，VoWiFi 将自动恢复')
+    void store.fetchDetail(id).catch(() => {})
+    void store.fetchList().catch(() => {})
+    setTimeout(() => {
+      void store.fetchDetail(id).catch(() => {})
+      void store.fetchList().catch(() => {})
+    }, 3000)
+  } catch (e: unknown) {
+    ElMessage.error(e instanceof Error ? e.message : '重载 SIM 失败')
+  } finally {
+    reloadingSIM.value = false
   }
 }
 
@@ -327,9 +340,11 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
             :traffic-minute-tx="rollingMinuteTx"
             :is-p-c-s-c="isPCSC"
             :reconnecting-vo-wi-fi="reconnectingVoWiFi"
+            :reloading-s-i-m="reloadingSIM"
             :rotating="rotating"
             :toggling-vo-wi-fi="togglingVoWiFi"
             @reconnect-vowifi="reconnectVoWiFi"
+            @reload-sim="reloadSIM"
             @rotate-ip="rotateIP"
             @toggle-vowifi="toggleVoWiFi"
           />

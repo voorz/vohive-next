@@ -1,13 +1,16 @@
 package device
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
 	"time"
 
+	qmimanager "github.com/voorz/quectel-qmi-go/pkg/manager"
 	"github.com/voorz/vohive/internal/backend"
 	"github.com/voorz/vohive/internal/config"
+	"github.com/voorz/vohive/internal/vowifihost"
 	"github.com/voorz/vohive/pkg/logger"
 )
 
@@ -613,4 +616,78 @@ func (p *Pool) runModemRebootRecovery(opts modemRebootRecoveryOptions) {
 		})
 	}
 	logger.Warn("模组重启恢复多轮扫描未恢复，等待健康检查兜底", "device", opts.deviceID, "reason", opts.reason)
+}
+
+// ReloadSIM 对指定设备执行 SIM 卡 power cycle（断电→上电），用于修复 UIM 状态异常。
+// 适用于频繁 eSIM 切卡后 UIM logical channel 返回 0x0003 (Internal) 的场景。
+// ReloadSIM 会先注销 VoWiFi，执行 power cycle，再恢复 VoWiFi。
+func (p *Pool) ReloadSIM(ctx context.Context, deviceID string) error {
+	if p == nil || deviceID == "" {
+		return fmt.Errorf("invalid pool or device_id")
+	}
+	w := p.GetWorker(deviceID)
+	if w == nil {
+		return fmt.Errorf("设备 %s 不存在", deviceID)
+	}
+	if p.IsESIMSwitching(deviceID) {
+		return fmt.Errorf("设备 %s 正在切卡，暂不允许重载 SIM", deviceID)
+	}
+
+	// 先注销 VoWiFi
+	_ = p.voWiFiHost().TeardownSession(ctx, deviceID, vowifihost.TeardownOptions{
+		Reason:     "reload_sim",
+		RestoreSMS: true,
+	})
+
+	// 获取 UIM readiness 以确定 slot
+	slot := uint8(1)
+	if b, ok := w.Backend.(interface {
+		GetUIMReadiness(context.Context) (qmimanager.UIMReadiness, error)
+	}); ok {
+		if rdy, err := b.GetUIMReadiness(ctx); err == nil && rdy.SlotKnown && rdy.ActiveSlot != 0 {
+			slot = rdy.ActiveSlot
+		}
+	}
+
+	logger.Info("开始重载 SIM 卡（power cycle）", "device", deviceID, "slot", slot)
+
+	// 执行 power cycle
+	if reloader, ok := w.Backend.(interface {
+		UIMPostSwitchReload(ctx context.Context, readiness qmimanager.UIMReadiness, opts qmimanager.UIMPostSwitchReloadOptions) (uint8, error)
+	}); ok {
+		rdy := qmimanager.UIMReadiness{SlotKnown: true, ActiveSlot: slot}
+		_, err := reloader.UIMPostSwitchReload(ctx, rdy, qmimanager.UIMPostSwitchReloadOptions{DefaultSlot: slot})
+		if err != nil {
+			return fmt.Errorf("UIMPostSwitchReload(slot=%d): %w", slot, err)
+		}
+	} else if power, ok := w.Backend.(postSwitchSIMPowerController); ok {
+		if err := power.UIMPowerOffSIM(ctx, slot); err != nil {
+			return fmt.Errorf("UIMPowerOffSIM(slot=%d): %w", slot, err)
+		}
+		time.Sleep(500 * time.Millisecond)
+		if err := power.UIMPowerOnSIM(ctx, slot); err != nil {
+			return fmt.Errorf("UIMPowerOnSIM(slot=%d): %w", slot, err)
+		}
+		time.Sleep(500 * time.Millisecond)
+	} else {
+		return fmt.Errorf("设备 %s 不支持 SIM power cycle", deviceID)
+	}
+
+	logger.Info("SIM 卡重载完成，等待 SIM 收敛后恢复 VoWiFi", "device", deviceID, "slot", slot)
+
+	// 异步恢复 VoWiFi
+	go func() {
+		if err := p.waitQMICoreReady(deviceID, 15*time.Second); err != nil {
+			logger.Warn("重载 SIM 后等待 QMI Core 就绪失败", "device", deviceID, "err", err)
+			return
+		}
+		if err := p.voWiFiHost().Recover(context.Background(), vowifihost.LifecycleRecoverRequest{
+			DeviceID: deviceID,
+			Reason:   "reload_sim",
+		}); err != nil {
+			logger.Warn("重载 SIM 后恢复 VoWiFi 失败", "device", deviceID, "err", err)
+		}
+	}()
+
+	return nil
 }

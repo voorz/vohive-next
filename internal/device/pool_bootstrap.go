@@ -803,6 +803,7 @@ func (p *Pool) addPCSCWorker(devCfg config.DeviceConfig) (*Worker, error) {
 		OnSwitchPhase: func(op esim.SwitchOperation, token uint64, phase esim.SwitchPhase) {
 			onPhase(token, phase)
 		},
+		OnOverviewUpdated: p.onEUICCOverviewUpdated,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("初始化 PC/SC eSIM 管理器失败: %w", err)

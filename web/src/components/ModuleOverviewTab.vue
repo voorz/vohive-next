@@ -6,21 +6,23 @@ import ModuleOverviewDevice from './ModuleOverviewDevice.vue'
 import ModuleOverviewNetwork from './ModuleOverviewNetwork.vue'
 
 defineProps<{
-  device: DeviceOverviewItem | null
-  trafficSpeedRx?: string
-  trafficSpeedTx?: string
-  trafficMinuteRx?: string
-  trafficMinuteTx?: string
-  isPCSC?: boolean
-  reconnectingVoWiFi?: boolean
-  rotating?: boolean
-  togglingVoWiFi?: boolean
+device: DeviceOverviewItem | null
+trafficSpeedRx?: string
+trafficSpeedTx?: string
+trafficMinuteRx?: string
+trafficMinuteTx?: string
+isPCSC?: boolean
+reconnectingVoWiFi?: boolean
+reloadingSIM?: boolean
+rotating?: boolean
+togglingVoWiFi?: boolean
 }>()
 
 defineEmits<{
-  'reconnect-vowifi': []
-  'rotate-ip': []
-  'toggle-vowifi': [enabled: boolean]
+'reconnect-vowifi': []
+'reload-sim': []
+'rotate-ip': []
+'toggle-vowifi': [enabled: boolean]
 }>()
 </script>
 
@@ -31,13 +33,15 @@ defineEmits<{
       :toggling-vo-wi-fi="togglingVoWiFi"
       @toggle-vowifi="$emit('toggle-vowifi', $event)"
     />
-    <ModuleOverviewStatus
-      :device="device"
-      :reconnecting-vo-wi-fi="reconnectingVoWiFi"
-      :rotating="rotating"
-      @reconnect-vowifi="$emit('reconnect-vowifi')"
-      @rotate-ip="$emit('rotate-ip')"
-    />
+<ModuleOverviewStatus
+:device="device"
+:reconnecting-vo-wi-fi="reconnectingVoWiFi"
+:reloading-s-i-m="reloadingSIM"
+:rotating="rotating"
+@reconnect-vowifi="$emit('reconnect-vowifi')"
+@reload-sim="$emit('reload-sim')"
+@rotate-ip="$emit('rotate-ip')"
+/>
     <ModuleOverviewDevice :device="device" />
     <ModuleOverviewNetwork
       v-if="!isPCSC && !device?.vowifi_enabled"

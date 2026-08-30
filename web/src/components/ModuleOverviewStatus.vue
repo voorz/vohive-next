@@ -15,11 +15,13 @@ import confetti from 'canvas-confetti'
 const props = defineProps<{
   device: DeviceOverviewItem | null
   reconnectingVoWiFi?: boolean
+  reloadingSIM?: boolean
   rotating?: boolean
 }>()
 
 const emit = defineEmits<{
   'reconnect-vowifi': []
+  'reload-sim': []
   'rotate-ip': []
 }>()
 
@@ -31,6 +33,12 @@ const isPCSC = computed(() => props.device?.esim_transport === 'pcsc')
 
 // ---- VoWiFi 状态 ----
 const vowifiEnabled = computed(() => !!props.device?.vowifi_enabled)
+
+// VoWiFi 已开启但 eUICC 不可用时显示"重载"按钮（基于 eSIM overview 缓存状态，通过 SSE 实时推送）
+const showReloadButton = computed(() => {
+  if (!vowifiEnabled.value) return false
+  return props.device?.euicc_available === false
+})
 
 const readinessItems = computed(() => {
   const rt = props.device?.vowifi_runtime
@@ -220,17 +228,47 @@ const networkModeIcon = computed(() => {
         <el-icon size="14"><Pulse24Regular /></el-icon>
       </div>
       <span class="ov-card-title">运行状态</span>
-      <button
-        v-if="vowifiEnabled || isPCSC"
-        class="ov-reconnect-btn"
-        :disabled="reconnectingVoWiFi || (isPCSC && !vowifiEnabled)"
-        @click="emit('reconnect-vowifi')"
-      >
-        <span>重连</span>
-      </button>
+      <template v-if="vowifiEnabled || isPCSC">
+        <el-popover
+          v-if="showReloadButton"
+          content="SIM 卡断电后重新上电，修复 UIM 状态异常"
+          placement="bottom"
+          :width="200"
+          trigger="hover"
+        >
+          <template #reference>
+            <button
+              class="ov-reconnect-btn"
+              style="margin-left: auto;"
+              :disabled="reconnectingVoWiFi || reloadingSIM"
+              @click="emit('reload-sim')"
+            >
+              <span>{{ reloadingSIM ? '重载中...' : '重载' }}</span>
+            </button>
+          </template>
+        </el-popover>
+        <el-popover
+          content="重新连接 VoWiFi 隧道，重建 IMS 注册"
+          placement="bottom"
+          :width="200"
+          trigger="hover"
+        >
+          <template #reference>
+            <button
+              class="ov-reconnect-btn"
+              :style="{ marginLeft: showReloadButton ? '8px' : 'auto' }"
+              :disabled="reconnectingVoWiFi || reloadingSIM || (isPCSC && !vowifiEnabled)"
+              @click="emit('reconnect-vowifi')"
+            >
+            <span>重连</span>
+          </button>
+          </template>
+        </el-popover>
+      </template>
       <button
         v-else
         class="ov-reconnect-btn"
+        style="margin-left: auto;"
         :disabled="!device?.network_connected || rotating"
         @click="emit('rotate-ip')"
       >
@@ -410,7 +448,6 @@ const networkModeIcon = computed(() => {
   border-bottom: 1px solid var(--border);
 }
 .ov-reconnect-btn {
-margin-left: auto;
 display: inline-flex;
 align-items: center;
 height: 24px;

@@ -719,6 +719,39 @@ paths:
       summary: DeviceMgmtRefreshInfo
       tags:
       - devices
+  /devices/{device_id}/actions/reload-sim:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: device_id
+        in: path
+        name: device_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 参数错误
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: 未授权
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: DeviceMgmtReloadSIM
+      tags:
+      - devices
   /devices/{device_id}/actions/ussd:
     post:
       consumes:

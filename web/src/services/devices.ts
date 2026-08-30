@@ -192,6 +192,12 @@ export const devicesService = {
       return true
     })
   },
+  reloadSIM(id: string) {
+    return callService(async () => {
+      await api.post(`/devices/${id}/actions/reload-sim`)
+      return true
+    })
+  },
   startE911Websheet(id: string) {
     return callService(async () => {
       const res = await api.post<CarrierWebsheetInfo>(`/devices/${id}/vowifi/e911/websheet`)
