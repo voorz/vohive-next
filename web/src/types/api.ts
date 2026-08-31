@@ -281,6 +281,7 @@ export type EsimProfileItem = {
   profile_size_bytes?: number
   profile_size_formatted?: string
   profile_alias?: string
+  profile_name?: string
 }
 
 export type EsimEUICCProfiles = {

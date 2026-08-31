@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from './stores/auth'
+import zhCn from 'element-plus/es/locale/lang/zh-cn'
 
 type ThemeMode = 'auto' | 'light' | 'dark'
 
@@ -64,16 +65,18 @@ const shell = computed(() =>
 </script>
 
 <template>
-  <div class="h-screen w-screen overflow-hidden bg-[#F8F8F8] dark:bg-[#111111] text-gray-900 dark:text-gray-100 font-sans selection:bg-indigo-500 selection:text-white transition-colors duration-300">
-    <Suspense>
-      <template #default>
-        <component :is="shell" :is-dark="isDark" :theme="themeMode" @set-theme="setTheme" />
-      </template>
-      <template #fallback>
-        <div></div>
-      </template>
-    </Suspense>
-  </div>
+  <el-config-provider :locale="zhCn">
+    <div class="h-screen w-screen overflow-hidden bg-[#F8F8F8] dark:bg-[#111111] text-gray-900 dark:text-gray-100 font-sans selection:bg-indigo-500 selection:text-white transition-colors duration-300">
+      <Suspense>
+        <template #default>
+          <component :is="shell" :is-dark="isDark" :theme="themeMode" @set-theme="setTheme" />
+        </template>
+        <template #fallback>
+          <div></div>
+        </template>
+      </Suspense>
+    </div>
+  </el-config-provider>
 </template>
 
 <style>

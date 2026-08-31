@@ -103,18 +103,16 @@ function formatBytes(bytes: number): string {
         </div>
         <div class="chip-card-cap-item">
           <span class="chip-card-cap-label">剩余</span>
-          <el-popover
-            :visible="freeCapacityLow"
-            trigger="hover"
+          <el-tooltip
+            :disabled="!freeCapacityLow"
             placement="bottom"
-            :width="240"
-            :popper-style="{ textAlign: 'center' }"
+            :popper-style="{ textAlign: 'center', width: '240px' }"
             content="容量不足，请确保充足的容量以避免炸卡！"
           >
-            <template #reference>
+            <template #default>
               <span class="chip-card-cap-value" :class="{ 'cap-warn': freeCapacityLow }">{{ freeDisplay }}</span>
             </template>
-          </el-popover>
+          </el-tooltip>
         </div>
         <div class="chip-card-cap-item">
           <span class="chip-card-cap-label">已用</span>

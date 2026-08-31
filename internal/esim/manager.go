@@ -249,6 +249,7 @@ type ProfileItem struct {
 	ProfileSizeBytes    int    `json:"profile_size_bytes,omitempty"`    // profile 实际占用字节（来自 esimstore 查询）
 	ProfileSizeFormatted string `json:"profile_size_formatted,omitempty"` // 人类可读大小（如 "38.10 kb"）
 	ProfileAlias         string `json:"profile_alias,omitempty"`          // profile 别名（来自 esimstore names[0]）
+	ProfileName          string `json:"profile_name,omitempty"`           // SGP22 ProfileName（SM-DP+ 写入的产品名，不可改）
 }
 
 // EUICCProfiles 按 eUICC 分组的 profile 列表
@@ -1889,6 +1890,7 @@ func buildProfileGroup(eidStr string, aid []byte, profiles []*sgp22.ProfileInfo)
 			MNC:                 p.ProfileOwner.MNC(),
 			GID1:                hex.EncodeToString(p.ProfileOwner.GID1),
 			GID2:                hex.EncodeToString(p.ProfileOwner.GID2),
+			ProfileName:         p.ProfileName,
 		})
 	}
 	return group

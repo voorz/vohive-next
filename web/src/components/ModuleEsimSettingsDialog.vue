@@ -1,11 +1,19 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import { devicesService } from '../services/devices'
 import { errorMessage } from '../services/http'
 import type { EsimProfileItem } from '../types/api'
 import EsimCardPolicyInline from './EsimCardPolicyInline.vue'
 import { Delete24Regular, Edit24Regular } from '@vicons/fluent'
+import {
+  parseNickname,
+  formatNickname,
+  createDateTagRaw,
+  createTextTagRaw,
+  type ProfileTag,
+  type DateTag,
+} from '../utils/profileTagUtils'
 
 const props = defineProps<{
   visible: boolean
@@ -23,26 +31,113 @@ const emit = defineEmits<{
   'policy-changed': []
 }>()
 
+// === 名称 + 标签状态 ===
+// nameValue 只存纯名称（不含标签编码）
 const nameValue = ref('')
-const nameEditing = ref(false)
+const editing = ref(false)
 const deleting = ref(false)
 const saving = ref(false)
 
+// 标签编辑状态
+const dateTagEnabled = ref(false)
+const dateTagValue = ref<Date | null>(null)
+const dateTagNote = ref('')
+const textTagEnabled = ref(false)
+const textTagValue = ref('')
+
+// 当前已保存的标签列表（从 profile.name 解析）
+const savedTags = ref<ProfileTag[]>([])
+
+// 从原始 name 字段解析出的纯名称
+const parsedName = computed(() => {
+  if (!props.profile) return ''
+  const parsed = parseNickname(props.profile.name)
+  return parsed.name
+})
+
 watch(() => props.visible, (open) => {
   if (open && props.profile) {
-    nameValue.value = props.profile.name || ''
-    nameEditing.value = false
+    const parsed = parseNickname(props.profile.name)
+    nameValue.value = parsed.name
+    savedTags.value = parsed.tags
+    editing.value = false
+    initTagEditors()
   }
 })
 
 watch(() => props.profile, (p) => {
-  if (p) nameValue.value = p.name || ''
+  if (p) {
+    const parsed = parseNickname(p.name)
+    nameValue.value = parsed.name
+    savedTags.value = parsed.tags
+    initTagEditors()
+  }
 })
 
-function startEditName() {
-  nameEditing.value = true
+// 初始化标签编辑器（从已保存标签回填）
+function initTagEditors() {
+  const dateTag = savedTags.value.find((t): t is DateTag => t.type === 'date')
+  const textTag = savedTags.value.find((t) => t.type === 'text')
+
+  if (dateTag) {
+    dateTagEnabled.value = true
+    dateTagValue.value = new Date(dateTag.date)
+    dateTagNote.value = dateTag.note || ''
+  } else {
+    dateTagEnabled.value = false
+    dateTagValue.value = null
+    dateTagNote.value = ''
+  }
+
+  if (textTag) {
+    textTagEnabled.value = true
+    textTagValue.value = textTag.text
+  } else {
+    textTagEnabled.value = false
+    textTagValue.value = ''
+  }
 }
 
+function startEdit() {
+  editing.value = true
+}
+
+function cancelEdit() {
+  editing.value = false
+  // 回滚到已保存状态
+  if (props.profile) {
+    const parsed = parseNickname(props.profile.name)
+    nameValue.value = parsed.name
+    savedTags.value = parsed.tags
+    initTagEditors()
+  }
+}
+
+// 构建当前编辑中的标签列表
+function buildTagsFromEditors(): ProfileTag[] {
+  const tags: ProfileTag[] = []
+  if (dateTagEnabled.value && dateTagValue.value) {
+    tags.push({
+      type: 'date',
+      raw: createDateTagRaw(dateTagValue.value, dateTagNote.value),
+      date: dateTagValue.value,
+      note: dateTagNote.value.trim() || undefined,
+      displayDate: '',
+      countdownDays: 0,
+      expired: false,
+    })
+  }
+  if (textTagEnabled.value && textTagValue.value.trim()) {
+    tags.push({
+      type: 'text',
+      raw: createTextTagRaw(textTagValue.value),
+      text: textTagValue.value.trim(),
+    })
+  }
+  return tags
+}
+
+// 保存名称（含标签）
 async function saveName() {
   if (!props.profile) return
   const name = nameValue.value.trim()
@@ -50,33 +145,49 @@ async function saveName() {
     ElMessage.warning('名称不能为空')
     return
   }
-  if (name === props.profile.name) {
-    nameEditing.value = false
+
+  // 组装完整 Nickname（纯名称 + 标签）
+  const tags = buildTagsFromEditors()
+  const fullNickname = formatNickname(name, tags)
+
+  // 检查是否有变化
+  if (fullNickname === props.profile.name) {
+    editing.value = false
     return
   }
+
   saving.value = true
   try {
     const result = await devicesService.renameEsimProfile(props.deviceId, props.profile.iccid, {
-      name,
+      name: fullNickname,
       aid_hex: props.aidHex
     })
     if (!result.ok) throw new Error(result.error.message || '修改名称失败')
-    ElMessage.success('名称修改成功')
+    ElMessage.success('保存成功')
     emit('renamed')
-    nameEditing.value = false
+    editing.value = false
   } catch (e: unknown) {
-    ElMessage.error(errorMessage(e, '修改名称失败'))
+    ElMessage.error(errorMessage(e, '保存失败'))
   } finally {
     saving.value = false
   }
 }
+
+// 名称和标签是否有未保存改动
+const hasUnsavedChanges = computed(() => {
+  if (!props.profile) return false
+  const name = nameValue.value.trim()
+  const tags = buildTagsFromEditors()
+  const fullNickname = formatNickname(name, tags)
+  return fullNickname !== props.profile.name
+})
 
 async function deleteProfile() {
   if (!props.profile) return
   const iccid = props.profile.iccid
   const last4 = iccid.slice(-4)
   const { value: input } = await ElMessageBox.prompt(
-    `此操作不可逆！请输入 ICCID 后 4 位「${last4}」以确认删除 Profile「${props.profile.name}」`,
+    `此操作不可逆！请输入 ICCID 后 4 位「${last4}」以确认删除 Profile「${parsedName.value}」`,
     '删除 Profile',
     {
       confirmButtonText: '确认删除',
@@ -127,33 +238,77 @@ function close() {
       <!-- 名称 -->
       <div class="settings-section">
         <div class="settings-section-label">名称</div>
-        <div class="name-row">
-          <el-input
-            v-model="nameValue"
-            :disabled="!nameEditing"
-            placeholder="输入名称"
-            size="default"
-            class="name-input"
-            @keyup.enter="saveName"
-          />
+        <div class="settings-section-hint">名称和标签会随 Nickname 一起写入 eUICC，跨设备持久保留</div>
+
+        <el-input
+          v-model="nameValue"
+          :disabled="!editing"
+          placeholder="输入名称"
+          size="default"
+          class="name-input"
+          @keyup.enter="saveName"
+        />
+
+        <div class="tag-edit-area">
+          <div class="tag-edit-item">
+            <el-checkbox v-model="dateTagEnabled" :disabled="!editing">日期标签</el-checkbox>
+            <div v-if="dateTagEnabled" class="tag-edit-controls">
+              <el-date-picker
+                v-model="dateTagValue"
+                type="date"
+                placeholder="选择日期"
+                size="default"
+                format="YYYY-MM-DD"
+                :clearable="true"
+                :disabled="!editing"
+                class="tag-date-picker"
+              />
+              <el-input
+                v-model="dateTagNote"
+                placeholder="备注（可选）"
+                size="default"
+                class="tag-note-input"
+                maxlength="30"
+                :disabled="!editing"
+              />
+            </div>
+          </div>
+
+          <div class="tag-edit-item">
+            <el-checkbox v-model="textTagEnabled" :disabled="!editing">文本标签</el-checkbox>
+            <div v-if="textTagEnabled" class="tag-edit-controls">
+              <el-input
+                v-model="textTagValue"
+                placeholder="输入文本（如：备用卡）"
+                size="default"
+                maxlength="20"
+                class="tag-text-input"
+                :disabled="!editing"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="save-row">
           <el-button
-            v-if="!nameEditing"
-            text
-            size="default"
-            class="name-action-btn"
-            @click="startEditName"
-          >
-            <el-icon size="16"><Edit24Regular /></el-icon>
-            <span>修改</span>
-          </el-button>
-          <el-button
-            v-else
+            v-if="!editing"
             type="primary"
             size="default"
-            class="name-action-btn"
-            :loading="saving"
-            @click="saveName"
-          >保存</el-button>
+            @click="startEdit"
+          >管理</el-button>
+          <template v-else>
+            <el-button
+              type="primary"
+              size="default"
+              :loading="saving"
+              :disabled="!hasUnsavedChanges"
+              @click="saveName"
+            >保存</el-button>
+            <el-button
+              size="default"
+              @click="cancelEdit"
+            >取消</el-button>
+          </template>
         </div>
       </div>
 
@@ -218,20 +373,47 @@ function close() {
   padding: 0 2px;
 }
 
-/* Name 行 */
-.name-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* 名称输入框 */
+.name-input {
+  width: 100%;
 }
 
-.name-input {
+/* 标签编辑区域 */
+.tag-edit-area {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tag-edit-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tag-edit-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.tag-date-picker {
+  flex-shrink: 0;
+}
+
+.tag-note-input {
   flex: 1;
   min-width: 0;
 }
 
-.name-action-btn {
-  flex-shrink: 0;
+.tag-text-input {
+  flex: 1;
+}
+
+/* 保存行 */
+.save-row {
+  display: flex;
+  gap: 8px;
 }
 
 /* 底部 */

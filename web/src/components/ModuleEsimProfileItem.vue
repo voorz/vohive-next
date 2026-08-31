@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import type { EsimProfileItem } from '../types/api'
-import { Settings24Regular } from '@vicons/fluent'
+import { Settings24Regular, CalendarAdd24Regular, Tag24Regular } from '@vicons/fluent'
 import CountryFlag from './CountryFlag.vue'
 import CarrierIcon from './CarrierIcon.vue'
 import { phoneToIso } from '../utils/phone-flag'
 import { mccToIso } from '../composables/plmn-info'
 import { useProviderLogo, autoDownloadIcon } from '../composables/useProviderLogo'
+import { parseNickname, type DateTag, type TextTag } from '../utils/profileTagUtils'
 
 const props = defineProps<{
   profile: EsimProfileItem
@@ -20,11 +21,17 @@ const emit = defineEmits<{
   'open-settings': [profile: EsimProfileItem, aidHex: string]
 }>()
 
+// 解析 Nickname：拆分纯名称 + 标签
+const parsed = computed(() => parseNickname(props.profile.name))
+const displayName = computed(() => parsed.value.name || props.profile.service_provider_name || props.profile.iccid)
+const dateTags = computed(() => parsed.value.tags.filter((t): t is DateTag => t.type === 'date'))
+const textTags = computed(() => parsed.value.tags.filter((t): t is TextTag => t.type === 'text'))
+
 // 优先用 PLMN (MCC+MNC) 匹配国旗，回退用手机号 phoneToIso
 const flagIso = computed(() => {
   const iso = mccToIso(props.profile.mcc, props.profile.mnc)
   if (iso) return iso
-  return phoneToIso(props.profile.name)
+  return phoneToIso(parsed.value.name)
 })
 const isActive = computed(() => props.profile.state === 1)
 
@@ -42,6 +49,16 @@ watch(plmn, (val) => {
     autoDownloadIcon(val.mcc, val.mnc, props.profile.service_provider_name)
   }
 })
+
+// 容量胶囊颜色分级：<30kb 品牌色，30-50kb 黄色，>50kb 红色
+const sizePillClass = computed(() => {
+  const bytes = props.profile.profile_size_bytes ?? 0
+  if (bytes <= 0) return ''
+  const kb = bytes / 1024
+  if (kb < 30) return 'size-ok'
+  if (kb <= 50) return 'size-warn'
+  return 'size-danger'
+})
 </script>
 
 <template>
@@ -52,16 +69,16 @@ watch(plmn, (val) => {
         <!-- 运营商图标盒子 -->
         <div class="profile-card-logo">
           <CarrierIcon v-if="plmn" :mcc="plmn.mcc" :mnc="plmn.mnc" :name="profile.service_provider_name" :size="42" />
-          <span v-else class="profile-card-logo-fallback">{{ (profile.service_provider_name || profile.name || '?').charAt(0).toUpperCase() }}</span>
+          <span v-else class="profile-card-logo-fallback">{{ (profile.service_provider_name || displayName || '?').charAt(0).toUpperCase() }}</span>
         </div>
 
         <!-- 内容区 -->
         <div class="profile-card-content">
-          <!-- 第一行：国旗 + 名称 + 切换按钮 + 齿轮 -->
+          <!-- 第一行：国旗 + 名称 + 切换按钮 -->
           <div class="profile-card-line1">
             <CountryFlag v-if="flagIso" :iso="flagIso" :size="18" />
             <span class="profile-card-name" :class="{ masked: !showSensitive }">
-              {{ profile.name || profile.service_provider_name || profile.iccid }}
+              {{ displayName }}
             </span>
             <button
               class="profile-card-switch"
@@ -72,6 +89,13 @@ watch(plmn, (val) => {
             >
               <span class="profile-card-switch-dot" />
             </button>
+          </div>
+
+          <!-- 第二行：ICCID + 齿轮 -->
+          <div class="profile-card-line2">
+            <span class="profile-card-iccid" :class="{ masked: !showSensitive }">
+              {{ profile.iccid }}
+            </span>
             <el-button
               class="profile-card-gear"
               text
@@ -82,13 +106,6 @@ watch(plmn, (val) => {
             </el-button>
           </div>
 
-          <!-- 第二行：ICCID -->
-          <div class="profile-card-line2">
-            <span class="profile-card-iccid" :class="{ masked: !showSensitive }">
-              {{ profile.iccid }}
-            </span>
-          </div>
-
           <!-- 第三行：AID -->
           <div v-if="profile.isdp_aid" class="profile-card-line2">
             <span class="profile-card-isdp" :class="{ masked: !showSensitive }">
@@ -96,19 +113,47 @@ watch(plmn, (val) => {
             </span>
           </div>
 
-          <!-- 第四行：运营商名称 + 别名 -->
-          <div v-if="profile.service_provider_name || profile.profile_alias" class="profile-card-line3">
-            <span v-if="profile.service_provider_name" class="profile-card-spn">{{ profile.service_provider_name }}</span>
-            <span v-if="profile.profile_alias" class="profile-card-alias">| {{ profile.profile_alias }}</span>
-          </div>
+<!-- 第四行：运营商名称 + ProfileName -->
+<div v-if="profile.service_provider_name || profile.profile_name" class="profile-card-line3">
+  <span v-if="profile.service_provider_name" class="profile-card-spn">{{ profile.service_provider_name }}</span>
+  <span v-if="profile.profile_name" class="profile-card-alias">| {{ profile.profile_name }}</span>
+</div>
 
-          <!-- 第五行：PLMN + 容量胶囊 -->
-          <div v-if="profile.mcc || profile.mnc || profile.profile_size_formatted" class="profile-card-gid-row">
+          <!-- 第五行：PLMN + 容量胶囊 + 文本标签 -->
+          <div v-if="profile.mcc || profile.mnc || profile.profile_size_formatted || textTags.length > 0" class="profile-card-gid-row">
             <span v-if="profile.mcc || profile.mnc" class="profile-card-plmn-tag">
               {{ profile.mcc }}{{ profile.mnc ? '-' + profile.mnc : '' }}
             </span>
-            <span v-if="profile.profile_size_formatted" class="profile-card-size-pill">
+            <span
+              v-if="profile.profile_size_formatted"
+              class="profile-card-size-pill"
+              :class="sizePillClass"
+            >
               {{ profile.profile_size_formatted }}
+            </span>
+            <span
+              v-for="tag in textTags"
+              :key="tag.raw"
+              class="profile-card-tag-pill tag-text"
+            >
+              <el-icon size="10" class="tag-pill-icon"><Tag24Regular /></el-icon>
+              {{ tag.text }}
+            </span>
+          </div>
+
+          <!-- 第六行：日期标签胶囊 -->
+          <div v-if="dateTags.length > 0" class="profile-card-date-row">
+            <span
+              v-for="tag in dateTags"
+              :key="tag.raw"
+              class="profile-card-tag-pill"
+              :class="tag.expired ? 'tag-date-expired' : 'tag-date'"
+            >
+              <el-icon size="10" class="tag-pill-icon"><CalendarAdd24Regular /></el-icon>
+              <span class="tag-pill-date">{{ tag.displayDate }}</span>
+              <span v-if="tag.note" class="tag-pill-note">{{ tag.note }}</span>
+              <span v-if="tag.countdownDays >= 0" class="tag-pill-countdown">({{ tag.countdownDays }}天)</span>
+              <span v-if="tag.expired" class="tag-pill-expired">已过期</span>
             </span>
           </div>
         </div>
@@ -249,6 +294,23 @@ watch(plmn, (val) => {
   flex-shrink: 0;
 }
 
+/* 容量胶囊颜色分级 */
+.profile-card-size-pill.size-ok {
+  color: var(--success);
+  background: color-mix(in oklab, var(--success) 12%, transparent);
+  border-color: color-mix(in oklab, var(--success) 24%, transparent);
+}
+.profile-card-size-pill.size-warn {
+  color: var(--warning);
+  background: color-mix(in oklab, var(--warning) 14%, transparent);
+  border-color: color-mix(in oklab, var(--warning) 28%, transparent);
+}
+.profile-card-size-pill.size-danger {
+  color: var(--destructive);
+  background: color-mix(in oklab, var(--destructive) 14%, transparent);
+  border-color: color-mix(in oklab, var(--destructive) 28%, transparent);
+}
+
 /* 切换按钮 — toggle switch 样式 */
 .profile-card-switch {
   width: 32px;
@@ -256,7 +318,7 @@ watch(plmn, (val) => {
   border: none;
   border-radius: 999px;
   background: var(--muted-foreground);
-  opacity: 0.3;
+  opacity: 0.4;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -264,8 +326,11 @@ watch(plmn, (val) => {
   flex-shrink: 0;
   transition: all 0.2s;
 }
+.profile-card-switch:hover:not(:disabled) {
+  opacity: 0.6;
+}
 .profile-card-switch:disabled {
-  opacity: 0.5;
+  opacity: 0.3;
   cursor: not-allowed;
 }
 
@@ -348,5 +413,69 @@ watch(plmn, (val) => {
   opacity: 0.7;
   flex-shrink: 0;
   white-space: nowrap;
+}
+
+/* 标签胶囊 — 日期 + 文本 */
+.profile-card-tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--oomol-font-mono);
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.tag-pill-icon {
+  flex-shrink: 0;
+}
+
+.profile-card-tag-pill.tag-text {
+  color: var(--brand);
+  background: color-mix(in oklab, var(--brand) 12%, transparent);
+  border-color: color-mix(in oklab, var(--brand) 24%, transparent);
+}
+
+.profile-card-tag-pill.tag-date {
+  color: var(--warning);
+  background: color-mix(in oklab, var(--warning) 14%, transparent);
+  border-color: color-mix(in oklab, var(--warning) 28%, transparent);
+}
+
+.profile-card-tag-pill.tag-date-expired {
+  color: var(--destructive);
+  background: color-mix(in oklab, var(--destructive) 14%, transparent);
+  border-color: color-mix(in oklab, var(--destructive) 28%, transparent);
+}
+
+.tag-pill-date {
+  font-family: var(--oomol-font-mono);
+}
+
+.tag-pill-note {
+  opacity: 0.8;
+}
+
+.tag-pill-countdown {
+  opacity: 0.7;
+  font-size: 9px;
+}
+
+.tag-pill-expired {
+  font-size: 9px;
+  font-weight: 700;
+  opacity: 0.9;
+}
+
+/* 日期标签行 */
+.profile-card-date-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
 }
 </style>
