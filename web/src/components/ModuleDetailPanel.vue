@@ -24,6 +24,7 @@ import ModuleControlGrid from './ModuleControlGrid.vue'
 import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
 import { useSimOperatorDisplay } from '../composables/useSimOperatorDisplay'
 import { ArrowSync24Regular, Add24Regular, ChevronUp24Regular } from '@vicons/fluent'
+import { MenuRound } from '@vicons/material'
 import { cardsService } from '../services/cards'
 import type { CardPolicy } from '../types/api'
 import { devicesService } from '../services/devices'
@@ -201,6 +202,9 @@ const activeTab = ref('overview')
 // 开关抽屉
 const controlDrawerOpen = ref(false)
 
+// 切换 Tab 时关闭抽屉
+watch(activeTab, () => { controlDrawerOpen.value = false })
+
 // Tab 列表（PC/SC 设备隐藏 AT/USSD）
 const allTabs = [
   { name: 'overview', label: '概览' },
@@ -238,6 +242,10 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
 
 <template>
   <div class="module-detail-panel">
+    <!-- 模糊遮罩：展开时覆盖 tab-content 区域（在 scroll container 外） -->
+    <Transition name="fade">
+      <div v-if="!isPCSC && controlDrawerOpen && activeTab === 'overview'" class="control-drawer-mask" @click="controlDrawerOpen = false" />
+    </Transition>
     <!-- 详情头部 (60px) -->
     <div v-if="detail" class="detail-header">
       <!-- 窄屏下拉选择器 + 添加按钮 + 重启模组 -->
@@ -298,35 +306,31 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
 
       <!-- Tab 内容区 -->
     <div v-if="detail" class="tab-content">
-        <!-- 开关抽屉：收起时只占12px高度露出U型弧，展开时卡片浮于内容上方 -->
-        <div v-if="!isPCSC" class="control-drawer-slot">
-          <!-- 收起状态：露出弧线 + 双横线图标 -->
-          <div v-if="!controlDrawerOpen" class="control-drawer-tab" @click="controlDrawerOpen = true">
-            <span class="control-drawer-grip"></span>
-          </div>
-          <!-- 展开状态：卡片 absolute 浮于上方 -->
-          <Transition name="drawer-slide">
-            <div v-if="controlDrawerOpen" class="control-drawer-popup">
-              <ModuleControlGrid
-                :device="detail"
-                :policy="cardPolicy"
-                :device-online="detail.running"
-                :is-p-c-s-c="isPCSC"
-                @changed="onCardPolicyChanged"
-              />
-              <!-- 关闭手柄（卡片底部，向上收起） -->
-              <div class="control-drawer-close" @click="controlDrawerOpen = false">
-                <el-icon size="14"><ChevronUp24Regular /></el-icon>
-              </div>
-            </div>
-          </Transition>
-          <!-- 遮罩 -->
-          <Transition name="fade">
-            <div v-if="controlDrawerOpen" class="control-drawer-mask" @click="controlDrawerOpen = false" />
-          </Transition>
-        </div>
         <!-- 概览 -->
         <div v-if="activeTab === 'overview'" class="tab-pane tab-pane--auto">
+          <!-- 开关抽屉：收起时只占弧形手柄高度，展开时卡片浮于内容上方 -->
+          <div v-if="!isPCSC" class="control-drawer-slot">
+            <!-- 收起状态：弧形手柄 + Menu 图标 -->
+            <div v-if="!controlDrawerOpen" class="control-drawer-tab" @click="controlDrawerOpen = true">
+              <el-icon size="16"><MenuRound /></el-icon>
+            </div>
+            <!-- 展开状态：卡片 absolute 浮于上方 -->
+            <Transition name="drawer-slide">
+              <div v-if="controlDrawerOpen" class="control-drawer-popup">
+                <ModuleControlGrid
+                  :device="detail"
+                  :policy="cardPolicy"
+                  :device-online="detail.running"
+                  :is-p-c-s-c="isPCSC"
+                  @changed="onCardPolicyChanged"
+                />
+                <!-- 关闭手柄（卡片底部，向上收起） -->
+                <div class="control-drawer-close" @click="controlDrawerOpen = false">
+                  <el-icon size="14"><ChevronUp24Regular /></el-icon>
+                </div>
+              </div>
+            </Transition>
+          </div>
           <ModuleOverviewTab
             :device="detail"
             :policy="cardPolicy"
@@ -410,6 +414,7 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
   border-radius: 8px;
   background: var(--card);
   overflow: hidden;
+  position: relative;
 }
 
 /* 头部 — 60px 统一高度 */
@@ -422,6 +427,8 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
   padding: 0 12px;
   border-bottom: 1px solid var(--border);
   overflow: hidden;
+  position: relative;
+  z-index: 200;
 }
 
 .detail-header-narrow {
@@ -556,6 +563,8 @@ display: flex;
 padding: 12px;
 border-bottom: 1px solid var(--border);
 flex-shrink: 0;
+position: relative;
+z-index: 200;
 }
 .tab-bar :deep(.el-radio-group) {
 flex: 1;
@@ -576,15 +585,16 @@ overflow: hidden;
 text-overflow: ellipsis;
 }
 
-/* 开关抽屉槽位：收起时只占12px，展开时 absolute 不占空间 */
+/* 开关抽屉槽位：sticky 吸顶（不随容器滚动），抵消 tab-content padding-top */
 .control-drawer-slot {
-  position: relative;
+  position: sticky;
+  top: -12px;
   height: 24px;
-  margin: 0 -12px 8px;
+  margin-top: -12px;
   z-index: 100;
 }
 
-/* 收起状态：U型弧线 + 双横线图标 */
+/* 收起状态：贴 tab-bar 底边的弧形手柄，宽度与其他卡片一致 */
 .control-drawer-tab {
   display: flex;
   align-items: center;
@@ -593,8 +603,6 @@ text-overflow: ellipsis;
   background: var(--muted);
   border: 1px solid var(--border);
   border-top: none;
-  border-left: none;
-  border-right: none;
   border-radius: 0 0 10px 10px;
   color: var(--muted-foreground);
   cursor: pointer;
@@ -606,38 +614,17 @@ text-overflow: ellipsis;
   border-color: color-mix(in oklab, var(--brand) 30%, var(--border));
 }
 
-/* 双横线 grip 图标 */
-.control-drawer-grip {
-  display: block;
-  width: 20px;
-  height: 2px;
-  background: currentColor;
-  position: relative;
-  border-radius: 1px;
-  opacity: 0.6;
-}
-.control-drawer-grip::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -5px;
-  height: 2px;
-  background: currentColor;
-  border-radius: 1px;
-}
-
-/* 展开状态：卡片 absolute 浮于内容上方，宽度与其他卡片一致 */
+/* 展开状态：卡片 absolute 浮于内容上方，上移 1px 确保与容器顶部无缝衔接 */
 .control-drawer-popup {
   position: absolute;
-  top: 0;
+  top: -1px;
   left: 0;
   right: 0;
   z-index: 101;
 }
 .control-drawer-popup :deep(.ctrl-grid) {
-  border-radius: 8px 8px 0 0;
-  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
+  border-radius: 0 0 8px 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 }
 
 /* 关闭手柄（卡片底部，居中） */
@@ -662,13 +649,10 @@ text-overflow: ellipsis;
   color: var(--brand);
 }
 
-/* 遮罩：覆盖整个内容区（含 padding 区域） */
+/* 遮罩：覆盖整个面板，header/tab-bar 通过 z-index 浮于遮罩之上 */
 .control-drawer-mask {
   position: absolute;
-  left: -12px;
-  right: -12px;
-  top: -12px;
-  bottom: -12px;
+  inset: 0;
   z-index: 99;
   background: rgba(0, 0, 0, 0.25);
   -webkit-backdrop-filter: blur(2px);
