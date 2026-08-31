@@ -202,6 +202,7 @@ function formatBytes(bytes: number): string {
 
 .chip-icon-btn .spin {
   animation: chip-spin 0.8s linear infinite;
+  color: var(--brand);
 }
 
 @keyframes chip-spin {

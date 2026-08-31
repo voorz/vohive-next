@@ -127,7 +127,7 @@ const gridVariant = computed(() => {
       <el-switch
         :model-value="local.vowifi_enabled"
         :loading="vowifiPending"
-        :disabled="!canToggle || vowifiPending || (isPCSC && !local.vowifi_enabled)"
+        :disabled="!canToggle || vowifiPending"
         @update:model-value="onVoWiFiToggle"
       />
     </div>

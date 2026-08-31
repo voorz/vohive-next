@@ -244,7 +244,7 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
   <div class="module-detail-panel">
     <!-- 模糊遮罩：展开时覆盖 tab-content 区域（在 scroll container 外） -->
     <Transition name="fade">
-      <div v-if="!isPCSC && controlDrawerOpen && activeTab === 'overview'" class="control-drawer-mask" @click="controlDrawerOpen = false" />
+      <div v-if="controlDrawerOpen && activeTab === 'overview'" class="control-drawer-mask" @click="controlDrawerOpen = false" />
     </Transition>
     <!-- 详情头部 (60px) -->
     <div v-if="detail" class="detail-header">
@@ -309,7 +309,7 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
         <!-- 概览 -->
         <div v-if="activeTab === 'overview'" class="tab-pane tab-pane--auto">
           <!-- 开关抽屉：收起时只占弧形手柄高度，展开时卡片浮于内容上方 -->
-          <div v-if="!isPCSC" class="control-drawer-slot">
+          <div class="control-drawer-slot">
             <!-- 收起状态：弧形手柄 + Menu 图标 -->
             <div v-if="!controlDrawerOpen" class="control-drawer-tab" @click="controlDrawerOpen = true">
               <el-icon size="16"><MenuRound /></el-icon>
