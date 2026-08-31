@@ -477,6 +477,7 @@ type deviceMgmtListItem struct {
 	VoWiFiEnabled          bool                `json:"vowifi_enabled"`
 	VoWiFiActive           bool                `json:"vowifi_active"`
 	VoWiFiRuntime          *voWiFiRuntimeDTO   `json:"vowifi_runtime,omitempty"`
+	EUICCAvailable         *bool               `json:"euicc_available,omitempty"`
 	Modem                  deviceMgmtListModem `json:"modem"`
 	NetworkConnected       bool                `json:"network_connected"`
 	RegistrationStateLabel string              `json:"registration_state_label"`

@@ -13,7 +13,7 @@ import {
   WifiWarning24Filled,
   ArrowSort24Regular
 } from '@vicons/fluent'
-import { WifiCalling3Round } from '@vicons/material'
+import { WifiCalling3Round, SimCardAlertRound, SimCardRound, NoSimOutlined } from '@vicons/material'
 import { Airplane } from '@vicons/ionicons5'
 import { loadPlmnCatalog } from '../composables/plmn-catalog'
 import { downloadIcon, getCachedIcon } from '../composables/useOperatorIcon'
@@ -191,6 +191,18 @@ function vowifiState(d: DeviceMgmtListItem): 'off' | 'enabled-not-ready' | 'read
   return 'enabled-not-ready'
 }
 
+// eUICC 状态图标
+function simIcon(d: DeviceMgmtListItem) {
+  if (d.euicc_available === true) return SimCardRound
+  if (d.euicc_available === false) return SimCardAlertRound
+  return NoSimOutlined
+}
+function simIconColor(d: DeviceMgmtListItem): string {
+  if (d.euicc_available === true) return 'var(--brand)'
+  if (d.euicc_available === false) return 'var(--destructive)'
+  return 'var(--muted-foreground)'
+}
+
 // VoWiFi 6格就绪状态
 function readinessItems(d: DeviceMgmtListItem) {
   const rt = d?.vowifi_runtime
@@ -267,6 +279,9 @@ function readinessItems(d: DeviceMgmtListItem) {
                     <UsbStick20Regular />
                   </el-icon>
                 </template>
+                <el-icon size="20" class="vohive-rattlesnake-sim" :style="{ color: simIconColor(item) }" :title="item.euicc_available === true ? 'eUICC 可用' : item.euicc_available === false ? 'eUICC 不可用' : 'eUICC 状态未知'">
+                  <component :is="simIcon(item)" />
+                </el-icon>
                 <el-icon size="20" class="vohive-rattlesnake-vowifi" :class="vowifiState(item)">
                   <WifiCalling3Round v-if="vowifiState(item) === 'ready'" />
                   <WifiWarning24Filled v-else-if="vowifiState(item) === 'enabled-not-ready'" />
@@ -421,6 +436,11 @@ function readinessItems(d: DeviceMgmtListItem) {
   color: #00bc7d;
   opacity: 0.8;
   flex-shrink: 0;
+}
+
+.vohive-rattlesnake-sim {
+  flex-shrink: 0;
+  transition: color 0.15s;
 }
 
 .vohive-rattlesnake-vowifi {

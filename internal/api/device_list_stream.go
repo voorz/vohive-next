@@ -123,6 +123,7 @@ func (s *Server) handleDeviceMgmtListStream(c *gin.Context) {
 				VoWiFiEnabled:          cardPolicyVoWiFiEnabled(status.ICCID, cfg.VoWiFiEnabled),
 				VoWiFiActive:           s.pool.IsVoWiFiActive(w.ID),
 				VoWiFiRuntime:          s.getVoWiFiRuntimeDTO(w.ID),
+			EUICCAvailable:         func() *bool { if w.EsimMgr != nil { return w.EsimMgr.EUICCAvailable() }; return nil }(),
 				NetworkConnected:       w.NetworkConnected(),
 				RegistrationStateLabel: registrationStateLabel(status.RegStatus),
 Modem: deviceMgmtListModem{

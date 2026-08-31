@@ -150,6 +150,7 @@ running: boolean
   flight_mode?: boolean
   vowifi_enabled?: boolean
   vowifi_runtime?: VoWiFiRuntimeState
+  euicc_available?: boolean
   modem?: Pick<ModemStatus, 'manufacturer' | 'model' | 'hardware_revision' | 'operator' | 'native_spn' | 'native_mcc' | 'native_mnc' | 'network_mode' | 'network_duplex' | 'radio_band' | 'radio_channel' | 'signal_dbm' | 'signal_sinr' | 'imei' | 'iccid' | 'reg_status' | 'operating_mode'>
 }
 
