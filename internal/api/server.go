@@ -1021,7 +1021,7 @@ func (s *Server) handleRotate(c *gin.Context) {
 	})
 }
 
-func (s *Server) handleDeviceMgmtStartNetwork(c *gin.Context) {
+func (s *Server) handleDeviceMgmtStartNetwork(c *gin.Context, ipVersion string, apn string) {
 	deviceID := deviceIDParam(c)
 	worker := s.pool.GetWorker(deviceID)
 	if worker == nil {
@@ -1034,13 +1034,31 @@ func (s *Server) handleDeviceMgmtStartNetwork(c *gin.Context) {
 		return
 	}
 	if s.pool.IsVoWiFiActive(deviceID) {
+		// 落库 network_enabled=false（VoWiFi 运行中，不允许开启蜂窝数据）
+		s.patchCardPolicyForDevice(deviceID, func(p *db.CardPolicy) {
+			p.NetworkEnabled = false
+		})
 		c.JSON(http.StatusConflict, gin.H{"status": "error", "message": "VoWiFi 运行中，无法启动数据网络"})
 		return
 	}
 	if err := worker.StartNetwork(); err != nil {
+		// 失败：落库 network_enabled=false，确保 DB 与实际状态一致
+		s.patchCardPolicyForDevice(deviceID, func(p *db.CardPolicy) {
+			p.NetworkEnabled = false
+		})
+		s.pool.SetWorkerNetworkPolicy(deviceID, false, ipVersion, apn)
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "启动数据网络失败: " + err.Error()})
 		return
 	}
+	// 成功：落库 network_enabled=true
+	s.patchCardPolicyForDevice(deviceID, func(p *db.CardPolicy) {
+		p.NetworkEnabled = true
+		if ipVersion != "" {
+			p.IPVersion = ipVersion
+		}
+		p.APN = apn
+	})
+	s.pool.SetWorkerNetworkPolicy(deviceID, true, ipVersion, apn)
 	go func() { _ = worker.RefreshRuntime(nil, "start_network") }()
 	c.JSON(http.StatusOK, gin.H{
 		"status":            "ok",

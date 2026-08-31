@@ -11,23 +11,13 @@ export type PolicyMirror = {
 export type ToggleResult = { ok: boolean }
 
 export type CardPolicyExecutors = {
-  applyNetwork: (enabled: boolean, next: PolicyMirror) => Promise<ToggleResult>
-  applyVoWiFi: (enabled: boolean, next: PolicyMirror) => Promise<ToggleResult>
-  applyAirplane: (enabled: boolean, next: PolicyMirror) => Promise<ToggleResult>
-  applyVolte?: (enabled: boolean, next: PolicyMirror) => Promise<ToggleResult>
+  applyNetwork: (enabled: boolean, next: PolicyMirror, prev: PolicyMirror) => Promise<ToggleResult>
+  applyVoWiFi: (enabled: boolean, next: PolicyMirror, prev: PolicyMirror) => Promise<ToggleResult>
+  applyAirplane: (enabled: boolean, next: PolicyMirror, prev: PolicyMirror) => Promise<ToggleResult>
+  applyVolte?: (enabled: boolean, next: PolicyMirror, prev: PolicyMirror) => Promise<ToggleResult>
   onChanged?: () => void
 }
 
-// 互斥规则（用户指定）：
-// VoWiFi 开启  ⇒ 关蜂窝数据、关 VoLTE           （禁用飞行模式开关，不处理其状态）
-// VoWiFi 关闭  ⇒ 无操作                          （恢复飞行模式可点击）
-// 飞行模式开启  ⇒ 关蜂窝数据、关 VoLTE
-// 飞行模式关闭  ⇒ 无操作（卡正式驻网由后端处理）
-// 蜂窝数据开启  ⇒ 关 VoWiFi、关飞行模式          （不处理 VoLTE，可并存）
-// 蜂窝数据关闭  ⇒ 无操作
-// VoLTE 开启    ⇒ 关 VoWiFi、关飞行模式（如开着）
-// VoLTE 关闭    ⇒ 无操作
-// 关任一项 ⇒ 不动其它项
 function nextMirror(
   cur: PolicyMirror,
   field: keyof PolicyMirror,
@@ -94,11 +84,13 @@ export function useCardPolicyToggles(
     networkPending.value = true
     networkFailed.value = false
     const next = nextMirror(local.value, 'network_enabled', val)
+    // 保存执行前快照（供执行器判断互斥项之前是否开着）
+    const prev = { ...local.value }
     // 提前同步互斥字段到 UI（让被关的开关立即变灰）
     local.value.vowifi_enabled = next.vowifi_enabled
     local.value.airplane_enabled = next.airplane_enabled
     local.value.volte_enabled = next.volte_enabled
-    const result = await executors.applyNetwork(val, next)
+    const result = await executors.applyNetwork(val, next, prev)
     networkPending.value = false
     if (!result.ok) {
       local.value.network_enabled = !val
@@ -117,10 +109,12 @@ export function useCardPolicyToggles(
     vowifiPending.value = true
     vowifiFailed.value = false
     const next = nextMirror(local.value, 'vowifi_enabled', val)
+    // 保存执行前快照
+    const prev = { ...local.value }
     // 提前同步互斥字段到 UI
     local.value.network_enabled = next.network_enabled
     local.value.volte_enabled = next.volte_enabled
-    const result = await executors.applyVoWiFi(val, next)
+    const result = await executors.applyVoWiFi(val, next, prev)
     vowifiPending.value = false
     if (!result.ok) {
       local.value.vowifi_enabled = !val
@@ -139,10 +133,12 @@ export function useCardPolicyToggles(
     airplanePending.value = true
     airplaneFailed.value = false
     const next = nextMirror(local.value, 'airplane_enabled', val)
+    // 保存执行前快照
+    const prev = { ...local.value }
     // 提前同步互斥字段到 UI
     local.value.network_enabled = next.network_enabled
     local.value.volte_enabled = next.volte_enabled
-    const result = await executors.applyAirplane(val, next)
+    const result = await executors.applyAirplane(val, next, prev)
     airplanePending.value = false
     if (!result.ok) {
       local.value.airplane_enabled = !val
@@ -162,7 +158,12 @@ export function useCardPolicyToggles(
     voltePending.value = true
     volteFailed.value = false
     const next = nextMirror(local.value, 'volte_enabled', val)
-    const result = await executors.applyVolte(val, next)
+    // 保存执行前快照
+    const prev = { ...local.value }
+    // 提前同步互斥字段到 UI
+    local.value.vowifi_enabled = next.vowifi_enabled
+    local.value.airplane_enabled = next.airplane_enabled
+    const result = await executors.applyVolte(val, next, prev)
     voltePending.value = false
     if (!result.ok) {
       local.value.volte_enabled = !val

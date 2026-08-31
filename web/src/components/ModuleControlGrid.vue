@@ -1,23 +1,4 @@
 <script setup lang="ts">
-/**
- * ModuleControlGrid — 4 宫格控制卡片
- * WiFi 通话 / 飞行模式 / 蜂窝数据 / VoLTE
- * 后端逻辑复用 useCardPolicyToggles
- *
- * 互斥规则（composable 层）：
- * VoWiFi 开 ⇒ 关蜂窝数据、关 VoLTE
- * 飞行模式 开 ⇒ 关蜂窝数据、关 VoLTE
- * 蜂窝数据 开 ⇒ 关 VoWiFi、关飞行模式（VoLTE 可并存）
- * VoLTE 开 ⇒ 关 VoWiFi、关飞行模式
- *
- * disabled 规则（UI 层）：
- * VoWiFi 开时：禁用飞行模式开关（不处理其状态）
- * 其余开关始终可点击（composable 层强制互斥）
- *
- * 描边规则：
- * 蜂窝数据开启（正常驻网）⇒ 品牌色描边
- * 飞行模式 或 VoWiFi 开启 ⇒ 普通色描边
- */
 import { computed, ref } from 'vue'
 import type { DeviceOverviewItem, CardPolicy } from '../types/api'
 import { useCardPolicyToggles, type PolicyMirror } from '../composables/useCardPolicyToggles'
@@ -37,7 +18,6 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  'toggle-vowifi': [enabled: boolean]
   changed: []
 }>()
 
@@ -72,14 +52,14 @@ const {
   onAirplaneToggle,
   onVolteToggle,
 } = useCardPolicyToggles(mirror, {
-  async applyNetwork(enabled, next) {
+  async applyNetwork(enabled, _next, prev) {
     if (!props.device?.id) return { ok: false }
-    // 先执行互斥关闭（后端会拒绝在 VoWiFi/飞行模式 active 时开数据）
+    // 先关闭互斥项（用 prev 判断之前是否开着）
     if (enabled) {
-      if (next.vowifi_enabled === false && local.value.vowifi_enabled) {
+      if (prev.vowifi_enabled) {
         await devicesService.disableVoWiFi(props.device.id).catch(() => {})
       }
-      if (next.airplane_enabled === false && local.value.airplane_enabled) {
+      if (prev.airplane_enabled) {
         await devicesService.setFlightMode(props.device.id, false).catch(() => {})
       }
     }
@@ -88,29 +68,36 @@ const {
       : await devicesService.stopNetwork(props.device.id)
     return { ok: r.ok }
   },
-  async applyVoWiFi(enabled, next) {
+  async applyVoWiFi(enabled, _next, prev) {
     if (!props.device?.id) return { ok: false }
-    // 先关闭互斥项（后端可能在网络/飞行 active 时拒绝启动 VoWiFi）
-    if (enabled && next.network_enabled === false && local.value.network_enabled) {
+    // 先关闭互斥项
+    if (enabled && prev.network_enabled) {
       await devicesService.stopNetwork(props.device.id).catch(() => {})
     }
     const r = enabled
       ? await devicesService.enableVoWiFi(props.device.id)
       : await devicesService.disableVoWiFi(props.device.id)
-    if (r.ok) emit('toggle-vowifi', enabled)
     return { ok: r.ok }
   },
-  async applyAirplane(enabled, next) {
+  async applyAirplane(enabled, _next, prev) {
     if (!props.device?.id) return { ok: false }
     // 先关闭互斥项
-    if (enabled && next.network_enabled === false && local.value.network_enabled) {
+    if (enabled && prev.network_enabled) {
       await devicesService.stopNetwork(props.device.id).catch(() => {})
     }
     const r = await devicesService.setFlightMode(props.device.id, enabled)
     return { ok: r.ok }
   },
-  async applyVolte(_enabled, _next) {
-    // VoLTE 后端未实现，占位返回成功
+  async applyVolte(enabled, _next, prev) {
+    // VoLTE 后端未实现，mock 逻辑：开启时关 vowifi + 关飞行模式
+    if (enabled) {
+      if (props.device?.id && prev.vowifi_enabled) {
+        await devicesService.disableVoWiFi(props.device.id).catch(() => {})
+      }
+      if (props.device?.id && prev.airplane_enabled) {
+        await devicesService.setFlightMode(props.device.id, false).catch(() => {})
+      }
+    }
     return { ok: true }
   },
   onChanged() {
@@ -174,7 +161,7 @@ const gridVariant = computed(() => {
       <el-switch
         :model-value="local.network_enabled"
         :loading="networkPending"
-        :disabled="!canToggle || networkPending || isPCSC"
+        :disabled="!canToggle || local.vowifi_enabled || local.airplane_enabled || networkPending || isPCSC"
         @update:model-value="onNetworkToggle"
       />
     </div>
@@ -191,7 +178,7 @@ const gridVariant = computed(() => {
       <el-switch
         :model-value="local.volte_enabled"
         :loading="voltePending"
-        :disabled="!canToggle || voltePending || isPCSC"
+        :disabled="!canToggle || local.vowifi_enabled || local.airplane_enabled || voltePending || isPCSC"
         @update:model-value="onVolteToggle"
       />
     </div>
@@ -207,6 +194,7 @@ const gridVariant = computed(() => {
   overflow: hidden;
   background: var(--background);
   transition: border-color 0.2s;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
 /* 正常驻网（蜂窝数据开）⇒ 品牌色描边 */

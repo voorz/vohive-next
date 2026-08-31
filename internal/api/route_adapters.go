@@ -40,21 +40,19 @@ func (s *Server) handleDeviceNetworkPatch(c *gin.Context) {
 	deviceID := deviceIDParam(c)
 
 	if *req.Enabled {
-		// 落库：network_enabled=true + ip_version + apn（APN/IP 供下次连接生效）
+		// 仅落库 IP/APN（不提前改 NetworkEnabled，避免 StartNetwork 失败时 DB 与实际状态不符）
+		// NetworkEnabled 的落库由 handleDeviceMgmtStartNetwork 根据 StartNetwork 结果决定
 		ipVersion := strings.TrimSpace(req.IPVersion)
 		apn := strings.TrimSpace(req.APN)
-		iccid, _, _ := s.patchCardPolicyForDevice(deviceID, func(p *db.CardPolicy) {
-			p.NetworkEnabled = true
+		_, _, _ = s.patchCardPolicyForDevice(deviceID, func(p *db.CardPolicy) {
 			if ipVersion != "" {
 				p.IPVersion = ipVersion
 			}
 			p.APN = apn
 		})
-		// 同步 w.Config，使概览读到最新值（QMI APN 在下次连接时生效）
-		if iccid != "" {
-			s.pool.SetWorkerNetworkPolicy(deviceID, true, ipVersion, apn)
-		}
-		s.handleDeviceMgmtStartNetwork(c)
+		// 同步 worker 配置中的 IP/APN（NetworkEnabled 由 handleDeviceMgmtStartNetwork 落库后同步）
+		s.pool.SetWorkerNetworkPolicy(deviceID, false, ipVersion, apn)
+		s.handleDeviceMgmtStartNetwork(c, ipVersion, apn)
 		return
 	}
 

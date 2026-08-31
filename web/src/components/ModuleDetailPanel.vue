@@ -20,9 +20,10 @@ import ModuleConfigTab from './ModuleConfigTab.vue'
 import ModuleSmsTab from './ModuleSmsTab.vue'
 import ModuleOverviewTab from './ModuleOverviewTab.vue'
 import ModuleVoiceTab from './ModuleVoiceTab.vue'
+import ModuleControlGrid from './ModuleControlGrid.vue'
 import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
 import { useSimOperatorDisplay } from '../composables/useSimOperatorDisplay'
-import { ArrowSync24Regular, Add24Regular } from '@vicons/fluent'
+import { ArrowSync24Regular, Add24Regular, ChevronUp24Regular } from '@vicons/fluent'
 import { cardsService } from '../services/cards'
 import type { CardPolicy } from '../types/api'
 import { devicesService } from '../services/devices'
@@ -99,27 +100,6 @@ async function onCardPolicyChanged() {
 const reconnectingVoWiFi = ref(false)
 const rebooting = ref(false)
 const rotating = ref(false)
-const togglingVoWiFi = ref(false)
-
-async function toggleVoWiFi(val: string | number | boolean) {
-  if (!detail.value?.id) return
-  const id = detail.value.id
-  const enabled = !!val
-  togglingVoWiFi.value = true
-  try {
-    const result = enabled
-      ? await devicesService.enableVoWiFi(id)
-      : await devicesService.disableVoWiFi(id)
-    if (!result.ok) throw new Error(result.error.message || '操作失败')
-    void store.fetchDetail(id).catch(() => {})
-    void store.fetchList().catch(() => {})
-    void fetchCardPolicy(detail.value?.modem?.iccid).catch(() => {})
-  } catch (e: unknown) {
-    ElMessage.error(e instanceof Error ? e.message : '操作失败')
-  } finally {
-    togglingVoWiFi.value = false
-  }
-}
 
 async function rotateIP() {
   if (!detail.value?.id) return
@@ -218,6 +198,9 @@ async function reconnectVoWiFi() {
 // 当前 Tab
 const activeTab = ref('overview')
 
+// 开关抽屉
+const controlDrawerOpen = ref(false)
+
 // Tab 列表（PC/SC 设备隐藏 AT/USSD）
 const allTabs = [
   { name: 'overview', label: '概览' },
@@ -315,6 +298,33 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
 
       <!-- Tab 内容区 -->
     <div v-if="detail" class="tab-content">
+        <!-- 开关抽屉：收起时只占12px高度露出U型弧，展开时卡片浮于内容上方 -->
+        <div v-if="!isPCSC" class="control-drawer-slot">
+          <!-- 收起状态：露出弧线 + 双横线图标 -->
+          <div v-if="!controlDrawerOpen" class="control-drawer-tab" @click="controlDrawerOpen = true">
+            <span class="control-drawer-grip"></span>
+          </div>
+          <!-- 展开状态：卡片 absolute 浮于上方 -->
+          <Transition name="drawer-slide">
+            <div v-if="controlDrawerOpen" class="control-drawer-popup">
+              <ModuleControlGrid
+                :device="detail"
+                :policy="cardPolicy"
+                :device-online="detail.running"
+                :is-p-c-s-c="isPCSC"
+                @changed="onCardPolicyChanged"
+              />
+              <!-- 关闭手柄（卡片底部，向上收起） -->
+              <div class="control-drawer-close" @click="controlDrawerOpen = false">
+                <el-icon size="14"><ChevronUp24Regular /></el-icon>
+              </div>
+            </div>
+          </Transition>
+          <!-- 遮罩 -->
+          <Transition name="fade">
+            <div v-if="controlDrawerOpen" class="control-drawer-mask" @click="controlDrawerOpen = false" />
+          </Transition>
+        </div>
         <!-- 概览 -->
         <div v-if="activeTab === 'overview'" class="tab-pane tab-pane--auto">
           <ModuleOverviewTab
@@ -330,7 +340,6 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
             :rotating="rotating"
             @reconnect-vowifi="reconnectVoWiFi"
             @rotate-ip="rotateIP"
-            @toggle-vowifi="toggleVoWiFi"
             @changed="onCardPolicyChanged"
           />
         </div>
@@ -567,12 +576,130 @@ overflow: hidden;
 text-overflow: ellipsis;
 }
 
+/* 开关抽屉槽位：收起时只占12px，展开时 absolute 不占空间 */
+.control-drawer-slot {
+  position: relative;
+  height: 24px;
+  margin: 0 -12px 8px;
+  z-index: 100;
+}
+
+/* 收起状态：U型弧线 + 双横线图标 */
+.control-drawer-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 24px;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  border-radius: 0 0 10px 10px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.control-drawer-tab:hover {
+  color: var(--brand);
+  background: color-mix(in oklab, var(--brand) 5%, var(--muted));
+  border-color: color-mix(in oklab, var(--brand) 30%, var(--border));
+}
+
+/* 双横线 grip 图标 */
+.control-drawer-grip {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: currentColor;
+  position: relative;
+  border-radius: 1px;
+  opacity: 0.6;
+}
+.control-drawer-grip::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -5px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 1px;
+}
+
+/* 展开状态：卡片 absolute 浮于内容上方，宽度与其他卡片一致 */
+.control-drawer-popup {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 101;
+}
+.control-drawer-popup :deep(.ctrl-grid) {
+  border-radius: 8px 8px 0 0;
+  box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
+}
+
+/* 关闭手柄（卡片底部，居中） */
+.control-drawer-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 20px;
+  margin: 0 auto;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  color: var(--muted-foreground);
+  cursor: pointer;
+  transition: all 0.15s;
+  position: relative;
+  z-index: 102;
+}
+.control-drawer-close:hover {
+  color: var(--brand);
+}
+
+/* 遮罩：覆盖整个内容区（含 padding 区域） */
+.control-drawer-mask {
+  position: absolute;
+  left: -12px;
+  right: -12px;
+  top: -12px;
+  bottom: -12px;
+  z-index: 99;
+  background: rgba(0, 0, 0, 0.25);
+  -webkit-backdrop-filter: blur(2px);
+  backdrop-filter: blur(2px);
+  cursor: pointer;
+}
+
+/* 卡片滑入/滑出 */
+.drawer-slide-enter-active, .drawer-slide-leave-active {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+.drawer-slide-enter-from, .drawer-slide-leave-to {
+  transform: translateY(-20px);
+  opacity: 0;
+}
+
+/* 遮罩淡入淡出 */
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
+
 /* Tab 内容区 */
 .tab-content {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
   padding: 12px;
+  position: relative;
 }
 
 .tab-pane {
