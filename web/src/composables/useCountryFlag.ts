@@ -38,22 +38,31 @@ export async function getCachedFlag(iso: string): Promise<string | null> {
 /** 主动下载国旗（自动调用，非用户触发） */
 export async function downloadFlag(iso: string): Promise<string | null> {
   const code = iso.toUpperCase()
-  const path = `${code}.png`
-  const mirrorUrl = `${FLAG_MIRROR}/${path}`
-  const directUrl = `${FLAG_BASE}/${path}`
 
+  // 尝试 .png（镜像 2 次 → 直链）
   for (let i = 0; i < 2; i++) {
-    const result = await tryFetch(mirrorUrl)
+    const result = await tryFetch(`${FLAG_MIRROR}/${code}.png`)
     if (result) {
       await idbSet(STORE_FLAGS, code, result)
       return result
     }
   }
+  const pngDirect = await tryFetch(`${FLAG_BASE}/${code}.png`)
+  if (pngDirect) {
+    await idbSet(STORE_FLAGS, code, pngDirect)
+    return pngDirect
+  }
 
-  const result = await tryFetch(directUrl)
-  if (result) {
-    await idbSet(STORE_FLAGS, code, result)
-    return result
+  // .png 全部失败，尝试 .svg（镜像 → 直链）
+  const svgMirror = await tryFetch(`${FLAG_MIRROR}/${code}.svg`)
+  if (svgMirror) {
+    await idbSet(STORE_FLAGS, code, svgMirror)
+    return svgMirror
+  }
+  const svgDirect = await tryFetch(`${FLAG_BASE}/${code}.svg`)
+  if (svgDirect) {
+    await idbSet(STORE_FLAGS, code, svgDirect)
+    return svgDirect
   }
 
   return null

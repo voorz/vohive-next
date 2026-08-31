@@ -57,18 +57,11 @@ watch(plmn, (val) => {
 
         <!-- 内容区 -->
         <div class="profile-card-content">
-          <!-- 第一行：国旗 + 名称（号码） -->
+          <!-- 第一行：国旗 + 名称 + 切换按钮 + 齿轮 -->
           <div class="profile-card-line1">
             <CountryFlag v-if="flagIso" :iso="flagIso" :size="18" />
             <span class="profile-card-name" :class="{ masked: !showSensitive }">
               {{ profile.name || profile.service_provider_name || profile.iccid }}
-            </span>
-          </div>
-
-          <!-- 第二行：ICCID + 切换按钮 + 齿轮 -->
-          <div class="profile-card-line2">
-            <span class="profile-card-iccid" :class="{ masked: !showSensitive }">
-              {{ profile.iccid }}
             </span>
             <button
               class="profile-card-switch"
@@ -79,29 +72,43 @@ watch(plmn, (val) => {
             >
               <span class="profile-card-switch-dot" />
             </button>
-            <button class="profile-card-gear" @click.stop="emit('open-settings', profile, aidHex)">
+            <el-button
+              class="profile-card-gear"
+              text
+              size="small"
+              @click.stop="emit('open-settings', profile, aidHex)"
+            >
               <el-icon size="16"><Settings24Regular /></el-icon>
-            </button>
+            </el-button>
           </div>
 
-          <!-- 第三行：运营商信息 + PLMN -->
-          <div class="profile-card-line3">
-            <span v-if="profile.service_provider_name">{{ profile.service_provider_name }}</span>
-            <span v-if="profile.mcc || profile.mnc" class="profile-card-plmn-tag">
-              {{ profile.mcc }}{{ profile.mnc ? '-' + profile.mnc : '' }}
+          <!-- 第二行：ICCID -->
+          <div class="profile-card-line2">
+            <span class="profile-card-iccid" :class="{ masked: !showSensitive }">
+              {{ profile.iccid }}
             </span>
           </div>
 
-          <!-- GID 行 -->
-          <div v-if="profile.gid1 || profile.gid2" class="profile-card-gid-row">
-            <span v-if="profile.gid1" class="profile-card-gid">G1:{{ profile.gid1 }}</span>
-            <span v-if="profile.gid2" class="profile-card-gid">G2:{{ profile.gid2 }}</span>
-          </div>
-
-          <!-- ISDPAID 行 -->
-          <div v-if="profile.isdp_aid" class="profile-card-isdp-row">
+          <!-- 第三行：AID -->
+          <div v-if="profile.isdp_aid" class="profile-card-line2">
             <span class="profile-card-isdp" :class="{ masked: !showSensitive }">
               {{ profile.isdp_aid.toUpperCase() }}
+            </span>
+          </div>
+
+          <!-- 第四行：运营商名称 + 别名 -->
+          <div v-if="profile.service_provider_name || profile.profile_alias" class="profile-card-line3">
+            <span v-if="profile.service_provider_name" class="profile-card-spn">{{ profile.service_provider_name }}</span>
+            <span v-if="profile.profile_alias" class="profile-card-alias">| {{ profile.profile_alias }}</span>
+          </div>
+
+          <!-- 第五行：PLMN + 容量胶囊 -->
+          <div v-if="profile.mcc || profile.mnc || profile.profile_size_formatted" class="profile-card-gid-row">
+            <span v-if="profile.mcc || profile.mnc" class="profile-card-plmn-tag">
+              {{ profile.mcc }}{{ profile.mnc ? '-' + profile.mnc : '' }}
+            </span>
+            <span v-if="profile.profile_size_formatted" class="profile-card-size-pill">
+              {{ profile.profile_size_formatted }}
             </span>
           </div>
         </div>
@@ -173,6 +180,8 @@ watch(plmn, (val) => {
 }
 
 .profile-card-name {
+  flex: 1;
+  min-width: 0;
   font-size: 14px;
   font-weight: 700;
   color: var(--foreground);
@@ -208,12 +217,6 @@ watch(plmn, (val) => {
   user-select: none;
 }
 
-.profile-card-isdp-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
 .profile-card-isdp {
   font-size: 10px;
   color: var(--muted-foreground);
@@ -222,11 +225,28 @@ watch(plmn, (val) => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  min-width: 0;
   transition: filter 0.15s;
 }
 .profile-card-isdp.masked {
   filter: blur(3px);
   user-select: none;
+}
+
+/* 容量胶囊 + PLMN 标签 — 统一描边样式 */
+.profile-card-size-pill,
+.profile-card-plmn-tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--oomol-font-mono);
+  color: var(--muted-foreground);
+  background: color-mix(in oklab, var(--muted-foreground) 12%, transparent);
+  border: 1px solid color-mix(in oklab, var(--muted-foreground) 20%, transparent);
+  padding: 1px 6px;
+  border-radius: 999px;
+  flex-shrink: 0;
 }
 
 /* 切换按钮 — toggle switch 样式 */
@@ -280,8 +300,11 @@ watch(plmn, (val) => {
   justify-content: center;
   flex-shrink: 0;
   transition: all 0.12s;
+  padding: 0;
+  min-height: auto;
 }
-.profile-card-gear:hover {
+.profile-card-gear:hover,
+.profile-card-gear:focus {
   background: var(--background);
   color: var(--foreground);
 }
@@ -294,22 +317,11 @@ watch(plmn, (val) => {
   color: var(--muted-foreground);
 }
 
-.profile-card-plmn-tag {
-  display: inline-flex;
-  align-items: center;
-  font-size: 10px;
-  font-weight: 600;
-  font-family: var(--oomol-font-mono);
-  color: var(--muted-foreground);
-  background: color-mix(in oklab, var(--muted-foreground) 12%, transparent);
-  padding: 1px 6px;
-  border-radius: 999px;
-  flex-shrink: 0;
-}
 .profile-card-gid-row {
   display: flex;
   align-items: center;
   gap: 8px;
+  overflow: hidden;
 }
 
 .profile-card-gid {
@@ -317,5 +329,24 @@ watch(plmn, (val) => {
   opacity: 0.5;
   font-size: 10px;
   color: var(--muted-foreground);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.profile-card-spn {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.profile-card-alias {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  opacity: 0.7;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 </style>

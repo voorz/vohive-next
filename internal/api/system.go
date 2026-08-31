@@ -398,8 +398,8 @@ func (s *Server) handleUploadSiteLogo(c *gin.Context) {
 	}
 	// 更新配置
 	configPath := config.GetConfigPath()
-	name := "VoHive"
-	subtitle := "VoWiFi 管理控制台"
+	name := "VOLink"
+	subtitle := "VOWIFI多设备管理控制台"
 	faviconExt := ""
 	if cfg != nil {
 		name = cfg.Site.Name
@@ -455,7 +455,7 @@ func (s *Server) handleUploadSiteFavicon(c *gin.Context) {
 	}
 	configPath := config.GetConfigPath()
 	name := "VoHive"
-	subtitle := "VoWiFi 管理控制台"
+	subtitle := "VOWIFI多设备管理控制台"
 	logoExt := ""
 	if cfg != nil {
 		name = cfg.Site.Name

@@ -383,8 +383,8 @@ func Load(path string) (*Config, error) {
 	viper.SetDefault("security.login_window_minutes", 2)
 	viper.SetDefault("security.login_max_attempts", 10)
 	viper.SetDefault("security.token_ttl_hours", 720)
-	viper.SetDefault("site.name", "VoHive")
-	viper.SetDefault("site.subtitle", "VoWiFi 管理控制台")
+	viper.SetDefault("site.name", "VOLink")
+	viper.SetDefault("site.subtitle", "VOWIFI多设备管理控制台")
 
 	// 官方默认推送秘钥与用户 (留空则不执行 Push)
 	viper.SetDefault("vowifi.voice_gateway.linphone_push.linphone_user", "")

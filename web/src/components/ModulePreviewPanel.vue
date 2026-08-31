@@ -41,6 +41,12 @@ const profilesRefreshing = ref(false)
 const chipInfo = ref<EsimChipInfo | null>(null)
 const profiles = ref<EsimEUICCProfiles[]>([])
 const notificationCount = ref(0)
+// eUICC 容量信息
+const totalCapacityBytes = ref(0)
+const usedCapacityBytes = ref(0)
+const freeCapacityBytes = ref(0)
+const usagePercent = ref(0)
+const capacityFormatted = ref('')
 
 // Switching state
 const switching = ref<string | null>(null)
@@ -111,6 +117,11 @@ async function fetchOverview(refresh = false) {
     chipInfo.value = result.data.chipInfo
     profiles.value = result.data.profiles || []
     notificationCount.value = result.data.notificationCount ?? 0
+    totalCapacityBytes.value = result.data.totalCapacityBytes ?? 0
+    usedCapacityBytes.value = result.data.usedCapacityBytes ?? 0
+    freeCapacityBytes.value = result.data.freeCapacityBytes ?? 0
+    usagePercent.value = result.data.usagePercent ?? 0
+    capacityFormatted.value = result.data.capacityFormatted ?? ''
     // 首次加载通知数为 0 时，延迟静默刷新以拿取异步统计结果
     maybeScheduleNotifCountRefresh(notificationCount.value, !refresh)
   } catch (e: unknown) {
@@ -120,6 +131,11 @@ async function fetchOverview(refresh = false) {
     chipInfo.value = null
     profiles.value = []
     notificationCount.value = 0
+    totalCapacityBytes.value = 0
+    usedCapacityBytes.value = 0
+    freeCapacityBytes.value = 0
+    usagePercent.value = 0
+    capacityFormatted.value = ''
     ElMessage.error(errorMessage(e, '获取 eSIM 信息失败'))
   } finally {
     if (shouldResetLoading) {
@@ -197,6 +213,11 @@ async function fetchOverviewSilent(refresh: boolean): Promise<boolean> {
     chipInfo.value = result.data.chipInfo
     profiles.value = result.data.profiles || []
     notificationCount.value = result.data.notificationCount ?? 0
+    totalCapacityBytes.value = result.data.totalCapacityBytes ?? 0
+    usedCapacityBytes.value = result.data.usedCapacityBytes ?? 0
+    freeCapacityBytes.value = result.data.freeCapacityBytes ?? 0
+    usagePercent.value = result.data.usagePercent ?? 0
+    capacityFormatted.value = result.data.capacityFormatted ?? ''
     return true
   } catch {
     return false
@@ -264,6 +285,11 @@ watch(() => props.deviceId, (newId) => {
     chipInfo.value = null
     profiles.value = []
     notificationCount.value = 0
+    totalCapacityBytes.value = 0
+    usedCapacityBytes.value = 0
+    freeCapacityBytes.value = 0
+    usagePercent.value = 0
+    capacityFormatted.value = ''
     return
   }
   fetchOverview()
@@ -353,6 +379,11 @@ onBeforeUnmount(() => {
             :chip-info="chipInfo"
             :show-sensitive="showSensitive"
             :refreshing="profilesRefreshing"
+            :total-capacity-bytes="totalCapacityBytes"
+            :used-capacity-bytes="usedCapacityBytes"
+            :free-capacity-bytes="freeCapacityBytes"
+            :usage-percent="usagePercent"
+            :capacity-formatted="capacityFormatted"
             @refresh="fetchOverview(true)"
             @toggle-sensitive="showSensitive = !showSensitive"
           />

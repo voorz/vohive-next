@@ -319,7 +319,12 @@ export const devicesService = {
       return {
         chipInfo: res.data?.chip_info || null,
         profiles: res.data?.profiles || [],
-        notificationCount: res.data?.notification_count ?? 0
+        notificationCount: res.data?.notification_count ?? 0,
+        totalCapacityBytes: res.data?.total_capacity_bytes ?? 0,
+        usedCapacityBytes: res.data?.used_capacity_bytes ?? 0,
+        freeCapacityBytes: res.data?.free_capacity_bytes ?? 0,
+        usagePercent: res.data?.usage_percent ?? 0,
+        capacityFormatted: res.data?.capacity_formatted ?? ''
       }
     })
   },

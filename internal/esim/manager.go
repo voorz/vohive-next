@@ -246,6 +246,9 @@ type ProfileItem struct {
 	MNC                 string `json:"mnc,omitempty"`
 	GID1                string `json:"gid1,omitempty"`
 	GID2                string `json:"gid2,omitempty"`
+	ProfileSizeBytes    int    `json:"profile_size_bytes,omitempty"`    // profile 实际占用字节（来自 esimstore 查询）
+	ProfileSizeFormatted string `json:"profile_size_formatted,omitempty"` // 人类可读大小（如 "38.10 kb"）
+	ProfileAlias         string `json:"profile_alias,omitempty"`          // profile 别名（来自 esimstore names[0]）
 }
 
 // EUICCProfiles 按 eUICC 分组的 profile 列表
@@ -288,6 +291,9 @@ type Manager struct {
 
 	// clearChannels 是在首轮 AID 扫描前清理逐辑通道的回调（可选）
 	clearChannels func()
+
+	// esimSizeStore 是 eSIM profile 容量查询库（可选，nil 时跳过容量补全）
+	esimSizeStore *ESimSizeStore
 
 	cacheMu                     sync.RWMutex   // 保护 chipInfoCache、overviewCache 与 discoveredEUICCs 等快照状态
 	opMu                        sync.Mutex     // eSIM 硬件操作互斥（同时只允许一个写操作）
@@ -358,6 +364,7 @@ type ManagerOptions struct {
 	PostSwitchMinDelay   time.Duration
 	SwitchUseRefreshTrue bool
 	OnOverviewUpdated    OverviewStateCallback // 可选：overview 缓存更新后回调（用于 SSE 推送）
+	ESimSizeDBPath       string                // 可选：eSIM 容量库路径（留空则用 data/esim_sizes.db）
 }
 
 type SwitchOperation string
@@ -622,6 +629,16 @@ func NewManager(opts ManagerOptions) (*Manager, error) {
 	}
 	mgr.overviewLoader = mgr.loadOverviewFresh
 	mgr.profilesLoader = mgr.loadProfilesFresh
+
+	// 初始化 eSIM 容量查询库（本地优先，不存在则从远程下载）
+	if store, err := openPersistedESimSizeStore(opts.ESimSizeDBPath, euiccSizesURL, false); err != nil {
+		logger.Warn("eSIM 容量库初始化失败，容量查询将跳过",
+			"device", opts.DeviceID,
+			"err", err)
+	} else {
+		mgr.esimSizeStore = store
+	}
+
 	return mgr, nil
 }
 
@@ -1369,6 +1386,11 @@ type EsimOverview struct {
 	ChipInfo          *EUICCChipInfo  `json:"chip_info"`          // 芯片硬件信息
 	Profiles          []EUICCProfiles `json:"profiles"`           // 按 eUICC 分组的 profile 列表
 	NotificationCount int             `json:"notification_count"` // 待处理通知数量（不含 autoClean 的 enable/disable）
+	TotalCapacityBytes  int     `json:"total_capacity_bytes,omitempty"`  // eUICC 总容量（字节）
+	UsedCapacityBytes   int     `json:"used_capacity_bytes,omitempty"`   // 已用容量（所有 profile size 之和）
+	FreeCapacityBytes   int     `json:"free_capacity_bytes,omitempty"`   // 剩余容量（来自 freeNvram）
+	UsagePercent        float64 `json:"usage_percent,omitempty"`         // 使用率（0-100）
+	CapacityFormatted   string  `json:"capacity_formatted,omitempty"`   // 人类可读总容量（如 "7.00 MB"）
 }
 
 // parseEUICCInfo2ForEID 从标准 eUICC 信息接口解析单个 eUICC 的可用空间、固件版本、制造商和证书信息。
@@ -1447,12 +1469,12 @@ func formatBytes(b int64) string {
 		mb = 1024 * kb
 	)
 	switch {
-	case b >= mb:
-		return fmt.Sprintf("%.2f MB", float64(b)/float64(mb))
+	case b >= 1000*kb:
+		return fmt.Sprintf("%.2f mb", float64(b)/float64(mb))
 	case b >= kb:
-		return fmt.Sprintf("%.2f KB", float64(b)/float64(kb))
+		return fmt.Sprintf("%.2f kb", float64(b)/float64(kb))
 	default:
-		return fmt.Sprintf("%d B", b)
+		return fmt.Sprintf("%d b", b)
 	}
 }
 
@@ -1492,6 +1514,11 @@ func cloneOverview(overview *EsimOverview) *EsimOverview {
 		ChipInfo:          cloneChipInfo(overview.ChipInfo),
 		Profiles:          cloneProfiles(overview.Profiles),
 		NotificationCount: overview.NotificationCount,
+		TotalCapacityBytes: overview.TotalCapacityBytes,
+		UsedCapacityBytes:  overview.UsedCapacityBytes,
+		FreeCapacityBytes:  overview.FreeCapacityBytes,
+		UsagePercent:       overview.UsagePercent,
+		CapacityFormatted:  overview.CapacityFormatted,
 	}
 }
 
@@ -2086,11 +2113,13 @@ func (m *Manager) loadOverviewFresh() (*EsimOverview, error) {
 		}
 	}
 
-	return &EsimOverview{
+	overview := &EsimOverview{
 		ChipInfo:          info,
 		Profiles:          profileGroups,
 		NotificationCount: 0, // 通知数异步统计，首次返回 0
-	}, nil
+	}
+	m.enrichProfileSizes(overview)
+	return overview, nil
 }
 
 // refreshNotificationCountAsync 异步统计待处理通知数量并更新 overviewCache。
@@ -5016,4 +5045,61 @@ func (m *Manager) ProcessNotifications(progressFn func(NotificationProcessEvent)
 	m.triggerOverviewReload("process_notifications")
 
 	return nil
+}
+
+// enrichProfileSizes 为每个 profile 补上容量大小，并计算 eUICC 总容量使用率。
+// 查询方式：EID 前 8 位（EUM）+ PLMN（MCC+MNC）+ SPN 三要素查询 esimstore。
+// 查不到的 profile 不报错，仅跳过容量信息。
+func (m *Manager) enrichProfileSizes(overview *EsimOverview) {
+	if m == nil || overview == nil || m.esimSizeStore == nil {
+		return
+	}
+
+	var totalUsed int
+	var totalFree int
+
+	for i := range overview.Profiles {
+		group := &overview.Profiles[i]
+		eid := group.EID
+
+		// 取该 eUICC 的 freeNvram 作为剩余容量
+		if overview.ChipInfo != nil {
+			for _, euiccInfo := range overview.ChipInfo.EIDs {
+				if euiccInfo.EID == eid && euiccInfo.FreeNvramBytes > 0 {
+					totalFree += int(euiccInfo.FreeNvramBytes)
+					break
+				}
+			}
+		}
+
+		for j := range group.Profiles {
+			p := &group.Profiles[j]
+			plmn := strings.TrimSpace(p.MCC) + strings.TrimSpace(p.MNC)
+			if plmn == "" || strings.TrimSpace(p.ServiceProviderName) == "" {
+				continue
+			}
+			cards, err := m.esimSizeStore.ByPLMNSPN(plmn, p.ServiceProviderName, eid)
+			if err == nil && len(cards) > 0 {
+				card := cards[0]
+				if card.Size > 0 {
+					p.ProfileSizeBytes = card.Size
+					p.ProfileSizeFormatted = formatBytes(int64(card.Size))
+					totalUsed += card.Size
+				}
+				if len(card.Names) > 0 {
+					p.ProfileAlias = card.Names[0]
+				}
+			}
+		}
+	}
+
+	// 计算总容量和使用率
+	totalCapacity := totalUsed + totalFree
+	if totalCapacity > 0 {
+		overview.TotalCapacityBytes = totalCapacity
+		overview.UsedCapacityBytes = totalUsed
+		overview.FreeCapacityBytes = totalFree
+		overview.UsagePercent = float64(totalUsed) / float64(totalCapacity) * 100
+		overview.CapacityFormatted = formatBytes(int64(totalCapacity))
+	}
 }

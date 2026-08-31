@@ -99,7 +99,7 @@ async function onFaviconChange(file: File) {
         </div>
         <div class="space-y-1">
           <label class="settings-form-label">副标题</label>
-          <el-input v-model="form.subtitle" :disabled="!editing" placeholder="VoWiFi 管理控制台" size="large" />
+          <el-input v-model="form.subtitle" :disabled="!editing" placeholder="VOWIFI多设备管理控制台" size="large" />
         </div>
       </div>
 

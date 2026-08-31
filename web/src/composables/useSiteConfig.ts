@@ -9,8 +9,8 @@ export type SiteConfig = {
 }
 
 const siteConfig = ref<SiteConfig>({
-  name: 'VoHive',
-  subtitle: 'VoWiFi 管理控制台',
+  name: 'VOLink',
+  subtitle: 'VOWIFI多设备管理控制台',
   has_logo: false,
   has_favicon: false,
 })

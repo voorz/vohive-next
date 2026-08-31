@@ -356,7 +356,9 @@ watch(lang, (v) => {
         <div v-if="siteConfig.has_logo" class="brand-logo-wrap">
           <img :src="'/api/site/logo'" alt="Logo" class="brand-logo-img" />
         </div>
-        <div v-else class="brand-mark">V</div>
+        <div v-else class="brand-logo-wrap">
+          <img src="/favicon.svg" alt="Logo" class="brand-logo-img" />
+        </div>
         <div class="brand-text">
           <div class="brand-name">{{ siteConfig.name }}</div>
           <div class="brand-subtitle">{{ siteConfig.subtitle }}</div>

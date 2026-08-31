@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage, ElMessageBox, ElLoading } from 'element-plus'
 import { devicesService } from '../services/devices'
 import { errorMessage } from '../services/http'
 import type { EsimProfileItem } from '../types/api'
 import EsimCardPolicyInline from './EsimCardPolicyInline.vue'
-import { Delete24Regular } from '@vicons/fluent'
+import { Delete24Regular, Edit24Regular } from '@vicons/fluent'
 
 const props = defineProps<{
   visible: boolean
@@ -90,6 +90,11 @@ async function deleteProfile() {
   ).catch(() => ({ value: '' }))
   if (input !== last4) return
 
+  const loading = ElLoading.service({
+    lock: true,
+    text: '正在删除 eSIM Profile...',
+    background: 'rgba(0, 0, 0, 0.7)'
+  })
   deleting.value = true
   try {
     const result = await devicesService.deleteEsimProfile(props.deviceId, iccid, props.aidHex)
@@ -100,6 +105,7 @@ async function deleteProfile() {
   } catch (e: unknown) {
     ElMessage.error(errorMessage(e, '删除失败'))
   } finally {
+    loading.close()
     deleting.value = false
   }
 }
@@ -120,21 +126,34 @@ function close() {
     <div v-if="profile" class="settings-content">
       <!-- 名称 -->
       <div class="settings-section">
-        <div class="settings-section-label">Name</div>
+        <div class="settings-section-label">名称</div>
         <div class="name-row">
-          <input
-            v-if="nameEditing"
+          <el-input
             v-model="nameValue"
-            class="name-input"
-            type="text"
+            :disabled="!nameEditing"
             placeholder="输入名称"
+            size="default"
+            class="name-input"
             @keyup.enter="saveName"
           />
-          <span v-else class="name-display">{{ nameValue || '--' }}</span>
-          <button v-if="nameEditing" class="name-btn primary" :disabled="saving" @click="saveName">
-            {{ saving ? '...' : '保存' }}
-          </button>
-          <button v-else class="name-btn" @click="startEditName">修改</button>
+          <el-button
+            v-if="!nameEditing"
+            text
+            size="default"
+            class="name-action-btn"
+            @click="startEditName"
+          >
+            <el-icon size="16"><Edit24Regular /></el-icon>
+            <span>修改</span>
+          </el-button>
+          <el-button
+            v-else
+            type="primary"
+            size="default"
+            class="name-action-btn"
+            :loading="saving"
+            @click="saveName"
+          >保存</el-button>
         </div>
       </div>
 
@@ -156,17 +175,16 @@ function close() {
 
     <template #footer>
       <div class="settings-footer">
-        <button
-          class="settings-delete-btn"
-          :disabled="deleting"
+        <el-button
+          type="danger"
+          plain
+          :loading="deleting"
           @click="deleteProfile"
         >
           <el-icon size="14"><Delete24Regular /></el-icon>
-          {{ deleting ? '删除中...' : '删除 eSIM' }}
-        </button>
-        <div class="settings-footer-right">
-          <button class="settings-footer-btn primary" @click="close">关闭</button>
-        </div>
+          <span>{{ deleting ? '删除中...' : '删除 eSIM' }}</span>
+        </el-button>
+        <el-button @click="close">关闭</el-button>
       </div>
     </template>
   </el-dialog>
@@ -207,56 +225,13 @@ function close() {
   gap: 8px;
 }
 
-.name-display {
-  flex: 1;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--foreground);
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--background);
-}
-
 .name-input {
   flex: 1;
-  padding: 8px 12px;
-  border: 1px solid var(--brand);
-  border-radius: 6px;
-  background: var(--background);
-  color: var(--foreground);
-  font-size: 14px;
-  font-weight: 600;
-  outline: none;
+  min-width: 0;
 }
 
-.name-btn {
-  padding: 6px 14px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted-foreground);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.12s;
+.name-action-btn {
   flex-shrink: 0;
-}
-.name-btn:hover {
-  background: var(--accent);
-  color: var(--foreground);
-}
-.name-btn.primary {
-  background: var(--brand);
-  border-color: var(--brand);
-  color: #fff;
-}
-.name-btn.primary:hover {
-  opacity: 0.9;
-}
-.name-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* 底部 */
@@ -264,58 +239,5 @@ function close() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-}
-
-.settings-footer-right {
-  display: flex;
-  gap: 8px;
-}
-
-.settings-footer-btn {
-  padding: 6px 16px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--muted-foreground);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.12s;
-}
-.settings-footer-btn:hover {
-  background: var(--accent);
-  color: var(--foreground);
-}
-.settings-footer-btn.primary {
-  background: var(--brand);
-  border-color: var(--brand);
-  color: #fff;
-}
-.settings-footer-btn.primary:hover {
-  opacity: 0.9;
-}
-
-/* 删除按钮 */
-.settings-delete-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px;
-  border: 1px solid #ef4444;
-  border-radius: 6px;
-  background: transparent;
-  color: #ef4444;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.12s;
-}
-.settings-delete-btn:hover {
-  background: #ef4444;
-  color: #fff;
-}
-.settings-delete-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 </style>

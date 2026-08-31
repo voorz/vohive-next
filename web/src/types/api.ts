@@ -278,6 +278,9 @@ export type EsimProfileItem = {
   mnc?: string
   gid1?: string
   gid2?: string
+  profile_size_bytes?: number
+  profile_size_formatted?: string
+  profile_alias?: string
 }
 
 export type EsimEUICCProfiles = {
@@ -297,6 +300,11 @@ export type EsimOverviewResponse = {
   chip_info: EsimChipInfo | null
   profiles: EsimEUICCProfiles[]
   notification_count?: number
+  total_capacity_bytes?: number
+  used_capacity_bytes?: number
+  free_capacity_bytes?: number
+  usage_percent?: number
+  capacity_formatted?: string
 }
 
 export type EsimNotificationItem = {

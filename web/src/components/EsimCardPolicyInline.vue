@@ -176,7 +176,7 @@ const {
   gap: 8px;
   padding: 12px;
   font-size: 12px;
-  color: #f59e0b;
+  color: var(--destructive, #f59e0b);
 }
 
 /* switch-row — 参照 ModuleConfigCards .form-switch-row */
@@ -212,7 +212,7 @@ const {
 
 .switch-failed {
   font-size: 10px;
-  color: #f59e0b;
+  color: var(--destructive, #f59e0b);
 }
 
 .switch-pending {
@@ -220,7 +220,13 @@ const {
 }
 
 .is-failed :deep(.el-switch__core) {
-  border-color: var(--destructive) !important;
+  border-color: var(--destructive, #ef4444) !important;
+}
+
+/* el-switch 主题色覆盖 */
+.form-switch-row :deep(.el-switch) {
+  --el-switch-on-color: var(--brand);
+  --el-switch-off-color: var(--muted-foreground);
 }
 
 /* 被禁用控制块灰度显示 */
