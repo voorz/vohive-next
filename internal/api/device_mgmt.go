@@ -2522,24 +2522,33 @@ func (s *Server) handleEsimListNotificationHistory(c *gin.Context) {
 		c.JSON(http.StatusOK, []interface{}{})
 		return
 	}
-	// 获取该设备的 EID
-	eid := ""
+	// 获取该设备的所有 EID（支持双 eUICC）
+	var eids []string
 	if worker.EsimMgr != nil {
-		e, err := worker.EsimMgr.GetEID()
+		infos, err := worker.EsimMgr.GetEIDs()
 		if err == nil {
-			eid = e
+			for _, info := range infos {
+				if info.EID != "" {
+					eids = append(eids, info.EID)
+				}
+			}
 		}
 	}
-	if eid == "" {
+	if len(eids) == 0 {
 		c.JSON(http.StatusOK, []interface{}{})
 		return
 	}
-	records, err := db.GetEsimNotificationsByEID(eid)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "获取通知历史记录失败: " + err.Error()})
-		return
+	// 合并所有 EID 的历史记录
+	var allRecords []db.EsimNotificationRecord
+	for _, eid := range eids {
+		records, err := db.GetEsimNotificationsByEID(eid)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "获取通知历史记录失败: " + err.Error()})
+			return
+		}
+		allRecords = append(allRecords, records...)
 	}
-	c.JSON(http.StatusOK, records)
+	c.JSON(http.StatusOK, allRecords)
 }
 
 // handleEsimClearNotificationHistory

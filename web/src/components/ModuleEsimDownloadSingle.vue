@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { devicesService } from '../services/devices'
 import { errorMessage } from '../services/http'
@@ -62,8 +62,47 @@ function onQrScanned(data: string) {
 }
 
 watch(() => props.deviceImei, () => applyDeviceImeiDefault(false))
+// 可选的 EID 列表
+const eidOptions = computed(() => {
+  return props.chipInfo?.eids ?? []
+})
+
+// 选中的 EID 索引
+const selectedEidIndex = ref(0)
+
+// 选中的 EID 信息
+const selectedEid = computed(() => {
+  const list = eidOptions.value
+  if (list.length === 0) return null
+  const idx = Math.min(selectedEidIndex.value, list.length - 1)
+  return list[idx]
+})
+
+// EID 下拉显示文本
+function eidLabel(eid: { eid: string; aid: string }, index: number): string {
+  const eidShort = eid.eid ? '...' + eid.eid.slice(-8) : '--'
+  return `EID(${index + 1}) ${eidShort}`
+}
+
+function onEidChange() {
+  const eid = selectedEid.value
+  if (eid) {
+    aidHex.value = eid.aid
+  }
+}
+
 watch(() => props.chipInfo, () => {
-  aidHex.value = pickNextDownloadAid(props.chipInfo, aidHex.value)
+  // chipInfo 变化时，保持当前选择或回退到第一个
+  const list = eidOptions.value
+  if (list.length > 0 && selectedEidIndex.value >= list.length) {
+    selectedEidIndex.value = 0
+  }
+  const eid = selectedEid.value
+  if (eid) {
+    aidHex.value = eid.aid
+  } else {
+    aidHex.value = pickNextDownloadAid(props.chipInfo, aidHex.value)
+  }
 }, { immediate: true })
 
 applyDeviceImeiDefault(true)
@@ -87,8 +126,7 @@ function clearForm() {
 const SPACE_WARNING_THRESHOLD = 81920
 
 function checkFreeNvram(): { bytes: number; nvram: string } | null {
-  if (!props.chipInfo?.eids?.length) return null
-  const eid = props.chipInfo.eids[0]
+  const eid = selectedEid.value
   if (!eid || !eid.free_nvram_bytes || eid.free_nvram_bytes <= 0) return null
   return { bytes: eid.free_nvram_bytes, nvram: eid.free_nvram || `${eid.free_nvram_bytes} Bytes` }
 }
@@ -212,6 +250,19 @@ async function downloadProfile(force = false) {
 
 <template>
   <div class="single-download">
+    <!-- EID 选择（始终显示） -->
+    <div class="single-field">
+      <label class="single-label">目标 EID（eUICC 芯片）</label>
+      <el-select v-model="selectedEidIndex" class="eid-select" popper-class="eid-select-popper" @change="onEidChange">
+        <el-option
+          v-for="(eid, idx) in eidOptions"
+          :key="eid.eid || idx"
+          :label="eid.eid"
+          :value="idx"
+        />
+      </el-select>
+    </div>
+
     <!-- 完整激活码 -->
     <div class="single-field">
       <label class="single-label">输入完整激活码/上传或通过相机扫描</label>
@@ -313,6 +364,26 @@ async function downloadProfile(force = false) {
   font-weight: 600;
   color: var(--muted-foreground);
 }
+
+/* el-select 覆盖：字体和输入框统一 */
+.eid-select {
+  width: 100%;
+}
+.eid-select :deep(.el-select__wrapper) {
+  font-size: 12px;
+  min-height: 30px;
+}
+.eid-select :deep(.el-select__placeholder) {
+  font-size: 12px;
+}
+
+/* el-select 下拉弹出层覆盖（popper 挂在 body 上，需要全局样式） */
+:global(.eid-select-popper.el-popper) {
+  font-size: 12px;
+}
+:global(.eid-select-popper .el-select-dropdown__item) {
+  font-size: 12px;
+}
 .single-optional {
   opacity: 0.6;
   font-weight: 400;
@@ -331,6 +402,7 @@ async function downloadProfile(force = false) {
 .single-input:focus {
   border-color: var(--brand);
 }
+
 .single-input::placeholder {
   color: var(--muted-foreground);
   opacity: 0.6;

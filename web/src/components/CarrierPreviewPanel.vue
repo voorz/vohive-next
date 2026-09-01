@@ -54,7 +54,7 @@ const paramSections = computed(() => {
     if (i.apn) ikeItems.push({ label: 'APN', value: i.apn })
     if (i.replay_window) ikeItems.push({ label: '抗重放窗口', value: String(i.replay_window) })
     if (i.enable_esn) ikeItems.push({ label: '启用 ESN', value: boolStr(i.enable_esn) })
-    if (i.disable_eap_mac_validation) ikeItems.push({ label: '禁用 EAP MAC 校验', value: boolStr(i.disable_eap_mac_validation) })
+    if (i.eap_mac_validation) ikeItems.push({ label: 'EAP MAC 校验', value: boolStr(i.eap_mac_validation) })
   }
   if (ikeItems.length) sections.push({ label: 'IKE/ePDG', items: ikeItems })
 

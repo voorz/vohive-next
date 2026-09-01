@@ -253,8 +253,8 @@ const fallbackStatusCodesArr = computed({
             <el-switch :model-value="cfg.ike?.enable_esn || false" @update:model-value="(v: string | number | boolean) => { ensureIke(); cfg.ike!.enable_esn = Boolean(v); onInput() }" />
           </div>
           <div class="field col-span-2 form-switch-row">
-            <div><ConfigFieldLabel label="禁用 EAP MAC 校验" section="ike" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">disable_eap_mac_validation</div></div>
-            <el-switch :model-value="cfg.ike?.disable_eap_mac_validation || false" @update:model-value="(v: string | number | boolean) => { ensureIke(); cfg.ike!.disable_eap_mac_validation = Boolean(v); onInput() }" />
+            <div><ConfigFieldLabel label="EAP MAC 校验" section="ike" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">eap_mac_validation</div></div>
+            <el-switch :model-value="cfg.ike?.eap_mac_validation || false" @update:model-value="(v: string | number | boolean) => { ensureIke(); cfg.ike!.eap_mac_validation = Boolean(v); onInput() }" />
           </div>
         </div>
       </div>

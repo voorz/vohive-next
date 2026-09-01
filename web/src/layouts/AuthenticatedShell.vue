@@ -908,6 +908,7 @@ watch(lang, (v) => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  isolation: isolate;
 }
 
 .shell-header {

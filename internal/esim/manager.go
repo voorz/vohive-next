@@ -211,6 +211,8 @@ type EUICCInfo struct {
 	SpecConfidence         string    `json:"spec_confidence,omitempty"`
 	FreeNvramBytes         int32     `json:"free_nvram_bytes"`       // 可用 NV 存储（字节）
 	FreeNvram              string    `json:"free_nvram"`             // 可用 NV 存储（格式化）
+	TotalCapacityBytes     int32     `json:"total_capacity_bytes,omitempty"` // 该 EID 的总容量（字节）
+	UsedCapacityBytes      int32     `json:"used_capacity_bytes,omitempty"`  // 该 EID 的已用容量（字节）
 	Firmware               string    `json:"firmware,omitempty"`     // 提取自 EUICCInfo2 / EUICCInfo1
 	Manufacturer           string    `json:"manufacturer,omitempty"` // 芯片制造商（基于 EID 和 PKI 数据查询）
 	Certificates           []string  `json:"certificates,omitempty"` // 支持的证书签发机构列表
@@ -1384,14 +1386,9 @@ func (m *Manager) GetEUICCChipInfo(forceRefresh bool) (*EUICCChipInfo, error) {
 
 // EsimOverview 合并的 eSIM 总览信息（芯片信息 + 按 eUICC 分组的 profiles）
 type EsimOverview struct {
-	ChipInfo          *EUICCChipInfo  `json:"chip_info"`          // 芯片硬件信息
+	ChipInfo          *EUICCChipInfo  `json:"chip_info"`          // 芯片硬件信息（含每个 EID 的独立容量）
 	Profiles          []EUICCProfiles `json:"profiles"`           // 按 eUICC 分组的 profile 列表
 	NotificationCount int             `json:"notification_count"` // 待处理通知数量（不含 autoClean 的 enable/disable）
-	TotalCapacityBytes  int     `json:"total_capacity_bytes,omitempty"`  // eUICC 总容量（字节）
-	UsedCapacityBytes   int     `json:"used_capacity_bytes,omitempty"`   // 已用容量（所有 profile size 之和）
-	FreeCapacityBytes   int     `json:"free_capacity_bytes,omitempty"`   // 剩余容量（来自 freeNvram）
-	UsagePercent        float64 `json:"usage_percent,omitempty"`         // 使用率（0-100）
-	CapacityFormatted   string  `json:"capacity_formatted,omitempty"`   // 人类可读总容量（如 "7.00 MB"）
 }
 
 // parseEUICCInfo2ForEID 从标准 eUICC 信息接口解析单个 eUICC 的可用空间、固件版本、制造商和证书信息。
@@ -1515,11 +1512,6 @@ func cloneOverview(overview *EsimOverview) *EsimOverview {
 		ChipInfo:          cloneChipInfo(overview.ChipInfo),
 		Profiles:          cloneProfiles(overview.Profiles),
 		NotificationCount: overview.NotificationCount,
-		TotalCapacityBytes: overview.TotalCapacityBytes,
-		UsedCapacityBytes:  overview.UsedCapacityBytes,
-		FreeCapacityBytes:  overview.FreeCapacityBytes,
-		UsagePercent:       overview.UsagePercent,
-		CapacityFormatted:  overview.CapacityFormatted,
 	}
 }
 
@@ -1967,6 +1959,22 @@ func (m *Manager) cachedEIDForAID(aidHex string) string {
 		}
 	}
 	return ""
+}
+
+// aidFromCache 从 discoveredEUICCs 缓存中按 AIDHex 查找对应的 AID 字节。
+func (m *Manager) aidFromCache(aidHex string) []byte {
+	aidHex = strings.ToUpper(strings.TrimSpace(aidHex))
+	if aidHex == "" {
+		return nil
+	}
+	m.cacheMu.RLock()
+	defer m.cacheMu.RUnlock()
+	for _, info := range m.discoveredEUICCs {
+		if strings.ToUpper(strings.TrimSpace(info.AIDHex)) == aidHex {
+			return append([]byte(nil), info.AID...)
+		}
+	}
+	return nil
 }
 
 // loadProfileGroupForAIDFresh 直接读取指定 AID 的 profiles。
@@ -3278,6 +3286,7 @@ type NotificationItem struct {
 	MCC            string `json:"mcc,omitempty"`          // 关联 profile 的 MCC（用于前端国旗显示）
 	Address        string `json:"address,omitempty"`
 	AIDHex         string `json:"aid_hex,omitempty"`
+	EID            string `json:"eid,omitempty"` // 该通知所属的 eUICC EID
 	CanRetry       bool   `json:"can_retry"`
 	Status         string `json:"status"` // pending / sent / failed
 }
@@ -3542,7 +3551,7 @@ func buildNotificationItems(notifications []*sgp22.NotificationMetadata, aidHex 
 // buildNotificationItemsFromPending 从 combined 策略获取的 PendingNotification 列表构建 NotificationItem。
 // 每个 PendingNotification 内含 NotificationMetadata，无需额外 retrieve。
 // dbStatusMap 为 DB 中该 EID 的通知状态映射（seq→status int），用于合并状态。
-func buildNotificationItemsFromPending(pendingNotifications []*sgp22.PendingNotification, aidHex string, dbStatusMap map[int64]int, profiles []ProfileItem) []NotificationItem {
+func buildNotificationItemsFromPending(pendingNotifications []*sgp22.PendingNotification, aidHex string, eid string, dbStatusMap map[int64]int, profiles []ProfileItem) []NotificationItem {
 	// 构建 ICCID → Profile 索引，用于关联卡名和国旗
 	profileByICCID := make(map[string]ProfileItem, len(profiles))
 	for _, p := range profiles {
@@ -3567,6 +3576,7 @@ func buildNotificationItemsFromPending(pendingNotifications []*sgp22.PendingNoti
 			Event:          notificationEventName(meta.ProfileManagementOperation),
 			Address:        meta.Address,
 			AIDHex:         aidHex,
+			EID:            eid,
 			CanRetry:       meta.Address != "",
 			Status:         "pending",
 		}
@@ -3884,7 +3894,7 @@ func (m *Manager) listNotificationItemsWithCleanup(client *lpa.Client, aidHex, e
 	m.cacheMu.RUnlock()
 
 	// G2: 合并 DB 状态构建 NotificationItem（status==1 的不返回）
-	return buildNotificationItemsFromPending(pendingNotifications, aidHex, dbStatusMap, profiles), nil
+	return buildNotificationItemsFromPending(pendingNotifications, aidHex, eid, dbStatusMap, profiles), nil
 }
 
 // syncNotificationsWithDB 对比 DB 记录和卡上通知列表，清理不一致的记录（对标 NekoKo syncAndGetCount）。
@@ -3993,9 +4003,7 @@ func (m *Manager) listNotificationsForCurrentCard() ([]NotificationItem, error) 
 	items := make([]NotificationItem, 0)
 	var lastErr error
 	var successCount int
-
-	// 获取 EID 用于 DB 状态合并（对标 NekoKo _runProcess 中 getEid）
-	eid := m.firstEID()
+	var successAIDs [][]byte
 
 	// 优先尝试缓存的 working AID（对标 NekoKo _workingAidCache）
 	candidates := m.notificationCandidateAIDs()
@@ -4004,6 +4012,11 @@ func (m *Manager) listNotificationsForCurrentCard() ([]NotificationItem, error) 
 	}
 
 	for _, aid := range candidates {
+		// 参照 doForEachEUICC: 命中可用 AID 后，仅对 eSTK.me 双 EID 继续扫描
+		if !shouldContinueAIDScanAfterSuccess(successAIDs, aid) {
+			break
+		}
+
 		createStart := time.Now()
 		client, err := m.createLPAWithAID(aid)
 		createMs := time.Since(createStart).Milliseconds()
@@ -4012,6 +4025,13 @@ func (m *Manager) listNotificationsForCurrentCard() ([]NotificationItem, error) 
 			continue
 		}
 		aidHex := strings.ToUpper(hex.EncodeToString(aid))
+		// 获取该 AID 对应的 EID（优先从缓存，回退到 client.EID()）
+		eid := m.cachedEIDForAID(aidHex)
+		if eid == "" {
+			if eidBytes, eidErr := client.EID(); eidErr == nil && len(eidBytes) > 0 {
+				eid = hex.EncodeToString(eidBytes)
+			}
+		}
 		listStart := time.Now()
 		aidItems, listErr := m.listNotificationItemsWithCleanup(client, aidHex, eid)
 		listMs := time.Since(listStart).Milliseconds()
@@ -4021,6 +4041,7 @@ func (m *Manager) listNotificationsForCurrentCard() ([]NotificationItem, error) 
 		logger.Info("通知列表耗时分解",
 			"device", m.deviceID,
 			"AID", aidHex,
+			"EID", eid,
 			"create_ms", createMs,
 			"list_ms", listMs,
 			"close_ms", closeMs,
@@ -4031,11 +4052,11 @@ func (m *Manager) listNotificationsForCurrentCard() ([]NotificationItem, error) 
 			continue
 		}
 		successCount++
+		successAIDs = append(successAIDs, aid)
 		items = append(items, aidItems...)
 		// 缓存成功命中的 AID（对标 NekoKo setWorkingAid）
 		m.setWorkingAID(aid)
-		// 命中第一个成功 AID 后提前退出（对标 NekoKo selectAid 命中即返回）
-		break
+		// 不再 break：eSTK.me 双 EID 芯片需要继续扫描第二个 AID
 	}
 	if len(items) > 0 {
 		sort.SliceStable(items, func(i, j int) bool {
@@ -4804,8 +4825,9 @@ type NotificationProcessEvent struct {
 
 // ProcessNotifications 逐条处理通知（对标 NekoKo 逐条 autoClean + SSE 进度推送）。
 // 每处理完一条调用 progressFn 推送事件，让前端实时感知每条通知的处理过程。
+// 支持多 eUICC：遍历所有 eSTK.me 双 EID 芯片，逐芯片创建 client 并处理通知。
 func (m *Manager) ProcessNotifications(progressFn func(NotificationProcessEvent)) error {
-	// 1. 获取通知列表（不 autoClean）
+	// 1. 获取通知列表（已遍历所有 eUICC）
 	items, err := m.ListNotifications("")
 	if err != nil {
 		return err
@@ -4821,20 +4843,36 @@ func (m *Manager) ProcessNotifications(progressFn func(NotificationProcessEvent)
 	// 2. 读取通知设置
 	settings, _ := db.GetEsimNotificationSettings(m.deviceID)
 
-	// 3. 获取 AID + 创建 LPA client
-	targetAID, err := m.resolveNotificationAID("")
-	if err != nil {
-		return err
+	// 3. 按通知的 AIDHex 分组（每个 AID 对应一个 eUICC 芯片）
+	type aidGroup struct {
+		aidHex string
+		aid    []byte
+		items  []NotificationItem
 	}
-	if len(targetAID) == 0 {
-		candidates := m.notificationCandidateAIDs()
-		if cached := m.getWorkingAID(); cached != nil {
-			candidates = append([][]byte{cached}, candidates...)
+	groupMap := make(map[string]*aidGroup)
+	var aidOrder []string
+	for _, item := range items {
+		key := item.AIDHex
+		if key == "" {
+			continue
 		}
-		if len(candidates) == 0 {
-			return NewNotificationError(NotificationErrorInternal, "无可用 AID", nil)
+		g, ok := groupMap[key]
+		if !ok {
+			g = &aidGroup{aidHex: key}
+			groupMap[key] = g
+			aidOrder = append(aidOrder, key)
 		}
-		targetAID = candidates[0]
+		g.items = append(g.items, item)
+	}
+
+	// 4. 获取 AID 候选列表（用于将 aidHex 映射回 aid []byte）
+	candidateAIDs := m.notificationCandidateAIDs()
+	if cached := m.getWorkingAID(); cached != nil {
+		candidateAIDs = append([][]byte{cached}, candidateAIDs...)
+	}
+	aidByHex := make(map[string][]byte, len(candidateAIDs))
+	for _, aid := range candidateAIDs {
+		aidByHex[strings.ToUpper(hex.EncodeToString(aid))] = aid
 	}
 
 	m.opMu.Lock()
@@ -4848,190 +4886,216 @@ func (m *Manager) ProcessNotifications(progressFn func(NotificationProcessEvent)
 		return err
 	}
 	m.preCleanChannels()
-	client, err := m.createLPAWithAID(targetAID)
-	if err != nil {
-		return NewNotificationError(NotificationErrorInternal, fmt.Sprintf("创建 LPA client 失败: %v", err), err)
-	}
-	defer func() {
-		_ = m.closeLPAClientForOperation("process_notifications", client)
-	}()
 
-	m.setWorkingAID(targetAID)
-	eid := m.firstEID()
-
-	// 4. 重新获取卡上的 PendingNotification（ListNotifications 返回的是 NotificationItem，
-	//    需要原始 pn 用于 HandleNotification）
-	pendingNotifications, err := safeRetrieveAllNotifications(client)
-	if err != nil {
-		return err
-	}
-
-	pendingMap := make(map[int64]*sgp22.PendingNotification, len(pendingNotifications))
-	for _, pn := range pendingNotifications {
-		if pn != nil && pn.Notification != nil {
-			pendingMap[int64(pn.Notification.SequenceNumber)] = pn
+	// 5. 逐 AID（芯片）处理
+	for _, aidHex := range aidOrder {
+		g := groupMap[aidHex]
+		if g == nil {
+			continue
 		}
-	}
-
-	// 5. 逐条处理
-	for _, item := range items {
-		seq := item.SequenceNumber
-		eventName := item.Event
-
-		progressFn(NotificationProcessEvent{
-			Step:           "processing",
-			SequenceNumber: seq,
-			Event:          eventName,
-			ICCID:          item.ICCID,
-			Message:        fmt.Sprintf("正在处理 #%d %s", seq, eventName),
-			ProcessedCount: processed,
-			TotalCount:     total,
-		})
-
-		pn, ok := pendingMap[seq]
-		if !ok || pn == nil || pn.Notification == nil {
-			progressFn(NotificationProcessEvent{
-				Step:           "skipped",
-				SequenceNumber: seq,
-				Event:          eventName,
-				Message:        fmt.Sprintf("#%d 不在卡上，跳过", seq),
-				ProcessedCount: processed,
-				TotalCount:     total,
-			})
+		aid, ok := aidByHex[aidHex]
+		if !ok {
+			// 尝试从 discoveredEUICCs 中查找
+			aid = m.aidFromCache(aidHex)
+		}
+		if len(aid) == 0 {
+			logger.Warn("ProcessNotifications: 未找到 AID 对应的字节", "device", m.deviceID, "AID", aidHex)
 			continue
 		}
 
-		meta := pn.Notification
-		shouldSend, shouldRemove, shouldDeleteWithoutSending := getNotificationActionSettings(meta.ProfileManagementOperation, settings)
-
-		if !shouldSend && !shouldRemove && !shouldDeleteWithoutSending {
-			progressFn(NotificationProcessEvent{
-				Step:           "skipped",
-				SequenceNumber: seq,
-				Event:          eventName,
-				Message:        fmt.Sprintf("#%d 设置未开启自动处理，跳过", seq),
-				ProcessedCount: processed,
-				TotalCount:     total,
-			})
+		client, err := m.createLPAWithAID(aid)
+		if err != nil {
+			logger.Warn("ProcessNotifications: 创建 LPA client 失败",
+				"device", m.deviceID, "AID", aidHex, "err", err)
 			continue
 		}
 
-		iccidStr := ""
-		if len(meta.ICCID) > 0 {
-			iccidStr = meta.ICCID.String()
+		// 获取该芯片的 EID
+		eid := m.cachedEIDForAID(aidHex)
+		if eid == "" {
+			if eidBytes, eidErr := client.EID(); eidErr == nil && len(eidBytes) > 0 {
+				eid = hex.EncodeToString(eidBytes)
+			}
 		}
 
-		// deleteWithoutSending
-		if shouldDeleteWithoutSending {
-			if err := retryWithBackoff(3, 300*time.Millisecond, nil, func() error {
-				err := client.RemoveNotificationFromList(meta.SequenceNumber)
-				if errors.Is(err, sgp22.ErrNothingToDelete) {
-					return nil
-				}
-				return err
-			}); err != nil {
+		// 获取该芯片上的 PendingNotification
+		pendingNotifications, err := safeRetrieveAllNotifications(client)
+		if err != nil {
+			_ = m.closeLPAClientForOperation("process_notifications", client)
+			logger.Warn("ProcessNotifications: 获取 PendingNotification 失败",
+				"device", m.deviceID, "AID", aidHex, "err", err)
+			continue
+		}
+		pendingMap := make(map[int64]*sgp22.PendingNotification, len(pendingNotifications))
+		for _, pn := range pendingNotifications {
+			if pn != nil && pn.Notification != nil {
+				pendingMap[int64(pn.Notification.SequenceNumber)] = pn
+			}
+		}
+
+		// 逐条处理该芯片的通知
+		for _, item := range g.items {
+			seq := item.SequenceNumber
+			eventName := item.Event
+
+			progressFn(NotificationProcessEvent{
+				Step:           "processing",
+				SequenceNumber: seq,
+				Event:          eventName,
+				ICCID:          item.ICCID,
+				Message:        fmt.Sprintf("正在处理 #%d %s", seq, eventName),
+				ProcessedCount: processed,
+				TotalCount:     total,
+			})
+
+			pn, ok := pendingMap[seq]
+			if !ok || pn == nil || pn.Notification == nil {
 				progressFn(NotificationProcessEvent{
-					Step:           "failed",
+					Step:           "skipped",
 					SequenceNumber: seq,
 					Event:          eventName,
-					Message:        fmt.Sprintf("#%d 移除失败: %v", seq, err),
+					Message:        fmt.Sprintf("#%d 不在卡上，跳过", seq),
 					ProcessedCount: processed,
 					TotalCount:     total,
 				})
 				continue
 			}
-			if eid != "" {
-				_ = db.UpdateEsimNotificationStatus(eid, seq, iccidStr, 3, nil, "")
+
+			meta := pn.Notification
+			shouldSend, shouldRemove, shouldDeleteWithoutSending := getNotificationActionSettings(meta.ProfileManagementOperation, settings)
+
+			if !shouldSend && !shouldRemove && !shouldDeleteWithoutSending {
+				progressFn(NotificationProcessEvent{
+					Step:           "skipped",
+					SequenceNumber: seq,
+					Event:          eventName,
+					Message:        fmt.Sprintf("#%d 设置未开启自动处理，跳过", seq),
+					ProcessedCount: processed,
+					TotalCount:     total,
+				})
+				continue
 			}
+
+			iccidStr := ""
+			if len(meta.ICCID) > 0 {
+				iccidStr = meta.ICCID.String()
+			}
+
+			// deleteWithoutSending
+			if shouldDeleteWithoutSending {
+				if err := retryWithBackoff(3, 300*time.Millisecond, nil, func() error {
+					err := client.RemoveNotificationFromList(meta.SequenceNumber)
+					if errors.Is(err, sgp22.ErrNothingToDelete) {
+						return nil
+					}
+					return err
+				}); err != nil {
+					progressFn(NotificationProcessEvent{
+						Step:           "failed",
+						SequenceNumber: seq,
+						Event:          eventName,
+						Message:        fmt.Sprintf("#%d 移除失败: %v", seq, err),
+						ProcessedCount: processed,
+						TotalCount:     total,
+					})
+					continue
+				}
+				if eid != "" {
+					_ = db.UpdateEsimNotificationStatus(eid, seq, iccidStr, 3, nil, "")
+				}
+				processed++
+				progressFn(NotificationProcessEvent{
+					Step:           "deleted",
+					SequenceNumber: seq,
+					Event:          eventName,
+					ICCID:          iccidStr,
+					Message:        fmt.Sprintf("#%d 已直接删除（不发送）", seq),
+					ProcessedCount: processed,
+					TotalCount:     total,
+				})
+				continue
+			}
+
+			// shouldSend
+			if shouldSend {
+				if err := retryWithBackoff(3, 300*time.Millisecond, nil, func() error {
+					return client.HandleNotification(pn)
+				}); err != nil {
+					if eid != "" {
+						_ = db.UpdateEsimNotificationStatus(eid, seq, iccidStr, 2, nil, err.Error())
+					}
+					progressFn(NotificationProcessEvent{
+						Step:           "failed",
+						SequenceNumber: seq,
+						Event:          eventName,
+						Message:        fmt.Sprintf("#%d 发送失败: %v", seq, err),
+						ProcessedCount: processed,
+						TotalCount:     total,
+					})
+					continue
+				}
+				if eid != "" {
+					contentBase64 := encodePendingNotificationBase64(pn)
+					record := db.EsimNotificationRecord{
+						EID:                eid,
+						SeqNumber:          seq,
+						ICCID:              iccidStr,
+						ProfileName:        item.ProfileName,
+						MCC:                item.MCC,
+						Content:            contentBase64,
+						Timestamp:          time.Now().UnixMilli(),
+						Status:             1,
+						NotificationServer: meta.Address,
+						NotificationType:   eventName,
+					}
+					_ = db.SaveEsimNotification(record)
+				}
+			}
+
+			// shouldRemove
+			if shouldRemove {
+				if err := retryWithBackoff(3, 300*time.Millisecond, nil, func() error {
+					err := client.RemoveNotificationFromList(meta.SequenceNumber)
+					if errors.Is(err, sgp22.ErrNothingToDelete) {
+						return nil
+					}
+					return err
+				}); err != nil {
+					if eid != "" {
+						_ = db.SetEsimNotificationDeletePending(eid, seq, iccidStr, true)
+					}
+					progressFn(NotificationProcessEvent{
+						Step:           "failed",
+						SequenceNumber: seq,
+						Event:          eventName,
+						Message:        fmt.Sprintf("#%d 移除失败: %v", seq, err),
+						ProcessedCount: processed,
+						TotalCount:     total,
+					})
+					continue
+				}
+			}
+
 			processed++
+			action := "已发送"
+			if shouldSend && shouldRemove {
+				action = "已发送并移除"
+			} else if !shouldSend && shouldRemove {
+				action = "已移除"
+			}
 			progressFn(NotificationProcessEvent{
-				Step:           "deleted",
+				Step:           "sent",
 				SequenceNumber: seq,
 				Event:          eventName,
 				ICCID:          iccidStr,
-				Message:        fmt.Sprintf("#%d 已直接删除（不发送）", seq),
+				Message:        fmt.Sprintf("#%d %s", seq, action),
 				ProcessedCount: processed,
 				TotalCount:     total,
 			})
-			continue
 		}
 
-		// shouldSend
-		if shouldSend {
-			if err := retryWithBackoff(3, 300*time.Millisecond, nil, func() error {
-				return client.HandleNotification(pn)
-			}); err != nil {
-				if eid != "" {
-					_ = db.UpdateEsimNotificationStatus(eid, seq, iccidStr, 2, nil, err.Error())
-				}
-				progressFn(NotificationProcessEvent{
-					Step:           "failed",
-					SequenceNumber: seq,
-					Event:          eventName,
-					Message:        fmt.Sprintf("#%d 发送失败: %v", seq, err),
-					ProcessedCount: processed,
-					TotalCount:     total,
-				})
-				continue
-			}
-			if eid != "" {
-				contentBase64 := encodePendingNotificationBase64(pn)
-				record := db.EsimNotificationRecord{
-					EID:                eid,
-					SeqNumber:          seq,
-					ICCID:              iccidStr,
-					ProfileName:        item.ProfileName,
-					MCC:                item.MCC,
-					Content:            contentBase64,
-					Timestamp:          time.Now().UnixMilli(),
-					Status:             1,
-					NotificationServer: meta.Address,
-					NotificationType:   eventName,
-				}
-				_ = db.SaveEsimNotification(record)
-			}
-		}
-
-		// shouldRemove
-		if shouldRemove {
-			if err := retryWithBackoff(3, 300*time.Millisecond, nil, func() error {
-				err := client.RemoveNotificationFromList(meta.SequenceNumber)
-				if errors.Is(err, sgp22.ErrNothingToDelete) {
-					return nil
-				}
-				return err
-			}); err != nil {
-				if eid != "" {
-					_ = db.SetEsimNotificationDeletePending(eid, seq, iccidStr, true)
-				}
-				progressFn(NotificationProcessEvent{
-					Step:           "failed",
-					SequenceNumber: seq,
-					Event:          eventName,
-					Message:        fmt.Sprintf("#%d 移除失败: %v", seq, err),
-					ProcessedCount: processed,
-					TotalCount:     total,
-				})
-				continue
-			}
-		}
-
-		processed++
-		action := "已发送"
-		if shouldSend && shouldRemove {
-			action = "已发送并移除"
-		} else if !shouldSend && shouldRemove {
-			action = "已移除"
-		}
-		progressFn(NotificationProcessEvent{
-			Step:           "sent",
-			SequenceNumber: seq,
-			Event:          eventName,
-			ICCID:          iccidStr,
-			Message:        fmt.Sprintf("#%d %s", seq, action),
-			ProcessedCount: processed,
-			TotalCount:     total,
-		})
+		m.setWorkingAID(aid)
+		_ = m.closeLPAClientForOperation("process_notifications", client)
 	}
 
 	// 6. 完成
@@ -5049,7 +5113,7 @@ func (m *Manager) ProcessNotifications(progressFn func(NotificationProcessEvent)
 	return nil
 }
 
-// enrichProfileSizes 为每个 profile 补上容量大小，并计算 eUICC 总容量使用率。
+// enrichProfileSizes 为每个 profile 补上容量大小，并按 EID 分别计算容量。
 // 查询方式：EID 前 8 位（EUM）+ PLMN（MCC+MNC）+ SPN 三要素查询 esimstore。
 // 查不到的 profile 不报错，仅跳过容量信息。
 func (m *Manager) enrichProfileSizes(overview *EsimOverview) {
@@ -5057,18 +5121,20 @@ func (m *Manager) enrichProfileSizes(overview *EsimOverview) {
 		return
 	}
 
-	var totalUsed int
-	var totalFree int
-
+	// 按 EID 独立计算容量
 	for i := range overview.Profiles {
 		group := &overview.Profiles[i]
 		eid := group.EID
 
+		var eidUsed int
+		var eidFree int
+
 		// 取该 eUICC 的 freeNvram 作为剩余容量
 		if overview.ChipInfo != nil {
-			for _, euiccInfo := range overview.ChipInfo.EIDs {
-				if euiccInfo.EID == eid && euiccInfo.FreeNvramBytes > 0 {
-					totalFree += int(euiccInfo.FreeNvramBytes)
+			for j := range overview.ChipInfo.EIDs {
+				eu := &overview.ChipInfo.EIDs[j]
+				if eu.EID == eid && eu.FreeNvramBytes > 0 {
+					eidFree = int(eu.FreeNvramBytes)
 					break
 				}
 			}
@@ -5086,22 +5152,25 @@ func (m *Manager) enrichProfileSizes(overview *EsimOverview) {
 				if card.Size > 0 {
 					p.ProfileSizeBytes = card.Size
 					p.ProfileSizeFormatted = formatBytes(int64(card.Size))
-					totalUsed += card.Size
+					eidUsed += card.Size
 				}
 				if len(card.Names) > 0 {
 					p.ProfileAlias = card.Names[0]
 				}
 			}
 		}
-	}
 
-	// 计算总容量和使用率
-	totalCapacity := totalUsed + totalFree
-	if totalCapacity > 0 {
-		overview.TotalCapacityBytes = totalCapacity
-		overview.UsedCapacityBytes = totalUsed
-		overview.FreeCapacityBytes = totalFree
-		overview.UsagePercent = float64(totalUsed) / float64(totalCapacity) * 100
-		overview.CapacityFormatted = formatBytes(int64(totalCapacity))
+		// 将独立容量写回对应的 EUICCInfo
+		eidTotal := eidUsed + eidFree
+		if overview.ChipInfo != nil && eidTotal > 0 {
+			for j := range overview.ChipInfo.EIDs {
+				eu := &overview.ChipInfo.EIDs[j]
+				if eu.EID == eid {
+					eu.UsedCapacityBytes = int32(eidUsed)
+					eu.TotalCapacityBytes = int32(eidTotal)
+					break
+				}
+			}
+		}
 	}
 }

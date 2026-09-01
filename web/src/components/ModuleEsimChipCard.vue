@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import type { EsimChipInfo, EsimEUICCInfo } from '../types/api'
 import { ArrowSync24Regular, Eye24Regular, EyeOff24Regular } from '@vicons/fluent'
 import { HardwareChipOutline } from '@vicons/ionicons5'
@@ -8,11 +8,6 @@ const props = defineProps<{
   chipInfo: EsimChipInfo | null
   showSensitive: boolean
   refreshing?: boolean
-  totalCapacityBytes?: number
-  usedCapacityBytes?: number
-  freeCapacityBytes?: number
-  usagePercent?: number
-  capacityFormatted?: string
 }>()
 
 const emit = defineEmits<{
@@ -21,35 +16,48 @@ const emit = defineEmits<{
 }>()
 
 const chipName = computed(() => props.chipInfo?.sku_name || 'eUICC')
-const firstEid = computed<EsimEUICCInfo | null>(() => props.chipInfo?.eids?.[0] ?? null)
+const eidList = computed<EsimEUICCInfo[]>(() => props.chipInfo?.eids ?? [])
+const hasMultipleEids = computed(() => eidList.value.length > 1)
 
-const eidDisplay = computed(() => firstEid.value?.eid || '')
+// 当前选中的 EID 索引（多 EID 时可循环切换）
+const selectedEidIndex = ref(0)
 
-// 容量展示：优先用后端计算好的，回退用 freeNvram
+// 当 chipInfo 变化时重置索引
+watch(() => props.chipInfo, () => {
+  selectedEidIndex.value = 0
+})
+
+const currentEidInfo = computed<EsimEUICCInfo | null>(() => {
+  if (eidList.value.length === 0) return null
+  return eidList.value[selectedEidIndex.value] ?? eidList.value[0]
+})
+
+const eidDisplay = computed(() => currentEidInfo.value?.eid || '')
+
+// EID 行标签：恢复为标准 "EID"
+const eidLabel = 'EID'
+
+// 容量展示：从当前选中的 EID 独立获取
 const usedDisplay = computed(() => {
-  const bytes = props.usedCapacityBytes ?? 0
+  const bytes = currentEidInfo.value?.used_capacity_bytes ?? 0
   if (bytes > 0) return formatBytes(bytes)
   return '--'
 })
 const freeDisplay = computed(() => {
-  // 优先用后端的 free_capacity_bytes，回退用 eUICC 上报的 free_nvram
-  const bytes = props.freeCapacityBytes ?? 0
+  const bytes = currentEidInfo.value?.free_nvram_bytes ?? 0
   if (bytes > 0) return formatBytes(bytes)
-  return firstEid.value?.free_nvram || '--'
+  return currentEidInfo.value?.free_nvram || '--'
 })
 const totalDisplay = computed(() => {
-  // 优先用后端的 capacity_formatted，回退用 totalCapacityBytes 计算
-  if (props.capacityFormatted) return props.capacityFormatted
-  const bytes = props.totalCapacityBytes ?? 0
+  const bytes = currentEidInfo.value?.total_capacity_bytes ?? 0
   if (bytes > 0) return formatBytes(bytes)
   return '--'
 })
 // 剩余容量低于 80kb 时标记为容量不足
 const freeCapacityLow = computed(() => {
-  const bytes = props.freeCapacityBytes ?? 0
+  const bytes = currentEidInfo.value?.free_nvram_bytes ?? 0
   if (bytes > 0 && bytes < 80 * 1024) return true
-  // 回退检查 free_nvram 文本（如 "338.00 kb"）
-  const freeNvram = firstEid.value?.free_nvram || ''
+  const freeNvram = currentEidInfo.value?.free_nvram || ''
   if (bytes === 0 && freeNvram) {
     const num = parseFloat(freeNvram)
     const unit = freeNvram.toLowerCase()
@@ -60,11 +68,16 @@ const freeCapacityLow = computed(() => {
 })
 
 const usageDisplay = computed(() => {
-  const pct = props.usagePercent ?? 0
-  if (pct > 0) return pct.toFixed(1) + '%'
+  const used = currentEidInfo.value?.used_capacity_bytes ?? 0
+  const total = currentEidInfo.value?.total_capacity_bytes ?? 0
+  if (total > 0) return ((used / total) * 100).toFixed(1) + '%'
   return '--'
 })
 
+// 切换到指定 EID
+function selectEid(index: number) {
+  selectedEidIndex.value = index
+}
 // 字节转人类可读：kb 值 ≥1000 时转 mb
 function formatBytes(bytes: number): string {
   if (bytes >= 1000 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + ' mb'
@@ -82,6 +95,11 @@ function formatBytes(bytes: number): string {
         <span class="chip-card-name">{{ chipName }}</span>
       </div>
       <div class="chip-card-actions">
+        <template v-if="hasMultipleEids">
+          <button v-for="(eid, idx) in eidList" :key="eid.eid || idx" class="chip-icon-btn" :class="{ 'active': idx === selectedEidIndex }" :title="`EID${idx + 1}`" @click="selectEid(idx)">
+            <span class="chip-eid-num">{{ idx + 1 }}</span>
+          </button>
+        </template>
         <button class="chip-icon-btn" :disabled="refreshing" title="刷新" @click="emit('refresh')">
           <el-icon size="16" :class="{ 'spin': refreshing }"><ArrowSync24Regular /></el-icon>
         </button>
@@ -93,7 +111,7 @@ function formatBytes(bytes: number): string {
     <!-- EID + 空间信息 -->
     <div class="chip-card-body">
       <div class="chip-card-eid-row">
-        <span class="chip-card-eid-label">EID</span>
+        <span class="chip-card-eid-label">{{ eidLabel }}</span>
         <span class="chip-card-eid-value" :class="{ masked: !showSensitive }">{{ eidDisplay }}</span>
       </div>
       <div class="chip-card-capacity">
@@ -203,6 +221,18 @@ function formatBytes(bytes: number): string {
 .chip-icon-btn .spin {
   animation: chip-spin 0.8s linear infinite;
   color: var(--brand);
+}
+
+/* EID 数字按钮 */
+.chip-eid-num {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--oomol-font-mono);
+  line-height: 1;
+}
+.chip-icon-btn.active {
+  background: var(--brand);
+  color: #fff;
 }
 
 @keyframes chip-spin {

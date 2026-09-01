@@ -174,9 +174,6 @@ const notifFormatTime = (ts: number) => {
   return new Date(ts).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
-const eidDisplay = computed(() => props.chipInfo?.eids?.[0]?.eid || '')
-const freeNvram = computed(() => props.chipInfo?.eids?.[0]?.free_nvram || '')
-const chipName = computed(() => props.chipInfo?.sku_name || 'eUICC')
 const footerText = computed(() => {
   if (notifTab.value === 'settings') return '通知处理设置'
   if (notifTab.value === 'current') return `当前通知 ${notifItems.value.length} 条`
@@ -568,9 +565,10 @@ async function retryNotification(item: NotificationItemWithStatus) {
                       >{{ notifStatusLabel(item.status)!.text }}</span>
                       <span class="notif-card-seq">#{{ item.sequence_number }}</span>
                     </div>
-                    <!-- 第四行：事件标签（单独一行） -->
+                    <!-- 第四行：事件标签 + EID 胶囊 -->
                     <div class="notif-card-line4">
                       <span class="notif-card-line4-event" :class="`notif-card-icon-${item.event}`">{{ item.event.toUpperCase() }}</span>
+                      <span v-if="item.eid" class="notif-card-line4-event notif-card-eid-tag">...{{ item.eid.slice(-8) }}</span>
                     </div>
                   </div>
                   <div class="notif-card-actions">
@@ -635,9 +633,10 @@ async function retryNotification(item: NotificationItemWithStatus) {
                         class="notif-card-status-tag"
                       >{{ notifHistoryStatusLabel(record.status)!.text }}</span>
                     </div>
-                    <!-- 第五行：事件标签 -->
+                    <!-- 第五行：事件标签 + EID 胶囊 -->
                     <div class="notif-card-line4">
                       <span class="notif-card-line4-event" :class="`notif-card-icon-${record.notification_type}`">{{ (record.notification_type || '').toUpperCase() }}</span>
+                      <span v-if="record.eid" class="notif-card-line4-event notif-card-eid-tag">...{{ record.eid.slice(-8) }}</span>
                     </div>
                   </div>
                   <div class="notif-card-actions">
@@ -1126,6 +1125,11 @@ async function retryNotification(item: NotificationItemWithStatus) {
   padding: 1px 4px;
   border-radius: 3px;
   flex-shrink: 0;
+}
+.notif-card-eid-tag {
+  background: rgba(107, 114, 128, 0.12);
+  color: var(--muted-foreground);
+  font-family: var(--oomol-font-mono);
 }
 .notif-card-line4-event.notif-card-icon-install {
   background: rgba(59, 130, 246, 0.12);

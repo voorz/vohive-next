@@ -256,6 +256,8 @@ export type EsimEUICCInfo = {
   spec_confidence?: EsimEUICCSpecConfidence
   free_nvram_bytes: number
   free_nvram: string
+  total_capacity_bytes?: number
+  used_capacity_bytes?: number
   firmware?: string
   manufacturer?: string
   certificates?: string[]
@@ -302,11 +304,6 @@ export type EsimOverviewResponse = {
   chip_info: EsimChipInfo | null
   profiles: EsimEUICCProfiles[]
   notification_count?: number
-  total_capacity_bytes?: number
-  used_capacity_bytes?: number
-  free_capacity_bytes?: number
-  usage_percent?: number
-  capacity_formatted?: string
 }
 
 export type EsimNotificationItem = {
@@ -317,6 +314,7 @@ export type EsimNotificationItem = {
   mcc?: string
   address?: string
   aid_hex?: string
+  eid?: string
   can_retry: boolean
   status?: 'pending' | 'sent' | 'failed'
 }
@@ -616,7 +614,7 @@ export type IKEConfig = {
   apn?: string
   replay_window?: number
   enable_esn?: boolean
-  disable_eap_mac_validation?: boolean
+  eap_mac_validation?: boolean
   rf_off_delay?: number
 }
 

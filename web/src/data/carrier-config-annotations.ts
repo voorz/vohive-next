@@ -74,8 +74,8 @@ export const configAnnotations: Record<string, Record<string, ParamAnnotation>> 
       desc: 'Extended Sequence Numbers（扩展序列号），64 位序列号空间。部分运营商 ePDG 要求启用 ESN 才能建立 SA。',
       recommend: '关闭（旧运营商兼容性更好）',
     },
-    '禁用 EAP MAC 校验': {
-      desc: '禁用 EAP 消息的 MAC 地址校验。部分 ePDG 实现在 EAP 阶段对 MAC 有非标准处理。',
+    'EAP MAC 校验': {
+      desc: 'EAP 消息的 MAC 地址校验。部分 ePDG 实现在 EAP 阶段对 MAC 有非标准处理。',
       recommend: '关闭',
     },
   },
