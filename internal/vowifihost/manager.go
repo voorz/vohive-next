@@ -3,6 +3,7 @@ package vowifihost
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/voorz/vohive/internal/sipgw"
 	"github.com/voorz/vowifi-core/runtimehost"
@@ -38,6 +39,11 @@ type Manager struct {
 
 	// ikeRetryCount controls IKE retransmission count (0 = default 5).
 	ikeRetryCount int
+
+	// recoverInterval 是 VoWiFi 恢复失败后下一轮重试的间隔。
+	// 0 表示使用默认值（10s）。通过前端全局设置热更新。
+	// 与 UIM 门控（60s 固定 cooldown）独立，互不干扰。
+	recoverInterval time.Duration
 
 	inboundDialogsMu sync.Mutex
 	inboundDialogs   map[string]*inboundDialogInfo
@@ -91,6 +97,27 @@ func (m *Manager) SetIKERetryCount(n int) {
 		return
 	}
 	m.ikeRetryCount = n
+}
+
+// SetRecoverInterval 热更新 VoWiFi 恢复间隔时间。
+// seconds <= 0 时使用默认值 10s。
+func (m *Manager) SetRecoverInterval(seconds int) {
+	if m == nil {
+		return
+	}
+	if seconds <= 0 {
+		m.recoverInterval = 0 // 0 表示用默认值
+		return
+	}
+	m.recoverInterval = time.Duration(seconds) * time.Second
+}
+
+// RecoverInterval 返回当前配置的恢复间隔。0 表示用默认值。
+func (m *Manager) RecoverInterval() time.Duration {
+	if m == nil {
+		return 0
+	}
+	return m.recoverInterval
 }
 
 func (m *Manager) RuntimeStore() RuntimeStore {

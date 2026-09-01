@@ -99,6 +99,11 @@ const state = vowifiState(d)
 if (state === 'ready') return 'WiFi-Calling 已就绪'
 // 显示实时状态
 const rt = d?.vowifi_runtime
+if (rt?.phase === 'recover_failed') {
+  // recover_failed 时卡片只显示倒计时，错误原因在设备概览页展示
+  if (rt?.retry_in_seconds && rt.retry_in_seconds > 0) return `${rt.retry_in_seconds}s 后重试`
+  return 'VoWiFi 启动失败'
+}
 if (rt?.stage_label) return rt.stage_label
 if (rt?.last_reason) return rt.last_reason
 return 'WiFi-Calling 启动中...'

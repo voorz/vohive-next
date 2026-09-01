@@ -155,6 +155,11 @@ type VoWiFiBehaviorConfig struct {
 	// RFOffDelay 是飞行模式后等待网络栈稳定的秒数。
 	// 仅在 OverrideRFOff=true 时生效。默认 5。
 	RFOffDelay int `mapstructure:"rf_off_delay"`
+
+	// RecoverIntervalSeconds 是 VoWiFi 恢复失败后下一轮重试的间隔（秒）。
+	// 作为全局参数覆盖所有设备的退避策略。默认 10。
+	// 与 UIM 门控（60s 固定 cooldown）独立，互不干扰。
+	RecoverIntervalSeconds int `mapstructure:"recover_interval_seconds"`
 }
 
 // VoWiFiVoiceGatewayConfig 语音网关配置（支持 Linphone 接打电话）。
@@ -377,6 +382,7 @@ func Load(path string) (*Config, error) {
 	viper.SetDefault("vowifi.behavior.ike_retry_count", 5)
 	viper.SetDefault("vowifi.behavior.override_rf_off", false)
 	viper.SetDefault("vowifi.behavior.rf_off_delay", 5)
+	viper.SetDefault("vowifi.behavior.recover_interval_seconds", 10)
 	viper.SetDefault("sms_rate_limit.hourly_limit", 3)
 	viper.SetDefault("sms_rate_limit.daily_limit", 10)
 	viper.SetDefault("imscore.use_sipgo_udp", false)

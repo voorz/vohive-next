@@ -251,6 +251,7 @@ func NewPool(cfg *config.Config) *Pool {
 	p.voWiFiHost().ConfigureRuntimeDependencies(p.GetVoiceGateway(), vowifiDeliveryStore{}, poolVoWiFiRuntimeDispatcher{pool: p})
 	if cfg != nil {
 		p.voWiFiHost().SetIKERetryCount(cfg.VoWiFi.Behavior.IKERetryCount)
+		p.voWiFiHost().SetRecoverInterval(cfg.VoWiFi.Behavior.RecoverIntervalSeconds)
 	}
 
 	return p

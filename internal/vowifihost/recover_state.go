@@ -30,7 +30,24 @@ func NewDesiredRecoverStore() *DesiredRecoverStore {
 	return &DesiredRecoverStore{states: make(map[string]*desiredRecoverState)}
 }
 
-func DesiredRecoverDelay(attempt int) time.Duration {
+// DesiredRecoverDelay 返回恢复重试的间隔时间。
+// 如果 Manager 配置了 recoverInterval (>0)，则使用配置值（固定间隔）。
+// 否则回退到默认递增退避策略。
+//
+// 注意：UIM 门控通过 SetCooldown 设置独立的 60s cooldown，
+// 不走 MarkFailed/DesiredRecoverDelay 路径，因此不受影响。
+func (m *Manager) DesiredRecoverDelay(attempt int) time.Duration {
+	// 配置优先：全局设置中的 recover_interval_seconds
+	if m != nil && m.recoverInterval > 0 {
+		return m.recoverInterval
+	}
+	// 回退：默认递增退避
+	return defaultRecoverDelay(attempt)
+}
+
+// defaultRecoverDelay 是默认的递增退避策略。
+// 仅在未配置 recoverInterval 时使用。
+func defaultRecoverDelay(attempt int) time.Duration {
 	if attempt <= 0 {
 		return 3 * time.Second
 	}
@@ -48,7 +65,9 @@ func (m *Manager) BeginDesiredRecover(deviceID string, now time.Time) bool {
 }
 
 func (m *Manager) MarkDesiredRecoverFailed(deviceID string, now time.Time, err error) DesiredRecoverSnapshot {
-	return m.desiredRecoverStore().MarkFailed(deviceID, now, err)
+	// 配置了固定间隔时使用配置值，否则传 0 让 MarkFailed 内部用 attempt 计算
+	delay := m.recoverInterval
+	return m.desiredRecoverStore().MarkFailed(deviceID, now, delay, err)
 }
 
 func (m *Manager) ClearDesiredRecoverState(deviceID string) {
@@ -93,7 +112,7 @@ func (s *DesiredRecoverStore) Begin(deviceID string, now time.Time) bool {
 	return true
 }
 
-func (s *DesiredRecoverStore) MarkFailed(deviceID string, now time.Time, err error) DesiredRecoverSnapshot {
+func (s *DesiredRecoverStore) MarkFailed(deviceID string, now time.Time, delay time.Duration, err error) DesiredRecoverSnapshot {
 	deviceID = strings.TrimSpace(deviceID)
 	if s == nil || deviceID == "" {
 		return DesiredRecoverSnapshot{}
@@ -105,7 +124,9 @@ func (s *DesiredRecoverStore) MarkFailed(deviceID string, now time.Time, err err
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	st := s.ensureLocked(deviceID)
-	delay := DesiredRecoverDelay(st.attempt)
+	if delay <= 0 {
+		delay = defaultRecoverDelay(st.attempt)
+	}
 	st.attempt++
 	st.nextAt = now.Add(delay)
 	st.inFlight = false

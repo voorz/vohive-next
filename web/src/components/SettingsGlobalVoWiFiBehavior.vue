@@ -12,7 +12,8 @@ const loading = ref(false)
 const form = ref({
   ike_retry_count: 5,
   override_rf_off: false,
-  rf_off_delay: 5
+  rf_off_delay: 5,
+  recover_interval_seconds: 10
 })
 
 onMounted(async () => {
@@ -30,7 +31,6 @@ onMounted(async () => {
 })
 
 function startEdit() {
-  // backup current values for cancel
   form.value = { ...form.value }
   editing.value = true
 }
@@ -41,7 +41,8 @@ async function save() {
     const res = await systemService.saveVoWiFiBehavior(
       form.value.ike_retry_count,
       form.value.override_rf_off,
-      form.value.rf_off_delay
+      form.value.rf_off_delay,
+      form.value.recover_interval_seconds
     )
     if (!res.ok) throw new Error(res.error.message || '保存失败')
     ElMessage.success('VoWiFi 行为配置已保存')
@@ -55,7 +56,6 @@ async function save() {
 
 function cancelEdit() {
   editing.value = false
-  // reload from server
   loadConfig()
 }
 
@@ -81,11 +81,8 @@ async function loadConfig() {
     </div>
     <div v-show="expanded" class="faq-body">
       <div class="flex items-center justify-between mb-4">
-        <div>
-          <div class="faq-item-title">IKE 重传与拆除重建</div>
-          <div class="faq-item-desc">IKE 重传次数耗尽后触发整个 VoWiFi 拆除重建（等同手动重连）</div>
-        </div>
-        <div class="flex items-center gap-2">
+        <div class="faq-item-title">VoWiFi 行为参数</div>
+        <div class="flex items-center gap-2 shrink-0">
           <template v-if="!editing">
             <el-button size="small" @click="startEdit">编辑</el-button>
           </template>
@@ -96,47 +93,29 @@ async function loadConfig() {
         </div>
       </div>
 
-      <div class="space-y-4 max-w-md">
+      <div class="space-y-4">
         <!-- IKE 重传次数 -->
         <div class="space-y-1">
-          <label class="settings-form-label">IKE 重传次数</label>
-          <el-input-number
-            v-model="form.ike_retry_count"
-            :min="0"
-            :max="20"
-            :disabled="!editing"
-            controls-position="right"
-            class="w-full !w-full"
-          />
-          <div class="settings-form-hint">
-            0 = 使用默认值（5 次）。重传耗尽后触发整个 VoWiFi 拆除重建，重建后重传次数重置。
-          </div>
+          <div class="faq-item-title">IKE 重传次数</div>
+          <el-input-number v-model="form.ike_retry_count" :min="0" :max="20" :disabled="!editing" size="small" controls-position="right" />
+          <div class="faq-item-desc">单次VoWiFi流程中IKE重试次数</div>
         </div>
 
-        <!-- RFOff 延迟覆盖 -->
-        <div class="pt-4 border-t" style="border-color: var(--border);">
-          <div class="flex items-center justify-between mb-3">
-            <div>
-              <div class="faq-item-title">飞行模式延迟覆盖</div>
-              <div class="faq-item-desc">勾选后使用全局值替代运营商预设的 RFOff 延迟</div>
-            </div>
+        <!-- RFOff 延迟 -->
+        <div class="pt-4 border-t space-y-1" style="border-color: var(--border);">
+          <div class="faq-item-title">RFOff 延迟（秒）</div>
+          <div class="flex items-center gap-2">
+            <el-input-number v-model="form.rf_off_delay" :min="0" :max="30" :disabled="!editing || !form.override_rf_off" size="small" controls-position="right" />
             <el-switch v-model="form.override_rf_off" :disabled="!editing" />
           </div>
+          <div class="faq-item-desc">IKE_SA_INIT请求预热(等待网络栈重建路由表就绪)</div>
+        </div>
 
-          <div class="space-y-1" :class="{ 'opacity-50': !form.override_rf_off }">
-            <label class="settings-form-label">RFOff 延迟（秒）</label>
-            <el-input-number
-              v-model="form.rf_off_delay"
-              :min="0"
-              :max="30"
-              :disabled="!editing || !form.override_rf_off"
-              controls-position="right"
-              class="w-full !w-full"
-            />
-            <div class="settings-form-hint">
-              飞行模式后等待网络栈稳定的秒数。仅在覆盖开启时生效。
-            </div>
-          </div>
+        <!-- 重试间隔 -->
+        <div class="pt-4 border-t space-y-1" style="border-color: var(--border);">
+          <div class="faq-item-title">重试间隔（秒）</div>
+          <el-input-number v-model="form.recover_interval_seconds" :min="0" :max="3600" :disabled="!editing" size="small" controls-position="right" />
+          <div class="faq-item-desc">VoWiFi注册失败后多久内尝试下一次</div>
         </div>
       </div>
     </div>

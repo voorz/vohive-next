@@ -179,16 +179,18 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 		},
 		OnTunnelDown: func(downDeviceID string) {
 			go func() {
-				// Wait for the pipeline goroutine to exit and RuntimeStore
-				// to transition out of Active/Starting before attempting
-				// recovery. Exponential backoff avoids tight retry loops.
-				backoff := 3 * time.Second
+				// 使用配置的恢复间隔作为初始退避，覆盖全局设置中的 recover_interval_seconds。
+				// 如果未配置（0），回退到默认 3s。
+				backoff := m.DesiredRecoverDelay(0)
+				if backoff <= 0 {
+					backoff = 3 * time.Second
+				}
 				maxBackoff := 30 * time.Second
 				for attempt := 0; attempt < 10; attempt++ {
-					select {
-					case <-time.After(backoff):
-					case <-ctx.Done():
-						return
+					// 先获取上一个错误原因（stop 后会丢失）
+					lastReason := "VoWiFi 隧道断开，等待自动恢复"
+					if st, ok := m.State(downDeviceID); ok && st.LastReason != "" {
+						lastReason = st.LastReason
 					}
 					// Stop and remove the old instance from the RuntimeStore
 					// so DesiredRecoverable returns true. This handles both
@@ -202,6 +204,44 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 							"device", downDeviceID)
 						return
 					}
+					// 设置 cooldown + startup state 让前端看到倒计时和失败状态
+					m.SetDesiredRecoverCooldown(downDeviceID, backoff)
+					m.RecordStartupState(downDeviceID, runtimehost.State{
+						DeviceID:   downDeviceID,
+						Phase:      "recover_failed",
+						LastReason: lastReason,
+						UpdatedAt:  time.Now(),
+					})
+					// 在等待期间每秒广播状态更新，让前端实时获取倒计时
+					countdownTicker := time.NewTicker(1 * time.Second)
+					countdownDone := make(chan struct{})
+					go func() {
+						defer countdownTicker.Stop()
+						for {
+							select {
+							case <-countdownTicker.C:
+								// 检查是否还是 recover_failed 状态
+								st, ok := m.State(downDeviceID)
+								if !ok || st.Phase != "recover_failed" {
+									return
+								}
+								m.RecordStartupState(downDeviceID, runtimehost.State{
+									DeviceID:   downDeviceID,
+									Phase:      "recover_failed",
+									LastReason: lastReason,
+									UpdatedAt:  time.Now(),
+								})
+							case <-countdownDone:
+								return
+							}
+						}
+					}()
+					select {
+					case <-time.After(backoff):
+					case <-ctx.Done():
+						return
+					}
+					close(countdownDone)
 					if m.DesiredRecoverable(downDeviceID) {
 						m.ScheduleDesiredRecover(context.Background(), DesiredRecoverRequest{
 							DeviceID: downDeviceID,

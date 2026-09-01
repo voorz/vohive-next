@@ -164,7 +164,7 @@ func UpdateSMSRateLimitInFile(path string, hourly, daily int) error {
 }
 
 // UpdateVoWiFiBehaviorInFile 更新配置文件中的 vowifi.behavior 节点
-func UpdateVoWiFiBehaviorInFile(path string, ikeRetryCount int, overrideRFOff bool, rfOffDelay int) error {
+func UpdateVoWiFiBehaviorInFile(path string, ikeRetryCount int, overrideRFOff bool, rfOffDelay, recoverIntervalSeconds int) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("读取配置文件失败: %w", err)
@@ -180,9 +180,10 @@ func UpdateVoWiFiBehaviorInFile(path string, ikeRetryCount int, overrideRFOff bo
 		vowifi = make(map[string]any)
 	}
 	vowifi["behavior"] = map[string]any{
-		"ike_retry_count": ikeRetryCount,
-		"override_rf_off": overrideRFOff,
-		"rf_off_delay":    rfOffDelay,
+		"ike_retry_count":         ikeRetryCount,
+		"override_rf_off":         overrideRFOff,
+		"rf_off_delay":            rfOffDelay,
+		"recover_interval_seconds": recoverIntervalSeconds,
 	}
 	root["vowifi"] = vowifi
 

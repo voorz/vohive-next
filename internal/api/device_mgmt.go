@@ -565,22 +565,36 @@ func runtimeStateToDTO(st runtimehost.State, status modem.DeviceStatus) *voWiFiR
 func (s *Server) getVoWiFiRuntimeDTO(deviceID string) *voWiFiRuntimeDTO {
 	st, ok := s.pool.GetVoWiFiRuntimeState(deviceID)
 	if !ok {
-		return nil
+		// RuntimeStore 没有状态，但可能处于恢复退避中。
+		// 检查 DesiredRecoverSnapshot，如果有就构造最小 DTO 返回倒计时。
+		snap, snapOk := s.pool.GetDesiredRecoverSnapshot(deviceID)
+		if !snapOk {
+			return nil
+		}
+		remaining := int(time.Until(snap.NextAt).Seconds())
+		if remaining < 0 {
+			remaining = 0
+		}
+		return &voWiFiRuntimeDTO{
+			DeviceID:       deviceID,
+			Phase:          "recover_failed",
+			LastReason:     snap.LastErr,
+			UpdatedAt:      time.Now(),
+			RetryInSeconds: remaining,
+		}
 	}
 	status := modem.DeviceStatus{}
 	if w := s.pool.GetWorker(deviceID); w != nil {
 		status = w.ProjectDeviceStatus()
 	}
 	dto := runtimeStateToDTO(st, status)
-	// UIM 门控：从 DesiredRecoverStore 获取剩余倒计时秒数
-	if dto.Phase == "uim_unavailable" {
-		if snap, ok := s.pool.GetDesiredRecoverSnapshot(deviceID); ok {
-			remaining := int(time.Until(snap.NextAt).Seconds())
-			if remaining < 0 {
-				remaining = 0
-			}
-			dto.RetryInSeconds = remaining
+	// 从 DesiredRecoverStore 获取剩余倒计时秒数（UIM 门控和普通恢复失败都走这里）
+	if snap, ok := s.pool.GetDesiredRecoverSnapshot(deviceID); ok {
+		remaining := int(time.Until(snap.NextAt).Seconds())
+		if remaining < 0 {
+			remaining = 0
 		}
+		dto.RetryInSeconds = remaining
 	}
 	return dto
 }

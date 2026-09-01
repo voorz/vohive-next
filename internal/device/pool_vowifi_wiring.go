@@ -18,7 +18,7 @@ func (p *Pool) SetVoiceGateway(g *voicehost.Gateway) {
 }
 
 // UpdateVoWiFiBehavior 热更新 VoWiFi 行为参数到运行时。
-func (p *Pool) UpdateVoWiFiBehavior(ikeRetryCount int) {
+func (p *Pool) UpdateVoWiFiBehavior(ikeRetryCount int, recoverIntervalSeconds int) {
 	if p == nil {
 		return
 	}
@@ -27,6 +27,7 @@ func (p *Pool) UpdateVoWiFiBehavior(ikeRetryCount int) {
 	p.mu.RUnlock()
 	if host != nil {
 		host.SetIKERetryCount(ikeRetryCount)
+		host.SetRecoverInterval(recoverIntervalSeconds)
 	}
 }
 

@@ -42,7 +42,7 @@ func (p *Pool) handleVoWiFiStartupError(traceID, deviceID, runtimeEPDGOverride s
 
 	logger.Error("VoWiFi 启动失败", "trace_id", traceID, "device", deviceID, "err", err)
 	retryable := shouldRetryVoWiFiAutoStart(err)
-	nextRetry := vowifihost.DesiredRecoverDelay(0)
+	nextRetry := p.voWiFiHost().DesiredRecoverDelay(0)
 	if !retryable {
 		nextRetry = 0
 	}

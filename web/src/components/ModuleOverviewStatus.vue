@@ -7,6 +7,7 @@ import { WifiCalling3Twotone, WifiProtectedSetupRound, RunningWithErrorsFilled, 
 import OperatorSelectionDialog from './ModuleOperatorSelectionDialog.vue'
 import ModuleOverviewActivity from './ModuleOverviewActivity.vue'
 import { useDevicesStore } from '../stores/devices'
+import { copyToClipboard } from '../utils/clipboard'
 import ChinaMobileIcon from '../assets/svgs/china-mobile.svg'
 import ChinaTelecomIcon from '../assets/svgs/china-telecom.svg'
 import ChinaUnicomIcon from '../assets/svgs/china-unicom.svg'
@@ -25,6 +26,11 @@ const emit = defineEmits<{
 
 const store = useDevicesStore()
 const showOperatorSelection = ref(false)
+
+function copyVal(val: string | undefined) {
+  if (!val || val === '--') return
+  void copyToClipboard(val)
+}
 
 // PC/SC 读卡器设备：无 modem，始终以 VoWiFi 模式展示
 const isPCSC = computed(() => props.device?.esim_transport === 'pcsc')
@@ -57,6 +63,8 @@ const vowifiStatus = computed<'ok' | 'partial' | 'off'>(() => {
 const vowifiStartingText = computed(() => {
   const rt = props.device?.vowifi_runtime
   if (!rt) return ''
+  // recover_failed 状态显示固定标题，错误原因在 hero-sub 展示
+  if (rt.phase === 'recover_failed') return 'VoWiFi 启动失败'
   // 优先显示 stage_label（实时进度）
   if (rt.stage_label) return rt.stage_label
   // 其次显示 last_reason
@@ -65,14 +73,14 @@ const vowifiStartingText = computed(() => {
   return '等待启动...'
 })
 
-// UIM 门控倒计时文本（仅 phase=uim_unavailable 时有值）
-const uimRetryText = computed(() => {
+// 恢复倒计时文本（UIM 门控和普通恢复失败都走这里）
+const recoverRetryText = computed(() => {
   const rt = props.device?.vowifi_runtime
-  if (!rt || rt.phase !== 'uim_unavailable') return ''
+  if (!rt) return ''
   if (rt.retry_in_seconds && rt.retry_in_seconds > 0) {
     return `${rt.retry_in_seconds}s 后重试`
   }
-  return '等待重试...'
+  return ''
 })
 
 // VoWiFi 启动过程追踪：只在同一设备启动过程中变为 ok 才触发礼花
@@ -272,11 +280,21 @@ const networkModeIcon = computed(() => {
               <div v-else-if="vowifiStatus === 'partial' && device?.vowifi_runtime?.last_reason" class="hero-sub">
                 {{ device.vowifi_runtime.last_reason }}
               </div>
-              <div v-else-if="vowifiStatus === 'off' && vowifiEnabled && uimRetryText" class="hero-sub">
-                {{ uimRetryText }}
-              </div>
-              <div v-else-if="vowifiStatus === 'off' && vowifiEnabled && device?.vowifi_runtime?.last_reason && !uimRetryText" class="hero-sub">
-                {{ device.vowifi_runtime.last_reason }}
+              <div v-else-if="vowifiStatus === 'off' && vowifiEnabled && device?.vowifi_runtime?.last_reason" class="hero-sub">
+                <span class="copyable" @click="copyVal(device.vowifi_runtime.last_reason)">{{ device.vowifi_runtime.last_reason }}</span>
+                <el-popover
+                  v-if="recoverRetryText"
+                  placement="bottom"
+                  :width="300"
+                  trigger="hover"
+                >
+                  <template #reference>
+                    <div class="recover-retry-text">{{ recoverRetryText }}</div>
+                  </template>
+                  <div class="text-xs leading-relaxed">
+                    可在「系统设置」-「全局」设置失败重试间隔时间
+                  </div>
+                </el-popover>
               </div>
             </div>
           </div>
@@ -582,6 +600,8 @@ line-height: 1;
 .hero-card.warning .hero-title { color: color-mix(in oklab, var(--warning) 85%, var(--foreground)); }
 .hero-card.off .hero-title { color: var(--muted-foreground); }
 .hero-sub { font-size: 12px; margin-top: 2px; color: var(--muted-foreground); }
+.hero-sub .copyable { cursor: pointer; }
+.hero-sub .copyable:hover { color: var(--brand); }
 
 /* 分割线（同步卡片轮廓线色调） */
 .hero-divider { border-top: 1px solid var(--border); }

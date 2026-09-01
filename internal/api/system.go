@@ -115,18 +115,20 @@ func (s *Server) handleDeleteUpdateRepo(c *gin.Context) {
 func (s *Server) handleGetVoWiFiBehavior(c *gin.Context) {
 	b := s.fullCfg.VoWiFi.Behavior
 	c.JSON(http.StatusOK, gin.H{
-		"ike_retry_count": b.IKERetryCount,
-		"override_rf_off": b.OverrideRFOff,
-		"rf_off_delay":    b.RFOffDelay,
+		"ike_retry_count":          b.IKERetryCount,
+		"override_rf_off":          b.OverrideRFOff,
+		"rf_off_delay":             b.RFOffDelay,
+		"recover_interval_seconds": b.RecoverIntervalSeconds,
 	})
 }
 
 // handleUpdateVoWiFiBehavior 更新 VoWiFi 行为配置并热加载
 func (s *Server) handleUpdateVoWiFiBehavior(c *gin.Context) {
 	var req struct {
-		IKERetryCount int  `json:"ike_retry_count"`
-		OverrideRFOff bool `json:"override_rf_off"`
-		RFOffDelay    int  `json:"rf_off_delay"`
+		IKERetryCount          int  `json:"ike_retry_count"`
+		OverrideRFOff          bool `json:"override_rf_off"`
+		RFOffDelay             int  `json:"rf_off_delay"`
+		RecoverIntervalSeconds int  `json:"recover_interval_seconds"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "参数错误"})
@@ -140,12 +142,16 @@ func (s *Server) handleUpdateVoWiFiBehavior(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "RFOff 延迟不能为负数"})
 		return
 	}
+	if req.RecoverIntervalSeconds < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "恢复间隔不能为负数"})
+		return
+	}
 	configPath := config.GetConfigPath()
 	if configPath == "" {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "配置文件路径未初始化"})
 		return
 	}
-	if err := config.UpdateVoWiFiBehaviorInFile(configPath, req.IKERetryCount, req.OverrideRFOff, req.RFOffDelay); err != nil {
+	if err := config.UpdateVoWiFiBehaviorInFile(configPath, req.IKERetryCount, req.OverrideRFOff, req.RFOffDelay, req.RecoverIntervalSeconds); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
 		return
 	}
@@ -153,15 +159,16 @@ func (s *Server) handleUpdateVoWiFiBehavior(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "热加载配置失败: " + err.Error()})
 		return
 	}
-	// 热更新 IKE 重传次数到运行时
+	// 热更新 IKE 重传次数和恢复间隔到运行时
 	if s.pool != nil {
-		s.pool.UpdateVoWiFiBehavior(req.IKERetryCount)
+		s.pool.UpdateVoWiFiBehavior(req.IKERetryCount, req.RecoverIntervalSeconds)
 	}
 	c.JSON(http.StatusOK, gin.H{
-		"status":          "ok",
-		"ike_retry_count": req.IKERetryCount,
-		"override_rf_off": req.OverrideRFOff,
-		"rf_off_delay":    req.RFOffDelay,
+		"status":                   "ok",
+		"ike_retry_count":          req.IKERetryCount,
+		"override_rf_off":          req.OverrideRFOff,
+		"rf_off_delay":             req.RFOffDelay,
+		"recover_interval_seconds": req.RecoverIntervalSeconds,
 	})
 }
 

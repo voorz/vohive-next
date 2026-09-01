@@ -347,11 +347,12 @@ func TestDesiredVoWiFiDoesNotRecoverDuringSwitchOrRebuild(t *testing.T) {
 }
 
 func TestVoWiFiDesiredRecoverDelayCapsAtTwoMinutes(t *testing.T) {
+	m := vowifihost.NewManager()
 	got := []time.Duration{
-		vowifihost.DesiredRecoverDelay(0),
-		vowifihost.DesiredRecoverDelay(1),
-		vowifihost.DesiredRecoverDelay(2),
-		vowifihost.DesiredRecoverDelay(10),
+		m.DesiredRecoverDelay(0),
+		m.DesiredRecoverDelay(1),
+		m.DesiredRecoverDelay(2),
+		m.DesiredRecoverDelay(10),
 	}
 	want := []time.Duration{
 		3 * time.Second,
