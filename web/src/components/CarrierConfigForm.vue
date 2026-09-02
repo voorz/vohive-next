@@ -43,6 +43,7 @@ const ipStackOptions = [
 
 const challengeModeOptions = [
   { label: '标准', value: 'standard' },
+  { label: '最小', value: 'minimal' },
   { label: '校验码', value: 'checkcode' },
   { label: '省略', value: 'omit' }
 ]
@@ -255,6 +256,14 @@ const fallbackStatusCodesArr = computed({
           <div class="field col-span-2 form-switch-row">
             <div><ConfigFieldLabel label="EAP MAC 校验" section="ike" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">eap_mac_validation</div></div>
             <el-switch :model-value="cfg.ike?.eap_mac_validation || false" @update:model-value="(v: string | number | boolean) => { ensureIke(); cfg.ike!.eap_mac_validation = Boolean(v); onInput() }" />
+          </div>
+          <div class="field col-span-2 form-switch-row">
+            <div><ConfigFieldLabel label="TICKET_REQUEST" section="ike" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">RFC 5723 会话凭证索求，3HK 等 ePDG 需要</div></div>
+            <el-switch :model-value="cfg.ike?.ticket_request || false" @update:model-value="(v: string | number | boolean) => { ensureIke(); cfg.ike!.ticket_request = Boolean(v); onInput() }" />
+          </div>
+          <div class="field col-span-2 form-switch-row">
+            <div><ConfigFieldLabel label="首轮 IKE_AUTH 发 CP" section="ike" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">cp_in_first_auth，部分 ePDG 需关闭</div></div>
+            <el-switch :model-value="cfg.ike?.cp_in_first_auth !== false" @update:model-value="(v: string | number | boolean) => { ensureIke(); cfg.ike!.cp_in_first_auth = Boolean(v); onInput() }" />
           </div>
         </div>
       </div>

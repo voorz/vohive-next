@@ -55,6 +55,8 @@ const paramSections = computed(() => {
     if (i.replay_window) ikeItems.push({ label: '抗重放窗口', value: String(i.replay_window) })
     if (i.enable_esn) ikeItems.push({ label: '启用 ESN', value: boolStr(i.enable_esn) })
     if (i.eap_mac_validation) ikeItems.push({ label: 'EAP MAC 校验', value: boolStr(i.eap_mac_validation) })
+    if (i.ticket_request !== undefined) ikeItems.push({ label: 'TICKET_REQUEST', value: boolStr(i.ticket_request) })
+    if (i.cp_in_first_auth !== undefined) ikeItems.push({ label: '首轮发 CP', value: boolStr(i.cp_in_first_auth) })
   }
   if (ikeItems.length) sections.push({ label: 'IKE/ePDG', items: ikeItems })
 
