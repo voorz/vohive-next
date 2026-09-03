@@ -616,6 +616,7 @@ export type IKEConfig = {
   enable_esn?: boolean
   eap_mac_validation?: boolean
   rf_off_delay?: number
+  rekey_pfs?: number
   ticket_request?: boolean
   cp_in_first_auth?: boolean
 }

@@ -78,15 +78,17 @@ export const configAnnotations: Record<string, Record<string, ParamAnnotation>> 
       desc: 'EAP 消息的 MAC 地址校验。部分 ePDG 实现在 EAP 阶段对 MAC 有非标准处理。',
       recommend: '关闭',
     },
+    'Rekey PFS (DH 组)': {
+      desc: 'Child SA 重协商时使用 PFS（Perfect Forward Secrecy）。设置为 DH 组编号（如 14=MODP2048），0=禁用 PFS。',
+      recommend: '0（禁用）',
+    },
     'TICKET_REQUEST': {
-      desc: '在第一轮 IKE_AUTH 中发送 N(TICKET_REQUEST) Notify（RFC 5723 会话恢复）。3HK 等 ePDG 需要此 Notify 才能通过认证。Three UK 等部分 ePDG 会因此拒绝。',
+      desc: '在第一轮 IKE_AUTH 中发送 N(TICKET_REQUEST) Notify（RFC 5723 会话恢复）。',
       recommend: '关闭',
-      note: '3HK 需要开启',
     },
     '首轮 IKE_AUTH 发 CP': {
-      desc: '在第一轮 IKE_AUTH 请求中包含 CP(CFG_REQUEST) 载荷，请求 ePDG 下发 IP/DNS/P-CSCF 配置。部分 ePDG（如 3HK）在首轮含 CP 时会拒绝认证。',
+      desc: '在第一轮 IKE_AUTH 请求中包含 CP(CFG_REQUEST) 载荷，请求 ePDG 下发 IP/DNS/P-CSCF 配置。',
       recommend: '开启',
-      note: '3HK 需要关闭',
     },
   },
 

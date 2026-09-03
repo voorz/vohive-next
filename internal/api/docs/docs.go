@@ -2980,6 +2980,31 @@ const docTemplate = `{
                 }
             }
         },
+        "/logs/dates": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "logs"
+                ],
+                "summary": "获取可用日志日期列表",
+                "responses": {
+                    "200": {
+                        "description": "日期列表",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/logs/history": {
             "get": {
                 "security": [
@@ -3006,6 +3031,49 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "日志列表",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "logs"
+                ],
+                "summary": "清理历史日志文件",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "指定日期 (YYYY-MM-DD)，删除该日期的日志文件",
+                        "name": "date",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "删除最近 N 天之前的日志（保留最近 N 天），传 0 或不传则删除全部历史",
+                        "name": "days",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "是否保留当天日志，默认 true",
+                        "name": "keep",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "清理结果",
                         "schema": {
                             "type": "object",
                             "additionalProperties": true

@@ -1970,7 +1970,49 @@ paths:
       summary: 服务健康检查
       tags:
       - dashboard
+  /logs/dates:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 日期列表
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 获取可用日志日期列表
+      tags:
+      - logs
   /logs/history:
+    delete:
+      parameters:
+      - description: 指定日期 (YYYY-MM-DD)，删除该日期的日志文件
+        in: query
+        name: date
+        type: string
+      - description: 删除最近 N 天之前的日志（保留最近 N 天），传 0 或不传则删除全部历史
+        in: query
+        name: days
+        type: integer
+      - description: 是否保留当天日志，默认 true
+        in: query
+        name: keep
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 清理结果
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 清理历史日志文件
+      tags:
+      - logs
     get:
       parameters:
       - default: 500

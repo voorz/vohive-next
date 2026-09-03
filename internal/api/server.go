@@ -455,8 +455,10 @@ func (s *Server) newRouter() *gin.Engine {
 		api.POST("/devices/:device_id/vowifi/e911/websheet", s.handleDeviceE911Websheet)            // 打开 E911 设置 websheet
 
 		// ===== 日志 =====
-		api.GET("/logs/stream", s.handleLogStream)   // SSE 实时日志流
-		api.GET("/logs/history", s.handleLogHistory) // 获取历史日志
+		api.GET("/logs/stream", s.handleLogStream)             // SSE 实时日志流
+		api.GET("/logs/history", s.handleLogHistoryByDate)     // 获取历史日志（支持 date 参数）
+		api.GET("/logs/dates", s.handleLogDates)               // 获取可用日志日期列表
+		api.DELETE("/logs/history", s.handleClearHistory)      // 清理历史日志文件
 
 		// ===== 运营商配置 =====
 		api.GET("/carrier", s.handleListCarriers)                            // 运营商列表（carrier_visible + carrier_index）
@@ -922,6 +924,20 @@ func parseLogLine(line string) logger.LogEntry {
 			entry.Message = strings.TrimSpace(rest[msgStart:])
 		} else {
 			entry.Message = strings.Join(fields[2:], " ")
+		}
+	}
+
+	// 从 message 末尾提取 JSON 块放到 Fields
+	// zap console encoder 格式: message {"key":"value",...}
+	// 找到最后一个 { 开始的 JSON 块
+	msg := entry.Message
+	lastBrace := strings.LastIndex(msg, "{")
+	if lastBrace >= 0 {
+		jsonCandidate := msg[lastBrace:]
+		// 验证是否为完整 JSON（以 } 结尾）
+		if strings.HasSuffix(strings.TrimSpace(jsonCandidate), "}") {
+			entry.Fields = jsonCandidate
+			entry.Message = strings.TrimSpace(msg[:lastBrace])
 		}
 	}
 
