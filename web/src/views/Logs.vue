@@ -3,12 +3,13 @@ import { ref, h, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { ElButton, ElButtonGroup } from 'element-plus'
 import LogsHistoryTab from '../components/LogsHistoryTab.vue'
 import LogsRealtimeTab from '../components/LogsRealtimeTab.vue'
-import LogsNetworkTab from '../components/LogsNetworkTab.vue'
+// import LogsNetworkTab from '../components/LogsNetworkTab.vue'  // 暂时隐藏
 import LogsDetailDrawer from '../components/LogsDetailDrawer.vue'
 import { useHeaderActionsStore } from '../stores/headerActions'
 import type { LogEntry } from '../components/LogLine.vue'
 
-export type LogsTab = 'history' | 'realtime' | 'network'
+// export type LogsTab = 'history' | 'realtime' | 'network'
+export type LogsTab = 'history' | 'realtime'
 
 const activeTab = ref<LogsTab>('realtime')
 const detailVisible = ref(false)
@@ -19,7 +20,6 @@ const headerActions = useHeaderActionsStore()
 const tabs: { id: LogsTab; label: string }[] = [
   { id: 'history',  label: '历史' },
   { id: 'realtime', label: '实时' },
-  { id: 'network',  label: '网络' },
 ]
 
 function openDetail(log: LogEntry) {
@@ -70,9 +70,7 @@ onUnmounted(() => {
           :active="activeTab === 'realtime'"
           @open-detail="openDetail"
         />
-        <LogsNetworkTab
-          v-show="activeTab === 'network'"
-        />
+        <!-- LogsNetworkTab 暂时隐藏，待后续集成 -->
       </div>
     </div>
 
