@@ -85,8 +85,10 @@ const cleanMessage = computed(() => {
 })
 
 function formatDateTime(isoTime: string): string {
+  if (!isoTime) return ''
   try {
     const d = new Date(isoTime)
+    if (isNaN(d.getTime())) return isoTime
     const MM = String(d.getMonth() + 1).padStart(2, '0')
     const dd = String(d.getDate()).padStart(2, '0')
     const HH = String(d.getHours()).padStart(2, '0')
@@ -97,18 +99,35 @@ function formatDateTime(isoTime: string): string {
     return isoTime
   }
 }
+let mouseDownX = 0
+let mouseDownY = 0
+
+function onMouseDown(e: MouseEvent) {
+  mouseDownX = e.clientX
+  mouseDownY = e.clientY
+}
+
+function onClick(e: MouseEvent) {
+  // 如果拖拽距离大于 5px，说明是在选中文本，不触发详情
+  const dx = Math.abs(e.clientX - mouseDownX)
+  const dy = Math.abs(e.clientY - mouseDownY)
+  if (dx > 5 || dy > 5) return
+  // 如果有文本被选中，不触发详情
+  const selection = window.getSelection()
+  if (selection && selection.toString().length > 0) return
+  emit('open-detail', props.log)
+}
 </script>
 
 <template>
-  <div class="log-line" @click="emit('open-detail', props.log)">
-    <span class="log-time">[{{ formatDateTime(log.time) }}]</span>
-    <span class="log-level" :class="levelClass">{{ log.level.toUpperCase().padEnd(5) }}</span>
-    <span class="log-caller" :title="log.caller">{{ log.caller }}</span>
+  <div class="log-line" @mousedown="onMouseDown" @click="onClick">
+    <span v-if="log.time" class="log-time">[{{ formatDateTime(log.time) }}]</span>
+    <span v-if="log.level" class="log-level" :class="levelClass">{{ log.level.toUpperCase().padEnd(5) }}</span>
+    <span v-if="log.caller" class="log-caller" :title="log.caller">{{ log.caller }}</span>
     <span class="log-device-slot">
       <span v-if="deviceTag" class="log-device-tag" :style="deviceStyle">{{ deviceTag }}</span>
     </span>
-    <span class="log-message" :class="messageClass">{{ cleanMessage }}</span>
-    <span v-if="log.fields" class="log-fields">{{ log.fields }}</span>
+    <span class="log-message" :class="messageClass">{{ cleanMessage }}<span v-if="log.fields" class="log-fields"> {{ log.fields }}</span></span>
   </div>
 </template>
 
@@ -150,10 +169,8 @@ function formatDateTime(isoTime: string): string {
 
 .log-device-slot {
   display: inline-block;
-  width: 80px;
   margin-left: 4px;
-  flex-shrink: 0;
-  overflow: hidden;
+  flex-shrink: 1;
   vertical-align: bottom;
 }
 
@@ -173,20 +190,31 @@ function formatDateTime(isoTime: string): string {
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: bottom;
-  color: var(--brand, #00BC7D);
+  color: rgba(224, 224, 224, 0.5);
   flex-shrink: 0;
 }
 
 .log-message {
   margin-left: 4px;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
 }
 
 .log-msg-warn  { color: var(--warning, #da9f00); }
 .log-msg-error { color: var(--destructive, #ff3b30); }
 
 .log-fields {
-  margin-left: 4px;
-  color: color-mix(in oklab, var(--warning, #da9f00) 70%, transparent);
+  color: rgba(224, 224, 224, 0.6);
 }
+
+.log-msg-warn .log-fields {
+  color: var(--warning, #da9f00);
+}
+
+.log-msg-error .log-fields {
+  color: var(--destructive, #ff3b30);
+}
+
 </style>

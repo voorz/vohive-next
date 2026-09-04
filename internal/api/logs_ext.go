@@ -138,9 +138,26 @@ func (s *Server) handleClearHistory(c *gin.Context) {
 		keepToday = false
 	}
 
-	// 模式 1: 指定日期 — 删除单个文件
+	// 模式 1: 指定日期
 	if date != "" {
 		target := filepath.Join(logDir, fmt.Sprintf("app-%s.log", date))
+		today := time.Now().Format("2006-01-02")
+		if date == today {
+			// 今天的日志：只清空内容，不删除文件（避免 zap 写入时文件未重建导致日志丢失）
+			f, err := os.OpenFile(target, os.O_WRONLY|os.O_TRUNC, 0644)
+			if err != nil {
+				if os.IsNotExist(err) {
+					c.JSON(http.StatusOK, gin.H{"deleted": 0, "message": "文件不存在"})
+					return
+				}
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "清空失败"})
+				return
+			}
+			f.Close()
+			c.JSON(http.StatusOK, gin.H{"deleted": 1, "message": "已清空 " + date + " 的日志"})
+			return
+		}
+		// 非今天的日志：直接删除文件
 		if err := os.Remove(target); err != nil {
 			if os.IsNotExist(err) {
 				c.JSON(http.StatusOK, gin.H{"deleted": 0, "message": "文件不存在"})
@@ -197,6 +214,17 @@ func (s *Server) handleClearHistory(c *gin.Context) {
 		// 按天数模式：保留 cutoffDate 之后的文件
 		if days >= 0 && fileDate >= cutoffDate {
 			skipped++
+			continue
+		}
+
+		// 今天的日志：只清空内容，不删除文件
+		if fileDate == today {
+			target := filepath.Join(logDir, entry.Name())
+			f, err := os.OpenFile(target, os.O_WRONLY|os.O_TRUNC, 0644)
+			if err == nil {
+				f.Close()
+				deleted++
+			}
 			continue
 		}
 

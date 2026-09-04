@@ -2,7 +2,8 @@
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { ElSelect, ElOption, ElButton, ElIcon, ElMessage, ElMessageBox } from 'element-plus'
 import { Delete24Regular, ArrowDownload24Regular } from '@vicons/fluent'
-import LogLine, { type LogEntry } from './LogLine.vue'
+import { type LogEntry } from './LogLine.vue'
+import VirtualLogList from './VirtualLogList.vue'
 import { useLogsStore } from '../stores/logs'
 
 const emit = defineEmits<{
@@ -187,18 +188,17 @@ onMounted(async () => {
       </el-button>
     </div>
 
-    <!-- 日志列表 -->
-    <div ref="logContainer" class="history-console">
-      <div v-if="filteredHistoryLogs.length === 0" class="history-empty">
-        {{ loading ? '加载中...' : '暂无历史日志' }}
-      </div>
-      <LogLine
-        v-for="(log, idx) in filteredHistoryLogs"
-        :key="idx"
-        :log="log"
-        @open-detail="emit('open-detail', $event)"
-      />
-    </div>
+    <!-- 日志列表（虚拟滚动） -->
+    <VirtualLogList
+      :logs="filteredHistoryLogs"
+      @open-detail="emit('open-detail', $event)"
+    >
+      <template #empty>
+        <div class="history-empty">
+          {{ loading ? '加载中...' : '暂无历史日志' }}
+        </div>
+      </template>
+    </VirtualLogList>
   </div>
 </template>
 

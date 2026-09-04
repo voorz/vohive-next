@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
-import { ElSelect, ElOption, ElInput, ElButton, ElIcon, ElCheckbox, ElMessage } from 'element-plus'
+import { ElSelect, ElOption, ElInput, ElButton, ElIcon, ElCheckbox, ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDownload24Regular, Delete24Regular, Pause24Regular, Play24Regular } from '@vicons/fluent'
-import LogLine, { type LogEntry } from './LogLine.vue'
+import { type LogEntry } from './LogLine.vue'
+import VirtualLogList from './VirtualLogList.vue'
 import { useLogsStore } from '../stores/logs'
 import { useEventStream } from '../composables/useEventStream'
 
@@ -21,7 +22,13 @@ const paused = ref(false)
 const autoScroll = ref(true)
 const levelFilter = ref<'all' | 'debug' | 'info' | 'warn' | 'error'>('all')
 const searchQuery = ref('')
-const maxLogs = 1000
+const maxLogs = ref(1000)
+const viewportOptions = [
+  { label: '500 条', value: 500 },
+  { label: '1000 条', value: 1000 },
+  { label: '2000 条', value: 2000 },
+  { label: '5000 条', value: 5000 },
+]
 const lastConnectError = ref<string>('')
 
 const logContainer = ref<HTMLElement | null>(null)
@@ -60,7 +67,7 @@ const stream = useEventStream<LogEntry>({
   },
   onEvent: (entry) => {
     if (paused.value) return
-    logsStore.append(entry, maxLogs)
+    logsStore.append(entry, maxLogs.value)
     if (!autoScroll.value) return
     nextTick(() => {
       if (logContainer.value) logContainer.value.scrollTop = logContainer.value.scrollHeight
@@ -84,8 +91,25 @@ function togglePause() {
   if (!paused.value) connect()
 }
 
-function clearLogs() {
+async function clearLogs() {
+  try {
+    await ElMessageBox.confirm(
+      '确认清空当天的日志？',
+      '清空日志',
+      { confirmButtonText: '清空', cancelButtonText: '取消', type: 'warning' }
+    )
+  } catch {
+    return
+  }
+  // 先清空前端内存，再清空后端文件
   logsStore.clear()
+  const today = new Date().toISOString().slice(0, 10)
+  const result = await logsStore.clearHistory(today)
+  if (result.ok) {
+    ElMessage.success('已清空当日日志')
+  } else {
+    ElMessage.error('清空失败')
+  }
 }
 
 function exportLogs() {
@@ -151,6 +175,15 @@ watch(levelFilter, () => {
         <el-option label="ERROR" value="error" />
       </el-select>
 
+      <el-select v-model="maxLogs" placeholder="显示数量" class="w-32">
+        <el-option
+          v-for="opt in viewportOptions"
+          :key="opt.value"
+          :label="opt.label"
+          :value="opt.value"
+        />
+      </el-select>
+
       <el-input
         v-model="searchQuery"
         placeholder="搜索日志内容..."
@@ -202,18 +235,18 @@ watch(levelFilter, () => {
       </el-button>
     </div>
 
-    <!-- 日志控制台 -->
-    <div ref="logContainer" class="realtime-console">
-      <div v-if="filteredLogs.length === 0" class="realtime-empty">
-        {{ connected ? '等待日志...' : '未连接到日志流' }}
-      </div>
-      <LogLine
-        v-for="(log, idx) in filteredLogs"
-        :key="idx"
-        :log="log"
-        @open-detail="emit('open-detail', $event)"
-      />
-    </div>
+    <!-- 日志控制台（虚拟滚动） -->
+    <VirtualLogList
+      :logs="filteredLogs"
+      :auto-scroll="autoScroll"
+      @open-detail="emit('open-detail', $event)"
+    >
+      <template #empty>
+        <div class="realtime-empty">
+          {{ connected ? '等待日志...' : '未连接到日志流' }}
+        </div>
+      </template>
+    </VirtualLogList>
   </div>
 </template>
 
