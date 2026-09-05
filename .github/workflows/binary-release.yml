@@ -204,9 +204,9 @@ jobs:
             COMMITS+="- ${MSG} ([${HASH}](${REPO_URL}/commit/${HASH}))"$'\n'
           done < <(git log ${RANGE} --format="%h %s")
 
-          # Assemble release body
+          # Assemble release body — write to file to avoid bash interpreting backticks/special chars
+          RELEASE_NOTES_FILE="$(mktemp)"
           {
-            echo "body<<EOF"
             echo "# VoHive v${VERSION}"
             echo ""
             echo "${COMMITS}"
@@ -224,10 +224,10 @@ jobs:
             echo ""
             echo '```bash'
             echo "docker pull voorz/vohive:${VERSION}"
-            echo "docker pull ghcr.io/voorz/vohive-next/vohive:${VERSION}"
+            echo "docker pull ghcr.io/voorz/vohive-release/vohive:${VERSION}"
             echo '```'
-            echo "EOF"
-          } >> "${GITHUB_OUTPUT}"
+          } > "${RELEASE_NOTES_FILE}"
+          echo "notes_file=${RELEASE_NOTES_FILE}" >> "${GITHUB_OUTPUT}"
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -244,15 +244,13 @@ jobs:
           VERSION="$(cat VERSION | tr -d '[:space:]')"
           RELEASE_REPO="voorz/vohive-release"
           TAG="v${VERSION}"
+          NOTES_FILE="${{ steps.release_notes.outputs.notes_file }}"
           
-          # Create release on cross-repo, upload assets
-          RELEASE_BODY="${{ steps.release_notes.outputs.body }}"
-          
-          # Create the release
+          # Create release using --notes-file to avoid bash interpreting special chars in notes
           gh release create "${TAG}" \
             --repo "${RELEASE_REPO}" \
             --title "VoHive v${VERSION}" \
-            --notes "${RELEASE_BODY}" \
+            --notes-file "${NOTES_FILE}" \
             --target main
           
           # Upload each binary asset
@@ -262,6 +260,8 @@ jobs:
               --repo "${RELEASE_REPO}" --clobber
           done
           
+          # Cleanup temp file
+          rm -f "${NOTES_FILE}"
           echo "Release published to https://github.com/${RELEASE_REPO}/releases/tag/${TAG}"
 
       - name: Upload assets to Telegram channel
