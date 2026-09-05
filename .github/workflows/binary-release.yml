@@ -186,31 +186,11 @@ jobs:
         shell: bash
         run: |
           VERSION="$(cat VERSION | tr -d '[:space:]')"
-          REPO_URL="https://github.com/${GITHUB_REPOSITORY}"
-
-          # Get previous tag for changelog range
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          if [ -n "${PREV_TAG}" ]; then
-            RANGE="${PREV_TAG}..HEAD"
-          else
-            RANGE="HEAD"
-          fi
-
-          # Build commit list
-          COMMITS=""
-          while IFS= read -r line; do
-            HASH="$(echo "${line}" | awk '{print $1}')"
-            MSG="$(echo "${line}" | cut -d' ' -f2-)"
-            COMMITS+="- ${MSG} ([${HASH}](${REPO_URL}/commit/${HASH}))"$'\n'
-          done < <(git log ${RANGE} --format="%h %s")
 
           # Assemble release body — write to file to avoid bash interpreting backticks/special chars
           RELEASE_NOTES_FILE="$(mktemp)"
           {
             echo "# VoHive v${VERSION}"
-            echo ""
-            echo "${COMMITS}"
-            echo "---"
             echo ""
             echo "## Downloads"
             echo ""
