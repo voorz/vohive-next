@@ -18,7 +18,7 @@ require (
 	github.com/voorz/netlink v1.3.4
 	github.com/voorz/qqbot v1.0.2
 	github.com/voorz/quectel-qmi-go v0.8.4
-	github.com/voorz/vowifi-core v1.3.9
+	github.com/voorz/vowifi-core v1.4.0
 	github.com/voorz/wwan-go v0.2.7
 	github.com/warthog618/sms v0.3.0
 	go.bug.st/serial v1.6.4
@@ -55,7 +55,7 @@ require (
 	github.com/pion/transport/v4 v4.0.2 // indirect
 	github.com/songgao/water v0.0.0-20200317203138-2b4b6d7c09d8 // indirect
 	github.com/strongswan/govici v0.8.2 // indirect
-	github.com/voorz/swu-go v0.3.4 // indirect
+	github.com/voorz/swu-go v0.3.5 // indirect
 	golang.org/x/time v0.14.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gvisor.dev/gvisor v0.0.0-20240521174809-5eedbf551134 // indirect
