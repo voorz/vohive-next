@@ -231,7 +231,7 @@ jobs:
             --repo "${RELEASE_REPO}" \
             --title "VoHive v${VERSION}" \
             --notes-file "${NOTES_FILE}" \
-            --target main
+            --target master
           
           # Upload each binary asset
           for f in dist/*; do
