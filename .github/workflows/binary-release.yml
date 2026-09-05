@@ -190,7 +190,7 @@ jobs:
           # Assemble release body — write to file to avoid bash interpreting backticks/special chars
           RELEASE_NOTES_FILE="$(mktemp)"
           {
-            echo "# VoHive v${VERSION}"
+            echo "# v${VERSION}"
             echo ""
             echo "## Downloads"
             echo ""
@@ -229,7 +229,7 @@ jobs:
           # Create release using --notes-file to avoid bash interpreting special chars in notes
           gh release create "${TAG}" \
             --repo "${RELEASE_REPO}" \
-            --title "VoHive v${VERSION}" \
+            --title "v${VERSION}" \
             --notes-file "${NOTES_FILE}" \
             --target master
           
