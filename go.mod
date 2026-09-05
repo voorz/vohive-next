@@ -17,7 +17,7 @@ require (
 	github.com/things-go/go-socks5 v0.1.1
 	github.com/voorz/netlink v1.3.4
 	github.com/voorz/qqbot v1.0.2
-	github.com/voorz/quectel-qmi-go v0.8.4
+	github.com/voorz/quectel-qmi-go v0.8.5
 	github.com/voorz/vowifi-core v1.4.0
 	github.com/voorz/wwan-go v0.2.7
 	github.com/warthog618/sms v0.3.0
@@ -112,7 +112,7 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.0 // indirect
 	github.com/vishvananda/netns v0.0.5 // indirect
-	github.com/voorz/sipgo v1.6.2
+	github.com/voorz/sipgo v1.6.3
 	go.uber.org/mock v0.5.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.20.0 // indirect
