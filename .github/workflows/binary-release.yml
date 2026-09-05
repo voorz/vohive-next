@@ -236,14 +236,33 @@ jobs:
           merge-multiple: true
           path: dist
 
-      - name: Publish to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.release_vars.outputs.release_version }}
-          body: ${{ steps.release_notes.outputs.body }}
-          files: dist/*
-          fail_on_unmatched_files: true
-          overwrite_files: true
+      - name: Publish to GitHub Release (cross-repo)
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        shell: bash
+        run: |
+          VERSION="$(cat VERSION | tr -d '[:space:]')"
+          RELEASE_REPO="voorz/vohive-release"
+          TAG="v${VERSION}"
+          
+          # Create release on cross-repo, upload assets
+          RELEASE_BODY="${{ steps.release_notes.outputs.body }}"
+          
+          # Create the release
+          gh release create "${TAG}" \
+            --repo "${RELEASE_REPO}" \
+            --title "VoHive v${VERSION}" \
+            --notes "${RELEASE_BODY}" \
+            --target main
+          
+          # Upload each binary asset
+          for f in dist/*; do
+            echo "Uploading $(basename "$f")..."
+            gh release upload "${TAG}" "$f" \
+              --repo "${RELEASE_REPO}" --clobber
+          done
+          
+          echo "Release published to https://github.com/${RELEASE_REPO}/releases/tag/${TAG}"
 
       - name: Upload assets to Telegram channel
         if: ${{ env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHANNEL_ID != '' }}

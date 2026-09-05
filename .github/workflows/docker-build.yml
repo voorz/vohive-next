@@ -57,14 +57,15 @@ jobs:
             *) ENABLE_UPX=1 ;;
           esac
 
-          # Image tags: version+latest on tag push, dev on manual
+          # Image tags: cross-repo push to voorz/vohive-release GHCR
+          RELEASE_REPO="voorz/vohive-release"
           if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
             echo "image_tags<<EOF" >> "${GITHUB_OUTPUT}"
-            echo "ghcr.io/${GITHUB_REPOSITORY}/vohive:latest" >> "${GITHUB_OUTPUT}"
-            echo "ghcr.io/${GITHUB_REPOSITORY}/vohive:${VERSION}" >> "${GITHUB_OUTPUT}"
+            echo "ghcr.io/${RELEASE_REPO}/vohive:latest" >> "${GITHUB_OUTPUT}"
+            echo "ghcr.io/${RELEASE_REPO}/vohive:${VERSION}" >> "${GITHUB_OUTPUT}"
             echo "EOF" >> "${GITHUB_OUTPUT}"
           else
-            echo "image_tags=ghcr.io/${GITHUB_REPOSITORY}/vohive:dev" >> "${GITHUB_OUTPUT}"
+            echo "image_tags=ghcr.io/${RELEASE_REPO}/vohive:dev" >> "${GITHUB_OUTPUT}"
           fi
 
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
@@ -86,7 +87,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GH_PAT }}
 
       - uses: docker/build-push-action@v6
         with:
