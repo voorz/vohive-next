@@ -73,11 +73,12 @@ const transportModeOptions = [
 ]
 
 const initialAuthOptions = [
-  { label: 'AKA空URI优先', value: 'aka_empty_uri_first' },
-  { label: 'AKA空', value: 'aka_empty' },
-  { label: 'AKA零响应', value: 'aka_zero_response' },
-  { label: 'AKA零响应URI优先', value: 'aka_zero_response_uri_first' },
-  { label: '无', value: 'none' }
+{ label: 'EAP直连 (复用SWu RES)', value: 'eap_direct' },
+{ label: 'AKA空URI优先', value: 'aka_empty_uri_first' },
+{ label: 'AKA空', value: 'aka_empty' },
+{ label: 'AKA零响应', value: 'aka_zero_response' },
+{ label: 'AKA零响应URI优先', value: 'aka_zero_response_uri_first' },
+{ label: '无', value: 'none' }
 ]
 
 const contactFeaturesOptions = [
@@ -176,6 +177,61 @@ const contactParamOrderArr = computed({
   set: (v: string[]) => { ensureIms(); cfg.value.ims!.contact_param_order = v; onInput() }
 })
 
+// string ↔ string[] 桥接（SIP 头用逗号分隔）
+function strToArr(s?: string): string[] {
+  if (!s) return []
+  return s.split(',').map(v => v.trim()).filter(Boolean)
+}
+function arrToStr(arr: string[]): string {
+  return arr.join(',')
+}
+
+const supportedHeaderArr = computed({
+  get: () => strToArr(cfg.value.ims?.supported_header),
+  set: (v: string[]) => { ensureIms(); cfg.value.ims!.supported_header = arrToStr(v); onInput() }
+})
+
+const allowHeaderArr = computed({
+  get: () => strToArr(cfg.value.ims?.allow_header),
+  set: (v: string[]) => { ensureIms(); cfg.value.ims!.allow_header = arrToStr(v); onInput() }
+})
+
+const voiceSupportedHeaderArr = computed({
+  get: () => strToArr(cfg.value.ims?.voice_supported_header),
+  set: (v: string[]) => { ensureIms(); cfg.value.ims!.voice_supported_header = arrToStr(v); onInput() }
+})
+
+const voiceAllowHeaderArr = computed({
+  get: () => strToArr(cfg.value.ims?.voice_allow_header),
+  set: (v: string[]) => { ensureIms(); cfg.value.ims!.voice_allow_header = arrToStr(v); onInput() }
+})
+
+const sipMethodPresets: Record<string, string> = {
+  'INVITE': 'INVITE — 发起呼叫会话',
+  'ACK': 'ACK — 确认请求已收到',
+  'CANCEL': 'CANCEL — 取消未完成的请求',
+  'BYE': 'BYE — 结束会话',
+  'UPDATE': 'UPDATE — 修改会话参数（不改变对话状态）',
+  'MESSAGE': 'MESSAGE — SIP 即时消息（SMS over IP）',
+  'SUBSCRIBE': 'SUBSCRIBE — 订阅事件通知',
+  'NOTIFY': 'NOTIFY — 推送订阅事件',
+  'OPTIONS': 'OPTIONS — 查询对端能力',
+  'REFER': 'REFER — 转移呼叫',
+  'PRACK': 'PRACK — 可靠 provisional 响应确认',
+  'INFO': 'INFO — 会话中信息传输',
+}
+
+const supportedHeaderPresets: Record<string, string> = {
+  'path': 'path — 路径头支持（RFC 3327）',
+  'sec-agree': 'sec-agree — 安全协商支持',
+  'gruu': 'gruu — 公共可路由 UA 实例（RFC 5627）',
+  'outbound': 'outbound — 出站代理支持（RFC 5626）',
+  'timer': 'timer — 会话定时器（RFC 4028）',
+  '100rel': '100rel — 可靠临时响应（RFC 3262）',
+  'replace': 'replace — 对话替换（RFC 3891）',
+  'ccc': 'ccc — 呼叫完成约束（RFC 6914）',
+}
+
 // 状态码：number[] ↔ string[]
 const tempStatusCodesArr = computed({
   get: () => (cfg.value.ims?.register_policy?.temporary_status_codes || []).map(String),
@@ -269,6 +325,13 @@ const fallbackStatusCodesArr = computed({
             <div><ConfigFieldLabel label="首轮 IKE_AUTH 发 CP" section="ike" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">cp_in_first_auth，部分 ePDG 需关闭</div></div>
             <el-switch :model-value="cfg.ike?.cp_in_first_auth !== false" @update:model-value="(v: string | number | boolean) => { ensureIke(); cfg.ike!.cp_in_first_auth = Boolean(v); onInput() }" />
           </div>
+          <div class="field col-span-2 form-switch-row">
+            <div><ConfigFieldLabel label="自动 PRF 推导" section="ike" variant="switch" :annotations="configAnnotations" /><div class="switch-desc">auto_prf，从 Integrity 自动推导 PRF Transform（兼容某些要求显式 PRF 的 ePDG）</div></div>
+            <el-select :model-value="cfg.ike?.auto_prf || 'auto'" @update:model-value="(v: string) => { ensureIke(); cfg.ike!.auto_prf = v; onInput() }" class="!w-32">
+              <el-option label="自动推导" value="auto" />
+              <el-option label="关闭" value="off" />
+            </el-select>
+          </div>
         </div>
       </div>
     </div>
@@ -357,11 +420,11 @@ const fallbackStatusCodesArr = computed({
           </div>
           <div class="field col-span-2">
             <ConfigFieldLabel label="Supported 头" section="ims" :annotations="configAnnotations" />
-            <el-input :model-value="cfg.ims?.supported_header || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.supported_header = v; onInput() }" placeholder="path,sec-agree,gruu" />
+            <TagInputWithPresets v-model="supportedHeaderArr" :presets="supportedHeaderPresets" placeholder="手动输入或从预设选择" />
           </div>
           <div class="field col-span-2">
             <ConfigFieldLabel label="Allow 头" section="ims" :annotations="configAnnotations" />
-            <el-input :model-value="cfg.ims?.allow_header || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.allow_header = v; onInput() }" placeholder="空=默认" />
+            <TagInputWithPresets v-model="allowHeaderArr" :presets="sipMethodPresets" placeholder="空=默认" />
           </div>
           <div class="field">
             <ConfigFieldLabel label="P-CSCF 地址" section="ims" :annotations="configAnnotations" />
@@ -546,11 +609,11 @@ const fallbackStatusCodesArr = computed({
           </div>
           <div class="field">
             <ConfigFieldLabel label="Supported" section="voice" :annotations="configAnnotations" />
-            <el-input :model-value="cfg.ims?.voice_supported_header || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_supported_header = v; onInput() }" placeholder="空=继承 REGISTER Supported" />
+            <TagInputWithPresets v-model="voiceSupportedHeaderArr" :presets="supportedHeaderPresets" placeholder="空=继承 REGISTER Supported" />
           </div>
           <div class="field">
             <ConfigFieldLabel label="Allow" section="voice" :annotations="configAnnotations" />
-            <el-input :model-value="cfg.ims?.voice_allow_header || ''" @update:model-value="(v: string) => { ensureIms(); cfg.ims!.voice_allow_header = v; onInput() }" placeholder="空=INVITE,ACK,CANCEL,BYE,..." />
+            <TagInputWithPresets v-model="voiceAllowHeaderArr" :presets="sipMethodPresets" placeholder="空=INVITE,ACK,CANCEL,BYE,..." />
           </div>
           <div class="field">
             <ConfigFieldLabel label="Accept-Contact" section="voice" :annotations="configAnnotations" />
