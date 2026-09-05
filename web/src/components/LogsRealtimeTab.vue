@@ -31,7 +31,7 @@ const viewportOptions = [
 ]
 const lastConnectError = ref<string>('')
 
-const logContainer = ref<HTMLElement | null>(null)
+const virtualLogList = ref<InstanceType<typeof VirtualLogList> | null>(null)
 
 const realtimeLogs = computed(() => logsStore.logs)
 
@@ -69,9 +69,7 @@ const stream = useEventStream<LogEntry>({
     if (paused.value) return
     logsStore.append(entry, maxLogs.value)
     if (!autoScroll.value) return
-    nextTick(() => {
-      if (logContainer.value) logContainer.value.scrollTop = logContainer.value.scrollHeight
-    })
+    // VirtualLogList's own autoScroll watch handles scrolling on logs.length change
   }
 })
 
@@ -133,7 +131,7 @@ async function loadHistory() {
   const result = await logsStore.fetchHistory(500)
   if (!result.ok) return
   nextTick(() => {
-    if (logContainer.value) logContainer.value.scrollTop = logContainer.value.scrollHeight
+    virtualLogList.value?.scrollToBottom()
   })
 }
 
@@ -222,7 +220,7 @@ watch(levelFilter, () => {
         :title="lastConnectError"
       >{{ lastConnectError }}</span>
 
-      <el-checkbox v-model="autoScroll" label="自动追尾" />
+      <el-checkbox v-model="autoScroll" label="自动刷新" />
 
       <el-button type="danger" @click="clearLogs">
         <el-icon><Delete24Regular /></el-icon>
@@ -237,6 +235,7 @@ watch(levelFilter, () => {
 
     <!-- 日志控制台（虚拟滚动） -->
     <VirtualLogList
+      ref="virtualLogList"
       :logs="filteredLogs"
       :auto-scroll="autoScroll"
       @open-detail="emit('open-detail', $event)"

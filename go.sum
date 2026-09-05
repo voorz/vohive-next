@@ -216,10 +216,10 @@ github.com/voorz/quectel-qmi-go v0.8.4 h1:mAmDgA2oo4qHKt9DsbQCQdca19V7nBanlgwWQ2
 github.com/voorz/quectel-qmi-go v0.8.4/go.mod h1:GTM8Xs2FMOXOctKxyuMSt/ywgFx3AgrWLgLnPrhEbCw=
 github.com/voorz/sipgo v1.6.2 h1:Z/NfHDjaS69SzEGyH9gzW8weKthYE8+N2vKo6B+DubA=
 github.com/voorz/sipgo v1.6.2/go.mod h1:1MB3PNPowZ+NUl76VQJ6XmWkbtzrfS4TQGt8Fx1bmz0=
-github.com/voorz/swu-go v0.3.3 h1:BRi0iyHxupKUpHlVwQRk2zDkYbCwDExoDfcJ5lTcuWY=
-github.com/voorz/swu-go v0.3.3/go.mod h1:iPGQtPPk4Cv8LhVVfcGzieWxc3gdKbmW5uhScXmgpKk=
-github.com/voorz/vowifi-core v1.3.7 h1:Uw+Ub1pRw3oDwdJFAth67RYqOGBo63DZTru7VGh8M48=
-github.com/voorz/vowifi-core v1.3.7/go.mod h1:IEOJTknr5RSUld6Mg37K8RrcYZGS6f1vxPuY2VY67ro=
+github.com/voorz/swu-go v0.3.4 h1:qKo5zpqP99I23AmbSn4TPYz5Rxb+aKuymhmZYP5ZDNg=
+github.com/voorz/swu-go v0.3.4/go.mod h1:iPGQtPPk4Cv8LhVVfcGzieWxc3gdKbmW5uhScXmgpKk=
+github.com/voorz/vowifi-core v1.3.9 h1:6p6QYlFyruUOdw25kKjh0jIvmAgehMZ0UGOwt+BO+Zs=
+github.com/voorz/vowifi-core v1.3.9/go.mod h1:IEOJTknr5RSUld6Mg37K8RrcYZGS6f1vxPuY2VY67ro=
 github.com/voorz/wwan-go v0.2.7 h1:41V/NurQ+vWNQcUF153+8tOYdfHhmbkq3UlhTPN6BZM=
 github.com/voorz/wwan-go v0.2.7/go.mod h1:UhpU8EirnyU5VXdEPc4NeBm7Uv3Bh7hhRhox40Oj0iI=
 github.com/warthog618/sms v0.3.0 h1:LYAb5ngmu2qjNExgji3B7xi2tIZ9+DsuE9pC5xs4wwc=

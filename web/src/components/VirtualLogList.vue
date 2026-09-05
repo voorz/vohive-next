@@ -42,7 +42,7 @@ const offsetY = computed(() => startIndex.value * ITEM_HEIGHT)
 function onScroll() {
   if (!container.value) return
   scrollTop.value = container.value.scrollTop
-  // 如果开启了自动追尾且滚动到底部，保持
+  // 如果开启自动刷新且滚动到底部，保持
 }
 
 function scrollToBottom() {
@@ -69,7 +69,7 @@ onUnmounted(() => {
   resizeObserver?.disconnect()
 })
 
-// 自动追尾：当 logs 变化且开关打开时滚到底
+// 自动刷新：当 logs 变化且开关打开时滚到底
 watch(() => props.logs.length, () => {
   if (props.autoScroll) {
     nextTick(scrollToBottom)
