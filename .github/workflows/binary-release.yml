@@ -147,7 +147,7 @@ jobs:
       - name: Package artifacts
         shell: bash
         run: |
-          OUT="vohive_${{ steps.vars.outputs.version }}_linux_${{ matrix.artifact_arch }}"
+          OUT="vohive_v${{ steps.vars.outputs.version }}_linux_${{ matrix.artifact_arch }}"
           mkdir -p out
           cp dist/vo-hive "out/${OUT}"
 
@@ -196,9 +196,9 @@ jobs:
             echo ""
             echo "| Architecture | Platform | File |"
             echo "|------|---------|------|"
-            echo "| amd64 | WSL / x86_64 Linux | \`vohive_${VERSION}_linux_amd64\` |"
-            echo "| arm64 | OpenWrt aarch64 / ARM64 Linux | \`vohive_${VERSION}_linux_arm64\` |"
-            echo "| armv7 | OpenWrt armv7 / Embedded devices | \`vohive_${VERSION}_linux_armv7\` |"
+            echo "| amd64 | WSL / x86_64 Linux | \`vohive_v${VERSION}_linux_amd64\` |"
+            echo "| arm64 | OpenWrt aarch64 / ARM64 Linux | \`vohive_v${VERSION}_linux_arm64\` |"
+            echo "| armv7 | OpenWrt armv7 / Embedded devices | \`vohive_v${VERSION}_linux_armv7\` |"
             echo ""
             echo "## Docker"
             echo ""
