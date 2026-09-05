@@ -244,45 +244,17 @@ jobs:
           rm -f "${NOTES_FILE}"
           echo "Release published to https://github.com/${RELEASE_REPO}/releases/tag/${TAG}"
 
-      - name: Upload assets to Telegram channel
+      - name: Send Telegram notification
         if: ${{ env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHANNEL_ID != '' }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
           API="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}"
+          VERSION="$(cat VERSION | tr -d '[:space:]')"
+          RELEASE_URL="https://github.com/voorz/vohive-release/releases/tag/v${VERSION}"
+          MESSAGE="vohive release v${VERSION}
 
-          MESSAGE_HEADER="vohive release ${{ steps.release_vars.outputs.release_version }} assets"
-
-          shopt -s nullglob
-          FILES=(dist/*)
-
-          if [[ ${#FILES[@]} -eq 0 ]]; then
-            MESSAGE="${MESSAGE_HEADER:0:3800}"
-            curl -fsSL -X POST "${API}/sendMessage" \
-              -d "chat_id=${TELEGRAM_CHANNEL_ID}" \
-              --data-urlencode "text=${MESSAGE}"
-            exit 0
-          fi
-
-          # sendMediaGroup 里首个文档携带说明；caption 上限 1024。
-          CAPTION="${MESSAGE_HEADER:0:1000}"
-          CAPTION_JSON="$(jq -Rn --arg s "${CAPTION}" '$s')"
-
-          MEDIA_ITEMS=()
-          for i in "${!FILES[@]}"; do
-            if [[ "${i}" -eq 0 ]]; then
-              MEDIA_ITEMS+=("{\"type\":\"document\",\"media\":\"attach://file${i}\",\"caption\":${CAPTION_JSON}}")
-            else
-              MEDIA_ITEMS+=("{\"type\":\"document\",\"media\":\"attach://file${i}\"}")
-            fi
-          done
-          MEDIA_JSON="[$(IFS=,; echo "${MEDIA_ITEMS[*]}")]"
-
-          echo "Uploading ${#FILES[@]} binary file(s) to Telegram as one media group..."
-          CURL_ARGS=(-fsSL -X POST "${API}/sendMediaGroup" -F "chat_id=${TELEGRAM_CHANNEL_ID}" -F "media=${MEDIA_JSON}")
-          for i in "${!FILES[@]}"; do
-            CURL_ARGS+=(-F "file${i}=@${FILES[$i]}")
-          done
-          curl "${CURL_ARGS[@]}"
+${RELEASE_URL}"
+          curl -fsSL -X POST "${API}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHANNEL_ID}" \
+            --data-urlencode "text=${MESSAGE}"
