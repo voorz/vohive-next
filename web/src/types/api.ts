@@ -619,6 +619,7 @@ export type IKEConfig = {
   rekey_pfs?: number
   ticket_request?: boolean
   cp_in_first_auth?: boolean
+  auto_prf?: string
 }
 
 export type EAPConfig = {
