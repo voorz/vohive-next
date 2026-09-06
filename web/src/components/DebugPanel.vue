@@ -69,7 +69,7 @@ function clearAll() {
 
 <template>
   <el-drawer v-model="open" direction="rtl" size="520px" title="诊断面板">
-    <div class="flex items-center justify-between gap-2 mb-4">
+    <div class="flex items-center justify-between gap-2 mb-3">
       <div class="text-xs text-gray-500 dark:text-gray-400 font-mono truncate">
         {{ currentHref }}
       </div>
@@ -85,7 +85,7 @@ function clearAll() {
     </div>
 
     <div class="space-y-6">
-      <div class="ui-panel-muted p-4">
+      <div class="ui-panel-muted p-3">
         <div class="text-sm font-extrabold text-gray-900 dark:text-white mb-2">最近路由</div>
         <div v-if="debugCollector.routes.value.length === 0" class="text-xs text-gray-400">暂无记录</div>
         <div v-else class="space-y-2 max-h-[220px] overflow-auto">
@@ -98,7 +98,7 @@ function clearAll() {
         </div>
       </div>
 
-      <div class="ui-panel-muted p-4">
+      <div class="ui-panel-muted p-3">
         <div class="text-sm font-extrabold text-gray-900 dark:text-white mb-2">最近 API 错误</div>
         <div v-if="debugCollector.apiErrors.value.length === 0" class="text-xs text-gray-400">暂无记录</div>
         <div v-else class="space-y-2 max-h-[260px] overflow-auto">
@@ -114,7 +114,7 @@ function clearAll() {
         </div>
       </div>
 
-      <div class="ui-panel-muted p-4">
+      <div class="ui-panel-muted p-3">
         <div class="text-sm font-extrabold text-gray-900 dark:text-white mb-2">最近前端错误</div>
         <div v-if="debugCollector.jsErrors.value.length === 0" class="text-xs text-gray-400">暂无记录</div>
         <div v-else class="space-y-2 max-h-[260px] overflow-auto">
@@ -126,7 +126,7 @@ function clearAll() {
         </div>
       </div>
 
-      <div class="ui-panel-muted p-4">
+      <div class="ui-panel-muted p-3">
         <div class="text-sm font-extrabold text-gray-900 dark:text-white mb-2">鉴权事件</div>
         <div v-if="debugCollector.authEvents.value.length === 0" class="text-xs text-gray-400">暂无记录</div>
         <div v-else class="space-y-2 max-h-[160px] overflow-auto">

@@ -175,7 +175,7 @@ async function handleLogin() {
 .login-card {
   width: 100%;
   max-width: 400px;
-  padding: 32px;
+  padding: 12px;
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--card);
@@ -187,7 +187,7 @@ async function handleLogin() {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
 }
 
 .login-logo-img {
@@ -242,7 +242,7 @@ async function handleLogin() {
 .login-form {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .login-label {
@@ -316,7 +316,7 @@ async function handleLogin() {
 
 /* 底部文字 */
 .login-footer {
-  margin-top: 24px;
+  margin-top: 12px;
   text-align: center;
   font-size: 12px;
   color: var(--muted-foreground);

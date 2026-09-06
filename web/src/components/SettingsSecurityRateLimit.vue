@@ -42,14 +42,14 @@ async function save() {
       </el-icon>
     </div>
     <div v-show="expanded" class="faq-body">
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center justify-between mb-3">
         <div>
           <div class="faq-item-title">登录限速配置</div>
           <div class="faq-item-desc">限制同一 IP 在指定时间窗口内的登录尝试次数</div>
         </div>
         <el-button size="small" type="primary" :loading="saving" @click="save" class="!border-0">保存配置</el-button>
       </div>
-      <div class="flex flex-wrap items-center gap-6">
+      <div class="flex flex-wrap items-center gap-3">
         <div class="flex items-center gap-2">
           <span class="faq-field-label">时间窗口</span>
           <el-input-number v-model="form.login_window_minutes" :min="1" :max="60" size="small" controls-position="right" />

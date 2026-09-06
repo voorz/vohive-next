@@ -77,7 +77,7 @@ async function onFaviconChange(file: File) {
     </div>
     <div v-show="expanded" class="faq-body">
       <!-- 名称 + 副标题（编辑锁） -->
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center justify-between mb-3">
         <div>
           <div class="faq-item-title">站点名称与副标题</div>
           <div class="faq-item-desc">显示在浏览器标签页标题和侧栏品牌区域</div>
@@ -92,7 +92,7 @@ async function onFaviconChange(file: File) {
           </template>
         </div>
       </div>
-      <div class="space-y-3 max-w-md mb-6">
+      <div class="space-y-3 max-w-md mb-3">
         <div class="space-y-1">
           <label class="settings-form-label">站点名称</label>
           <el-input v-model="form.name" :disabled="!editing" placeholder="VoHive" size="large" />
@@ -104,7 +104,7 @@ async function onFaviconChange(file: File) {
       </div>
 
       <!-- Logo 上传 -->
-      <div class="flex items-center justify-between mb-4 pt-4 border-t" style="border-color: var(--border);">
+      <div class="flex items-center justify-between mb-3 pt-3 border-t" style="border-color: var(--border);">
         <div>
           <div class="faq-item-title">自定义 Logo</div>
           <div class="faq-item-desc">支持 PNG/SVG/GIF，正方形或长方形均可。为空时显示默认字母标记</div>
@@ -113,13 +113,13 @@ async function onFaviconChange(file: File) {
           <el-button size="small">上传 Logo</el-button>
         </el-upload>
       </div>
-      <div v-if="siteConfig.has_logo" class="flex items-center gap-3 mb-6">
+      <div v-if="siteConfig.has_logo" class="flex items-center gap-3 mb-3">
         <img :src="'/api/site/logo'" alt="Logo" style="max-height: 40px; max-width: 160px; object-fit: contain;" />
         <el-tag type="success" size="small">已上传</el-tag>
       </div>
 
       <!-- Favicon 上传 -->
-      <div class="flex items-center justify-between mb-4 pt-4 border-t" style="border-color: var(--border);">
+      <div class="flex items-center justify-between mb-3 pt-3 border-t" style="border-color: var(--border);">
         <div>
           <div class="faq-item-title">自定义 Favicon</div>
           <div class="faq-item-desc">建议使用正方形 ICO/PNG/SVG，显示在浏览器标签页</div>

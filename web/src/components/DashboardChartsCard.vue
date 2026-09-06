@@ -139,7 +139,7 @@ function connTooltipFormatter(params: unknown[]): string {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--card);
-  padding: 16px;
+  padding: 12px;
   container-type: inline-size;
 }
 
@@ -154,7 +154,7 @@ function connTooltipFormatter(params: unknown[]): string {
   flex-direction: column;
   gap: 6px;
   border-radius: 12px;
-  padding: 16px;
+  padding: 12px;
   background: var(--muted);
   min-width: 0;
   overflow: hidden;

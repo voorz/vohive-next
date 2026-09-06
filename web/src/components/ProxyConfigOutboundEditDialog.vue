@@ -108,7 +108,7 @@ function handleSave() {
           <h3 class="pc-dlg-section-title">基础设置</h3>
         </div>
 
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-2 gap-3">
           <div class="space-y-1">
             <label class="pc-form-label">实例 ID</label>
             <el-input
@@ -135,7 +135,7 @@ function handleSave() {
           </el-select>
         </div>
 
-        <div class="grid grid-cols-2 gap-4">
+        <div class="grid grid-cols-2 gap-3">
           <div class="space-y-1">
             <label class="pc-form-label">代理模式</label>
             <el-select v-model="form.mode" class="w-full">
@@ -177,7 +177,7 @@ function handleSave() {
           <el-switch v-model="form.auth_enabled" />
         </div>
 
-        <div v-if="form.auth_enabled" class="grid grid-cols-2 gap-4">
+        <div v-if="form.auth_enabled" class="grid grid-cols-2 gap-3">
           <div class="space-y-1">
             <label class="pc-form-label">用户名</label>
             <el-input v-model="form.username" placeholder="例如 user01" />

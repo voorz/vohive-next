@@ -130,7 +130,7 @@ async function copy(text: string) {
       </el-icon>
     </div>
     <div v-show="expanded" class="faq-body">
-      <div class="mb-4">
+      <div class="mb-3">
         <div class="faq-item-title">API 访问 Token</div>
         <div class="faq-item-desc">创建后可使用 Token 代替用户名密码进行 API 调用（Bearer 认证）</div>
       </div>
@@ -250,7 +250,7 @@ async function copy(text: string) {
   font-size: 13px;
   color: var(--muted-foreground);
   text-align: center;
-  padding: 24px 0;
+  padding: 12px 0;
 }
 
 .faq-card {
@@ -290,7 +290,7 @@ async function copy(text: string) {
 }
 
 .faq-body {
-  padding: 16px;
+  padding: 12px;
   border-top: 1px solid var(--border);
 }
 

@@ -415,7 +415,7 @@ watch(scanState, (next) => {
 
 /* 空状态 */
 .op-sel-empty {
-  padding: 32px 16px;
+  padding: 12px;
   text-align: center;
   font-size: 13px;
   color: var(--muted-foreground);

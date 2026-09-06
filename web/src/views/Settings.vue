@@ -442,7 +442,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="settings-page h-[calc(100svh-56px-48px)] flex flex-col">
+  <div class="settings-page h-[calc(100svh-56px-24px)] flex flex-col">
     <div class="settings-card flex-1 min-h-0 flex flex-col overflow-hidden">
 
       <el-tabs v-model="activeTab" class="settings-tabs">
@@ -490,8 +490,8 @@ onBeforeUnmount(() => {
 
       <!-- ═══════════ 通知 Tab ═══════════ -->
       <div v-show="activeTab === 'notify'" class="flex-1 min-h-0 overflow-auto">
-        <div class="p-6">
-          <div class="flex items-center justify-between mb-6">
+        <div class="p-3">
+          <div class="flex items-center justify-between mb-3">
             <div class="flex items-center gap-3">
               <div class="settings-icon-box">
                 <el-icon size="20"><Alert24Regular /></el-icon>
@@ -513,7 +513,7 @@ onBeforeUnmount(() => {
             <el-tabs v-model="activeNotifyTab">
               <!-- Telegram -->
               <el-tab-pane label="Telegram Bot" name="telegram" class="pt-2">
-                <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center justify-between mb-3">
                   <div class="flex items-center gap-2">
                     <div class="settings-toggle-title">启用 Telegram 机器人</div>
                   </div>
@@ -537,7 +537,7 @@ onBeforeUnmount(() => {
                     <label class="settings-form-label">Bot Token</label>
                     <el-input v-model="telegramForm.bot_token" :disabled="!telegramForm.enabled" placeholder="xxxx:yyyy" />
                   </div>
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div class="space-y-1">
                       <label class="settings-form-label">Chat ID</label>
                       <el-input v-model="telegramForm.chat_id" :disabled="!telegramForm.enabled" type="number" inputmode="numeric" placeholder="例如 123456" />
@@ -562,7 +562,7 @@ onBeforeUnmount(() => {
 
               <!-- 飞书 -->
               <el-tab-pane label="飞书 Bot" name="feishu" class="pt-2">
-                <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center justify-between mb-3">
                   <div class="flex items-center gap-2">
                     <div class="settings-toggle-title">启用飞书机器人</div>
                   </div>
@@ -582,7 +582,7 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div class="space-y-4">
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div class="space-y-1">
                       <label class="settings-form-label">App ID</label>
                       <el-input v-model="feishuForm.app_id" :disabled="!feishuForm.enabled" placeholder="cli_xxxx" />
@@ -610,7 +610,7 @@ onBeforeUnmount(() => {
 
               <!-- QQ -->
               <el-tab-pane label="QQ Bot" name="qq" class="pt-2">
-                <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center justify-between mb-3">
                   <div class="flex items-center gap-2">
                     <div class="settings-toggle-title">启用 QQ 机器人</div>
                   </div>
@@ -618,7 +618,7 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div class="space-y-4">
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div class="space-y-1">
                       <label class="settings-form-label">App ID</label>
                       <el-input v-model="qqForm.app_id" :disabled="!qqForm.enabled" placeholder="QQ Bot App ID" />
@@ -628,7 +628,7 @@ onBeforeUnmount(() => {
                       <el-input v-model="qqForm.app_secret" :disabled="!qqForm.enabled" type="password" show-password placeholder="••••••••" />
                     </div>
                   </div>
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div class="space-y-1">
                       <label class="settings-form-label">Group IDs (群聊)</label>
                       <el-input v-model="qqForm.group_ids" :disabled="!qqForm.enabled" placeholder="群聊 OpenID，多个使用逗号分隔" />
@@ -649,7 +649,7 @@ onBeforeUnmount(() => {
 
               <!-- Bark -->
               <el-tab-pane label="Bark" name="bark" class="pt-2">
-                <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center justify-between mb-3">
                   <div class="flex items-center gap-2">
                     <div class="settings-toggle-title">启用 Bark 推送</div>
                   </div>
@@ -715,7 +715,7 @@ onBeforeUnmount(() => {
 
               <!-- Email -->
               <el-tab-pane label="Email" name="email" class="pt-2">
-                <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center justify-between mb-3">
                   <div class="flex items-center gap-2">
                     <div class="settings-toggle-title">启用 Email 推送</div>
                   </div>
@@ -735,7 +735,7 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div class="space-y-4">
-                  <div class="grid grid-cols-1 sm:grid-cols-10 gap-4">
+                  <div class="grid grid-cols-1 sm:grid-cols-10 gap-3">
                     <div class="space-y-1 sm:col-span-5">
                       <label class="settings-form-label">SMTP 主机</label>
                       <el-input v-model="emailForm.smtp_host" :disabled="!emailForm.enabled" placeholder="smtp.example.com" />
@@ -751,7 +751,7 @@ onBeforeUnmount(() => {
                       </div>
                     </div>
                   </div>
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div class="space-y-1">
                       <label class="settings-form-label">用户名 (Username)</label>
                       <el-input v-model="emailForm.username" :disabled="!emailForm.enabled" placeholder="邮箱账号" />
@@ -774,7 +774,7 @@ onBeforeUnmount(() => {
 
               <!-- Pushplus -->
               <el-tab-pane label="Pushplus" name="pushplus" class="pt-2">
-                <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center justify-between mb-3">
                   <div class="flex items-center gap-2">
                     <div class="settings-toggle-title">启用 Pushplus 推送</div>
                   </div>
@@ -816,7 +816,7 @@ onBeforeUnmount(() => {
 
               <!-- Webhook -->
               <el-tab-pane label="Webhook" name="webhook" class="pt-2">
-                <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center justify-between mb-3">
                   <div class="flex items-center gap-2">
                     <div class="settings-toggle-title">启用 Webhook 推送</div>
                   </div>
@@ -912,7 +912,7 @@ onBeforeUnmount(() => {
                     </div>
                   </div>
                   
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div class="space-y-1">
                       <label class="settings-form-label">请求超时 (ms)</label>
                       <el-input-number v-model="webhookSettings.timeout_ms" :min="1000" :max="60000" :disabled="!webhookSettings.enabled" class="w-full !w-full" controls-position="right" />
@@ -931,8 +931,8 @@ onBeforeUnmount(() => {
 
       <!-- ═══════════ 全局 Tab ═══════════ -->
       <div v-show="activeTab === 'global'" class="flex-1 min-h-0 overflow-auto">
-        <div class="p-6">
-          <div class="flex items-center gap-3 mb-6">
+        <div class="p-3">
+          <div class="flex items-center gap-3 mb-3">
             <div class="settings-icon-box">
               <el-icon size="20"><Globe24Regular /></el-icon>
             </div>
@@ -951,7 +951,7 @@ onBeforeUnmount(() => {
               </el-icon>
             </div>
             <div v-show="smsLimitExpanded" class="faq-body">
-              <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center justify-between mb-3">
                 <div>
                   <div class="faq-item-title">短信发送限制</div>
                   <div class="faq-item-desc">所有设备、所有卡共享同一个限速器</div>
@@ -960,7 +960,7 @@ onBeforeUnmount(() => {
                   保存限制
                 </el-button>
               </div>
-              <div class="flex flex-wrap items-center gap-6">
+              <div class="flex flex-wrap items-center gap-3">
                 <div class="flex items-center gap-2">
                   <span class="faq-field-label">每小时最多</span>
                   <el-input-number v-model="smsHourlyLimit" :min="1" :max="100" size="small" controls-position="right" />
@@ -994,8 +994,8 @@ onBeforeUnmount(() => {
 
       <!-- ═══════════ MCP Tab ═══════════ -->
       <div v-show="activeTab === 'mcp'" class="flex-1 min-h-0 overflow-auto">
-        <div class="p-6">
-          <div class="flex items-center gap-3 mb-6">
+        <div class="p-3">
+          <div class="flex items-center gap-3 mb-3">
             <div class="settings-icon-box">
               <el-icon size="20"><WindowConsole20Regular /></el-icon>
             </div>
@@ -1013,8 +1013,8 @@ onBeforeUnmount(() => {
 
       <!-- ═══════════ 安全 Tab ═══════════ -->
       <div v-show="activeTab === 'security'" class="flex-1 min-h-0 overflow-auto">
-        <div class="p-6">
-          <div class="flex items-center gap-3 mb-6">
+        <div class="p-3">
+          <div class="flex items-center gap-3 mb-3">
             <div class="settings-icon-box">
               <el-icon size="20"><Key24Regular /></el-icon>
             </div>
@@ -1038,8 +1038,8 @@ onBeforeUnmount(() => {
 
       <!-- ═══════════ 关于 Tab ═══════════ -->
       <div v-show="activeTab === 'about'" class="flex-1 min-h-0 overflow-auto">
-        <div class="p-6">
-          <div class="flex items-center gap-3 mb-6">
+        <div class="p-3">
+          <div class="flex items-center gap-3 mb-3">
             <div class="settings-icon-box">
               <el-icon size="20"><Server24Regular /></el-icon>
             </div>
@@ -1049,7 +1049,7 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div class="settings-inner-card p-4">
+          <div class="settings-inner-card p-3">
             <div class="space-y-4 text-sm">
             <!-- 核心版本 -->
             <div class="settings-info-row">
@@ -1096,7 +1096,7 @@ onBeforeUnmount(() => {
 
         <!-- API 文档（核心管理下方） -->
           <div class="settings-api-card mt-4">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div class="min-w-0">
                 <div>
                   <div class="settings-api-title">API 文档</div>
@@ -1241,7 +1241,7 @@ onBeforeUnmount(() => {
 .settings-api-card {
   border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 16px;
+  padding: 12px;
   background: var(--muted);
 }
 
@@ -1297,7 +1297,7 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px;
+  padding: 12px;
   cursor: pointer;
   user-select: none;
   transition: background 0.15s;
@@ -1323,7 +1323,7 @@ onBeforeUnmount(() => {
 }
 
 .faq-body {
-  padding: 16px;
+  padding: 12px;
   border-top: 1px solid var(--border);
 }
 

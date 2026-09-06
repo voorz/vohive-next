@@ -33,7 +33,7 @@
   align-items: center;
   justify-content: center;
   background: #000000;
-  padding: 24px;
+  padding: 12px;
 }
 
 .network-empty {

@@ -80,14 +80,14 @@ async function clearIconCache() {
       </el-icon>
     </div>
     <div v-show="expanded" class="faq-body">
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center justify-between mb-3">
         <div>
           <div class="faq-item-title">使用外部图标资源</div>
           <div class="faq-item-desc">显示个性化图标，关闭后使用默认图标</div>
         </div>
         <el-button size="small" type="primary" :loading="saving" @click="save" class="!border-0">保存</el-button>
       </div>
-      <div class="flex items-center gap-3 mb-4">
+      <div class="flex items-center gap-3 mb-3">
         <el-switch v-model="form.use_custom_icons" />
         <span class="faq-field-label">{{ form.use_custom_icons ? '已开启' : '已关闭' }}</span>
       </div>

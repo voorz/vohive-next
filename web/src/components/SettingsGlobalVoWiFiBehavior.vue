@@ -80,7 +80,7 @@ async function loadConfig() {
       </el-icon>
     </div>
     <div v-show="expanded" class="faq-body">
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center justify-between mb-3">
         <div class="faq-item-title">VoWiFi 行为参数</div>
         <div class="flex items-center gap-2 shrink-0">
           <template v-if="!editing">

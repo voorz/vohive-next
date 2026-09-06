@@ -85,7 +85,7 @@ function getSignalBars(dbm: number | null | undefined) {
     @click="emit('open-device', device.id)"
   >
     <div class="device-card-inner">
-      <div class="flex justify-between items-start mb-4">
+      <div class="flex justify-between items-start mb-3">
         <div class="flex items-center gap-3">
           <div class="device-card-icon">
             <el-icon size="20"><Sim24Regular /></el-icon>
@@ -167,7 +167,7 @@ function getSignalBars(dbm: number | null | undefined) {
 }
 
 .device-card-inner {
-  padding: 20px;
+  padding: 12px;
 }
 
 .device-card-icon {

@@ -249,7 +249,7 @@ function clearATHistory() {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 48px 24px;
+  padding: 12px;
   text-align: center;
   flex: 1;
   min-height: 200px;
@@ -257,7 +257,7 @@ function clearATHistory() {
 
 .terminal-unavailable-icon {
   color: var(--warning);
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .terminal-unavailable-title {

@@ -12,7 +12,7 @@ defineProps<{
 
 <style scoped>
 .list-skeleton {
-  padding: 24px;
+  padding: 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--card);

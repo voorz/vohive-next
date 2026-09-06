@@ -55,7 +55,7 @@ function resetDefault() {
       </el-icon>
     </div>
     <div v-show="expanded" class="faq-body">
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center justify-between mb-3">
         <div>
           <div class="faq-item-title">页面宽度</div>
           <div class="faq-item-desc">调整管理界面的最大内容宽度</div>
@@ -113,7 +113,7 @@ function resetDefault() {
 .display-overlay-card {
   width: 480px;
   max-width: 90vw;
-  padding: 32px;
+  padding: 12px;
   border-radius: 12px;
   background: var(--card);
   border: 1px solid var(--border);
@@ -132,7 +132,7 @@ function resetDefault() {
   color: var(--muted-foreground);
   text-align: center;
   margin-top: 4px;
-  margin-bottom: 24px;
+  margin-bottom: 12px;
 }
 
 .display-slider-row {
@@ -153,6 +153,6 @@ function resetDefault() {
   font-size: 24px;
   font-weight: 700;
   color: var(--brand);
-  margin-top: 16px;
+  margin-top: 12px;
 }
 </style>

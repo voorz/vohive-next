@@ -134,7 +134,7 @@ watch(scanState, (next) => {
   >
     <div class="mt-2 text-sm text-gray-600 dark:text-gray-300">
       <!-- 当前状态 -->
-      <div class="bg-gray-50 dark:bg-white/5 rounded-lg p-4 mb-4 border border-gray-100 dark:border-white/5">
+      <div class="bg-gray-50 dark:bg-white/5 rounded-lg p-3 mb-3 border border-gray-100 dark:border-white/5">
         <div class="flex justify-between items-center mb-2">
           <span class="font-medium text-gray-700 dark:text-gray-200">当前模式</span>
           <span class="px-2 py-0.5 rounded text-xs font-medium" 
@@ -148,7 +148,7 @@ watch(scanState, (next) => {
         </div>
       </div>
 
-      <div class="flex gap-3 mb-4">
+      <div class="flex gap-3 mb-3">
         <el-button @click="doScan" :loading="scanning" class="flex-1" type="primary" plain>
           {{ scanning ? '扫描中...' : '扫描可用网络' }}
         </el-button>
@@ -157,7 +157,7 @@ watch(scanState, (next) => {
         </el-button>
       </div>
 
-      <div v-if="scanning || scanMessage || scanError" class="mb-4 rounded-lg border px-3 py-2 text-xs"
+      <div v-if="scanning || scanMessage || scanError" class="mb-3 rounded-lg border px-3 py-2 text-xs"
         :class="scanError ? (scanRetryable ? 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300' : 'border-red-200 bg-red-50 text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-300') : 'border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-500/20 dark:bg-indigo-500/10 dark:text-indigo-300'">
         {{ scanError || scanMessage }}
       </div>
@@ -185,10 +185,10 @@ watch(scanState, (next) => {
           </div>
         </div>
       </div>
-      <div v-else-if="scanning" class="py-8 text-center text-gray-500 flex flex-col items-center justify-center space-y-3">
+      <div v-else-if="scanning" class="py-3 text-center text-gray-500 flex flex-col items-center justify-center space-y-3">
         <span>正在搜索周围网络，这可能需要 1-3 分钟...</span>
       </div>
-      <div v-else-if="scanRetryable" class="py-8 text-center text-amber-600 dark:text-amber-300 flex flex-col items-center justify-center space-y-3">
+      <div v-else-if="scanRetryable" class="py-3 text-center text-amber-600 dark:text-amber-300 flex flex-col items-center justify-center space-y-3">
         <span>{{ scanMessage || '扫描超时或模组忙，请稍后重试' }}</span>
       </div>
     </div>

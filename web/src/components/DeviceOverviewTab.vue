@@ -175,10 +175,10 @@ const networkPanelMessage = computed(() => {
 </script>
 
 <template>
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
 
     <!-- ===== 运行状态面板 ===== -->
-    <div class="ui-panel-muted p-4">
+    <div class="ui-panel-muted p-3">
       <div class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">运行状态</div>
 
       <!-- ── VoWiFi 模式 ── -->
@@ -334,7 +334,7 @@ const networkPanelMessage = computed(() => {
     </div>
 
     <!-- ===== SIM / 设备面板（不变）===== -->
-    <div class="ui-panel-muted p-4 relative min-w-0 overflow-hidden">
+    <div class="ui-panel-muted p-3 relative min-w-0 overflow-hidden">
       <div class="flex items-center justify-between mb-2">
         <div class="text-xs font-bold text-gray-500 uppercase tracking-wider">SIM / 设备</div>
         <div class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 cursor-pointer -mt-1 -mr-1" @click="showSensitive = !showSensitive">
@@ -374,9 +374,9 @@ const networkPanelMessage = computed(() => {
     </div>
 
     <!-- ===== 流量面板（不变）===== -->
-    <div class="ui-panel-muted p-4">
+    <div class="ui-panel-muted p-3">
       <div class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">网络</div>
-      <div v-if="networkPanelMessage" class="flex items-center justify-center p-6 text-sm text-gray-400">
+      <div v-if="networkPanelMessage" class="flex items-center justify-center p-3 text-sm text-gray-400">
         {{ networkPanelMessage }}
       </div>
       <div v-else class="text-sm space-y-1.5 text-gray-700 dark:text-gray-200">

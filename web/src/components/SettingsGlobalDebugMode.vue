@@ -38,7 +38,7 @@ async function save() {
       </el-icon>
     </div>
     <div v-show="expanded" class="faq-body">
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center justify-between mb-3">
         <div>
           <div class="faq-item-title">Debug 模式</div>
           <div class="faq-item-desc">开启后显示详细日志信息，用于排查问题</div>

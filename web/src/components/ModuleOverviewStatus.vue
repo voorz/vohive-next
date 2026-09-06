@@ -529,7 +529,7 @@ line-height: 1;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px 14px;
+  padding: 12px;
 }
 
 /* 图标盒子 */
@@ -612,7 +612,7 @@ line-height: 1;
 
 /* Hero 下半部分 */
 .hero-bottom {
-  padding: 16px 14px;
+  padding: 12px;
 }
 .hero-bottom:not(.signal-area) {
   min-height: 83px;
@@ -642,7 +642,7 @@ line-height: 1;
 .readiness-label.fail { color: var(--destructive); }
 
 /* Signal area (蜂窝 hero 下半部分) */
-.signal-area { display: flex; align-items: center; gap: 16px; }
+.signal-area { display: flex; align-items: center; gap: 12px; }
 .signal-left { flex: 1; min-width: 0; }
 .signal-dbz { display: flex; align-items: baseline; gap: 4px; }
 .signal-dbz-value { font-size: 28px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }

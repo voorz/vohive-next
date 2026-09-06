@@ -86,7 +86,7 @@ onUnmounted(() => {
 .logs-page {
   display: flex;
   flex-direction: column;
-  height: calc(100svh - 56px - 48px);
+  height: calc(100svh - 56px - 24px);
   min-height: 0;
   overflow: hidden;
 }

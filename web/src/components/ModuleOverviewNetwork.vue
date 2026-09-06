@@ -192,7 +192,7 @@ function copyVal(val: string | undefined) {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
+  padding: 12px;
   font-size: 13px;
   color: var(--muted-foreground);
 }

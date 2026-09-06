@@ -7,7 +7,7 @@ import ModuleListPanel from '../components/ModuleListPanel.vue'
 import ModuleDetailPanel from '../components/ModuleDetailPanel.vue'
 import ModulePreviewPanel from '../components/ModulePreviewPanel.vue'
 import ModuleSearchDialog from '../components/ModuleSearchDialog.vue'
-import { Eye24Regular, ChevronRight24Regular } from '@vicons/fluent'
+import { Eye24Regular } from '@vicons/fluent'
 import { ElMessage } from 'element-plus'
 import { devicesService } from '../services/devices'
 
@@ -153,14 +153,10 @@ async function reloadSIM(deviceId: string) {
     <!-- 预览抽屉（中窄屏） -->
     <el-drawer
       v-model="previewDrawerOpen"
-      :with-header="false"
+      title="预览"
       size="400px"
       direction="rtl"
     >
-      <!-- 左边缘竖向手柄（点击收起） -->
-      <div class="drawer-close-handle" @click="previewDrawerOpen = false">
-        <el-icon size="16"><ChevronRight24Regular /></el-icon>
-      </div>
       <ModulePreviewPanel
         v-if="detail"
         :device-id="selectedId"
@@ -184,7 +180,7 @@ async function reloadSIM(deviceId: string) {
 
 <style scoped>
 .module-page {
-  height: calc(100svh - 56px - 48px);
+  height: calc(100svh - 56px - 24px);
   display: flex;
   flex-direction: column;
 }
@@ -224,22 +220,22 @@ async function reloadSIM(deviceId: string) {
 
 /* 预览浮动按钮 */
 .preview-fab {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
-  z-index: 5;
-  width: 42px;
-  height: 42px;
-  border: 1px solid var(--brand);
-  border-radius: 999px;
-  background: var(--brand);
-  color: #fff;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: var(--console-shadow-md);
-  transition: transform 0.15s, background 0.15s, color 0.15s;
+position: fixed;
+bottom: 10px;
+right: 10px;
+z-index: 5;
+width: 42px;
+height: 42px;
+border: 1px solid var(--brand);
+border-radius: 999px;
+background: var(--brand);
+color: #fff;
+cursor: pointer;
+display: flex;
+align-items: center;
+justify-content: center;
+box-shadow: var(--console-shadow-md);
+transition: transform 0.15s, background 0.15s, color 0.15s;
 }
 
 .preview-fab:hover {
@@ -249,11 +245,16 @@ async function reloadSIM(deviceId: string) {
 }
 
 /* 抽屉内预览面板铺满高度 */
+:deep(.el-drawer__header) {
+margin-bottom: 0;
+padding: 8px 12px;
+}
+
 :deep(.el-drawer__body) {
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  position: relative;
+padding: 12px;
+display: flex;
+flex-direction: column;
+position: relative;
 }
 
 :deep(.el-drawer__body > *) {
@@ -261,35 +262,10 @@ async function reloadSIM(deviceId: string) {
   min-height: 0;
 }
 
-/* 左边缘竖向手柄：点击收起抽屉 */
-.drawer-close-handle {
-  position: absolute;
-  left: -12px;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 24px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: color-mix(in oklab, var(--brand) 8%, var(--muted));
-  border: 1px solid color-mix(in oklab, var(--brand) 25%, var(--border));
-  border-right: none;
-  border-radius: 8px 0 0 8px;
-  color: var(--brand);
-  cursor: pointer;
-  z-index: 10;
-  transition: all 0.15s;
-}
-.drawer-close-handle:hover {
-  background: color-mix(in oklab, var(--brand) 15%, var(--muted));
-  border-color: color-mix(in oklab, var(--brand) 50%, var(--border));
-}
-
 /* 响应式 */
 @media (max-width: 768px) {
   .module-page {
-    height: calc(100svh - 56px - 36px);
+    height: calc(100svh - 56px - 24px);
   }
 }
 </style>

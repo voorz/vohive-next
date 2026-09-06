@@ -46,7 +46,7 @@ async function save() {
       </el-icon>
     </div>
     <div v-show="expanded" class="faq-body">
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center justify-between mb-3">
         <div>
           <div class="faq-item-title">管理员用户名与密码</div>
           <div class="faq-item-desc">修改后立即生效，新登录将使用新凭据</div>

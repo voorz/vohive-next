@@ -40,7 +40,7 @@ async function save() {
       </el-icon>
     </div>
     <div v-show="expanded" class="faq-body">
-      <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center justify-between mb-3">
         <div>
           <div class="faq-item-title">服务器端口</div>
           <div class="faq-item-desc">修改后需重启服务生效</div>
