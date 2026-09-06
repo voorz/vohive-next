@@ -118,7 +118,7 @@ const outboundInstances = computed<OutboundInstanceWithStatus[]>(() => {
 
 async function fetchUpstream(opts: { silent?: boolean; initial?: boolean } = {}) {
   const isInitial = opts.initial === true
-  const silent = opts.silent === true
+  const _silent = opts.silent === true
   if (isInitial) {
     upstreamLoading.value = true
   }
@@ -171,7 +171,7 @@ async function fetchOutbound(opts: { silent?: boolean; initial?: boolean } = {})
 // 前置代理：操作
 // ══════════════════════════════════════════════════════
 
-function handleAddUpstream() {
+function _handleAddUpstream() {
   editingProxy.value = null
   editDialogVisible.value = true
 }

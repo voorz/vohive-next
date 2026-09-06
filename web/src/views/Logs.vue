@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, h, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, h, watch, onMounted, onUnmounted } from 'vue'
 import { ElButton, ElButtonGroup } from 'element-plus'
 import LogsHistoryTab from '../components/LogsHistoryTab.vue'
 import LogsRealtimeTab from '../components/LogsRealtimeTab.vue'

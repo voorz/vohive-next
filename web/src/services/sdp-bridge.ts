@@ -271,14 +271,12 @@ function addWebRTCAttributes(
 ): string {
   const lines = sdp.split(/\r?\n/)
   const out: string[] = []
-  let inAudio = false
   let inserted = false
 
   for (const line of lines) {
     if (line === '') continue
 
     if (line.startsWith('m=audio ')) {
-      inAudio = true
       out.push(line)
       // 在 m=audio 行后插入 WebRTC 必需属性
       if (!inserted) {
@@ -305,7 +303,6 @@ function addWebRTCAttributes(
     }
 
     if (line.startsWith('m=') && !line.startsWith('m=audio ')) {
-      inAudio = false
       out.push(line)
       continue
     }

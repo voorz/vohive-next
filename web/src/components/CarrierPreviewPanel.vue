@@ -4,7 +4,6 @@ import { storeToRefs } from 'pinia'
 import { useCarrierStore } from '../stores/carrier'
 import { copyToClipboard } from '../utils/clipboard'
 import { Shield24Regular, Sim24Regular, Copy24Regular, ArrowDownload24Regular } from '@vicons/fluent'
-import type { CarrierProfile } from '../types/api'
 
 const store = useCarrierStore()
 const { previewConfig, previewTarget, detail } = storeToRefs(store)
@@ -22,7 +21,7 @@ const title = computed(() => {
   return '配置预览'
 })
 
-const subtitle = computed(() => {
+const _subtitle = computed(() => {
   if (!detail.value) return ''
   if (previewTarget.value === 'system') return `${detail.value.name} · 系统内置只读模板`
   return `${detail.value.name} · 用户配置模板`

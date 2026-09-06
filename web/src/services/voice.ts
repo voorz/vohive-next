@@ -133,7 +133,7 @@ class VoiceService {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
       // 立即释放，SIP.js 会自己重新获取
       stream.getTracks().forEach(t => t.stop())
-    } catch (e) {
+    } catch {
       throw new Error('无法访问麦克风，请检查浏览器权限设置')
     }
   }

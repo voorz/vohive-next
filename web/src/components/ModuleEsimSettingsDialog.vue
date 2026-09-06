@@ -5,7 +5,7 @@ import { devicesService } from '../services/devices'
 import { errorMessage } from '../services/http'
 import type { EsimProfileItem } from '../types/api'
 import EsimCardPolicyInline from './EsimCardPolicyInline.vue'
-import { Delete24Regular, Edit24Regular } from '@vicons/fluent'
+import { Delete24Regular } from '@vicons/fluent'
 import {
   parseNickname,
   formatNickname,

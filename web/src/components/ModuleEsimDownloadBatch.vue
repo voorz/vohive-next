@@ -32,7 +32,7 @@ const selectedEid = computed(() => {
 })
 
 // EID 下拉显示文本
-function eidLabel(eid: { eid: string; aid: string }, index: number): string {
+function _eidLabel(eid: { eid: string; aid: string }, index: number): string {
   const eidShort = eid.eid ? '...' + eid.eid.slice(-8) : '--'
   return `EID(${index + 1}) ${eidShort}`
 }
@@ -59,7 +59,7 @@ const parsedLines = computed(() => {
     .filter(s => s.length > 0)
 })
 
-function onQrScanned(data: string) {
+function _onQrScanned(data: string) {
   lpaList.value = lpaList.value
     ? lpaList.value + '\n' + data
     : data

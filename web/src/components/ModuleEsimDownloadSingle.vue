@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { devicesService } from '../services/devices'
 import { errorMessage } from '../services/http'
 import { api } from '../stores/auth'
 import { pickNextDownloadAid } from './deviceEsimOverviewRefresh'
@@ -79,7 +78,7 @@ const selectedEid = computed(() => {
 })
 
 // EID 下拉显示文本
-function eidLabel(eid: { eid: string; aid: string }, index: number): string {
+function _eidLabel(eid: { eid: string; aid: string }, index: number): string {
   const eidShort = eid.eid ? '...' + eid.eid.slice(-8) : '--'
   return `EID(${index + 1}) ${eidShort}`
 }

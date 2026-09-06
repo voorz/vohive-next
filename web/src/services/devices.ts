@@ -246,13 +246,13 @@ export const devicesService = {
   addManaged(config: DeviceConfigDTO) {
     return callService(async () => {
       const {
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+         
         apn: _apn,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+         
         ip_version: _ipVersion,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+         
         network_enabled: _networkEnabled,
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+         
         vowifi_enabled: _voWiFiEnabled,
         ...deviceConfig
       } = config

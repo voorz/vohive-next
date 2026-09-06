@@ -4,7 +4,6 @@ import { Settings24Regular } from '@vicons/fluent'
 import { devicesService } from '../services/devices'
 import { useDevicesStore } from '../stores/devices'
 import { storeToRefs } from 'pinia'
-import { api } from '../stores/auth'
 import type { DeviceConfigDTO, DeviceOverviewItem } from '../types/api'
 import { isWwanQmiControlPath } from '../utils/deviceBackend'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -27,7 +26,7 @@ const editDirty = ref(false)
 const saving = ref(false)
 const deleting = ref(false)
 
-watch(() => editConfig.value?.esim_transport, (val) => {
+watch(() => editConfig.value?.esim_transport, (_val) => {
   // PC/SC 设备的 USB 路径在添加时已确定，编辑时只读展示
 })
 

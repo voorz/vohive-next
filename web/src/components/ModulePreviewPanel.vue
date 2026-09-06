@@ -24,12 +24,12 @@ const props = defineProps<{
   reloadingSIM?: boolean
 }>()
 
-const emit = defineEmits<{
+const _emit = defineEmits<{
   'reload-sim': [deviceId: string]
 }>()
 
 // 重载按钮可点击条件：VoWiFi 已开启且 eUICC 不可用（UIM 状态不佳）
-const canReload = computed(() => {
+const _canReload = computed(() => {
   if (!props.deviceId) return false
   if (!props.vowifiEnabled && !props.isPCSC) return false
   return props.euiccAvailable === false

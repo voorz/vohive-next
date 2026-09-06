@@ -14,7 +14,7 @@ import {
 } from '@vicons/fluent'
 import type { UpstreamProxyWithMeta } from '../types/proxy-config'
 
-const props = defineProps<{
+const _props = defineProps<{
   proxies: UpstreamProxyWithMeta[]
   loading: boolean
   error: { message: string; status?: number } | null

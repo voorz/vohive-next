@@ -13,6 +13,20 @@ $embedDist = Join-Path $ScriptDir "internal/web/dist"
 
 Write-Host "=== VoHive Frontend Build & Embed ===" -ForegroundColor Cyan
 
+# --- Lint 检查（构建前必检，避免 lint 错误堆积） ---
+Write-Host "Running ESLint check..." -ForegroundColor Yellow
+Push-Location $webDir
+npm run lint 2>&1 | ForEach-Object {
+    if ($_ -match 'error|warning|problem') { Write-Host $_ -ForegroundColor Red }
+}
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "LINT CHECK FAILED - fix errors before building" -ForegroundColor Red
+    Pop-Location
+    exit 1
+}
+Pop-Location
+Write-Host "Lint check OK" -ForegroundColor Green
+
 # --- 前端构建 ---
 Write-Host "Building frontend (npm run build)..." -ForegroundColor Yellow
 Push-Location $webDir
