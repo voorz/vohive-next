@@ -147,7 +147,7 @@ jobs:
       - name: Package artifacts
         shell: bash
         run: |
-          OUT="vohive_${{ steps.vars.outputs.version }}_linux_${{ matrix.artifact_arch }}"
+          OUT="vohive_v${{ steps.vars.outputs.version }}_linux_${{ matrix.artifact_arch }}"
           mkdir -p out
           cp dist/vo-hive "out/${OUT}"
 
@@ -186,48 +186,28 @@ jobs:
         shell: bash
         run: |
           VERSION="$(cat VERSION | tr -d '[:space:]')"
-          REPO_URL="https://github.com/${GITHUB_REPOSITORY}"
 
-          # Get previous tag for changelog range
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          if [ -n "${PREV_TAG}" ]; then
-            RANGE="${PREV_TAG}..HEAD"
-          else
-            RANGE="HEAD"
-          fi
-
-          # Build commit list
-          COMMITS=""
-          while IFS= read -r line; do
-            HASH="$(echo "${line}" | awk '{print $1}')"
-            MSG="$(echo "${line}" | cut -d' ' -f2-)"
-            COMMITS+="- ${MSG} ([${HASH}](${REPO_URL}/commit/${HASH}))"$'\n'
-          done < <(git log ${RANGE} --format="%h %s")
-
-          # Assemble release body
+          # Assemble release body — write to file to avoid bash interpreting backticks/special chars
+          RELEASE_NOTES_FILE="$(mktemp)"
           {
-            echo "body<<EOF"
-            echo "# VoHive v${VERSION}"
-            echo ""
-            echo "${COMMITS}"
-            echo "---"
+            echo "# v${VERSION}"
             echo ""
             echo "## Downloads"
             echo ""
             echo "| Architecture | Platform | File |"
             echo "|------|---------|------|"
-            echo "| amd64 | WSL / x86_64 Linux | \`vohive_${VERSION}_linux_amd64\` |"
-            echo "| arm64 | OpenWrt aarch64 / ARM64 Linux | \`vohive_${VERSION}_linux_arm64\` |"
-            echo "| armv7 | OpenWrt armv7 / Embedded devices | \`vohive_${VERSION}_linux_armv7\` |"
+            echo "| amd64 | WSL / x86_64 Linux | \`vohive_v${VERSION}_linux_amd64\` |"
+            echo "| arm64 | OpenWrt aarch64 / ARM64 Linux | \`vohive_v${VERSION}_linux_arm64\` |"
+            echo "| armv7 | OpenWrt armv7 / Embedded devices | \`vohive_v${VERSION}_linux_armv7\` |"
             echo ""
             echo "## Docker"
             echo ""
             echo '```bash'
             echo "docker pull voorz/vohive:${VERSION}"
-            echo "docker pull ghcr.io/voorz/vohive-next/vohive:${VERSION}"
+            echo "docker pull ghcr.io/voorz/vohive-release/vohive:${VERSION}"
             echo '```'
-            echo "EOF"
-          } >> "${GITHUB_OUTPUT}"
+          } > "${RELEASE_NOTES_FILE}"
+          echo "notes_file=${RELEASE_NOTES_FILE}" >> "${GITHUB_OUTPUT}"
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -236,54 +216,43 @@ jobs:
           merge-multiple: true
           path: dist
 
-      - name: Publish to GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.release_vars.outputs.release_version }}
-          body: ${{ steps.release_notes.outputs.body }}
-          files: dist/*
-          fail_on_unmatched_files: true
-          overwrite_files: true
-
-      - name: Upload assets to Telegram channel
-        if: ${{ env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHANNEL_ID != '' }}
+      - name: Publish to GitHub Release (cross-repo)
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        shell: bash
+        run: |
+          VERSION="$(cat VERSION | tr -d '[:space:]')"
+          RELEASE_REPO="voorz/vohive-release"
+          TAG="v${VERSION}"
+          NOTES_FILE="${{ steps.release_notes.outputs.notes_file }}"
+          
+          # Create release using --notes-file to avoid bash interpreting special chars in notes
+          gh release create "${TAG}" \
+            --repo "${RELEASE_REPO}" \
+            --title "v${VERSION}" \
+            --notes-file "${NOTES_FILE}" \
+            --target master
+          
+          # Upload each binary asset
+          for f in dist/*; do
+            echo "Uploading $(basename "$f")..."
+            gh release upload "${TAG}" "$f" \
+              --repo "${RELEASE_REPO}" --clobber
+          done
+          
+          # Cleanup temp file
+          rm -f "${NOTES_FILE}"
+          echo "Release published to https://github.com/${RELEASE_REPO}/releases/tag/${TAG}"
+
+      - name: Send Telegram notification
+        if: ${{ env.TELEGRAM_BOT_TOKEN != '' && env.TELEGRAM_CHANNEL_ID != '' }}
         shell: bash
         run: |
           set -euo pipefail
           API="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}"
-
-          MESSAGE_HEADER="vohive release ${{ steps.release_vars.outputs.release_version }} assets"
-
-          shopt -s nullglob
-          FILES=(dist/*)
-
-          if [[ ${#FILES[@]} -eq 0 ]]; then
-            MESSAGE="${MESSAGE_HEADER:0:3800}"
-            curl -fsSL -X POST "${API}/sendMessage" \
-              -d "chat_id=${TELEGRAM_CHANNEL_ID}" \
-              --data-urlencode "text=${MESSAGE}"
-            exit 0
-          fi
-
-          # sendMediaGroup 里首个文档携带说明；caption 上限 1024。
-          CAPTION="${MESSAGE_HEADER:0:1000}"
-          CAPTION_JSON="$(jq -Rn --arg s "${CAPTION}" '$s')"
-
-          MEDIA_ITEMS=()
-          for i in "${!FILES[@]}"; do
-            if [[ "${i}" -eq 0 ]]; then
-              MEDIA_ITEMS+=("{\"type\":\"document\",\"media\":\"attach://file${i}\",\"caption\":${CAPTION_JSON}}")
-            else
-              MEDIA_ITEMS+=("{\"type\":\"document\",\"media\":\"attach://file${i}\"}")
-            fi
-          done
-          MEDIA_JSON="[$(IFS=,; echo "${MEDIA_ITEMS[*]}")]"
-
-          echo "Uploading ${#FILES[@]} binary file(s) to Telegram as one media group..."
-          CURL_ARGS=(-fsSL -X POST "${API}/sendMediaGroup" -F "chat_id=${TELEGRAM_CHANNEL_ID}" -F "media=${MEDIA_JSON}")
-          for i in "${!FILES[@]}"; do
-            CURL_ARGS+=(-F "file${i}=@${FILES[$i]}")
-          done
-          curl "${CURL_ARGS[@]}"
+          VERSION="$(cat VERSION | tr -d '[:space:]')"
+          RELEASE_URL="https://github.com/voorz/vohive-release/releases/tag/v${VERSION}"
+          MESSAGE=$(printf "vohive release v%s\n\n%s" "${VERSION}" "${RELEASE_URL}")
+          curl -fsSL -X POST "${API}/sendMessage" \
+            -d "chat_id=${TELEGRAM_CHANNEL_ID}" \
+            --data-urlencode "text=${MESSAGE}"

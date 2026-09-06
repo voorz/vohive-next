@@ -1,10 +1,19 @@
 name: Build and Push Docker Image
 
 on:
-  # Disabled tag trigger for Phase 1 (binary-only smoke build)
-  # Re-enable when Docker smoke test is ready
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
+      platforms:
+        description: build platforms
+        required: false
+        default: linux/amd64,linux/arm64
+      push:
+        description: push image
+        required: false
+        default: "true"
       enable_upx:
         description: enable UPX compression (true/false)
         required: false
@@ -12,35 +21,17 @@ on:
 
 env:
   DOCKER_IMAGE: ${{ secrets.DOCKERHUB_USERNAME }}/vohive
+  GHCR_IMAGE: ghcr.io/voorz/vohive-release/vohive
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to DockerHub
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Extract metadata (tags, labels)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.DOCKER_IMAGE }}
-          tags: |
-            type=raw,value=latest,enable=true
-            type=raw,value=${{ steps.vars.outputs.version }}
 
       - name: Prepare build args
         id: vars
@@ -49,29 +40,73 @@ jobs:
           VERSION="$(cat VERSION | tr -d '[:space:]')"
           BUILDTIME="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           REVISION="${GITHUB_SHA}"
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
-            ENABLE_UPX_RAW="${{ github.event.inputs.enable_upx }}"
+
+          # Platforms: use input or default
+          PLATFORMS="${{ inputs.platforms || 'linux/amd64,linux/arm64' }}"
+
+          # Push: auto-push on tag, otherwise use input
+          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            PUSH_ENABLED=true
           else
-            ENABLE_UPX_RAW="true"
+            if [[ "${{ inputs.push }}" == "true" ]]; then
+              PUSH_ENABLED=true
+            else
+              PUSH_ENABLED=false
+            fi
           fi
+
+          # UPX
+          ENABLE_UPX_RAW="${{ inputs.enable_upx || 'true' }}"
           case "${ENABLE_UPX_RAW}" in
             false|0|no|off) ENABLE_UPX=0 ;;
             *) ENABLE_UPX=1 ;;
           esac
+
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
           echo "buildtime=${BUILDTIME}" >> "${GITHUB_OUTPUT}"
           echo "revision=${REVISION}" >> "${GITHUB_OUTPUT}"
           echo "enable_upx=${ENABLE_UPX}" >> "${GITHUB_OUTPUT}"
+          echo "platforms=${PLATFORMS}" >> "${GITHUB_OUTPUT}"
+          echo "push_enabled=${PUSH_ENABLED}" >> "${GITHUB_OUTPUT}"
 
-      - name: Build and push
-        uses: docker/build-push-action@v5
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        if: ${{ contains(steps.vars.outputs.platforms, 'arm') || contains(steps.vars.outputs.platforms, 'ppc') || contains(steps.vars.outputs.platforms, 's390') || contains(steps.vars.outputs.platforms, 'riscv') }}
+        with:
+          platforms: all
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        if: ${{ steps.vars.outputs.push_enabled == 'true' }}
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Login to GHCR
+        if: ${{ steps.vars.outputs.push_enabled == 'true' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GH_PAT }}
+
+      - name: Build and push (DockerHub + GHCR)
+        uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile.github
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          file: Dockerfile.github
+          platforms: ${{ steps.vars.outputs.platforms }}
+          push: ${{ steps.vars.outputs.push_enabled == 'true' }}
+          tags: |
+            ${{ env.DOCKER_IMAGE }}:latest
+            ${{ env.DOCKER_IMAGE }}:${{ steps.vars.outputs.version }}
+            ${{ env.GHCR_IMAGE }}:latest
+            ${{ env.GHCR_IMAGE }}:${{ steps.vars.outputs.version }}
+          provenance: false
+          sbom: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
           secrets: |
