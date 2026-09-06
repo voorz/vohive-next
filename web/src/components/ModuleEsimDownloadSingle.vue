@@ -2,6 +2,7 @@
 import { ref, watch, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { errorMessage } from '../services/http'
+import { api } from '../stores/auth'
 import { pickNextDownloadAid } from './deviceEsimOverviewRefresh'
 import { describeDownloadTerminalNotice } from './deviceEsimOperationNotice'
 import type { EsimChipInfo, EsimSpaceDelta } from '../types/api'
