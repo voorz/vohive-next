@@ -9,6 +9,7 @@ import (
 	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/device"
 	"github.com/voorz/vohive/pkg/logger"
+	pkgnotify "github.com/voorz/vohive/pkg/notify"
 )
 
 // Manager 统一通知管理器
@@ -394,11 +395,11 @@ func (m *Manager) broadcastWithContext(ctx NotificationContext) {
 
 // broadcastToFrontend 将通知推送给前端 SSE 订阅者
 func (m *Manager) broadcastToFrontend(ctx NotificationContext) {
-	if GlobalNotificationBroadcaster.ClientCount() == 0 {
+	if pkgnotify.GlobalNotificationBroadcaster.ClientCount() == 0 {
 		return
 	}
 
-	n := FrontendNotification{
+	n := pkgnotify.FrontendNotification{
 		Event:      ctx.Event,
 		Body:       ctx.Text,
 		DeviceID:   ctx.DeviceID,
@@ -427,7 +428,7 @@ func (m *Manager) broadcastToFrontend(ctx NotificationContext) {
 		n.Title = "通知"
 	}
 
-	GlobalNotificationBroadcaster.Broadcast(n)
+	pkgnotify.GlobalNotificationBroadcaster.Broadcast(n)
 }
 
 // NotifyDeviceOnline 设备上线通知

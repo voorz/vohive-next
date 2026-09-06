@@ -13,7 +13,7 @@ type FrontendNotification struct {
 	Body       string `json:"body"`                // 通知正文（纯文本）
 	DeviceID   string `json:"device_id,omitempty"` // 关联设备 ID
 	DeviceName string `json:"device_name,omitempty"`
-	Timestamp  string `json:"timestamp"` // RFC3339
+	Timestamp  string `json:"timestamp"` 		// RFC3339
 }
 
 // NotificationBroadcaster 通知事件广播器，将 FrontendNotification 推送给所有订阅的 SSE 客户端。
