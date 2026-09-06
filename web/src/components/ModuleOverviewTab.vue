@@ -33,7 +33,7 @@ defineEmits<{
       @reconnect-vowifi="$emit('reconnect-vowifi')"
       @rotate-ip="$emit('rotate-ip')"
     />
-    <ModuleOverviewDevice :device="device" />
+    <ModuleOverviewDevice :device="device" :is-p-c-s-c="isPCSC" />
     <ModuleOverviewNetwork
       v-if="!isPCSC && !device?.vowifi_enabled"
       :device="device"

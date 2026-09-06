@@ -329,6 +329,7 @@ function readinessItems(d: DeviceMgmtListItem) {
         <!-- 虚线占位添加区 -->
         <div class="add-device-placeholder" @click="emit('open-search')">
           <el-icon size="32"><Add24Regular /></el-icon>
+          <span class="add-device-text">添加设备</span>
         </div>
       </div>
     </div>
@@ -695,14 +696,21 @@ function readinessItems(d: DeviceMgmtListItem) {
 .add-device-placeholder {
 aspect-ratio: 2;
 display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 2px dashed rgba(255, 255, 255, 0.15);
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.05);
-  cursor: pointer;
-  transition: all 0.2s;
-  color: rgba(255, 255, 255, 0.3);
+flex-direction: column;
+align-items: center;
+justify-content: center;
+gap: 4px;
+border: 2px dashed rgba(255, 255, 255, 0.15);
+border-radius: 4px;
+background: rgba(255, 255, 255, 0.05);
+cursor: pointer;
+transition: all 0.2s;
+color: rgba(255, 255, 255, 0.3);
+}
+
+.add-device-text {
+font-size: 11px;
+font-weight: 500;
 }
 
 .add-device-placeholder:hover {

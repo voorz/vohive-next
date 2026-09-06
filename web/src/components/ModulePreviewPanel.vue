@@ -71,6 +71,11 @@ onBeforeUnmount(() => {
 // Sensitive visibility
 const showSensitive = useSensitiveVisibility()
 
+// Profile 总数
+const totalProfileCount = computed(() =>
+  profiles.value.reduce((sum, g) => sum + (g.profiles?.length || 0), 0)
+)
+
 // Data fetching
 let fetchAbortController: AbortController | null = null
 let fetchRequestId = 0
@@ -385,16 +390,9 @@ onBeforeUnmount(() => {
         </div>
       </template>
 
-      <!-- 底部预留栏 -->
+      <!-- 底部预留栏：Profile 数量统计 -->
       <div class="preview-footer">
-        <button
-          class="preview-reload-btn"
-          :class="{ disabled: !canReload }"
-          :disabled="!canReload || reloadingSIM"
-          @click="emit('reload-sim', deviceId || '')"
-        >
-          <span>{{ reloadingSIM ? '重启中...' : '重启 eUICC' }}</span>
-        </button>
+        <span class="profile-count-text">当前 Profile {{ totalProfileCount }} 个</span>
       </div>
 
       <!-- 设置弹窗 -->
@@ -532,7 +530,7 @@ onBeforeUnmount(() => {
   box-shadow: 0 0 0 1.5px var(--card);
 }
 
-/* 底部预留栏 */
+/* 底部预留栏：Profile 数量统计 */
 .preview-footer {
   flex-shrink: 0;
   border-top: 1px solid var(--border);
@@ -543,36 +541,10 @@ onBeforeUnmount(() => {
   justify-content: center;
 }
 
-/* 重载 SIM 按钮 — 始终可见，UIM 不佳时可点击 */
-.preview-reload-btn {
-  display: inline-flex;
-  align-items: center;
-  height: 28px;
+.profile-count-text {
   font-size: 12px;
   font-weight: 500;
-  padding: 0 16px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--muted);
   color: var(--muted-foreground);
-  cursor: not-allowed;
-  transition: all 0.12s;
-  flex-shrink: 0;
-  line-height: 1;
-}
-.preview-reload-btn:not(:disabled) {
-  border-color: var(--foreground);
-  background: var(--foreground);
-  color: var(--background);
-  cursor: pointer;
-}
-.preview-reload-btn:not(:disabled):hover {
-  background: var(--accent);
-  color: var(--foreground);
-  border-color: var(--border);
-}
-.preview-reload-btn:disabled {
-  opacity: 0.5;
 }
 
 .preview-empty {

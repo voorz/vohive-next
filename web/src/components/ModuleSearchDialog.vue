@@ -380,6 +380,8 @@ async function handleAdd() {
   const config: DeviceConfigDTO = {
     id: deviceId.value,
     name: deviceName.value || deviceId.value,
+    manufacturer: d.manufacturer || '',
+    usb_product: d.type === 'pcsc' ? (d.display_name || d.model || '') : (d.model || ''),
     interface: d.net_interface || '',
     at_port: d.at_port || '',
     control_device: d.control_path || '',

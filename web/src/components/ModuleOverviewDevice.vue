@@ -13,11 +13,26 @@ import CarrierWebsheetDialog from './CarrierWebsheetDialog.vue'
 
 const props = defineProps<{
   device: DeviceOverviewItem | null
+  isPCSC?: boolean
 }>()
 
 const showSensitive = useSensitiveVisibility()
 
 const activeEsimProfile = computed(() => activeEsimProfileDisplayName(props.device))
+
+// 品牌：PC/SC 读卡器读顶层 manufacturer（USB 描述符），模组读 modem.manufacturer
+const brandValue = computed(() =>
+  props.isPCSC
+    ? (props.device?.manufacturer || '--')
+    : (props.device?.modem?.manufacturer || '--')
+)
+
+// 型号：PC/SC 读卡器读顶层 usb_product（USB 产品名），模组读 modem.model
+const modelValue = computed(() =>
+  props.isPCSC
+    ? (props.device?.usb_product || '--')
+    : (props.device?.modem?.model || '--')
+)
 
 const backendModeDisplay = computed(() => {
 const m = props.device?.backend_mode
@@ -34,6 +49,8 @@ const { simOperatorDisplay } = useSimOperatorDisplay(() => props.device)
 
 // PLMN 信息（国家/国旗，仍从 all.json 获取）
 const plmnInfo = ref<PlmnInfoEntry | null>(null)
+// 归属地国家名
+const countryName = computed(() => plmnInfo.value?.country?.name || '--')
 
 onMounted(() => loadPlmnInfo())
 
@@ -105,12 +122,12 @@ function copyVal(val: string | undefined) {
           <span class="device-field-value copyable" :class="{ masked: !showSensitive }" @click="copyVal(device?.local_phone)">{{ device?.local_phone || '--' }}</span>
         </div>
         <div class="device-field">
-          <span class="device-field-label">原运营商</span>
-          <span class="device-field-value copyable" @click="copyVal(simOperatorDisplay)">{{ simOperatorDisplay }}</span>
+          <span class="device-field-label">品牌</span>
+          <span class="device-field-value copyable" @click="copyVal(brandValue)">{{ brandValue }}</span>
         </div>
         <div class="device-field">
-          <span class="device-field-label">品牌</span>
-          <span class="device-field-value copyable" @click="copyVal(device?.modem?.manufacturer || device?.manufacturer)">{{ device?.modem?.manufacturer || device?.manufacturer || '--' }}</span>
+          <span class="device-field-label">原运营商</span>
+          <span class="device-field-value copyable" @click="copyVal(simOperatorDisplay)">{{ simOperatorDisplay }}</span>
         </div>
         <div v-if="device?.modem?.chip_vendor" class="device-field">
           <span class="device-field-label">芯片</span>
@@ -118,15 +135,15 @@ function copyVal(val: string | undefined) {
         </div>
         <div class="device-field">
           <span class="device-field-label">型号</span>
-          <span class="device-field-value copyable" @click="copyVal(device?.modem?.model)">{{ device?.modem?.model || '--' }}</span>
+          <span class="device-field-value copyable" @click="copyVal(modelValue)">{{ modelValue }}</span>
         </div>
-        <div class="device-field">
+        <div v-if="!isPCSC" class="device-field">
           <span class="device-field-label">固件版本</span>
           <span class="device-field-value copyable" @click="copyVal(device?.modem?.firmware)">{{ device?.modem?.firmware || '--' }}</span>
         </div>
         <div class="device-field">
-          <span class="device-field-label">硬件版本</span>
-          <span class="device-field-value copyable" @click="copyVal(device?.modem?.hardware_revision)">{{ device?.modem?.hardware_revision || '--' }}</span>
+          <span class="device-field-label">归属地</span>
+          <span class="device-field-value copyable" @click="copyVal(countryName)">{{ countryName }}</span>
         </div>
         <div class="device-field">
           <span class="device-field-label">运行模式</span>
