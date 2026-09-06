@@ -7,7 +7,7 @@ import ModuleListPanel from '../components/ModuleListPanel.vue'
 import ModuleDetailPanel from '../components/ModuleDetailPanel.vue'
 import ModulePreviewPanel from '../components/ModulePreviewPanel.vue'
 import ModuleSearchDialog from '../components/ModuleSearchDialog.vue'
-import { Eye24Regular } from '@vicons/fluent'
+import { Eye24Regular, ChevronRight24Regular } from '@vicons/fluent'
 import { ElMessage } from 'element-plus'
 import { devicesService } from '../services/devices'
 
@@ -38,6 +38,11 @@ function syncWidth() {
 
 const showThreeColumn = computed(() => isWide.value)
 const showPreviewButton = computed(() => !isWide.value)
+
+// 屏幕变宽时自动关闭预览抽屉，避免右栏和抽屉双重渲染
+watch(isWide, (wide) => {
+  if (wide) previewDrawerOpen.value = false
+})
 
 onMounted(async () => {
   syncWidth()
@@ -152,6 +157,10 @@ async function reloadSIM(deviceId: string) {
       size="400px"
       direction="rtl"
     >
+      <!-- 左边缘竖向手柄（点击收起） -->
+      <div class="drawer-close-handle" @click="previewDrawerOpen = false">
+        <el-icon size="16"><ChevronRight24Regular /></el-icon>
+      </div>
       <ModulePreviewPanel
         v-if="detail"
         :device-id="selectedId"
@@ -244,11 +253,37 @@ async function reloadSIM(deviceId: string) {
   padding: 12px;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 :deep(.el-drawer__body > *) {
   flex: 1;
   min-height: 0;
+}
+
+/* 左边缘竖向手柄：点击收起抽屉 */
+.drawer-close-handle {
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklab, var(--brand) 8%, var(--muted));
+  border: 1px solid color-mix(in oklab, var(--brand) 25%, var(--border));
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  color: var(--brand);
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.15s;
+}
+.drawer-close-handle:hover {
+  background: color-mix(in oklab, var(--brand) 15%, var(--muted));
+  border-color: color-mix(in oklab, var(--brand) 50%, var(--border));
 }
 
 /* 响应式 */

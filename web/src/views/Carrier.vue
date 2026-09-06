@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import { ElMessage } from 'element-plus'
 import { useCarrierStore } from '../stores/carrier'
@@ -7,7 +7,7 @@ import CarrierListPanel from '../components/CarrierListPanel.vue'
 import CarrierDetailPanel from '../components/CarrierDetailPanel.vue'
 import CarrierPreviewPanel from '../components/CarrierPreviewPanel.vue'
 import CarrierSearchDialog from '../components/CarrierSearchDialog.vue'
-import { Eye24Regular } from '@vicons/fluent'
+import { Eye24Regular, ChevronRight24Regular } from '@vicons/fluent'
 import { downloadIcon, getCachedIcon } from '../composables/useOperatorIcon'
 import { loadPlmnCatalog } from '../composables/plmn-catalog'
 
@@ -37,6 +37,11 @@ const showThreeColumn = computed(() => isWide.value)
 
 // 是否显示预览抽屉按钮
 const showPreviewButton = computed(() => !isWide.value)
+
+// 屏幕变宽时自动关闭预览抽屉，避免右栏和抽屉双重渲染
+watch(isWide, (wide) => {
+  if (wide) previewDrawerOpen.value = false
+})
 
 onMounted(async () => {
   syncWidth()
@@ -108,10 +113,14 @@ async function handleAddCarriers(plmns: string[]) {
     <!-- 预览抽屉（中窄屏） -->
     <el-drawer
       v-model="previewDrawerOpen"
-      title="配置预览"
+      :with-header="false"
       size="400px"
       direction="rtl"
     >
+      <!-- 左边缘竖向手柄（点击收起） -->
+      <div class="drawer-close-handle" @click="previewDrawerOpen = false">
+        <el-icon size="16"><ChevronRight24Regular /></el-icon>
+      </div>
       <CarrierPreviewPanel v-if="detail" />
     </el-drawer>
 
@@ -194,11 +203,37 @@ async function handleAddCarriers(plmns: string[]) {
   padding: 12px;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 :deep(.el-drawer__body > *) {
   flex: 1;
   min-height: 0;
+}
+
+/* 左边缘竖向手柄：点击收起抽屉 */
+.drawer-close-handle {
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklab, var(--brand) 8%, var(--muted));
+  border: 1px solid color-mix(in oklab, var(--brand) 25%, var(--border));
+  border-right: none;
+  border-radius: 8px 0 0 8px;
+  color: var(--brand);
+  cursor: pointer;
+  z-index: 10;
+  transition: all 0.15s;
+}
+.drawer-close-handle:hover {
+  background: color-mix(in oklab, var(--brand) 15%, var(--muted));
+  border-color: color-mix(in oklab, var(--brand) 50%, var(--border));
 }
 
 /* 响应式 */
