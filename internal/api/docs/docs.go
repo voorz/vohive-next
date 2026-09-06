@@ -218,7 +218,8 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "carrier"
+                    "carrier",
+                    "mcp-auto"
                 ],
                 "summary": "运营商列表（carrier_visible + carrier_index）",
                 "responses": {
@@ -655,7 +656,8 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "dashboard"
+                    "dashboard",
+                    "mcp-auto"
                 ],
                 "summary": "仪表盘设备概览",
                 "responses": {
@@ -729,7 +731,8 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "devices"
+                    "devices",
+                    "mcp-auto"
                 ],
                 "summary": "DeviceMgmtList",
                 "responses": {
@@ -1372,7 +1375,8 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "devices"
+                    "devices",
+                    "mcp-auto"
                 ],
                 "summary": "DeviceMgmtGetDeviceConfig",
                 "parameters": [
@@ -1420,7 +1424,8 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "devices"
+                    "devices",
+                    "mcp-auto"
                 ],
                 "summary": "EsimGetOverview",
                 "parameters": [
@@ -1951,7 +1956,8 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "devices"
+                    "devices",
+                    "mcp-auto"
                 ],
                 "summary": "EsimListProfiles",
                 "parameters": [
@@ -2405,7 +2411,8 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "devices"
+                    "devices",
+                    "mcp-auto"
                 ],
                 "summary": "DeviceMgmtOverviewLite",
                 "parameters": [
@@ -2502,7 +2509,8 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "dashboard"
+                    "dashboard",
+                    "mcp-auto"
                 ],
                 "summary": "单设备详细状态",
                 "parameters": [
@@ -3293,7 +3301,8 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "proxy-instances"
+                    "proxy-instances",
+                    "mcp-auto"
                 ],
                 "summary": "ProxyOverview",
                 "responses": {
@@ -4152,7 +4161,8 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "settings"
+                    "settings",
+                    "mcp-auto"
                 ],
                 "summary": "GetServerConfig",
                 "responses": {
@@ -4429,7 +4439,8 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "settings"
+                    "settings",
+                    "mcp-auto"
                 ],
                 "summary": "GetVoiceGateway",
                 "responses": {
@@ -4985,7 +4996,8 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "sms"
+                    "sms",
+                    "mcp-auto"
                 ],
                 "summary": "获取短信会话",
                 "parameters": [
@@ -5132,7 +5144,8 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "settings"
+                    "settings",
+                    "mcp-auto"
                 ],
                 "summary": "获取系统信息",
                 "responses": {

@@ -680,7 +680,7 @@ func (s *Server) handleDeleteAPIToken(c *gin.Context) {
 // handleGetServerConfig 
 //
 // @Summary      GetServerConfig
-// @Tags         settings
+// @Tags         settings, mcp-auto
 // @Produce      json
 // @Success      200  {object}  map[string]interface{}  "成功"
 // @Failure      400  {object}  map[string]interface{}  "参数错误"

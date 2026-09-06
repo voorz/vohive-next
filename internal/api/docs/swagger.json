@@ -211,7 +211,8 @@
                     "application/json"
                 ],
                 "tags": [
-                    "carrier"
+                    "carrier",
+                    "mcp-auto"
                 ],
                 "summary": "运营商列表（carrier_visible + carrier_index）",
                 "responses": {
@@ -648,7 +649,8 @@
                     "application/json"
                 ],
                 "tags": [
-                    "dashboard"
+                    "dashboard",
+                    "mcp-auto"
                 ],
                 "summary": "仪表盘设备概览",
                 "responses": {
@@ -722,7 +724,8 @@
                     "application/json"
                 ],
                 "tags": [
-                    "devices"
+                    "devices",
+                    "mcp-auto"
                 ],
                 "summary": "DeviceMgmtList",
                 "responses": {
@@ -1365,7 +1368,8 @@
                     "application/json"
                 ],
                 "tags": [
-                    "devices"
+                    "devices",
+                    "mcp-auto"
                 ],
                 "summary": "DeviceMgmtGetDeviceConfig",
                 "parameters": [
@@ -1413,7 +1417,8 @@
                     "application/json"
                 ],
                 "tags": [
-                    "devices"
+                    "devices",
+                    "mcp-auto"
                 ],
                 "summary": "EsimGetOverview",
                 "parameters": [
@@ -1944,7 +1949,8 @@
                     "application/json"
                 ],
                 "tags": [
-                    "devices"
+                    "devices",
+                    "mcp-auto"
                 ],
                 "summary": "EsimListProfiles",
                 "parameters": [
@@ -2398,7 +2404,8 @@
                     "application/json"
                 ],
                 "tags": [
-                    "devices"
+                    "devices",
+                    "mcp-auto"
                 ],
                 "summary": "DeviceMgmtOverviewLite",
                 "parameters": [
@@ -2495,7 +2502,8 @@
                     "application/json"
                 ],
                 "tags": [
-                    "dashboard"
+                    "dashboard",
+                    "mcp-auto"
                 ],
                 "summary": "单设备详细状态",
                 "parameters": [
@@ -3286,7 +3294,8 @@
                     "application/json"
                 ],
                 "tags": [
-                    "proxy-instances"
+                    "proxy-instances",
+                    "mcp-auto"
                 ],
                 "summary": "ProxyOverview",
                 "responses": {
@@ -4145,7 +4154,8 @@
                     "application/json"
                 ],
                 "tags": [
-                    "settings"
+                    "settings",
+                    "mcp-auto"
                 ],
                 "summary": "GetServerConfig",
                 "responses": {
@@ -4422,7 +4432,8 @@
                     "application/json"
                 ],
                 "tags": [
-                    "settings"
+                    "settings",
+                    "mcp-auto"
                 ],
                 "summary": "GetVoiceGateway",
                 "responses": {
@@ -4978,7 +4989,8 @@
                     "application/json"
                 ],
                 "tags": [
-                    "sms"
+                    "sms",
+                    "mcp-auto"
                 ],
                 "summary": "获取短信会话",
                 "parameters": [
@@ -5125,7 +5137,8 @@
                     "application/json"
                 ],
                 "tags": [
-                    "settings"
+                    "settings",
+                    "mcp-auto"
                 ],
                 "summary": "获取系统信息",
                 "responses": {
