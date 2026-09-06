@@ -252,9 +252,7 @@ jobs:
           API="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}"
           VERSION="$(cat VERSION | tr -d '[:space:]')"
           RELEASE_URL="https://github.com/voorz/vohive-release/releases/tag/v${VERSION}"
-          MESSAGE="vohive release v${VERSION}
-
-${RELEASE_URL}"
+          MESSAGE=$(printf "vohive release v%s\n\n%s" "${VERSION}" "${RELEASE_URL}")
           curl -fsSL -X POST "${API}/sendMessage" \
             -d "chat_id=${TELEGRAM_CHANNEL_ID}" \
             --data-urlencode "text=${MESSAGE}"
