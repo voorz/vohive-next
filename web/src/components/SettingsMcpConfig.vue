@@ -161,8 +161,8 @@ async function copyConfig() {
 .mcp-config-card {
   display: grid;
   grid-template-columns: minmax(0, 4fr) minmax(0, 6fr);
-  gap: 24px;
-  padding: 18px;
+  gap: 12px;
+  padding: 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--background);
@@ -172,7 +172,7 @@ async function copyConfig() {
   display: grid;
   align-content: start;
   justify-items: stretch;
-  gap: 18px;
+  gap: 12px;
   min-width: 0;
 }
 

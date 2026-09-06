@@ -432,7 +432,7 @@ function downloadJson() {
 }
 
 .param-empty {
-  padding: 24px;
+  padding: 12px;
   text-align: center;
   color: var(--muted-foreground);
   font-size: 13px;

@@ -170,8 +170,8 @@ defineExpose({ setNumber, clear })
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
-  padding: 20px 0;
+  gap: 12px;
+  padding: 12px 0;
   width: 100%;
   margin: 0 auto;
 }

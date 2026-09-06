@@ -556,9 +556,9 @@ html.dark .el-checkbox.is-checked .el-checkbox__label {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 24px;
-  padding-bottom: 18px;
-  margin-bottom: 18px;
+  gap: 12px;
+  padding-bottom: 12px;
+  margin-bottom: 12px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -576,8 +576,8 @@ html.dark .el-checkbox.is-checked .el-checkbox__label {
 /* 页面堆栈 (Phase 4) */
 
 .page-stack {
-  display: grid;
-  gap: 18px;
+display: grid;
+gap: 12px;
 }
 
 /* 响应式 */
@@ -606,10 +606,10 @@ html.dark .el-checkbox.is-checked .el-checkbox__label {
 }
 
 .detail-panel {
-  min-width: 0;
-  max-height: 100%;
-  overflow: auto;
-  padding: 24px;
+min-width: 0;
+max-height: 100%;
+overflow: auto;
+padding: 12px;
 }
 
 .table-panel {
@@ -618,7 +618,7 @@ html.dark .el-checkbox.is-checked .el-checkbox__label {
 
 .list-panel {
   overflow: auto;
-  max-height: calc(100svh - 194px);
+  max-height: calc(100svh - 170px);
 }
 
 /* Metric */
@@ -809,11 +809,11 @@ html.dark .el-checkbox.is-checked .el-checkbox__label {
 /* EmptyState */
 
 .empty-state {
-  display: grid;
-  place-items: center;
-  gap: 8px;
-  min-height: 180px;
-  padding: 24px;
+display: grid;
+place-items: center;
+gap: 8px;
+min-height: 180px;
+padding: 12px;
   border-radius: 8px;
   background: color-mix(in oklab, var(--muted) 58%, transparent);
   color: var(--muted-foreground);
@@ -846,12 +846,12 @@ html.dark .el-checkbox.is-checked .el-checkbox__label {
 }
 
 .empty-state.compact {
-  grid-template-columns: auto minmax(0, 1fr);
-  place-items: initial;
-  align-items: center;
-  min-height: 124px;
-  gap: 4px 12px;
-  padding: 18px 16px;
+grid-template-columns: auto minmax(0, 1fr);
+place-items: initial;
+align-items: center;
+min-height: 124px;
+gap: 4px 12px;
+padding: 12px;
   background: transparent;
   text-align: left;
 }
@@ -874,7 +874,7 @@ html.dark .el-checkbox.is-checked .el-checkbox__label {
   align-items: flex-start;
   gap: 10px;
   min-height: 0;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -944,10 +944,10 @@ html.dark .el-checkbox.is-checked .el-checkbox__label {
 }
 
 .faq-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px;
+display: flex;
+align-items: center;
+justify-content: space-between;
+padding: 12px;
   cursor: pointer;
   user-select: none;
   transition: background 0.15s;
@@ -973,7 +973,7 @@ html.dark .el-checkbox.is-checked .el-checkbox__label {
 }
 
 .faq-body {
-  padding: 16px;
+padding: 12px;
   border-top: 1px solid var(--border);
 }
 

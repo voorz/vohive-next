@@ -602,7 +602,7 @@ watch(lang, (v) => {
   min-height: 0;
   gap: 4px;
   overflow-y: auto;
-  padding: 16px 12px;
+  padding: 12px 12px;
 }
 
 .nav-item {
@@ -870,7 +870,7 @@ watch(lang, (v) => {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   color: #fff;
 }
 
@@ -918,7 +918,7 @@ z-index: 10;
 display: flex;
 align-items: center;
 justify-content: space-between;
-gap: 16px;
+gap: 12px;
 min-width: 0;
 height: 56px;
 padding: 0 24px;
@@ -975,7 +975,7 @@ background-image: radial-gradient(circle, rgba(255, 255, 255, 0.04) 1.5px, trans
 .main-inner {
   max-width: var(--page-max-width, 1240px);
   margin: 0 auto;
-  padding: 24px 24px 24px;
+  padding: 12px;
 }
 
 /* ---------- 侧栏收起按钮（仅窄屏可见） ---------- */
@@ -1039,20 +1039,12 @@ background-image: radial-gradient(circle, rgba(255, 255, 255, 0.04) 1.5px, trans
     transform: translateX(-100%);
   }
 
-  .main-inner {
-    padding: 18px 24px 18px;
-  }
-
   .shell-header {
     padding: 0 16px;
   }
 }
 
 @media (max-width: 640px) {
-  .main-inner {
-    padding: 18px 24px 18px;
-  }
-
   .shell-header {
     padding: 0 12px;
   }

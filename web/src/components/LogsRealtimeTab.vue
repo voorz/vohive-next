@@ -260,10 +260,11 @@ watch(levelFilter, () => {
 
 .realtime-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
-  height: 60px;
-  padding: 0 16px;
+  gap: 8px;
+  min-height: 60px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border, #E9E9E9);
   flex-shrink: 0;
 }
@@ -309,12 +310,12 @@ watch(levelFilter, () => {
   font-size: 12px;
   background: #000000;
   color: #e0e0e0;
-  padding: 16px;
+  padding: 12px;
 }
 
 .realtime-empty {
   text-align: center;
-  padding: 32px 0;
+  padding: 12px 0;
   color: var(--muted-foreground);
 }
 

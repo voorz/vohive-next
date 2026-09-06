@@ -349,7 +349,7 @@ function close() {
 .settings-content {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 .settings-section {

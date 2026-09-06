@@ -71,7 +71,7 @@ function onCancel() {
   display: flex;
   flex-direction: column;
   padding: 14px;
-  gap: 16px;
+  gap: 12px;
 }
 
 .contact-add-form {

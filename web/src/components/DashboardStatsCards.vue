@@ -79,7 +79,7 @@ const lastRefreshText = computed(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px;
+  padding: 12px;
   border-right: 1px solid var(--border);
 }
 

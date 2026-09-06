@@ -200,6 +200,7 @@ paths:
       summary: 运营商列表（carrier_visible + carrier_index）
       tags:
       - carrier
+      - mcp-auto
   /carrier/{mcc}/{mnc}:
     put:
       consumes:
@@ -481,6 +482,7 @@ paths:
       summary: 仪表盘设备概览
       tags:
       - dashboard
+      - mcp-auto
   /dashboard/overview/stream:
     get:
       produces:
@@ -531,6 +533,7 @@ paths:
       summary: DeviceMgmtList
       tags:
       - devices
+      - mcp-auto
     post:
       consumes:
       - application/json
@@ -882,6 +885,7 @@ paths:
       summary: DeviceMgmtGetDeviceConfig
       tags:
       - devices
+      - mcp-auto
   /devices/{device_id}/esim:
     get:
       parameters:
@@ -913,6 +917,7 @@ paths:
       summary: EsimGetOverview
       tags:
       - devices
+      - mcp-auto
   /devices/{device_id}/esim/actions/download:
     get:
       parameters:
@@ -1256,6 +1261,7 @@ paths:
       summary: EsimListProfiles
       tags:
       - devices
+      - mcp-auto
   /devices/{device_id}/esim/profiles/{iccid}:
     delete:
       parameters:
@@ -1551,6 +1557,7 @@ paths:
       summary: DeviceMgmtOverviewLite
       tags:
       - devices
+      - mcp-auto
   /devices/{device_id}/overview/stream:
     get:
       parameters:
@@ -1614,6 +1621,7 @@ paths:
       summary: 单设备详细状态
       tags:
       - dashboard
+      - mcp-auto
   /devices/{device_id}/usbnet-mode:
     patch:
       consumes:
@@ -2316,6 +2324,7 @@ paths:
       summary: ProxyOverview
       tags:
       - proxy-instances
+      - mcp-auto
   /rotateip:
     post:
       consumes:
@@ -2741,6 +2750,7 @@ paths:
       summary: GetServerConfig
       tags:
       - settings
+      - mcp-auto
   /settings/site:
     get:
       produces:
@@ -2919,6 +2929,7 @@ paths:
       summary: GetVoiceGateway
       tags:
       - settings
+      - mcp-auto
     put:
       consumes:
       - application/json
@@ -3351,6 +3362,7 @@ paths:
       summary: 获取短信会话
       tags:
       - sms
+      - mcp-auto
   /system/info:
     get:
       produces:
@@ -3366,6 +3378,7 @@ paths:
       summary: 获取系统信息
       tags:
       - settings
+      - mcp-auto
   /system/pcsc-driver:
     get:
       produces:

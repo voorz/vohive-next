@@ -259,8 +259,8 @@ const deviceSeriesName = computed(() => {
 
 const panelClass = computed(() => (
   props.mode === 'device'
-    ? 'ui-panel-muted p-6 overflow-hidden'
-    : 'ui-card p-6 overflow-hidden'
+    ? 'ui-panel-muted p-3 overflow-hidden'
+    : 'ui-card p-3 overflow-hidden'
 ))
 
 const chartOption = computed(() => {
@@ -465,7 +465,7 @@ function handleRangeChange(value: string | number | boolean | undefined) {
 
 <template>
   <div :class="panelClass">
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-3">
       <div>
         <div class="text-lg font-extrabold text-gray-900 dark:text-white">{{ title }}</div>
         <div class="text-xs text-gray-500 dark:text-gray-400 mt-1">{{ subtitle }}</div>
@@ -480,14 +480,14 @@ function handleRangeChange(value: string | number | boolean | undefined) {
       </div>
     </div>
 
-    <div v-if="disabled" class="ui-panel-muted p-6 text-sm text-gray-400 dark:text-gray-500">
+    <div v-if="disabled" class="ui-panel-muted p-3 text-sm text-gray-400 dark:text-gray-500">
       网络已禁用，暂无流量分析
     </div>
 
     <template v-else>
       <ErrorState
         v-if="error"
-        class="mb-4"
+        class="mb-3"
         title="流量分析加载失败"
         :message="error.message"
         :status-code="error.status"
@@ -498,7 +498,7 @@ function handleRangeChange(value: string | number | boolean | undefined) {
         @retry="emit('refresh')"
       />
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
         <div class="ui-panel-muted p-3">
           <div class="text-xs text-gray-400">{{ rangeText }}下载</div>
           <div class="text-lg font-mono font-bold mt-1">{{ formatBytes(analysisTotal.rx) }}</div>
@@ -513,12 +513,12 @@ function handleRangeChange(value: string | number | boolean | undefined) {
         </div>
       </div>
 
-      <div v-if="chartOption && VChartComp" class="mb-6 h-[300px] w-full">
+      <div v-if="chartOption && VChartComp" class="mb-3 h-[300px] w-full">
         <component :is="VChartComp" class="chart" :option="chartOption" autoresize />
       </div>
       <ErrorState
         v-else-if="chartOption && chartLoadError"
-        class="mb-6"
+        class="mb-3"
         title="流量图表加载失败"
         :message="chartLoadError"
         retry-text="重试图表"
@@ -526,13 +526,13 @@ function handleRangeChange(value: string | number | boolean | undefined) {
       />
       <div
         v-else-if="chartOption && chartLoading"
-        class="mb-6 h-[180px] ui-panel-muted rounded-xl border border-dashed border-gray-200 dark:border-white/10 flex items-center justify-center text-sm text-gray-400 dark:text-gray-500"
+        class="mb-3 h-[180px] ui-panel-muted rounded-xl border border-dashed border-gray-200 dark:border-white/10 flex items-center justify-center text-sm text-gray-400 dark:text-gray-500"
       >
         流量图表加载中...
       </div>
       <div
         v-else
-        class="mb-6 h-[180px] ui-panel-muted rounded-xl border border-dashed border-gray-200 dark:border-white/10 flex items-center justify-center text-sm text-gray-400 dark:text-gray-500"
+        class="mb-3 h-[180px] ui-panel-muted rounded-xl border border-dashed border-gray-200 dark:border-white/10 flex items-center justify-center text-sm text-gray-400 dark:text-gray-500"
       >
         暂无流量图表数据
       </div>

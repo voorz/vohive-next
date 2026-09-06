@@ -104,7 +104,7 @@ function onDtmfKey(key: string) {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 24px 16px 32px;
+  padding: 12px;
   gap: 14px;
 }
 

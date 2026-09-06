@@ -31,7 +31,7 @@ func makeKey(mcc, mnc, brand string) string {
 // handleListCarriers 运营商列表（carrier_visible + carrier_index）
 //
 // @Summary      运营商列表（carrier_visible + carrier_index）
-// @Tags         carrier
+// @Tags         carrier, mcp-auto
 // @Produce      json
 // @Success      200  {object}  map[string]interface{}  "成功"
 // @Failure      400  {object}  map[string]interface{}  "参数错误"

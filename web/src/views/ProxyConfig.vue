@@ -524,7 +524,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="proxy-page h-[calc(100svh-56px-48px)] flex flex-col">
+  <div class="proxy-page h-[calc(100svh-56px-24px)] flex flex-col">
     <div class="proxy-card flex-1 min-h-0 flex flex-col">
 
       <!-- Tab 切换 -->

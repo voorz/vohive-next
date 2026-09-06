@@ -546,7 +546,7 @@ func requestID(c *gin.Context) string {
 //
 // @Summary      仪表盘设备概览
 // @Description  返回所有设备的概览状态，用于仪表盘卡片展示
-// @Tags         dashboard
+// @Tags         dashboard, mcp-auto
 // @Produce      json
 // @Success      200  {array}   map[string]interface{}  "设备列表"
 // @Failure      401  {object}  map[string]interface{}  "未授权"
@@ -1418,7 +1418,7 @@ func (s *Server) handleVoWiFiDisable(c *gin.Context) {
 //
 // @Summary      单设备详细状态
 // @Description  返回指定设备的详细信息，包括 IMEI、信号、注册状态、VoWiFi 状态等
-// @Tags         dashboard
+// @Tags         dashboard, mcp-auto
 // @Produce      json
 // @Param        device_id  path      string  true  "设备 ID"
 // @Success      200       {object}  map[string]interface{}  "详细状态"
@@ -1638,7 +1638,7 @@ func (s *Server) handleGetSMSContacts(c *gin.Context) {
 // handleGetSMSThread 获取与某联系人的短信会话
 //
 // @Summary      获取短信会话
-// @Tags         sms
+// @Tags         sms, mcp-auto
 // @Produce      json
 // @Param        peer       query     string  true   "联系人"
 // @Param        device_id  query     string  false  "设备 ID"
@@ -2196,7 +2196,7 @@ func (s *Server) handleStatic(c *gin.Context) {
 // handleSystemInfo 获取系统运行与版本信息
 //
 // @Summary      获取系统信息
-// @Tags         settings
+// @Tags         settings, mcp-auto
 // @Produce      json
 // @Success      200  {object}  map[string]interface{}  "系统信息"
 // @Router       /system/info [get]

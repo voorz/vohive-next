@@ -127,7 +127,7 @@ onUnmounted(() => {
       <EmptyState v-else-if="devices.length === 0" title="暂无设备接入" subtitle="请先在设备管理中添加或接管设备" />
 
       <!-- 设备卡片网格 -->
-      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4">
+      <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
         <DeviceCard
           v-for="dev in devices"
           :key="dev.id"

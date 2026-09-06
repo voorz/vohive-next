@@ -159,7 +159,7 @@ function handleSave() {
       </div>
 
       <!-- 鉴权字段 -->
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-2 gap-3">
         <div class="space-y-1">
           <label class="pc-form-label">用户名（可选）</label>
           <el-input v-model="form.username" placeholder="留空则免鉴权" />

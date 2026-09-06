@@ -839,7 +839,7 @@ func overviewLocalPhone(imsi, iccid string) string {
 // handleDeviceMgmtList
 //
 // @Summary      DeviceMgmtList
-// @Tags         devices
+// @Tags         devices, mcp-auto
 // @Produce      json
 // @Success      200  {object}  map[string]interface{}  "成功"
 // @Failure      400  {object}  map[string]interface{}  "参数错误"
@@ -982,7 +982,7 @@ func (s *Server) handleDeviceMgmtRefreshInfo(c *gin.Context) {
 // handleDeviceMgmtOverviewLite
 //
 // @Summary      DeviceMgmtOverviewLite
-// @Tags         devices
+// @Tags         devices, mcp-auto
 // @Produce      json
 // @Param        device_id  path      string  true  "device_id"
 // @Success      200  {object}  map[string]interface{}  "成功"
@@ -1147,7 +1147,7 @@ func overviewDetailLiveRefreshRequested(c *gin.Context) bool {
 // handleDeviceMgmtGetDeviceConfig
 //
 // @Summary      DeviceMgmtGetDeviceConfig
-// @Tags         devices
+// @Tags         devices, mcp-auto
 // @Produce      json
 // @Param        device_id  path      string  true  "device_id"
 // @Success      200  {object}  map[string]interface{}  "成功"
@@ -2120,7 +2120,7 @@ func (s *Server) handleDeviceMgmtSetUSBNetMode(c *gin.Context) {
 // handleEsimListProfiles
 //
 // @Summary      EsimListProfiles
-// @Tags         devices
+// @Tags         devices, mcp-auto
 // @Produce      json
 // @Param        device_id  path      string  true  "device_id"
 // @Success      200  {object}  map[string]interface{}  "成功"
@@ -2749,7 +2749,7 @@ func (s *Server) handleEsimGetChipInfo(c *gin.Context) {
 // handleEsimGetOverview
 //
 // @Summary      EsimGetOverview
-// @Tags         devices
+// @Tags         devices, mcp-auto
 // @Produce      json
 // @Param        device_id  path      string  true  "device_id"
 // @Success      200  {object}  map[string]interface{}  "成功"

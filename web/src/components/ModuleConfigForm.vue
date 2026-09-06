@@ -278,10 +278,10 @@ async function handleDelete() {
 }
 
 .config-body {
-  padding: 16px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 /* 只读信息卡片 */

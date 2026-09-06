@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -84,13 +85,14 @@ func (s *Server) handleMcpRequest(c *gin.Context) {
 	}
 
 	logger.Info("MCP request", "method", req.Method, "id", req.ID, "ip", c.ClientIP())
-	resp := s.dispatchMCP(req)
+	token := strings.TrimPrefix(c.GetHeader("Authorization"), "Bearer ")
+	resp := s.dispatchMCP(req, token)
 	c.JSON(http.StatusOK, resp)
 }
 
 // ── JSON-RPC 分发 ──
 
-func (s *Server) dispatchMCP(req jsonRPCRequest) jsonRPCResponse {
+func (s *Server) dispatchMCP(req jsonRPCRequest, token string) jsonRPCResponse {
 	switch req.Method {
 	case "initialize":
 		return jsonRPCResponse{
@@ -113,7 +115,7 @@ func (s *Server) dispatchMCP(req jsonRPCRequest) jsonRPCResponse {
 		}
 
 	case "tools/call":
-		return s.handleMcpToolCall(req)
+		return s.handleMcpToolCall(req, token)
 
 	default:
 		return jsonRPCResponse{
@@ -130,7 +132,22 @@ func (s *Server) dispatchMCP(req jsonRPCRequest) jsonRPCResponse {
 // ── 工具列表 ──
 
 func (s *Server) mcpTools() []mcpTool {
-	return []mcpTool{
+	// 先加载自动生成的工具
+	loadAutoMCPTools()
+
+	tools := []mcpTool{
+		{
+			Name:        "login",
+			Description: "使用用户名密码登录，返回 Bearer token。获取 token 后可用于调用其他需要认证的 API 端点。",
+			InputSchema: gin.H{
+				"type": "object",
+				"properties": gin.H{
+					"username": gin.H{"type": "string", "description": "用户名（默认 admin）"},
+					"password": gin.H{"type": "string", "description": "密码（默认 admin）"},
+				},
+				"required": []string{"username", "password"},
+			},
+		},
 		{
 			Name:        "get_device_status",
 			Description: "获取设备列表和 VoWiFi 运行状态。",
@@ -164,11 +181,15 @@ func (s *Server) mcpTools() []mcpTool {
 			},
 		},
 	}
+
+	// 合并自动生成的工具
+	tools = append(tools, autoTools...)
+	return tools
 }
 
 // ── 工具调用 ──
 
-func (s *Server) handleMcpToolCall(req jsonRPCRequest) jsonRPCResponse {
+func (s *Server) handleMcpToolCall(req jsonRPCRequest, token string) jsonRPCResponse {
 	var params struct {
 		Name      string         `json:"name"`
 		Arguments map[string]any `json:"arguments"`
@@ -182,7 +203,10 @@ func (s *Server) handleMcpToolCall(req jsonRPCRequest) jsonRPCResponse {
 
 	var result string
 
+	// 先检查手动工具
 	switch params.Name {
+	case "login":
+		result = s.mcpLogin(params.Arguments)
 	case "get_device_status":
 		result = s.mcpGetDeviceStatus(params.Arguments)
 	case "get_config":
@@ -190,7 +214,16 @@ func (s *Server) handleMcpToolCall(req jsonRPCRequest) jsonRPCResponse {
 	case "tail_logs":
 		result = s.mcpTailLogs(params.Arguments)
 	default:
-		return jsonRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &jsonRPCError{Code: -32602, Message: "unknown tool: " + params.Name}}
+		// 检查是否是自动生成的工具
+		if _, ok := autoToolsMap[params.Name]; ok {
+			res, err := s.callAutoMCPTool(params.Name, params.Arguments, token)
+			if err != nil {
+				return jsonRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &jsonRPCError{Code: -32603, Message: err.Error()}}
+			}
+			result = res
+		} else {
+			return jsonRPCResponse{JSONRPC: "2.0", ID: req.ID, Error: &jsonRPCError{Code: -32602, Message: "unknown tool: " + params.Name}}
+		}
 	}
 
 	return jsonRPCResponse{
@@ -203,6 +236,32 @@ func (s *Server) handleMcpToolCall(req jsonRPCRequest) jsonRPCResponse {
 }
 
 // ── 工具实现 ──
+
+func (s *Server) mcpLogin(args map[string]any) string {
+	username, _ := args["username"].(string)
+	password, _ := args["password"].(string)
+
+	if username == "" || password == "" {
+		return "错误：需要提供 username 和 password"
+	}
+
+	// 构造登录请求
+	loginURL := "http://127.0.0.1" + s.cfg.Port + "/api/auth/login"
+	body := fmt.Sprintf(`{"username":"%s","password":"%s"}`, username, password)
+
+	resp, err := http.DefaultClient.Post(loginURL, "application/json", strings.NewReader(body))
+	if err != nil {
+		return fmt.Sprintf("登录请求失败: %v", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Sprintf("读取响应失败: %v", err)
+	}
+
+	return fmt.Sprintf("HTTP %d\n%s", resp.StatusCode, string(respBody))
+}
 
 func (s *Server) mcpGetDeviceStatus(args map[string]any) string {
 	if s.pool == nil {
@@ -278,7 +337,8 @@ func (s *Server) mcpTailLogs(args map[string]any) string {
 // ── 辅助函数 ──
 
 func (s *Server) initMCP() {
-	logger.Info("MCP server 已初始化 (Streamable HTTP)")
+	loadAutoMCPTools()
+	logger.Info("MCP server 已初始化 (Streamable HTTP)", "auto_tools", len(autoTools))
 }
 
 // readFileLines 读取日志文件最后 N 行，支持级别和关键词过滤

@@ -92,7 +92,7 @@ const sourceLabel = computed(() => {
 <template>
   <div>
     <!-- 标题行 -->
-    <div class="flex items-center gap-3 mb-4">
+    <div class="flex items-center gap-3 mb-3">
       <div class="tab-icon-box">
         <el-icon size="20"><Sim24Regular /></el-icon>
       </div>
@@ -103,7 +103,7 @@ const sourceLabel = computed(() => {
     </div>
 
     <!-- 无 ICCID 提示 -->
-    <div v-show="!iccid" class="ui-panel-muted p-4 text-center text-sm text-gray-500 dark:text-gray-400">
+    <div v-show="!iccid" class="ui-panel-muted p-3 text-center text-sm text-gray-500 dark:text-gray-400">
       设备尚未识别到 SIM 卡 ICCID，策略不可操作
     </div>
 

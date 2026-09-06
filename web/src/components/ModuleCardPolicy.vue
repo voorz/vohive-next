@@ -180,7 +180,7 @@ const {
 }
 
 .policy-body {
-  padding: 16px;
+  padding: 12px;
   overflow-y: auto;
   flex: 1;
   min-height: 0;

@@ -741,10 +741,10 @@ async function confirmDeleteThread(thread: SmsThread) {
 </script>
 
 <template>
-  <div ref="smsPageRef" class="sms-page h-[calc(100svh-56px-48px)] flex flex-col">
+  <div ref="smsPageRef" class="sms-page h-[calc(100svh-56px-24px)] flex flex-col">
     <ErrorState
       v-if="devicesError"
-      class="mb-4"
+      class="mb-3"
       title="设备列表加载失败"
       :message="devicesError.message"
       :status-code="devicesError.status"
@@ -757,7 +757,7 @@ async function confirmDeleteThread(thread: SmsThread) {
 
     <ErrorState
       v-if="messagesError"
-      class="mb-6"
+      class="mb-3"
       title="短信加载失败"
       :message="messagesError.message"
       :status-code="messagesError.status"
@@ -815,7 +815,7 @@ async function confirmDeleteThread(thread: SmsThread) {
 
           <ListSkeleton v-if="loading && filteredThreads.length === 0" :rows="10" />
 
-          <div v-else-if="filteredThreads.length === 0" class="flex-1 flex items-center justify-center p-6">
+          <div v-else-if="filteredThreads.length === 0" class="flex-1 flex items-center justify-center p-3">
             <EmptyState title="暂无会话" subtitle="等待设备收到短信或点击“新建短信”">
               <template #icon>
                 <el-icon size="28"><Mail24Regular /></el-icon>
@@ -830,7 +830,7 @@ async function confirmDeleteThread(thread: SmsThread) {
                 :class="{ 'sms-thread-shell-active': selectedThreadKey === t.key }"
               >
                 <div
-                  class="sms-thread-row group flex items-start gap-2 px-4 py-3 transition-all"
+                  class="sms-thread-row group flex items-start gap-2 px-3 py-3 transition-all"
                   :class="selectedThreadKey === t.key ? 'sms-thread-row-active' : 'sms-thread-row-hover'"
                   @pointerdown="(e) => openThreadActionSheet(t, e)"
                   @pointermove="moveLongPress"
@@ -902,12 +902,12 @@ async function confirmDeleteThread(thread: SmsThread) {
             </div>
           </div>
 
-          <div v-if="!selectedThread" class="flex-1 flex items-center justify-center p-6">
+          <div v-if="!selectedThread" class="flex-1 flex items-center justify-center p-3">
             <EmptyState title="请选择一个会话" subtitle="从左侧联系人列表进入短信明细" />
           </div>
 
           <div v-else ref="detailScrollbar" class="flex-1 min-h-0 overflow-y-auto sms-detail-scroll" @scroll="onDetailScroll">
-            <div class="p-5 space-y-5">
+            <div class="p-3 space-y-5">
               <div v-if="canLoadMoreHistory" class="flex justify-center">
                 <el-button text type="primary" :loading="loadingHistoryMore" @click="loadMoreHistory">加载更多</el-button>
               </div>
@@ -1412,7 +1412,7 @@ async function confirmDeleteThread(thread: SmsThread) {
 }
 
 .sms-msg-bubble {
-  padding: 16px 20px;
+padding: 12px;
   border-radius: 16px;
   font-size: 14px;
   line-height: 1.75;
@@ -1442,7 +1442,7 @@ html.dark .sms-msg-out {
 }
 
 .sms-composer-bar {
-  padding: 16px;
+padding: 12px;
   border-top: 1px solid var(--border);
 }
 </style>

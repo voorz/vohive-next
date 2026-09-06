@@ -319,7 +319,7 @@ onBeforeUnmount(() => {
     <!-- 在线更新 -->
     <div v-else class="core-mgmt-body">
       <!-- 未配置提示 -->
-      <div v-if="!repoAvailable" class="core-mgmt-hint" style="padding: 24px 0; text-align: center;">
+      <div v-if="!repoAvailable" class="core-mgmt-hint" style="padding: 12px 0; text-align: center;">
         仓库地址未配置，请在上方配置完成后再试
       </div>
 
@@ -435,7 +435,7 @@ onBeforeUnmount(() => {
 }
 
 .core-mgmt-body {
-  padding: 16px;
+  padding: 12px;
 }
 
 .core-mgmt-hint {
@@ -446,7 +446,7 @@ onBeforeUnmount(() => {
 .local-drag-zone {
   border: 2px dashed var(--border);
   border-radius: 8px;
-  padding: 24px;
+  padding: 12px;
   text-align: center;
   transition: border-color 0.15s, background 0.15s;
   cursor: pointer;

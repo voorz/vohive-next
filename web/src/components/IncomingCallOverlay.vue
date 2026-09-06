@@ -47,7 +47,7 @@ defineEmits<{
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   padding: 40px 48px;
   background: var(--card, #1e1e2e);
   border: 1px solid var(--border, #333346);

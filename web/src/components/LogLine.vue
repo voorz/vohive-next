@@ -99,7 +99,7 @@ const deviceStyle = computed(() => {
   if (!deviceTag.value) return {}
   const color = deviceColor(deviceTag.value)
   return {
-    color: color,
+    color: '#7F7F7F',
     background: `${color}22`,
     borderColor: `${color}55`,
   }
@@ -207,7 +207,7 @@ function onClick(e: MouseEvent) {
   padding: 0 4px;
   border-radius: 3px;
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 400;
   border: 1px solid transparent;
 }
 

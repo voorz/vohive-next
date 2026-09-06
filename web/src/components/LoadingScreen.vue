@@ -13,7 +13,7 @@ defineProps({
 
 <template>
   <div class="min-h-[260px] w-full flex items-center justify-center">
-    <div class="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 dark:bg-white/5 backdrop-blur-xl p-6 shadow-2xl">
+    <div class="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 dark:bg-white/5 backdrop-blur-xl p-3 shadow-2xl">
       <div class="flex items-center gap-3">
         <div class="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#5b5bd6] to-[#4a4ac2] text-white text-sm font-extrabold flex items-center justify-center shadow-lg shadow-indigo-500/25">
           VH

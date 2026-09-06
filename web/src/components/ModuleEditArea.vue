@@ -179,7 +179,7 @@ function createFromTemplate() {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  padding: 32px;
+  padding: 12px;
 }
 
 .edit-empty-icon {

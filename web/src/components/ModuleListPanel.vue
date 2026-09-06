@@ -378,7 +378,7 @@ function readinessItems(d: DeviceMgmtListItem) {
 .device-cards {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 12px;
 }
 
 /* ===== 覆盖原始 CSS 的固定宽度，适配左栏 ===== */

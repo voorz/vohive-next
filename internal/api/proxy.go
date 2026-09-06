@@ -51,7 +51,7 @@ type proxyConfigRequest struct {
 // handleProxyOverview 
 //
 // @Summary      ProxyOverview
-// @Tags         proxy-instances
+// @Tags         proxy-instances, mcp-auto
 // @Produce      json
 // @Success      200  {object}  map[string]interface{}  "成功"
 // @Failure      400  {object}  map[string]interface{}  "参数错误"

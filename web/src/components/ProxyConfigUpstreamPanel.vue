@@ -37,16 +37,16 @@ const hostPort = computed(() => (addr: string) => {
 <template>
   <ErrorState
     v-if="error"
-    class="mb-6"
+    class="mb-3"
     title="加载前置代理失败"
     :message="error.message"
     :status-code="error.status"
     retry-text="重试"
   />
 
-  <div class="px-6 py-5">
+  <div class="px-3 py-3">
     <!-- Section Header -->
-    <div class="flex items-center justify-between mb-5">
+    <div class="flex items-center justify-between mb-3">
       <div class="flex items-center gap-3 min-w-0 overflow-hidden">
         <div class="pc-icon-box">
           <el-icon size="20"><Earth24Regular /></el-icon>
