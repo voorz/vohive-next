@@ -220,8 +220,8 @@ type Pool struct {
 	// 概览监控页面流定阅数统计
 	overviewSubs atomic.Int32
 
-	// 热插拔监听
-	udevWatcher    *UdevWatcher
+// 热插拔监听
+modemWatcher   *ModemWatcher
 	startOnce      sync.Once
 	policyResolver cardpolicy.Resolver
 }
@@ -1409,8 +1409,8 @@ func (p *Pool) startPoolBackgroundServicesOnce() {
 		go p.startVoWiFiDesiredReconcileLoop()
 		p.startInitialDesiredVoWiFiAutoStart(5 * time.Second)
 
-		p.udevWatcher = NewUdevWatcher(p)
-		p.udevWatcher.Start()
+p.modemWatcher = NewModemWatcher(p)
+p.modemWatcher.Start()
 	})
 }
 

@@ -1359,9 +1359,9 @@ func (s *Server) handleDeviceMgmtDiscovered(c *gin.Context) {
 		}
 	}
 
-	// 追加 PC/SC 读卡器到发现列表（使用 wwan-go/ccid 统一枚举读卡器）
+	// 追加 CCID/PC-SC 读卡器到发现列表（使用 wwan-go/ccid 内置 USBFS 驱动枚举）
 	readerInfos, pcscErr := esim.ListPCSCReaderInfo()
-	logger.Debug(fmt.Sprintf("设备发现: ListPCSCReaderInfo readers=%d err=%v", len(readerInfos), pcscErr))
+	logger.Debug(fmt.Sprintf("设备发现: CCID 读卡器扫描 readers=%d err=%v", len(readerInfos), pcscErr))
 	if pcscErr == nil {
 		configuredDevices := managed
 		for _, ri := range readerInfos {
