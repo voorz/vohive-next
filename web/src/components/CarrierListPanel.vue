@@ -56,7 +56,7 @@ function handleSelect(key: string) {
   store.selectCarrier(key)
 }
 
-async function handleAddCarriers(plmns: string[]) {
+async function _handleAddCarriers(plmns: string[]) {
   const ok = await store.addCarriersFromIndex(plmns)
   if (ok) {
     ElMessage.success(`已添加 ${plmns.length} 个运营商`)

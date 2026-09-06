@@ -6,7 +6,7 @@
  * - 匹配: 评分制（MNC 匹配 + 名称双向匹配 + 子运营商匹配）
  */
 
-import { getPlmnCatalog, type IconCatalogEntry, type IconSubOperator } from './plmn-catalog'
+import { getPlmnCatalog, type IconCatalogEntry } from './plmn-catalog'
 import { getDB, idbGet, idbSet, idbDelete, idbClear, idbCount, STORE_ICONS, STORE_OVERRIDES } from './useIDB'
 
 export const ICON_BASE = 'https://raw.githubusercontent.com/voorz/plmn-index/main/plmn/icons'

@@ -56,10 +56,10 @@ async function handleLogin() {
     const q = typeof route.query.redirect === 'string' ? route.query.redirect : ''
     let redirect = q ? decodeURIComponent(q) : ''
     if (!redirect) {
-      try { redirect = sessionStorage.getItem('post_login_redirect') || '' } catch {}
+      try { redirect = sessionStorage.getItem('post_login_redirect') || '' } catch { /* ignore */ }
     }
     if (redirect) {
-      try { sessionStorage.removeItem('post_login_redirect') } catch {}
+      try { sessionStorage.removeItem('post_login_redirect') } catch { /* ignore */ }
       router.push(redirect)
     } else {
       router.push('/')

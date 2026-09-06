@@ -21,7 +21,7 @@ import {
 import { devicesService } from '../services/devices'
 import { errorMessage } from '../services/http'
 import type { EsimNotificationItem, EsimChipInfo } from '../types/api'
-import { formatEsimNotificationEvent } from './deviceEsimNotifications'
+// formatEsimNotificationEvent from './deviceEsimNotifications' (unused)
 import CountryFlag from './CountryFlag.vue'
 import { phoneToIso } from '../utils/phone-flag'
 import { mccToIso, loadPlmnInfo } from '../composables/plmn-info'
@@ -141,7 +141,7 @@ const notifHistoryStatusLabel = (status: number) => {
   }
 }
 
-const notifEventTagClass = (event: string) => {
+const _notifEventTagClass = (event: string) => {
   switch (event) {
     case 'install': return 'notif-event-tag-install'
     case 'enable': return 'notif-event-tag-enable'
@@ -410,7 +410,7 @@ async function clearNotifHistory() {
   }
 }
 
-async function retryNotification(item: NotificationItemWithStatus) {
+async function _retryNotification(item: NotificationItemWithStatus) {
   if (!item.can_retry || notifRetryingSeq.value !== null) return
   notifRetryingSeq.value = item.sequence_number
   try {

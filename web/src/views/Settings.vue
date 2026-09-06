@@ -17,7 +17,7 @@ import {
 } from '@vicons/fluent'
 
 const settingsStore = useSettingsStore()
-const { systemInfo, loadingNotifications, savingNotifications, testingWebhook, testingBark, testingEmail, testingTelegram, testingFeishu, testingPushplus, changingPassword, passwordForm, telegramForm, feishuForm, qqForm, webhookSettings, barkSettings, emailForm, pushplusForm } = storeToRefs(settingsStore)
+const { systemInfo, loadingNotifications, savingNotifications, testingWebhook, testingBark, testingEmail, testingTelegram, testingFeishu, testingPushplus, telegramForm, feishuForm, qqForm, webhookSettings, barkSettings, emailForm, pushplusForm } = storeToRefs(settingsStore)
 const activeNotifyTab = ref('telegram')
 
 const activeTab = ref('notify')
@@ -432,7 +432,7 @@ async function deleteUpdateRepo() {
     ElMessage.success('配置已删除')
     updateRepoForm.value.url = ''
     await loadUpdateRepo()
-  } catch (e: any) {
+  } catch {
     ElMessage.error('删除失败')
   }
 }

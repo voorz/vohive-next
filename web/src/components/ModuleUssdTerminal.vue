@@ -35,7 +35,7 @@ const isMultiRound = computed(() => !!sessionId.value)
 const inputPlaceholder = computed(() => isMultiRound.value ? '输入菜单选项数字' : '例如 *100# 或菜单回复数字')
 
 const statusText = computed(() => {
-  if (sending) return '等待响应...'
+  if (sending.value) return '等待响应...'
   if (isMultiRound.value) return '多轮会话中'
   return '空闲'
 })

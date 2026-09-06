@@ -5,7 +5,7 @@ import ModuleEsimDownloadEuiccInfo from './ModuleEsimDownloadEuiccInfo.vue'
 import ModuleEsimDownloadSingle from './ModuleEsimDownloadSingle.vue'
 import ModuleEsimDownloadBatch from './ModuleEsimDownloadBatch.vue'
 
-const props = defineProps<{
+const _props = defineProps<{
   deviceId: string
   chipInfo: EsimChipInfo | null
   deviceImei?: string

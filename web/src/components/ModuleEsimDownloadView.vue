@@ -3,7 +3,7 @@ import type { EsimChipInfo } from '../types/api'
 import { ArrowLeft24Regular } from '@vicons/fluent'
 import ModuleEsimDownload from './ModuleEsimDownload.vue'
 
-const props = defineProps<{
+const _props = defineProps<{
   deviceId: string
   chipInfo: EsimChipInfo | null
   deviceImei?: string

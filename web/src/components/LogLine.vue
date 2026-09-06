@@ -37,7 +37,7 @@ const messageClass = computed(() => {
 })
 
 // 预定义调色板（避免随机性太大）
-const deviceColors = [
+const _deviceColors = [
   '#00BC7D', // 品牌绿
   '#5B9EFF', // 蓝
   '#B06DFF', // 紫

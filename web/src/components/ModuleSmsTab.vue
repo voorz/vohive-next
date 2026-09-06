@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { smsService } from '../services/sms'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Chat24Regular, Add24Regular, Send24Regular, ArrowLeft24Regular, EyeOff24Regular, Eye24Regular, CheckmarkCircle24Regular, ErrorCircle24Regular, Clock24Regular, Delete24Regular, Edit24Regular } from '@vicons/fluent'
+import { Chat24Regular, Add24Regular, ArrowLeft24Regular, EyeOff24Regular, Eye24Regular, CheckmarkCircle24Regular, ErrorCircle24Regular, Clock24Regular, Delete24Regular, Edit24Regular } from '@vicons/fluent'
 import type { SMSMessage } from '../types/api'
 import type { SmsThreadVM } from '../types/view-model'
 

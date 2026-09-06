@@ -53,7 +53,7 @@ const operatorName = computed(() => {
   return detail.value?.modem?.operator || simOperatorName.value || ''
 })
 const deviceDisplayName = computed(() => detail.value?.name || '未选择')
-const selectedImei = computed(() => detail.value?.modem?.imei || '')
+const _selectedImei = computed(() => detail.value?.modem?.imei || '')
 
 // PLMN 信息（SIM 卡原始 PLMN，非当前接入网络）
 const plmnInfo = ref<PlmnInfoEntry | null>(null)
@@ -65,15 +65,15 @@ watch(() => [detail.value?.modem?.native_mcc, detail.value?.modem?.native_mnc], 
   plmnInfo.value = key ? getPlmnInfo(key) : null
 }, { immediate: true })
 
-const nativePlmn = computed(() => {
+const _nativePlmn = computed(() => {
   const mcc = detail.value?.modem?.native_mcc
   const mnc = detail.value?.modem?.native_mnc
   return mcc && mnc ? `${mcc}:${mnc}` : ''
 })
-const countryName = computed(() => plmnInfo.value?.country?.name || '')
+const _countryName = computed(() => plmnInfo.value?.country?.name || '')
 const countryIso = computed(() => plmnInfo.value?.country?.iso || '')
 const countryCode = computed(() => plmnInfo.value?.country?.code || '')
-const nativeSpn = computed(() => detail.value?.modem?.native_spn || '')
+const _nativeSpn = computed(() => detail.value?.modem?.native_spn || '')
 
 // PC/SC 读卡器设备：无 modem 控制面
 const isPCSC = computed(() => detail.value?.esim_transport === 'pcsc')
@@ -225,7 +225,7 @@ watch([tabs, () => detail.value?.id], () => {
   }
 })
 
-function initials(name: string): string {
+function _initials(name: string): string {
   return name.charAt(0).toUpperCase()
 }
 

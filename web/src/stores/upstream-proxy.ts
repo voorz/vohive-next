@@ -5,8 +5,7 @@ import type {
   UpstreamProxy,
   UpstreamProxyCountry,
   UpstreamProxyCountryRule,
-  UpstreamProxyCountryRulePayload,
-  UpstreamProxyLookupResult
+  UpstreamProxyCountryRulePayload
 } from '../types/api'
 import { upstreamProxyService } from '../services/upstream-proxy'
 

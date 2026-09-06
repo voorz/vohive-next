@@ -104,7 +104,7 @@ async function checkPcscDriver() {
 }
 
 // 加载当前驱动模式
-async function loadDriverMode() {
+async function _loadDriverMode() {
   try {
     const res = await systemService.getServerConfig()
     if (res.ok) {
@@ -441,7 +441,7 @@ function vidPid(d: DiscoveredDevice): string {
 
 // 从读卡器名称中提取括号内的序列号
 // 例如 "ESTKme-RED (2051315E5056) 00 00" → "2051315E5056"
-function extractReaderSN(reader: string): string {
+function _extractReaderSN(reader: string): string {
   const m = reader.match(/\(([^)]+)\)/)
   return m ? m[1].trim() : ''
 }

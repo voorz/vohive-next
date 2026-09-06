@@ -12,7 +12,7 @@ import { downloadIcon, getCachedIcon } from '../composables/useOperatorIcon'
 import { loadPlmnCatalog } from '../composables/plmn-catalog'
 
 const store = useCarrierStore()
-const { detail, previewTarget, carriers } = storeToRefs(store)
+const { detail, carriers } = storeToRefs(store)
 
 // 预览抽屉（中窄屏）
 const previewDrawerOpen = ref(false)
