@@ -111,10 +111,10 @@ func (w *ModemWatcher) broadcastDeviceEvent(action string, dev *contract.Device)
 	}
 
 	event := "device_removed"
-	title := "设备移除"
+	title := "设备拔出"
 	if action == "device_added" {
 		event = "device_online"
-		title = "设备插入"
+		title = "发现新设备"
 	}
 
 	usbInfo := ""

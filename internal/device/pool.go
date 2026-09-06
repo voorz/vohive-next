@@ -1618,7 +1618,7 @@ func (p *Pool) rescanAndReconnect(opts rescanReconnectOptions) error {
 				continue
 			}
 			// Worker 不存在，需要启动
-			logger.Info("检测到设备上线，自动启动", "device", md.ID, "imei", md.ModemIMEI)
+			logger.Info("检测到设备已连接，自动启动", "device", md.ID, "imei", md.ModemIMEI)
 			cfg := md
 			if !useQMI {
 				if hw.NetInterface != "" {
@@ -1639,15 +1639,18 @@ func (p *Pool) rescanAndReconnect(opts rescanReconnectOptions) error {
 			if p.lifecycle != nil {
 				p.lifecycle.BeginRecovery(md.ID, LifecyclePhaseWorkerStarting, "rescan_device_online", qmiLifecycleRecoveryTTL)
 			}
-			if _, err := p.AddWorkerFromConfig(cfg); err != nil {
-				logger.Warn("自动启动设备失败", "device", md.ID, "err", err)
-			} else if md.VoWiFiEnabled {
+		if _, err := p.AddWorkerFromConfig(cfg); err != nil {
+			logger.Warn("自动启动设备失败", "device", md.ID, "err", err)
+		} else {
+			broadcastDeviceOnline(md.ID, md.Name)
+			if md.VoWiFiEnabled {
 				go func(deviceID string) {
 					if err := p.enableVoWiFiWhenReady(deviceID, 5*time.Second, "device_recovery"); err != nil {
 						logger.Warn("设备恢复后自动重启 VoWiFi 失败", "device", deviceID, "err", err)
 					}
 				}(md.ID)
 			}
+		}
 		} else if !worker.IsDeviceHealthy() {
 			if !opts.allowWorkerMutation(md.ID) {
 				logger.Debug("跳过非目标设备重新初始化：当前处于手动重启恢复重扫窗口",
@@ -1790,6 +1793,7 @@ func (p *Pool) rescanAndReconnect(opts rescanReconnectOptions) error {
 				p.lifecycle.BeginRecovery(md.ID, LifecyclePhaseUSBWait, "rescan_device_missing", qmiLifecycleRecoveryTTL)
 			}
 			_ = p.RemoveWorker(md.ID)
+			broadcastDeviceOffline(md.ID, md.Name)
 		}
 	}
 

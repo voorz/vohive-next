@@ -419,7 +419,7 @@ func (m *Manager) broadcastToFrontend(ctx NotificationContext) {
 		n.Title = "公网切换"
 	case "device_online":
 		n.Level = "low"
-		n.Title = "设备上线"
+		n.Title = "设备已连接"
 	case "device_offline":
 		n.Level = "low"
 		n.Title = "设备离线"
@@ -431,7 +431,7 @@ func (m *Manager) broadcastToFrontend(ctx NotificationContext) {
 	pkgnotify.GlobalNotificationBroadcaster.Broadcast(n)
 }
 
-// NotifyDeviceOnline 设备上线通知
+// NotifyDeviceOnline 设备已连接通知
 func (m *Manager) NotifyDeviceOnline(deviceID string) {
 	m.broadcastWithContext(NotificationContext{
 		Event:      "device_online",
