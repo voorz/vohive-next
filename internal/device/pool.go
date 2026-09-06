@@ -1413,7 +1413,7 @@ func (p *Pool) startPoolBackgroundServicesOnce() {
 p.modemWatcher = NewModemWatcher(p)
 p.modemWatcher.Start()
 
-p.ccidWatcher = NewCCIDWatcher()
+p.ccidWatcher = NewCCIDWatcher(p)
 p.ccidWatcher.Start()
 	})
 }
@@ -1779,9 +1779,23 @@ func (p *Pool) rescanAndReconnect(opts rescanReconnectOptions) error {
 	}
 
 	for _, md := range resolved.Offline {
-		// PC/SC 读卡器设备无硬件可被 QMI 扫描匹配，始终落入 Offline，
-		// 但它并非离线 — 跳过清理以保持 Worker 存活。
+		// PC/SC 读卡器设备：不在 QMI 扫描范围内，始终落入 Offline。
+		// 需要通过物理探活判断是否真正离线。
 		if config.NormalizeESIMTransport(md.ESIMTransport) == config.ESIMTransportPCSC {
+			worker := p.GetWorker(md.ID)
+			if worker == nil {
+				continue
+			}
+			if pcscReaderOnline(md.PCSCUSBPath) {
+				// 读卡器物理在线，保持 Worker 存活
+				continue
+			}
+			// 读卡器物理离线：停止 VoWiFi + 标记不健康 + 推送气泡
+			// 不移除 Worker，等读卡器重新插入时 CCIDWatcher 触发恢复
+			logger.Info("PC/SC 读卡器物理离线，停止 VoWiFi", "device", md.ID, "usb_path", md.PCSCUSBPath)
+			worker.setCachedHealthy(false)
+			p.teardownVoWiFiForReconnect(md.ID)
+			broadcastDeviceOffline(md.ID, md.Name)
 			continue
 		}
 		if !FreeDeviceLimitAllowsConfiguredDevice(managed, md.ID) {

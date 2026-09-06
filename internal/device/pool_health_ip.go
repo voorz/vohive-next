@@ -369,10 +369,12 @@ func (w *Worker) GetCachedHealthy() bool {
 		return false
 	}
 
-	// PC/SC 读卡器设备没有 modem 控制面，worker 存在即读卡器已启动，
-	// 直接视为健康，避免前端因 control_online=false 恒显示"恢复中"
+	// PC/SC 读卡器设备：使用物理探活结果（由 healthCheckLoop 定期更新到 state.Meta.Healthy）
 	if config.NormalizeESIMTransport(w.Config.ESIMTransport) == config.ESIMTransportPCSC {
-		return true
+		w.cacheMu.RLock()
+		healthy := w.state.Meta.Healthy
+		w.cacheMu.RUnlock()
+		return healthy
 	}
 
 	w.cacheMu.RLock()
