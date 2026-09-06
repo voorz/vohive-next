@@ -762,6 +762,21 @@ func (p *Pool) addPCSCWorker(devCfg config.DeviceConfig) (*Worker, error) {
 		}
 	}
 
+	// PC/SC 设备的 manufacturer/product 未被 deviceConfigFromDTO 填充（前端添加时未传），
+	// 从 USB sysfs 补全，使前端设备信息卡片能正确显示品牌和型号。
+	// 补全后由 persistDeviceAttachmentsIfChanged 自动持久化到配置文件。
+	if strings.TrimSpace(devCfg.USBManufacturer) == "" || strings.TrimSpace(devCfg.USBProduct) == "" {
+		if usbPath := strings.TrimSpace(devCfg.PCSCUSBPath); usbPath != "" {
+			product, manufacturer := readUSBProductManufacturer(usbPath)
+			if strings.TrimSpace(devCfg.USBManufacturer) == "" && manufacturer != "" {
+				devCfg.USBManufacturer = manufacturer
+			}
+			if strings.TrimSpace(devCfg.USBProduct) == "" && product != "" {
+				devCfg.USBProduct = product
+			}
+		}
+	}
+
 	w := &Worker{
 		ID:          devCfg.ID,
 		Config:      devCfg,

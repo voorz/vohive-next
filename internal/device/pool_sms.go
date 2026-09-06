@@ -399,9 +399,13 @@ func (w *Worker) IsDeviceHealthy() bool {
 }
 
 func (w *Worker) ProbeDeviceHealth() (bool, error) {
-	// PC/SC 读卡器设备无 modem/backend，只要 eSIM 管理器存在即视为健康。
+	// PC/SC 读卡器设备：通过 ccid.ListReaderInfo 探测物理读卡器是否在线。
+	// 不依赖 QMI/MBIM 协议栈，纯 CCID USBFS 层探活。
 	if config.NormalizeESIMTransport(w.Config.ESIMTransport) == config.ESIMTransportPCSC {
-		return w.EsimMgr != nil, nil
+		if w.EsimMgr == nil {
+			return false, nil
+		}
+		return pcscReaderOnline(w.Config.PCSCUSBPath), nil
 	}
 	if w.Backend != nil && w.Backend.Mode() != "at" {
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)

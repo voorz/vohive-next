@@ -264,13 +264,11 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
             :value="d.id"
           />
         </el-select>
-        <el-button type="primary" @click="emit('open-search')" class="action-btn-narrow">
-          <el-icon class="mr-1"><Add24Regular /></el-icon>
-          <span>添加</span>
+        <el-button type="primary" @click="emit('open-search')" class="action-btn-narrow" title="添加">
+          <el-icon><Add24Regular /></el-icon>
         </el-button>
-        <button class="reboot-btn-custom" :disabled="rebooting || isPCSC" @click="rebootModem">
-          <el-icon class="mr-1"><ArrowSync24Regular /></el-icon>
-          <span>重启模组</span>
+        <button class="reboot-btn-custom" :disabled="rebooting || isPCSC" @click="rebootModem" title="重启模组">
+          <el-icon><ArrowSync24Regular /></el-icon>
         </button>
       </div>
       <!-- 宽屏：图标盒子 + 设备名 + 详细信息 + 重启模组 -->
@@ -280,10 +278,8 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
           <div class="detail-header-name">{{ deviceDisplayName }}</div>
           <div class="detail-header-meta">
             <span v-if="operatorName" class="detail-header-operator">{{ operatorName }}</span>
-            <span v-if="nativePlmn" class="detail-header-plmn">{{ nativePlmn }}</span>
             <span v-if="countryCode" class="detail-header-code">+{{ countryCode }}</span>
             <CountryFlag v-if="countryIso" :iso="countryIso" :size="16" class="detail-header-flag" />
-            <span v-if="countryName" class="detail-header-country">{{ countryName }}</span>
           </div>
         </div>
         <button class="reboot-btn-custom reboot-btn" :disabled="rebooting || isPCSC" @click="rebootModem">
@@ -444,6 +440,12 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
 
 .action-btn-narrow {
   flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .detail-header-wide {
@@ -594,24 +596,23 @@ text-overflow: ellipsis;
   z-index: 100;
 }
 
-/* 收起状态：贴 tab-bar 底边的弧形手柄，宽度与其他卡片一致 */
+/* 收起状态：贴 tab-bar 底边的弧形手柄 — 品牌色调引导点击 */
 .control-drawer-tab {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 24px;
-  background: var(--muted);
-  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--brand) 8%, var(--muted));
+  border: 1px solid color-mix(in oklab, var(--brand) 25%, var(--border));
   border-top: none;
   border-radius: 0 0 10px 10px;
-  color: var(--muted-foreground);
+  color: var(--brand);
   cursor: pointer;
   transition: all 0.15s;
 }
 .control-drawer-tab:hover {
-  color: var(--brand);
-  background: color-mix(in oklab, var(--brand) 5%, var(--muted));
-  border-color: color-mix(in oklab, var(--brand) 30%, var(--border));
+  background: color-mix(in oklab, var(--brand) 15%, var(--muted));
+  border-color: color-mix(in oklab, var(--brand) 50%, var(--border));
 }
 
 /* 展开状态：卡片 absolute 浮于内容上方，上移 1px 确保与容器顶部无缝衔接 */
@@ -627,7 +628,7 @@ text-overflow: ellipsis;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 }
 
-/* 关闭手柄（卡片底部，居中） */
+/* 关闭手柄（卡片底部，居中） — 与收起手柄品牌色保持一致 */
 .control-drawer-close {
   display: flex;
   align-items: center;
@@ -635,18 +636,19 @@ text-overflow: ellipsis;
   width: 40px;
   height: 20px;
   margin: 0 auto;
-  background: var(--muted);
-  border: 1px solid var(--border);
+  background: color-mix(in oklab, var(--brand) 8%, var(--muted));
+  border: 1px solid color-mix(in oklab, var(--brand) 25%, var(--border));
   border-top: none;
   border-radius: 0 0 6px 6px;
-  color: var(--muted-foreground);
+  color: var(--brand);
   cursor: pointer;
   transition: all 0.15s;
   position: relative;
   z-index: 102;
 }
 .control-drawer-close:hover {
-  color: var(--brand);
+  background: color-mix(in oklab, var(--brand) 15%, var(--muted));
+  border-color: color-mix(in oklab, var(--brand) 50%, var(--border));
 }
 
 /* 遮罩：覆盖整个面板，header/tab-bar 通过 z-index 浮于遮罩之上 */
@@ -682,6 +684,7 @@ text-overflow: ellipsis;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 12px;
   position: relative;
 }
@@ -722,6 +725,13 @@ text-overflow: ellipsis;
   }
   .detail-header-wide {
     display: none;
+  }
+  /* 窄屏：图标按钮统一尺寸 */
+  .detail-header-narrow .reboot-btn-custom {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    justify-content: center;
   }
 }
 </style>
