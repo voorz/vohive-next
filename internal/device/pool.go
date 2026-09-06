@@ -222,6 +222,7 @@ type Pool struct {
 
 // 热插拔监听
 modemWatcher   *ModemWatcher
+	ccidWatcher    *CCIDWatcher
 	startOnce      sync.Once
 	policyResolver cardpolicy.Resolver
 }
@@ -1411,6 +1412,9 @@ func (p *Pool) startPoolBackgroundServicesOnce() {
 
 p.modemWatcher = NewModemWatcher(p)
 p.modemWatcher.Start()
+
+p.ccidWatcher = NewCCIDWatcher()
+p.ccidWatcher.Start()
 	})
 }
 
@@ -2317,6 +2321,14 @@ func (p *Pool) NotifyIPChanged(id, oldIP, newIP string, duration time.Duration) 
 }
 
 func (p *Pool) Shutdown() error {
+	// 停止热插拔监听
+	if p.modemWatcher != nil {
+		p.modemWatcher.Stop()
+	}
+	if p.ccidWatcher != nil {
+		p.ccidWatcher.Stop()
+	}
+
 	// 先关闭所有 VoWiFi 应用实例（确保 XFRMI 接口和 SA/SP 被清理）
 	devIDs := p.voWiFiHost().InstanceIDs()
 	for _, devID := range devIDs {
