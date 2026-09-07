@@ -6,6 +6,8 @@ import { Pulse24Regular, Settings24Regular, WifiWarning24Filled } from '@vicons/
 import { WifiCalling3Twotone, WifiProtectedSetupRound, RunningWithErrorsFilled, CellTowerRound, Md3GMobiledataTwotone, Md4GMobiledataTwotone, Md4GPlusMobiledataTwotone, Md5GRound } from '@vicons/material'
 import OperatorSelectionDialog from './ModuleOperatorSelectionDialog.vue'
 import ModuleOverviewActivity from './ModuleOverviewActivity.vue'
+import ModuleNetworkOverview from './ModuleNetworkOverview.vue'
+import ModuleSimManagement from './ModuleSimManagement.vue'
 import { useDevicesStore } from '../stores/devices'
 import { copyToClipboard } from '../utils/clipboard'
 import ChinaMobileIcon from '../assets/svgs/china-mobile.svg'
@@ -17,6 +19,10 @@ const props = defineProps<{
   device: DeviceOverviewItem | null
   reconnectingVoWiFi?: boolean
   rotating?: boolean
+  trafficSpeedRx?: string
+  trafficSpeedTx?: string
+  trafficMinuteRx?: string
+  trafficMinuteTx?: string
 }>()
 
 const emit = defineEmits<{
@@ -260,7 +266,7 @@ const networkModeIcon = computed(() => {
 
       <!-- VoWiFi 模式（PC/SC 设备始终进入此分支） -->
       <template v-if="vowifiEnabled || isPCSC">
-        <!-- Hero 大卡片：上半标题+图标，分割线，下半 readiness -->
+        <!-- 第一行：Hero 大卡片（不变） -->
         <div class="hero-card" :class="vowifiStatus">
           <div class="hero-top">
             <div class="hero-icon-box" :class="vowifiIcon">
@@ -319,13 +325,18 @@ const networkModeIcon = computed(() => {
           </div>
         </div>
 
-        <!-- 实时活动子卡片 -->
-        <ModuleOverviewActivity :device="device" />
+        <!-- 第二行：Activity + SIM卡管理（并排） -->
+        <div class="card-row">
+          <ModuleOverviewActivity :device="device" />
+          <!-- SIM卡管理卡片 -->
+          <ModuleSimManagement :device="device" />
+        </div>
       </template>
 
       <!-- 蜂窝模式 -->
       <template v-else>
-        <!-- Hero 大卡片：上半标题+图标，分割线，下半信号区 -->
+        <!-- 第一行：Hero + 网络概览（并排） -->
+        <div class="card-row">
         <div class="hero-card" :class="cellularHeroTone">
           <div class="hero-top">
             <div class="hero-icon-box" :class="operatorIconType">
@@ -392,8 +403,17 @@ const networkModeIcon = computed(() => {
             </div>
           </div>
         </div>
-
-        <!-- 实时活动子卡片（蜂窝详情） -->
+        <!-- 第一行右侧：网络概览 -->
+        <ModuleNetworkOverview
+          :device="device"
+          :traffic-speed-rx="trafficSpeedRx"
+          :traffic-speed-tx="trafficSpeedTx"
+          :traffic-minute-rx="trafficMinuteRx"
+          :traffic-minute-tx="trafficMinuteTx"
+        />
+        </div>
+        <!-- 第二行：Activity + SIM卡管理（并排） -->
+        <div class="card-row">
         <div class="activity-card">
           <div class="activity-header">
             <span class="activity-title">实时活动</span>
@@ -404,14 +424,21 @@ const networkModeIcon = computed(() => {
               <span class="detail-row-value">{{ networkModeDisplay }}</span>
             </div>
             <div class="detail-row">
-              <span class="detail-row-label">频段 / 信道</span>
-              <span class="detail-row-value">{{ device?.modem?.radio_band || '--' }} / {{ device?.modem?.radio_channel ?? '--' }}</span>
+              <span class="detail-row-label">频段</span>
+              <span class="detail-row-value">{{ device?.modem?.radio_band || '--' }}</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-row-label">信道</span>
+              <span class="detail-row-value">{{ device?.modem?.radio_channel ?? '--' }}</span>
             </div>
             <div class="detail-row">
               <span class="detail-row-label">注册状态</span>
               <span class="detail-row-value">{{ device?.modem?.reg_status_text || '--' }}</span>
             </div>
           </div>
+        </div>
+        <!-- 第二行右侧：SIM卡管理 -->
+        <ModuleSimManagement :device="device" />
         </div>
       </template>
 
@@ -505,8 +532,10 @@ line-height: 1;
 .hero-card {
   border-radius: 8px;
   overflow: hidden;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
   border: 1px solid var(--border);
+  flex: 1;
+  min-width: 0;
 }
 .hero-card.ok {
   background: linear-gradient(135deg, color-mix(in oklab, var(--brand) 10%, var(--card)), color-mix(in oklab, var(--brand) 3%, var(--card)));
@@ -615,7 +644,7 @@ line-height: 1;
   padding: 12px;
 }
 .hero-bottom:not(.signal-area) {
-  min-height: 83px;
+  min-height: 75px;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -681,11 +710,42 @@ line-height: 1;
 .signal-bar.inactive { background: color-mix(in oklab, var(--muted-foreground) 20%, transparent); }
 .signal-detail { font-size: 10px; color: var(--muted-foreground); margin-top: 6px; display: flex; gap: 12px; flex-wrap: wrap; }
 
+/* Card row (并排布局) */
+.card-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+  align-items: stretch;
+}
+.card-row:last-child {
+  margin-bottom: 0;
+}
+.card-row > .hero-card {
+  margin-bottom: 0;
+}
+
+/* Placeholder card (占位) */
+.placeholder-card {
+  flex: 1;
+  min-width: 0;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--muted-foreground);
+  min-height: 80px;
+  background: var(--muted);
+}
+
 /* Activity card (子卡片) */
 .activity-card {
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
+  flex: 1;
+  min-width: 0;
 }
 .activity-header {
   display: flex;

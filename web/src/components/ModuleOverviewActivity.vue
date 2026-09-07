@@ -19,6 +19,7 @@ const stageLabels: Record<string, string> = {
   sms_ready: 'SMS 就绪',
   call_ready: '通话就绪',
   failed: '失败',
+  recover_failed: '恢复失败',
 }
 
 // ---- 实时计时 ----
@@ -35,16 +36,10 @@ onBeforeUnmount(() => {
 // ---- 计算属性 ----
 const rt = computed(() => props.device?.vowifi_runtime)
 
-const hasActivity = computed(() => {
-  const r = rt.value
-  if (!r) return false
-  return !!(r.stage || r.stage_label || r.generation || (r.attempt_index ?? 0) > 0 || (r.register_round ?? 0) > 0)
-})
-
 const stageDisplay = computed(() => {
   const r = rt.value
   if (!r) return ''
-  return r.stage_label || (r.stage ? (stageLabels[r.stage] ?? r.stage) : '')
+  return r.stage_label || (r.stage ? (stageLabels[r.stage] ?? r.stage) : '') || (r.phase ? (stageLabels[r.phase] ?? r.phase) : '')
 })
 
 const elapsedSec = computed(() => {
@@ -61,63 +56,102 @@ const elapsedDisplay = computed(() => {
   return `${Math.floor(s / 60)}m${s % 60}s`
 })
 
-const showRetry = computed(() => {
+// ---- 位置2：SIP状态 / 重试次数 / 挑战轮次 轮换 ----
+const hasRetry = computed(() => {
   const r = rt.value
-  if (!r) return false
-  return (r.attempt_index ?? 0) > 0 || (r.max_attempts ?? 0) > 0
+  return (r?.max_attempts ?? 0) > 0 && (r?.attempt_index ?? 0) > 0
 })
 
-const retryDisplay = computed(() => {
-  const r = rt.value
-  if (!r) return ''
-  const cur = r.attempt_index ?? 0
-  const max = r.max_attempts ?? 0
-  if (max > 0) return `${cur + 1}/${max}`
-  if (cur > 0) return `${cur + 1}`
-  return ''
-})
-
-const retryDanger = computed(() =>
-  (rt.value?.attempt_index ?? 0) >= Math.max(1, (rt.value?.max_attempts ?? 1) - 1)
+const hasChallengeRound = computed(() =>
+  (rt.value?.register_round ?? 0) > 0 || (rt.value?.max_challenge_rounds ?? 0) > 0
 )
 
-const showSIPStatus = computed(() => (rt.value?.last_sip_status ?? 0) > 0)
+// 位置2 优先级：挑战轮次 > 重试次数 > SIP状态
+const slot2 = computed(() => {
+  if (hasChallengeRound.value) {
+    const r = rt.value!
+    const round = r.register_round ?? 0
+    const max = r.max_challenge_rounds ?? 0
+    return {
+      label: '挑战轮次',
+      value: max > 0 ? `${round}/${max}` : `${round}`,
+      tone: 'normal' as const,
+    }
+  }
+  if (hasRetry.value) {
+    const r = rt.value!
+    const cur = r.attempt_index ?? 0
+    const max = r.max_attempts ?? 0
+    return {
+      label: '重试次数',
+      value: max > 0 ? `${cur + 1}/${max}` : `${cur + 1}`,
+      tone: (cur >= Math.max(1, max - 1)) ? 'danger' as const : 'normal' as const,
+    }
+  }
+  // 默认显示 SIP 状态
+  const status = rt.value?.last_sip_status ?? 0
+  return {
+    label: 'SIP 状态',
+    value: status > 0 ? `${status}` : '--',
+    tone: status >= 400 ? 'danger' as const : 'normal' as const,
+  }
+})
+
+// ---- 位置3：SIP Reason / 注册变体 轮换 ----
+const hasVariant = computed(() =>
+  (rt.value?.register_variant_total ?? 0) > 0
+)
+
+// 位置3 优先级：注册变体 > SIP Reason
+const slot3 = computed(() => {
+  if (hasVariant.value) {
+    const r = rt.value!
+    const idx = (r.register_variant_index ?? 0) + 1
+    const total = r.register_variant_total ?? 0
+    return {
+      label: '注册变体',
+      value: `${idx}/${total}`,
+      tone: 'normal' as const,
+    }
+  }
+  // 默认显示 SIP Reason
+  const reason = rt.value?.last_sip_reason || '--'
+  const isError = (rt.value?.last_sip_status ?? 0) >= 400
+  return {
+    label: 'SIP Reason',
+    value: reason,
+    tone: isError ? 'danger' as const : 'normal' as const,
+  }
+})
+
 </script>
 
 <template>
-  <div v-if="hasActivity" class="activity-collapse">
+  <div class="activity-collapse">
     <div class="activity-header">
       <span class="activity-title">实时活动</span>
-      <span v-if="(rt?.generation ?? 0) > 0" class="activity-gen">Gen {{ rt!.generation }}</span>
+      <span class="activity-gen">Gen {{ rt?.generation ?? '--' }}</span>
     </div>
     <div class="activity-rows">
+      <!-- 位置1：当前阶段（固定） -->
       <div class="activity-row">
         <span class="activity-row-label">当前阶段</span>
-        <span class="activity-row-value" :class="{ fail: rt?.stage === 'failed' }">
+        <span class="activity-row-value" :class="{ fail: rt?.stage === 'failed' || rt?.phase === 'recover_failed' }">
           {{ stageDisplay || '--' }}
           <span v-if="elapsedSec > 0" class="activity-elapsed">{{ elapsedDisplay }}</span>
         </span>
       </div>
-      <div v-if="showRetry" class="activity-row">
-        <span class="activity-row-label">重试次数</span>
-        <span class="activity-row-value" :class="{ danger: retryDanger }">{{ retryDisplay }}</span>
+      <!-- 位置2：SIP状态 / 重试次数 / 挑战轮次（轮换） -->
+      <div class="activity-row">
+        <span class="activity-row-label">{{ slot2.label }}</span>
+        <span class="activity-row-value" :class="{ danger: slot2.tone === 'danger' }">{{ slot2.value }}</span>
       </div>
-      <div v-if="(rt?.register_round ?? 0) > 0 || (rt?.max_challenge_rounds ?? 0) > 0" class="activity-row">
-        <span class="activity-row-label">挑战轮次</span>
-        <span class="activity-row-value">{{ rt?.register_round ?? 0 }}{{ (rt?.max_challenge_rounds ?? 0) > 0 ? `/${rt?.max_challenge_rounds}` : '' }}</span>
+      <!-- 位置3：SIP Reason / 注册变体（轮换） -->
+      <div class="activity-row">
+        <span class="activity-row-label">{{ slot3.label }}</span>
+        <span class="activity-row-value reason-text" :class="{ danger: slot3.tone === 'danger' }">{{ slot3.value }}</span>
       </div>
-      <div v-if="(rt?.register_variant_total ?? 0) > 0" class="activity-row">
-        <span class="activity-row-label">注册变体</span>
-        <span class="activity-row-value">{{ (rt?.register_variant_index ?? 0) + 1 }}/{{ rt?.register_variant_total }}</span>
-      </div>
-      <div v-if="showSIPStatus" class="activity-row">
-        <span class="activity-row-label">SIP 状态</span>
-        <span class="activity-row-value" :class="{ danger: (rt?.last_sip_status ?? 0) >= 400 }">{{ rt?.last_sip_status }}</span>
-      </div>
-      <div v-if="showSIPStatus && rt?.last_sip_reason" class="activity-row">
-        <span class="activity-row-label">SIP Reason</span>
-        <span class="activity-row-value reason-text">{{ rt?.last_sip_reason }}</span>
-      </div>
+      <!-- 位置4：语音 Agent（固定） -->
       <div class="activity-row">
         <span class="activity-row-label">语音 Agent</span>
         <span class="activity-row-value" :class="{ ok: rt?.call_ready, danger: !rt?.call_ready }">
@@ -134,6 +168,8 @@ const showSIPStatus = computed(() => (rt.value?.last_sip_status ?? 0) > 0)
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
+  flex: 1;
+  min-width: 0;
 }
 .activity-header {
   display: flex;
@@ -155,7 +191,8 @@ const showSIPStatus = computed(() => (rt.value?.last_sip_status ?? 0) > 0)
   font-size: 10px;
   font-weight: 700;
   font-family: var(--oomol-font-mono);
-  padding: 1px 7px;
+  line-height: 1;
+  padding: 0 6px;
   border-radius: 999px;
   background: color-mix(in oklab, var(--brand) 10%, var(--muted));
   color: var(--brand);
