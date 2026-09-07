@@ -14,6 +14,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -785,9 +786,15 @@ func matchLogLevel(entryLevel, filterLevel string) bool {
 // @Security     BearerAuth
 func (s *Server) handleLogHistory(c *gin.Context) {
 	// 读取参数
+	maxLines := 5000
+	maxBytes := int64(10 << 20) // 10MB
+	if runtime.GOARCH == "arm" || runtime.GOARCH == "arm64" {
+		maxLines = 1000
+		maxBytes = 2 << 20 // 2MB
+	}
 	lines := 500 // 默认返回最近 500 行
 	if n := c.Query("lines"); n != "" {
-		if v, err := strconv.Atoi(n); err == nil && v > 0 && v <= 2000 {
+		if v, err := strconv.Atoi(n); err == nil && v > 0 && v <= maxLines {
 			lines = v
 		}
 	}
@@ -795,7 +802,7 @@ func (s *Server) handleLogHistory(c *gin.Context) {
 	// 日志文件路径（使用 logger 的默认路径）
 	logFile := "logs/app.log"
 
-	recentLines, err := readLastLines(logFile, lines, 1<<20)
+	recentLines, err := readLastLines(logFile, lines, maxBytes)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"logs": []logger.LogEntry{}, "error": "无法读取日志文件"})
 		return
