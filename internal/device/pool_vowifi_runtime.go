@@ -55,7 +55,7 @@ func (p *Pool) waitRadioRecoveryReady(deviceID string, timeout time.Duration) er
 		WaitCoreReady(context.Context) error
 	}); ok {
 		if err := coreWaiter.WaitCoreReady(waitCtx); err != nil {
-			return fmt.Errorf("等待设备 %s QMI Core 恢复就绪失败: %w", deviceID, err)
+			return fmt.Errorf("等待设备 %s QMI Core 恢复超时: %w", deviceID, err)
 		}
 	}
 
@@ -96,7 +96,7 @@ func (p *Pool) waitQMICoreReady(deviceID string, timeout time.Duration) error {
 		WaitCoreReady(context.Context) error
 	}); ok {
 		if err := coreWaiter.WaitCoreReady(waitCtx); err != nil {
-			return fmt.Errorf("等待设备 %s QMI Core 恢复就绪失败: %w", deviceID, err)
+			return fmt.Errorf("等待设备 %s QMI Core 恢复超时: %w", deviceID, err)
 		}
 	}
 
@@ -207,10 +207,10 @@ func (p *Pool) IsVoWiFiDesired(deviceID string) bool {
 // Do not call this from controller run paths that already hold the per-device lifecycle mutex.
 func (p *Pool) enableVoWiFiWhenReady(deviceID string, timeout time.Duration, reason string) error {
 	if err := p.waitQMICoreReady(deviceID, timeout); err != nil {
-		return fmt.Errorf("等待设备 %s 身份就绪失败(%s): %w", deviceID, reason, err)
+		return fmt.Errorf("等待设备 %s 身份恢复超时(%s): %w", deviceID, reason, err)
 	}
 	if err := p.waitWorkerReady(deviceID, timeout); err != nil {
-		return fmt.Errorf("等待设备 %s 就绪失败(%s): %w", deviceID, reason, err)
+		return fmt.Errorf("等待设备 %s 恢复超时(%s): %w", deviceID, reason, err)
 	}
 	return p.EnableVoWiFi(deviceID)
 }

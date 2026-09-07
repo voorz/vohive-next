@@ -80,6 +80,11 @@ func (p *Pool) shouldReconcileVoWiFiForReason(w *Worker, reason string) bool {
 		return false
 	}
 
+	// 设备不健康时跳过恢复，避免在离线设备上反复尝试导致误导性错误
+	if !w.IsDeviceHealthy() {
+		return false
+	}
+
 	if !p.voWiFiHost().DesiredRecoverable(deviceID) {
 		return false
 	}

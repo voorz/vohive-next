@@ -268,7 +268,7 @@ func (m *Manager) enableWhenReady(ctx context.Context, deviceID string, timeout 
 		UpdatedAt:  time.Now(),
 	})
 	if err := adapter.WaitQMICoreReady(deviceID, timeout); err != nil {
-		return fmt.Errorf("等待设备 %s QMI Core 就绪失败(%s): %w", deviceID, reason, err)
+		return fmt.Errorf("等待设备 %s QMI Core 恢复超时(%s): %w", deviceID, reason, err)
 	}
 	// 上报等待 Worker 就绪状态
 	m.RecordStartupState(deviceID, runtimehost.State{
@@ -278,7 +278,7 @@ func (m *Manager) enableWhenReady(ctx context.Context, deviceID string, timeout 
 		UpdatedAt:  time.Now(),
 	})
 	if err := adapter.WaitWorkerReady(deviceID, timeout); err != nil {
-		return fmt.Errorf("等待设备 %s 就绪失败(%s): %w", deviceID, reason, err)
+		return fmt.Errorf("等待设备 %s 恢复超时(%s): %w", deviceID, reason, err)
 	}
 	// UIM 门控：检查 eUICC 可用状态，如果 UIM 不可用则阻止进入注定失败的 IKEv2 流程
 	if avail := adapter.EUICCAvailable(deviceID); avail != nil && !*avail {

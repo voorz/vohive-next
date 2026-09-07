@@ -189,7 +189,7 @@ func (p *Pool) findPCSCWorkerByUSBPath(usbPath string) *Worker {
 	return nil
 }
 
-// triggerPCSCDeviceOffline 读卡器物理离线：标记不健康 + 停止 VoWiFi + 推送气泡。
+// triggerPCSCDeviceOffline 读卡器物理离线：标记不健康 + 停止 VoWiFi + 推送气泡 + 生命周期标记。
 func (p *Pool) triggerPCSCDeviceOffline(deviceID, source string) {
 	w := p.GetWorker(deviceID)
 	if w == nil {
@@ -205,6 +205,11 @@ func (p *Pool) triggerPCSCDeviceOffline(deviceID, source string) {
 		if err := p.voWiFiHost().Disable(p.ctx, deviceID, source, false); err != nil {
 			logger.Warn("读卡器拔出后停止 VoWiFi 失败", "device", deviceID, "source", source, "err", err)
 		}
+	}
+
+	// 标记生命周期为"等待设备重新枚举"，与模组离线行为一致
+	if p.lifecycle != nil {
+		p.lifecycle.BeginRecovery(deviceID, LifecyclePhaseUSBWait, source, qmiLifecycleRecoveryTTL)
 	}
 
 	// 推送设备离线气泡

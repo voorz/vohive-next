@@ -1790,11 +1790,14 @@ func (p *Pool) rescanAndReconnect(opts rescanReconnectOptions) error {
 				// 读卡器物理在线，保持 Worker 存活
 				continue
 			}
-			// 读卡器物理离线：停止 VoWiFi + 标记不健康 + 推送气泡
+			// 读卡器物理离线：停止 VoWiFi + 标记不健康 + 生命周期标记 + 推送气泡
 			// 不移除 Worker，等读卡器重新插入时 CCIDWatcher 触发恢复
 			logger.Info("PC/SC 读卡器物理离线，停止 VoWiFi", "device", md.ID, "usb_path", md.PCSCUSBPath)
 			worker.setCachedHealthy(false)
 			p.teardownVoWiFiForReconnect(md.ID)
+			if p.lifecycle != nil {
+				p.lifecycle.BeginRecovery(md.ID, LifecyclePhaseUSBWait, "rescan_pcsc_offline", qmiLifecycleRecoveryTTL)
+			}
 			broadcastDeviceOffline(md.ID, md.Name)
 			continue
 		}
