@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -78,9 +79,15 @@ func (s *Server) handleLogDates(c *gin.Context) {
 // @Security     BearerAuth
 func (s *Server) handleLogHistoryByDate(c *gin.Context) {
 	// 读取参数
+	maxLines := 5000
+	maxBytes := int64(10 << 20) // 10MB
+	if runtime.GOARCH == "arm" || runtime.GOARCH == "arm64" {
+		maxLines = 1000
+		maxBytes = 2 << 20 // 2MB
+	}
 	lines := 500
 	if n := c.Query("lines"); n != "" {
-		if v, err := strconv.Atoi(n); err == nil && v > 0 && v <= 2000 {
+		if v, err := strconv.Atoi(n); err == nil && v > 0 && v <= maxLines {
 			lines = v
 		}
 	}
@@ -97,7 +104,7 @@ func (s *Server) handleLogHistoryByDate(c *gin.Context) {
 		logFile = fmt.Sprintf("logs/app-%s.log", date)
 	}
 
-	recentLines, err := readLastLines(logFile, lines, 1<<20)
+	recentLines, err := readLastLines(logFile, lines, maxBytes)
 	if err != nil {
 		c.JSON(http.StatusOK, gin.H{"logs": []logger.LogEntry{}, "error": "无法读取日志文件"})
 		return
