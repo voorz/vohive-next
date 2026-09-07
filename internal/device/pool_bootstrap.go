@@ -754,6 +754,12 @@ selected = hw.toQMIDeviceWithUSB()
 
 // addPCSCWorker 创建一个纯 PC/SC 读卡器 worker（无 modem/QMI/MBIM/backend）。
 func (p *Pool) addPCSCWorker(devCfg config.DeviceConfig) (*Worker, error) {
+	// 前置检查：读卡器物理在线才创建 Worker，对齐模组启动时检查设备存在的行为。
+	// 避免读卡器拔出后仍创建 Worker 导致 eSIM 扫描无效 AID。
+	if !pcscReaderOnline(devCfg.PCSCUSBPath) {
+		return nil, fmt.Errorf("PC/SC 读卡器不在线 (usb_path: %s)，等待设备重新枚举", devCfg.PCSCUSBPath)
+	}
+
 	// PC/SC 设备无真实 IMEI，生成虚拟 IMEI 用于数据库同步
 	if strings.TrimSpace(devCfg.ModemIMEI) == "" {
 		devCfg.ModemIMEI = GenerateIMEIForDevice(devCfg.ID)

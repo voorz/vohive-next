@@ -96,7 +96,8 @@ func (w *CCIDWatcher) loop() {
 	logger.Info("CCID 读卡器热插拔监听器已停止")
 }
 
-// onReaderAdded 读卡器插入：查找匹配的已添加 PC/SC 设备，触发恢复。
+// onReaderAdded 读卡器插入：查找匹配的已配置 PC/SC 设备，触发恢复。
+// Worker 可能已被移除（读卡器离线时移除），此时从配置中按 USBPath 查找设备 ID 触发重建。
 func (w *CCIDWatcher) onReaderAdded(info *ccid.ReaderInfo) {
 	// 推送读卡器插入气泡（对所有读卡器）
 	w.broadcastReaderEvent("reader_added", info)
@@ -105,16 +106,23 @@ func (w *CCIDWatcher) onReaderAdded(info *ccid.ReaderInfo) {
 		return
 	}
 
-	// 查找匹配的已配置 PC/SC 设备
+	// 优先查找已有 Worker（设备在线时 Worker 存在）
 	worker := w.pool.findPCSCWorkerByUSBPath(info.USBPath)
-	if worker == nil {
-		// 未添加的读卡器，仅气泡通知已在上面完成
+	if worker != nil {
+		logger.Info("读卡器插入，触发设备恢复", "device", worker.ID, "usb_path", info.USBPath)
+		w.pool.triggerPCSCDeviceRecovery(worker.ID, "ccid_reader_added")
 		return
 	}
 
-	// 已添加设备：触发预热恢复
-	logger.Info("读卡器插入，触发设备恢复", "device", worker.ID, "usb_path", info.USBPath)
-	w.pool.triggerPCSCDeviceRecovery(worker.ID, "ccid_reader_added")
+	// Worker 不存在（离线时已移除），从配置中按 USBPath 查找匹配的 PC/SC 设备
+	deviceID := w.pool.findConfiguredPCSCDeviceByUSBPath(info.USBPath)
+	if deviceID == "" {
+		// 未配置的读卡器，仅气泡通知已在上面完成
+		return
+	}
+
+	logger.Info("读卡器插入，触发设备重建", "device", deviceID, "usb_path", info.USBPath)
+	w.pool.triggerPCSCDeviceRecovery(deviceID, "ccid_reader_added")
 }
 
 // onReaderRemoved 读卡器拔出：查找匹配的已添加 PC/SC 设备，触发 VoWiFi 停止。
@@ -186,6 +194,28 @@ func (p *Pool) findPCSCWorkerByUSBPath(usbPath string) *Worker {
 		}
 	}
 	return nil
+}
+
+// findConfiguredPCSCDeviceByUSBPath 在配置中查找匹配指定 USBPath 的 PC/SC 设备 ID。
+// 用于 Worker 已被移除（离线时移除）后，读卡器重新插入时按配置恢复。
+func (p *Pool) findConfiguredPCSCDeviceByUSBPath(usbPath string) string {
+	if p == nil {
+		return ""
+	}
+	usbPath = strings.TrimSpace(usbPath)
+	if usbPath == "" {
+		return ""
+	}
+	devices := config.ListDevices()
+	for i := range devices {
+		if config.NormalizeESIMTransport(devices[i].ESIMTransport) != config.ESIMTransportPCSC {
+			continue
+		}
+		if matchUSBPath(devices[i].PCSCUSBPath, usbPath) {
+			return devices[i].ID
+		}
+	}
+	return ""
 }
 
 // triggerPCSCDeviceOffline 读卡器物理离线：停止 VoWiFi + 移除 Worker + 生命周期标记 + 推送气泡。
