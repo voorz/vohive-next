@@ -876,6 +876,15 @@ func (p *Pool) addPCSCWorker(devCfg config.DeviceConfig) (*Worker, error) {
 			}
 			p.broadcastVoWiFiStateChange(worker.ID)
 			logger.Info(fmt.Sprintf("[%s] PC/SC 预热完成", worker.ID), "iccid", iccid, "imsi", imsi)
+
+			// VoWiFi 自动恢复（涵盖初始启动 + 读卡器重新插入恢复两种场景）
+			if worker.Config.VoWiFiEnabled {
+				go func(deviceID string) {
+					if err := p.enableVoWiFiWhenReady(deviceID, 5*time.Second, "pcsc_prewarm"); err != nil {
+						logger.Warn("PC/SC 预热后 VoWiFi 启动失败", "device", deviceID, "err", err)
+					}
+				}(worker.ID)
+			}
 			return
 		}
 		logger.Warn(fmt.Sprintf("[%s] PC/SC 预热：最终未读取到 SIM 身份", worker.ID))

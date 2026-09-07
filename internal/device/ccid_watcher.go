@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/pkg/logger"
@@ -189,15 +188,15 @@ func (p *Pool) findPCSCWorkerByUSBPath(usbPath string) *Worker {
 	return nil
 }
 
-// triggerPCSCDeviceOffline 读卡器物理离线：标记不健康 + 停止 VoWiFi + 推送气泡 + 生命周期标记。
+// triggerPCSCDeviceOffline 读卡器物理离线：停止 VoWiFi + 移除 Worker + 生命周期标记 + 推送气泡。
+// 与模组离线行为一致：移除 Worker，等读卡器重新插入时 CCIDWatcher 触发重建。
 func (p *Pool) triggerPCSCDeviceOffline(deviceID, source string) {
 	w := p.GetWorker(deviceID)
 	if w == nil {
 		return
 	}
 
-	// 标记不健康
-	w.setCachedHealthy(false)
+	deviceName := w.Config.Name
 
 	// 停止 VoWiFi 实例
 	if p.IsVoWiFiActive(deviceID) {
@@ -207,10 +206,13 @@ func (p *Pool) triggerPCSCDeviceOffline(deviceID, source string) {
 		}
 	}
 
-	// 标记生命周期为"等待设备重新枚举"，与模组离线行为一致
+	// 标记生命周期为"等待设备重新枚举"
 	if p.lifecycle != nil {
 		p.lifecycle.BeginRecovery(deviceID, LifecyclePhaseUSBWait, source, qmiLifecycleRecoveryTTL)
 	}
+
+	// 移除 Worker，与模组离线行为对齐
+	_ = p.RemoveWorker(deviceID)
 
 	// 推送设备离线气泡
 	notify.GlobalNotificationBroadcaster.Broadcast(notify.FrontendNotification{
@@ -219,19 +221,21 @@ func (p *Pool) triggerPCSCDeviceOffline(deviceID, source string) {
 		Title:      "设备已断开",
 		Body:       deviceID,
 		DeviceID:   deviceID,
-		DeviceName: w.Config.Name,
+		DeviceName: deviceName,
 	})
 }
 
-// triggerPCSCDeviceRecovery 读卡器重新插入：预热恢复 + 推送气泡。
+// triggerPCSCDeviceRecovery 读卡器重新插入：重建 Worker + 推送气泡。
+// 与模组恢复行为一致：通过 AddWorkerFromConfig 重建 Worker（含 EsimMgr + 预热）。
 func (p *Pool) triggerPCSCDeviceRecovery(deviceID, source string) {
-	w := p.GetWorker(deviceID)
-	if w == nil {
+	// 离线时 Worker 已被移除，从配置读取设备信息后重建
+	cfg, err := config.GetDeviceByID(deviceID)
+	if err != nil || cfg == nil {
+		logger.Warn("读卡器恢复：未找到设备配置", "device", deviceID, "err", err)
 		return
 	}
 
-	// 标记健康
-	w.setCachedHealthy(true)
+	deviceName := cfg.Name
 
 	// 推送设备恢复中气泡
 	notify.GlobalNotificationBroadcaster.Broadcast(notify.FrontendNotification{
@@ -240,66 +244,15 @@ func (p *Pool) triggerPCSCDeviceRecovery(deviceID, source string) {
 		Title:      "设备已连接，恢复中",
 		Body:       deviceID,
 		DeviceID:   deviceID,
-		DeviceName: w.Config.Name,
+		DeviceName: deviceName,
 	})
 
-	// 异步预热（与 addPCSCWorker 预热逻辑对齐）
-	go p.pcscPrewarmRecovery(w)
-}
-
-// pcscPrewarmRecovery 读卡器恢复后的预热：重新读取 SIM 身份 + 应用卡策略 + 恢复 VoWiFi。
-func (p *Pool) pcscPrewarmRecovery(w *Worker) {
-	if w == nil {
-		return
-	}
-	retryDelays := []time.Duration{2 * time.Second, 5 * time.Second, 10 * time.Second}
-	for i, delay := range retryDelays {
-		select {
-		case <-p.ctx.Done():
+	// 异步重建 Worker（addPCSCWorker 内部已包含预热逻辑）
+	go func() {
+		if _, err := p.AddWorkerFromConfig(*cfg); err != nil {
+			logger.Warn("读卡器恢复：重建 Worker 失败", "device", deviceID, "source", source, "err", err)
 			return
-		case <-w.stop:
-			return
-		case <-time.After(delay):
 		}
-
-		adapter, err := newPCSCModemAdapter(w.ID, w.Config.PCSCUSBPath, w.Config.PCSCSerial, w.pcscAccessMu)
-		if err != nil {
-			logger.Debug(fmt.Sprintf("[%s] PC/SC 恢复预热：创建适配器失败", w.ID), "attempt", i+1, "err", err)
-			continue
-		}
-
-		imsi, iccid, mcc, mnc, err := adapter.ReadSIMIdentity()
-		adapter.Stop()
-		if err != nil || strings.TrimSpace(imsi) == "" {
-			logger.Debug(fmt.Sprintf("[%s] PC/SC 恢复预热：读取 SIM 身份尚未就绪", w.ID), "attempt", i+1, "err", err)
-			continue
-		}
-
-		iccid = strings.TrimSpace(iccid)
-		w.cacheMu.Lock()
-		w.state.Identity.IMSI = strings.TrimSpace(imsi)
-		w.state.Identity.ICCID = iccid
-		w.state.Identity.Ready = true
-		w.cacheMu.Unlock()
-		cacheVoWiFiProfileMCCMNC(w, strings.TrimSpace(mcc), strings.TrimSpace(mnc))
-
-		p.PersistIdentityState(w)
-
-		if iccid != "" {
-			p.resolveAndApplyPolicy(w, "pcsc_recover")
-		}
-		p.broadcastVoWiFiStateChange(w.ID)
-		logger.Info(fmt.Sprintf("[%s] PC/SC 恢复预热完成", w.ID), "iccid", iccid, "imsi", imsi)
-
-		// 恢复 VoWiFi
-		if w.Config.VoWiFiEnabled {
-			go func(deviceID string) {
-				if err := p.enableVoWiFiWhenReady(deviceID, 5*time.Second, "pcsc_reader_recover"); err != nil {
-					logger.Warn("PC/SC 恢复后 VoWiFi 启动失败", "device", deviceID, "err", err)
-				}
-			}(w.ID)
-		}
-		return
-	}
-	logger.Warn(fmt.Sprintf("[%s] PC/SC 恢复预热：最终未读取到 SIM 身份", w.ID))
+		// VoWiFi 自动恢复由 addPCSCWorker 预热完成后的 enableVoWiFiWhenReady 处理
+	}()
 }

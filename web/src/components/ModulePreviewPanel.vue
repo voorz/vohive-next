@@ -232,7 +232,15 @@ async function switchProfile(iccid: string, state: number, aidHex: string) {
       aid_hex: aidHex,
       state
     })
-    if (!result.ok) throw new Error(result.error.message || `${action}失败`)
+    if (!result.ok) {
+      // 设备离线（404）属于预期状态，用警告而非错误提示
+      if (result.error.status === 404) {
+        ElMessage.warning(result.error.message || '设备离线，请等待设备恢复')
+      } else {
+        ElMessage.error(result.error.message || `${action}失败`)
+      }
+      return
+    }
     ElMessage.success(`Profile ${action}成功`)
     profiles.value = applyOptimisticActiveState(profiles.value, iccid, aidHex)
     // 切卡后模组恢复需要时间，渐进式重试 fetchOverview(true) 直到成功或超时
