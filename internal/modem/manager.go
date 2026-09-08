@@ -1405,6 +1405,12 @@ func (m *Manager) handleURC(line string) {
 		m.dispatchSIMStatusURC(inserted, "")
 	}
 
+	// +QUSIM: 1 — Quectel eUICC 重启完成，等效物理 SIM 热插拔。
+	// 通知 SIM 状态变化（不设置 inserted 指针，让上层重新检测）。
+	if fr.Key == "+QUSIM" {
+		m.dispatchSIMStatusURC(nil, "QUSIM")
+	}
+
 	// 分发 +CUSD USSD 响应到等待通道
 	if fr.Key == "+CUSD" {
 		var n, dcs int
