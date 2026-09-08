@@ -157,6 +157,16 @@ func (m *Manager) formatURC(line string) urcFormatResult {
 		out.Fields = append(out.Fields, "inserted", inserted)
 		return out
 
+	case "+QUSIM":
+		// Quectel eUICC restart complete: "+QUSIM: 1" is emitted after
+		// the eUICC has restarted, acting the same as a physical SIM swap.
+		// Ref: ModemManager quectel plugin - quectel_qusim_unsolicited_handler()
+		rest := parseURCAfterColon(s)
+		out.Level = urcLogInfo
+		out.Msg = "URC: Quectel eUICC 重启完成（等效 SIM 热插拔）"
+		out.Fields = append(out.Fields, "state", strings.TrimSpace(rest), "raw", s)
+		return out
+
 	case "+QIURC", "+QIND":
 		rest := parseURCAfterColon(s)
 		fields := extractQuotedFields(rest)
