@@ -101,7 +101,8 @@ async function clearLogs() {
   }
   // 先清空前端内存，再清空后端文件
   logsStore.clear()
-  const today = new Date().toISOString().slice(0, 10)
+  const now = new Date()
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
   const result = await logsStore.clearHistory(today)
   if (result.ok) {
     ElMessage.success('已清空当日日志')
