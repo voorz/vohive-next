@@ -2105,6 +2105,18 @@ func newESIMManagerForWorker(
 		}
 	}
 
+	// cardAbsentCheck: only injected when QMICore is available (QMI/MBIM mode).
+	// Uses IsCardAbsent() which queries UIM slot physical status, more reliable
+	// than GetSIMStatus() because some modems report SIMBlocked instead of
+	// SIMAbsent when no card is inserted.
+	// In PC/SC and AT modes, CardAbsentCheck stays nil and the full AID scan runs normally.
+	var cardAbsentCheck func() bool
+	if w.QMICore != nil {
+		cardAbsentCheck = func() bool {
+			return w.QMICore.IsCardAbsent()
+		}
+	}
+
 	mgr, err := esim.NewManager(esim.ManagerOptions{
 		DeviceID:             w.Config.ID,
 		Transport:            resolveESIMTransport(w.Config, qmiTransport != nil),
@@ -2121,6 +2133,7 @@ func newESIMManagerForWorker(
 		PostSwitchMinDelay:   defaultESIMPostSwitchMinDelay,
 		SwitchUseRefreshTrue: w.Config.ESIMSwitch.UseRefreshTrue,
 		OnOverviewUpdated:    w.Pool.onEUICCOverviewUpdated,
+		CardAbsentCheck:      cardAbsentCheck,
 	})
 	if err != nil {
 		return nil, err

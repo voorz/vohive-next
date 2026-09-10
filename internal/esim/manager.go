@@ -330,6 +330,11 @@ type Manager struct {
 	postSwitchMinDelay   time.Duration
 	readQueueWaitTimeout time.Duration
 
+	// cardAbsentCheck is an optional callback injected by the caller (e.g. device pool)
+	// to check if the SIM card is physically absent. When set and returns true,
+	// forEachEUICC skips the full AID scan and returns ErrNoEUCCFound immediately.
+	cardAbsentCheck func() bool
+
 	// downloadCtx 是当前正在进行的下载操作的 context。
 	// 如果不为 nil，由 smartCardChannelFactory 新建的 QMIChannel 会自动继承该 context，
 	// 从而允许 BPP 安装阶段的长时延迟得到正确处理而不被默认超时中断。
@@ -354,6 +359,12 @@ type ManagerOptions struct {
 	Modem                *modem.Manager
 	Backend              backendpkg.DeviceBackend
 	QMITransport         QMIAPDUTransport
+
+	// CardAbsentCheck is an optional callback that returns true when the SIM card
+	// is physically absent. When set, forEachEUICC skips the full AID scan
+	// and returns ErrNoEUCCFound immediately, avoiding 10 failed OpenLogicalChannel
+	// calls per scan cycle. Only injected in QMI/MBIM mode; nil in PC/SC and AT modes.
+	CardAbsentCheck      func() bool
 	PCSCUSBPath          string      // PC/SC 读卡器 USB 路径（仅 transport=pcsc 时有效，运行时匹配 reader）
 	PCSCSerial           string      // PC/SC 读卡器 SN（正规设备 SN 回退匹配，插拔换接口后仍可解析）
 	PCSCAccessMu         *sync.Mutex // 可选：PC/SC 读卡器访问互斥锁（跨 eSIM/VoWiFi 共享）
@@ -632,6 +643,7 @@ func NewManager(opts ManagerOptions) (*Manager, error) {
 	}
 	mgr.overviewLoader = mgr.loadOverviewFresh
 	mgr.profilesLoader = mgr.loadProfilesFresh
+	mgr.cardAbsentCheck = opts.CardAbsentCheck
 
 	// 初始化 eSIM 容量查询库（本地优先，不存在则从远程下载）
 	if store, err := openPersistedESimSizeStore(opts.ESimSizeDBPath, euiccSizesURL, false); err != nil {
@@ -1008,6 +1020,14 @@ func (m *Manager) logWriteOperationHold(operation string, started time.Time) {
 		"hold_ms", hold.Milliseconds())
 }
 
+// isCardAbsentForScan checks whether the SIM card is absent before running the
+// full AID scan. Uses the injected cardAbsentCheck callback (QMICore path).
+// Returns false when the callback is nil (PC/SC and AT modes), allowing the
+// full AID scan to run normally.
+func (m *Manager) isCardAbsentForScan() bool {
+	return m.cardAbsentCheck != nil && m.cardAbsentCheck()
+}
+
 // forEachEUICC 遍历所有可用的 eUICC，对每个唯一 EID 调用回调函数。
 // 每次从静态候选 AID 重新扫描；命中可用 AID 后停止，eSTK Max 的 SE0/SE1 例外。
 // 回调参数: client=已打开的 LPA 客户端, aid=当前 AID, eidStr=当前 EID 字符串
@@ -1040,6 +1060,16 @@ func (m *Manager) forEachEUICC(fn func(client *lpa.Client, aid []byte, eidStr st
 	}
 
 	m.preCleanChannels()
+
+	// Fast path: if the caller injected a card-absent check and the card is
+	// confirmed absent, skip the full AID scan entirely. This avoids 10
+	// failed OpenLogicalChannel calls (each producing WARN+DEBUG log lines)
+	// on every scan cycle when there is no card.
+	if m.isCardAbsentForScan() {
+		logger.Debug("eUICC AID 扫描跳过：检测到无卡",
+			"device", m.deviceID)
+		return ErrNoEUCCFound
+	}
 
 	plan := m.getEffectiveAIDPlan()
 	aids := plan.CloneAIDs()

@@ -1772,6 +1772,17 @@ func (m *Manager) GetSIMStatus(ctx context.Context) (qmi.SIMStatus, error) {
 	return m.qmiMgr.GetSIMStatus(ctx)
 }
 
+// IsCardAbsent checks whether the SIM card is physically absent by querying
+// the UIM slot status. This is more reliable than GetSIMStatus for detecting
+// "no card" conditions, because some modems report SIMBlocked instead of
+// SIMAbsent when no card is inserted.
+func (m *Manager) IsCardAbsent() bool {
+	if m == nil || m.qmiMgr == nil {
+		return false
+	}
+	return m.qmiMgr.IsCardAbsent(0)
+}
+
 // GetServingSystem returns registration info
 func (m *Manager) GetServingSystem(ctx context.Context) (*qmi.ServingSystem, error) {
 	if m == nil || m.qmiMgr == nil {
