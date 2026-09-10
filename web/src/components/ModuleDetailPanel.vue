@@ -461,7 +461,7 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
   margin-left: auto;
 }
 
-/* 重启模组按钮（透明红框，hover 反转） */
+/* 重启模组按钮（红色实心） */
 .reboot-btn-custom {
   display: inline-flex;
   align-items: center;
@@ -469,16 +469,16 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
   padding: 6px 14px;
   border: 1px solid #ef4444;
   border-radius: 6px;
-  background: transparent;
-  color: #ef4444;
+  background: #ef4444;
+  color: #fff;
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.12s;
 }
 .reboot-btn-custom:hover:not(:disabled) {
-  background: #ef4444;
-  color: #fff;
+  background: #f87171;
+  border-color: #f87171;
 }
 .reboot-btn-custom:disabled {
   opacity: 0.5;

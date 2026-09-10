@@ -289,12 +289,9 @@ function readinessItems(d: DeviceMgmtListItem) {
                   <WifiOff24Regular v-else />
                 </el-icon>
               </div>
+              <span class="vohive-rattlesnake-type-tag" :class="{ 'type-reader': item.esim_transport === 'pcsc' }">{{ item.esim_transport === 'pcsc' ? '读卡器' : '模组' }}</span>
             </div>
             <div class="vohive-rattlesnake-content-box">
-              <!-- 胶囊标签：类型 -->
-              <div class="vohive-rattlesnake-tag-row">
-                <span class="vohive-rattlesnake-type-tag" :class="{ 'type-reader': item.esim_transport === 'pcsc' }">{{ item.esim_transport === 'pcsc' ? '读卡器' : '模组' }}</span>
-              </div>
               <!-- 设备名 -->
               <span class="vohive-rattlesnake-card-title">{{ item.name }}</span>
               <!-- 设备信息（分行） -->
@@ -381,7 +378,6 @@ function readinessItems(d: DeviceMgmtListItem) {
 
 /* ===== 强制卡片宽高比 ===== */
 .vohive-rattlesnake-card {
-  aspect-ratio: 1.275;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -392,12 +388,12 @@ function readinessItems(d: DeviceMgmtListItem) {
 .vohive-rattlesnake-content-box {
   flex: 1;
   position: relative;
+  padding: 0 12px 12px 12px;
 }
 
 /* ===== 选中状态 ===== */
 .vohive-rattlesnake-parent.selected .vohive-rattlesnake-card {
-  border-color: #00bc7d;
-  box-shadow: 0 0 0 2px rgba(0, 188, 125, 0.4);
+border-color: #00bc7d;
 }
 
 /* ===== 状态背景色 (仅两种：品牌色/素色) ===== */
@@ -517,10 +513,10 @@ function readinessItems(d: DeviceMgmtListItem) {
 /* ===== 设备图标（content-box 内，贴内容区域右下角，不遮就绪条） ===== */
 .vohive-rattlesnake-device-icon {
   position: absolute;
-  bottom: 24px;
+  top: 0;
+  bottom: 20px;
   right: 12px;
   max-width: 25%;
-  max-height: calc(100% - 48px);
   object-fit: contain;
   object-position: right bottom;
   padding: 0;
@@ -542,11 +538,6 @@ function readinessItems(d: DeviceMgmtListItem) {
   gap: 4px;
 }
 
-.vohive-rattlesnake-tag-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
 
 /* ===== 设备名 ===== */
 .vohive-rattlesnake-content-box .vohive-rattlesnake-card-title {
@@ -559,6 +550,11 @@ function readinessItems(d: DeviceMgmtListItem) {
 }
 
 /* ===== 设备信息弱化文本 ===== */
+.vohive-rattlesnake-card-content {
+  margin-bottom: 8px;
+  line-height: 20px;
+}
+
 .vohive-rattlesnake-card-content .vohive-rattlesnake-card-id {
   color: rgba(235, 235, 235, 0.45);
   font-size: 11px;
@@ -569,11 +565,15 @@ function readinessItems(d: DeviceMgmtListItem) {
   font-size: 11px;
 }
 
-/* ===== 胶囊标签：类型 + 状态 ===== */
+/* ===== 胶囊标签：类型（top-bar 内，右侧） ===== */
 .vohive-rattlesnake-type-tag {
-  padding: 2px 8px;
-  border-radius: 9999px;
-  font-size: 10px;
+  flex-shrink: 0;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  padding: 0 6px;
+  border-radius: 0;
+  font-size: 9px;
   font-weight: 600;
   white-space: nowrap;
   background: rgba(0, 188, 125, 0.2);
@@ -590,12 +590,14 @@ function readinessItems(d: DeviceMgmtListItem) {
 
 /* 状态胶囊标签 */
 .vohive-rattlesnake-status-pill {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 9999px;
-  font-size: 10px;
-  font-weight: 600;
-  white-space: nowrap;
+display: inline-flex;
+align-items: center;
+height: 20px;
+padding: 0 8px;
+border-radius: 9999px;
+font-size: 10px;
+font-weight: 600;
+white-space: nowrap;
 }
 
 .vohive-rattlesnake-status-pill.pill-success {
@@ -624,14 +626,16 @@ function readinessItems(d: DeviceMgmtListItem) {
 
 /* ===== 信号强度胶囊标签 ===== */
 .vohive-rattlesnake-signal-pill {
-  display: inline-block;
-  padding: 2px 6px;
-  border-radius: 9999px;
-  font-size: 10px;
-  font-weight: 600;
-  font-family: monospace;
-  white-space: nowrap;
-  margin-right: 4px;
+display: inline-flex;
+align-items: center;
+height: 20px;
+padding: 0 6px;
+border-radius: 9999px;
+font-size: 10px;
+font-weight: 600;
+font-family: monospace;
+white-space: nowrap;
+margin-right: 4px;
 }
 
 .vohive-rattlesnake-signal-pill.pill-success {
@@ -685,7 +689,7 @@ function readinessItems(d: DeviceMgmtListItem) {
 
 /* ===== 虚线占位添加区 ===== */
 .add-device-placeholder {
-aspect-ratio: 2;
+height: 90px;
 display: flex;
 flex-direction: column;
 align-items: center;
@@ -700,7 +704,7 @@ color: var(--muted-foreground);
 }
 
 .add-device-text {
-font-size: 11px;
+font-size: 12px;
 font-weight: 500;
 }
 
