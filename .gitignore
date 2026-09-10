@@ -74,8 +74,8 @@ Quectel_EC2xEG2xEG9xEM05_Series_QCFG_AT_Commands_Manual_V1.6.pdf
 # local docs
 docs/
 
-# swag init 自动生成的 API docs（每次构建时重新生成，不需要版本管理）
-internal/api/docs/
+# swag init 自动生成的 API docs（CI 需要，保留版本管理）
+!internal/api/docs/
 bin/
 dist/
 build.ps1
