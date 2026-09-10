@@ -317,9 +317,9 @@ function readinessItems(d: DeviceMgmtListItem) {
                   :class="{ ready: ri.ready === true, 'not-ready': ri.ready === false }"
                 />
               </div>
+              <!-- 设备类型图标（居右下，在 content-box 内） -->
+              <img :src="getDeviceIcon({ esim_transport: item.esim_transport, manufacturer: item.manufacturer })" :alt="item.esim_transport === 'pcsc' ? 'reader' : 'modem'" class="vohive-rattlesnake-device-icon" />
             </div>
-            <!-- 右上角：设备类型图标（悬浮，无黑框） -->
-            <img :src="getDeviceIcon({ esim_transport: item.esim_transport, manufacturer: item.manufacturer })" :alt="item.esim_transport === 'pcsc' ? 'reader' : 'modem'" class="vohive-rattlesnake-device-icon" />
           </div>
         </div>
         <!-- 虚线占位添加区 -->
@@ -514,14 +514,13 @@ function readinessItems(d: DeviceMgmtListItem) {
   opacity: 0.2;
 }
 
-/* ===== 设备图标（右对齐，纵向显示） ===== */
+/* ===== 设备图标（content-box 内，贴内容区域右下角，不遮就绪条） ===== */
 .vohive-rattlesnake-device-icon {
   position: absolute;
-  top: 12px;
-  right: 0;
-  bottom: 21px;
-  height: calc(100% - 33px);
+  bottom: 24px;
+  right: 12px;
   max-width: 25%;
+  max-height: calc(100% - 48px);
   object-fit: contain;
   object-position: right bottom;
   padding: 0;
