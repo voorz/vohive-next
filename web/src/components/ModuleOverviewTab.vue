@@ -35,7 +35,7 @@ defineEmits<{
     />
     <ModuleOverviewDevice :device="device" :is-p-c-s-c="isPCSC" />
     <ModuleOverviewNetwork
-      v-if="!isPCSC && !device?.vowifi_enabled"
+      v-if="!isPCSC && !device?.vowifi_enabled && device?.data_connected"
       :device="device"
       :traffic-speed-rx="trafficSpeedRx"
       :traffic-speed-tx="trafficSpeedTx"

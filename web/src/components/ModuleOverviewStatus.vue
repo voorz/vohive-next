@@ -328,8 +328,8 @@ const networkModeIcon = computed(() => {
         <!-- 第二行：Activity + SIM卡管理（并排） -->
         <div class="card-row">
           <ModuleOverviewActivity :device="device" />
-          <!-- SIM卡管理卡片 -->
-          <ModuleSimManagement :device="device" />
+          <!-- SIM卡管理卡片（暂时隐藏） -->
+          <ModuleSimManagement v-if="false" :device="device" />
         </div>
       </template>
 
@@ -437,8 +437,8 @@ const networkModeIcon = computed(() => {
             </div>
           </div>
         </div>
-        <!-- 第二行右侧：SIM卡管理 -->
-        <ModuleSimManagement :device="device" />
+        <!-- 第二行右侧：SIM卡管理（暂时隐藏） -->
+        <ModuleSimManagement v-if="false" :device="device" />
         </div>
       </template>
 
