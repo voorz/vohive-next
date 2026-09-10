@@ -225,7 +225,7 @@ function readinessItems(d: DeviceMgmtListItem) {
 
 <template>
   <div class="module-list-panel">
-    <!-- 搜索栏 + 添加按钮 -->
+    <!-- 搜索栏 -->
     <div class="list-search">
       <el-input
         v-model="searchText"
@@ -237,10 +237,6 @@ function readinessItems(d: DeviceMgmtListItem) {
           <el-icon><Search24Regular /></el-icon>
         </template>
       </el-input>
-      <el-button type="primary" @click="emit('open-search')" class="add-btn">
-        <el-icon class="mr-1"><Add24Regular /></el-icon>
-        <span>添加</span>
-      </el-button>
     </div>
 
     <!-- 设备列表 -->
@@ -362,10 +358,6 @@ function readinessItems(d: DeviceMgmtListItem) {
 
 .list-search .el-input {
   flex: 1;
-}
-
-.add-btn {
-  flex-shrink: 0;
 }
 
 .list-scroll {
@@ -529,9 +521,9 @@ function readinessItems(d: DeviceMgmtListItem) {
   right: 0;
   bottom: 21px;
   height: calc(100% - 33px);
-  max-width: 50%;
+  max-width: 25%;
   object-fit: contain;
-  object-position: right top;
+  object-position: right bottom;
   padding: 0;
   margin: 0 0 0 auto;
   filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
@@ -700,12 +692,12 @@ flex-direction: column;
 align-items: center;
 justify-content: center;
 gap: 4px;
-border: 2px dashed rgba(255, 255, 255, 0.15);
+border: 2px dashed var(--border);
 border-radius: 4px;
-background: rgba(255, 255, 255, 0.05);
+background: var(--muted);
 cursor: pointer;
 transition: all 0.2s;
-color: rgba(255, 255, 255, 0.3);
+color: var(--muted-foreground);
 }
 
 .add-device-text {
