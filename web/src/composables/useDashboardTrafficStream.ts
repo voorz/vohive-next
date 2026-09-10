@@ -154,10 +154,17 @@ export function useDashboardTrafficStream(): DashboardTrafficStreamReturn {
       parse: (payload: string) => JSON.parse(payload) as OverviewEvent,
       onEvent: (data: OverviewEvent) => handleOverviewEvent(data),
       onRawEvent: (eventName: string, payload: string) => {
-        if (eventName !== 'traffic') return
-        try {
-          handleTrafficEvent(JSON.parse(payload) as TrafficEvent)
-        } catch { /* ignore malformed */ }
+        if (eventName === 'traffic') {
+          try {
+            handleTrafficEvent(JSON.parse(payload) as TrafficEvent)
+          } catch { /* ignore malformed */ }
+          return
+        }
+        if (eventName === 'host_perf') {
+          try {
+            hostPerf.value = JSON.parse(payload) as HostPerf
+          } catch { /* ignore malformed */ }
+        }
       },
       onConnected: () => { connected.value = true },
       reconnectDelayMs: 3000,

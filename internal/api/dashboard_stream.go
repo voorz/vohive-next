@@ -222,6 +222,10 @@ func (s *Server) handleDashboardOverviewStream(c *gin.Context) {
 
 			c.SSEvent("traffic", agg)
 			c.Writer.Flush()
+
+			// 宿主机性能数据（1秒间隔，与 traffic 同步）
+			c.SSEvent("host_perf", s.hostStats.perf())
+			c.Writer.Flush()
 		case <-overviewTicker.C:
 			sendOverview()
 		}

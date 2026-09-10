@@ -1,23 +1,16 @@
 <script setup lang="ts">
 /**
- * DashboardChartsCard — Surge 风格实时流量监控卡片
+ * DashboardChartsCard — 宿主机性能监控卡片
  *
- * 4 卡片：上传 / 下载 / CPU / 内存
+ * 4 卡片全部来自宿主机 Linux 系统（/proc + /sys）：
+ * 上传 / 下载 / CPU / 内存
  * 统一风格：标签 + 大数字 + SparklineChart + 底部信息
  */
 import { computed, ref, watch } from 'vue'
 import SparklineChart, { type ChartPoint } from './SparklineChart.vue'
 import { useDashboardTrafficStream } from '../composables/useDashboardTrafficStream'
 
-const {
-  dlSpeedParts,
-  ulSpeedParts,
-  totalRxStr,
-  totalTxStr,
-  downloadSpeedHistory,
-  uploadSpeedHistory,
-  hostPerf,
-} = useDashboardTrafficStream()
+const { hostPerf } = useDashboardTrafficStream()
 
 // ---- tooltip/label formatters ----
 
@@ -70,16 +63,53 @@ function formatBytes(bytes: number): string {
   return `${val.toFixed(i === 0 ? 0 : 1)} ${units[i]}`
 }
 
+function formatBps(bps: number): { value: string; unit: string } {
+  if (!bps || bps <= 0) return { value: '0', unit: 'B/s' }
+  const units = ['B/s', 'KB/s', 'MB/s', 'GB/s']
+  let val = Math.abs(bps)
+  let i = 0
+  while (val >= 1024 && i < units.length - 1) { val /= 1024; i++ }
+  return { value: val.toFixed(i === 0 ? 0 : 1), unit: units[i] }
+}
+
 const cpuPercent = computed(() => hostPerf.value?.cpu_percent ?? 0)
 const memPercent = computed(() => hostPerf.value?.memory_percent ?? 0)
-const cpuFooter = computed(() => `使用率 ${cpuPercent.value.toFixed(1)}%`)
+const netRxBps = computed(() => hostPerf.value?.net_rx_bps ?? 0)
+const netTxBps = computed(() => hostPerf.value?.net_tx_bps ?? 0)
+const dlParts = computed(() => formatBps(netRxBps.value))
+const ulParts = computed(() => formatBps(netTxBps.value))
+
+// 峰值统计
+const rxPeak = computed(() => {
+  let max = 0
+  for (const p of rxHistory.value) {
+    const v = p.value[1]
+    if (v > max) max = v
+  }
+  return max
+})
+const txPeak = computed(() => {
+  let max = 0
+  for (const p of txHistory.value) {
+    const v = p.value[1]
+    if (v > max) max = v
+  }
+  return max
+})
+const rxPeakStr = computed(() => speedLabelFormatter(rxPeak.value))
+const txPeakStr = computed(() => speedLabelFormatter(txPeak.value))
 const memFooter = computed(() => {
   const p = hostPerf.value
   if (!p || p.memory_total_bytes <= 0) return '--'
   return `${formatBytes(p.memory_used_bytes)} / ${formatBytes(p.memory_total_bytes)}`
 })
+const diskFooter = computed(() => {
+  const p = hostPerf.value
+  if (!p || p.disk_total_bytes <= 0) return ''
+  return `磁盘 ${formatBytes(p.disk_used_bytes)} / ${formatBytes(p.disk_total_bytes)}`
+})
 
-// CPU/内存历史滚动窗口
+// 滚动窗口
 const WINDOW = 62
 function makeInit(): ChartPoint[] {
   const now = Date.now()
@@ -91,28 +121,52 @@ function makeInit(): ChartPoint[] {
 
 const cpuHistory = ref<ChartPoint[]>(makeInit())
 const memHistory = ref<ChartPoint[]>(makeInit())
+const rxHistory = ref<ChartPoint[]>(makeInit())
+const txHistory = ref<ChartPoint[]>(makeInit())
 
 watch(hostPerf, (p) => {
   if (!p) return
   const ts = Date.now()
   cpuHistory.value = [...cpuHistory.value.slice(-WINDOW + 1), { name: ts, value: [ts, p.cpu_percent] }]
   memHistory.value = [...memHistory.value.slice(-WINDOW + 1), { name: ts, value: [ts, p.memory_percent] }]
+  rxHistory.value = [...rxHistory.value.slice(-WINDOW + 1), { name: ts, value: [ts, p.net_rx_bps] }]
+  txHistory.value = [...txHistory.value.slice(-WINDOW + 1), { name: ts, value: [ts, p.net_tx_bps] }]
 })
 </script>
 
 <template>
   <div class="charts-card">
     <div class="charts-card-grid">
-      <!-- 上传速度 -->
+      <!-- 下载速度（宿主机网络） -->
       <div class="chart-cell">
-        <div class="chart-label">上传</div>
+        <div class="chart-label">下载</div>
         <div class="chart-value-row">
-          <span class="chart-value-num">{{ ulSpeedParts.value }}</span>
-          <span class="chart-value-unit">{{ ulSpeedParts.unit }}/s</span>
+          <span class="chart-value-num">{{ dlParts.value }}</span>
+          <span class="chart-value-unit">{{ dlParts.unit }}</span>
         </div>
         <div class="chart-sparkline">
           <SparklineChart
-            :data="uploadSpeedHistory as ChartPoint[]"
+            :data="rxHistory as ChartPoint[]"
+            :y-axis-floor="60000"
+            :window-seconds="60"
+            name="下载"
+            :label-formatter="speedLabelFormatter"
+            :tooltip-formatter="speedTooltipFormatter"
+          />
+        </div>
+        <div class="chart-footer">峰值 {{ rxPeakStr }}</div>
+      </div>
+
+      <!-- 上传速度（宿主机网络） -->
+      <div class="chart-cell">
+        <div class="chart-label">上传</div>
+        <div class="chart-value-row">
+          <span class="chart-value-num">{{ ulParts.value }}</span>
+          <span class="chart-value-unit">{{ ulParts.unit }}</span>
+        </div>
+        <div class="chart-sparkline">
+          <SparklineChart
+            :data="txHistory as ChartPoint[]"
             :y-axis-floor="60000"
             :window-seconds="60"
             color="info"
@@ -121,27 +175,7 @@ watch(hostPerf, (p) => {
             :tooltip-formatter="speedTooltipFormatter"
           />
         </div>
-        <div class="chart-footer">总量 {{ totalTxStr }}</div>
-      </div>
-
-      <!-- 下载速度 -->
-      <div class="chart-cell">
-        <div class="chart-label">下载</div>
-        <div class="chart-value-row">
-          <span class="chart-value-num">{{ dlSpeedParts.value }}</span>
-          <span class="chart-value-unit">{{ dlSpeedParts.unit }}/s</span>
-        </div>
-        <div class="chart-sparkline">
-          <SparklineChart
-            :data="downloadSpeedHistory as ChartPoint[]"
-            :y-axis-floor="60000"
-            :window-seconds="60"
-            name="下载"
-            :label-formatter="speedLabelFormatter"
-            :tooltip-formatter="speedTooltipFormatter"
-          />
-        </div>
-        <div class="chart-footer">总量 {{ totalRxStr }}</div>
+        <div class="chart-footer">峰值 {{ txPeakStr }}</div>
       </div>
 
       <!-- CPU 使用率 -->
@@ -162,7 +196,7 @@ watch(hostPerf, (p) => {
             :tooltip-formatter="percentTooltipFormatter"
           />
         </div>
-        <div class="chart-footer">{{ cpuFooter }}</div>
+        <div class="chart-footer">{{ diskFooter || 'CPU 使用率' }}</div>
       </div>
 
       <!-- 内存使用率 -->
