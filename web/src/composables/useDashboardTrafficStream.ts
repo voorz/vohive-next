@@ -62,10 +62,23 @@ type TrafficEvent = {
   status: string
 }
 
+type HostPerf = {
+  cpu_percent: number
+  memory_percent: number
+  memory_used_bytes: number
+  memory_total_bytes: number
+  disk_percent: number
+  disk_used_bytes: number
+  disk_total_bytes: number
+  net_rx_bps: number
+  net_tx_bps: number
+}
+
 type OverviewEvent = {
   device_count: number
   online_count: number
   connection_count: number
+  host_perf?: HostPerf
 }
 
 // ---- composable ----
@@ -86,6 +99,7 @@ export type DashboardTrafficStreamReturn = {
   onlineCount: Ref<number>
   connectionCount: Ref<number>
   connected: Ref<boolean>
+  hostPerf: Ref<HostPerf | null>
 }
 
 export function useDashboardTrafficStream(): DashboardTrafficStreamReturn {
@@ -107,6 +121,7 @@ export function useDashboardTrafficStream(): DashboardTrafficStreamReturn {
   const ulSpeedParts = ref(splitBytes(0))
   const totalRxStr = ref('')
   const totalTxStr = ref('')
+  const hostPerf = ref<HostPerf | null>(null)
 
   let stream: ReturnType<typeof useEventStream<OverviewEvent>> | null = null
 
@@ -127,6 +142,9 @@ export function useDashboardTrafficStream(): DashboardTrafficStreamReturn {
     const ts = Date.now()
     connectionCount.value = data.connection_count
     connectionsHistory.value = pushHistory(connectionsHistory.value, ts, data.connection_count)
+    if (data.host_perf) {
+      hostPerf.value = data.host_perf
+    }
   }
 
   onMounted(() => {
@@ -175,5 +193,6 @@ export function useDashboardTrafficStream(): DashboardTrafficStreamReturn {
     onlineCount,
     connectionCount,
     connected,
+    hostPerf,
   }
 }

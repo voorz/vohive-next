@@ -405,8 +405,9 @@ const networkModeIcon = computed(() => {
             </div>
           </div>
         </div>
-        <!-- 第一行右侧：网络概览 -->
+        <!-- 第一行右侧：网络概览（数据就绪时显示） -->
         <ModuleNetworkOverview
+          v-if="device?.data_connected"
           :device="device"
           :traffic-speed-rx="trafficSpeedRx"
           :traffic-speed-tx="trafficSpeedTx"

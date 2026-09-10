@@ -160,10 +160,12 @@ func (s *Server) handleDashboardOverviewStream(c *gin.Context) {
 				}
 			}
 		}
+		perf := s.hostStats.perf()
 		c.SSEvent("overview", gin.H{
 			"device_count":     len(workers),
 			"online_count":     online,
 			"connection_count": connCount,
+			"host_perf":        perf,
 		})
 		c.Writer.Flush()
 	}

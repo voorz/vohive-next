@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import type { DeviceOverviewItem } from '../types/api'
-import { ChevronDown24Regular, Globe24Regular } from '@vicons/fluent'
-import { copyToClipboard } from '../utils/clipboard'
+import { Globe24Regular } from '@vicons/fluent'
 
 const props = defineProps<{
   device: DeviceOverviewItem | null
@@ -18,9 +17,6 @@ const networkPanelMessage = computed(() => {
   return ''
 })
 
-// 流量折叠
-const trafficExpanded = ref(false)
-
 const trafficStateLabel = computed(() => {
   const status = props.device?.traffic_meta?.status
   if (status === 'waiting_sample') return '等待采样'
@@ -30,20 +26,6 @@ const trafficStateLabel = computed(() => {
 
 const trafficRxDisplay = computed(() => props.trafficMinuteRx || props.device?.traffic?.rx || trafficStateLabel.value || '--')
 const trafficTxDisplay = computed(() => props.trafficMinuteTx || props.device?.traffic?.tx || trafficStateLabel.value || '--')
-const trafficRateDisplay = computed(() => props.trafficSpeedRx || props.device?.traffic?.rate || trafficStateLabel.value || '--')
-const trafficUploadRateDisplay = computed(() => props.trafficSpeedTx || trafficStateLabel.value || '--')
-
-const trafficSummary = computed(() => {
-  const rx = props.device?.traffic?.rx
-  const tx = props.device?.traffic?.tx
-  if (!rx && !tx) return ''
-  return `↓ ${rx || '--'} · ↑ ${tx || '--'}`
-})
-
-function copyVal(val: string | undefined) {
-  if (!val || val === '--') return
-  void copyToClipboard(val)
-}
 </script>
 
 <template>
@@ -74,60 +56,15 @@ function copyVal(val: string | undefined) {
           </div>
         </div>
 
-        <!-- IP 地址 -->
-        <div class="ip-rows">
-          <div v-if="device?.private_ip" class="ip-row">
-            <span class="ip-row-label">内网 <span class="ip-tag">IPv4</span></span>
-            <span class="ip-row-value copyable" @click="copyVal(device.private_ip)">{{ device.private_ip }}</span>
+        <!-- 近1分钟流量 -->
+        <div class="traffic-stats">
+          <div class="traffic-stat">
+            <div class="traffic-stat-label">近1分钟下载</div>
+            <div class="traffic-stat-value">{{ trafficRxDisplay }}</div>
           </div>
-          <div v-if="device?.public_ip" class="ip-row">
-            <span class="ip-row-label">外网 <span class="ip-tag">IPv4</span></span>
-            <span class="ip-row-value copyable" @click="copyVal(device.public_ip)">{{ device.public_ip }}</span>
-          </div>
-          <div v-if="device?.private_ipv6" class="ip-row">
-            <span class="ip-row-label">内网 <span class="ip-tag">IPv6</span></span>
-            <span class="ip-row-value copyable" @click="copyVal(device.private_ipv6)">{{ device.private_ipv6 }}</span>
-          </div>
-          <div v-if="device?.public_ipv6" class="ip-row">
-            <span class="ip-row-label">外网 <span class="ip-tag">IPv6</span></span>
-            <span class="ip-row-value copyable" @click="copyVal(device.public_ipv6)">{{ device.public_ipv6 }}</span>
-          </div>
-          <div v-if="device?.interface" class="ip-row">
-            <span class="ip-row-label">接口</span>
-            <span class="ip-row-value">{{ device.interface }}</span>
-          </div>
-        </div>
-
-        <!-- 流量折叠 -->
-        <div class="traffic-collapse">
-          <div class="traffic-header" @click="trafficExpanded = !trafficExpanded">
-            <div class="traffic-header-left">
-              <el-icon size="16" class="traffic-arrow" :class="{ expanded: trafficExpanded }">
-                <ChevronDown24Regular />
-              </el-icon>
-              <span class="traffic-header-title">流量分析</span>
-            </div>
-            <span v-if="trafficSummary" class="traffic-summary">{{ trafficSummary }}</span>
-          </div>
-          <div v-show="trafficExpanded" class="traffic-body">
-            <div class="traffic-stats">
-              <div class="traffic-stat">
-                <div class="traffic-stat-label">近1分钟下载</div>
-                <div class="traffic-stat-value">{{ trafficRxDisplay }}</div>
-              </div>
-              <div class="traffic-stat">
-                <div class="traffic-stat-label">近1分钟上传</div>
-                <div class="traffic-stat-value">{{ trafficTxDisplay }}</div>
-              </div>
-              <div class="traffic-stat">
-                <div class="traffic-stat-label">实时下载速率</div>
-                <div class="traffic-stat-value">{{ trafficRateDisplay }}</div>
-              </div>
-              <div class="traffic-stat">
-                <div class="traffic-stat-label">实时上传速率</div>
-                <div class="traffic-stat-value">{{ trafficUploadRateDisplay }}</div>
-              </div>
-            </div>
+          <div class="traffic-stat">
+            <div class="traffic-stat-label">近1分钟上传</div>
+            <div class="traffic-stat-value">{{ trafficTxDisplay }}</div>
           </div>
         </div>
       </template>
@@ -252,82 +189,7 @@ function copyVal(val: string | undefined) {
   background: var(--brand);
 }
 
-/* IP 行 */
-.ip-rows { display: flex; flex-direction: column; gap: 6px; }
-.ip-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--card);
-}
-.ip-row-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--muted-foreground);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.ip-tag {
-  padding: 1px 5px;
-  border-radius: 3px;
-  font-size: 9px;
-  font-weight: 700;
-  background: var(--muted);
-  color: var(--muted-foreground);
-}
-.ip-row-value {
-  font-size: 12px;
-  color: var(--foreground);
-  font-family: var(--oomol-font-mono);
-  text-align: right;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ip-row-value.copyable {
-  cursor: pointer;
-}
-.ip-row-value.copyable:hover {
-  color: var(--brand);
-}
-
-/* 流量折叠 */
-.traffic-collapse {
-  margin-top: 12px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  overflow: hidden;
-}
-.traffic-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  background: var(--muted);
-  cursor: pointer;
-  user-select: none;
-  transition: background 0.15s;
-}
-.traffic-header:hover { background: var(--accent); }
-.traffic-header-left { display: flex; align-items: center; gap: 8px; }
-.traffic-header-title {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--muted-foreground);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-.traffic-arrow { color: var(--muted-foreground); transition: transform 0.2s; }
-.traffic-arrow.expanded { transform: rotate(180deg); }
-.traffic-summary { font-size: 11px; color: var(--muted-foreground); font-family: var(--oomol-font-mono); }
-
-.traffic-body { padding: 14px; border-top: 1px solid var(--border); }
+/* 流量统计 */
 .traffic-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .traffic-stat {
   padding: 10px 12px;

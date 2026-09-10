@@ -2,9 +2,10 @@
 /**
  * DashboardChartsCard — Surge 风格实时流量监控卡片
  *
- * 照搬 zashboard ChartsCard 设计：3 卡片（上传/下载/连接数）
- * 每卡含 SparklineChart + 当前值 + 累计/概览。
+ * 4 卡片：上传 / 下载 / CPU / 内存
+ * 统一风格：标签 + 大数字 + SparklineChart + 底部信息
  */
+import { computed, ref, watch } from 'vue'
 import SparklineChart, { type ChartPoint } from './SparklineChart.vue'
 import { useDashboardTrafficStream } from '../composables/useDashboardTrafficStream'
 
@@ -15,10 +16,7 @@ const {
   totalTxStr,
   downloadSpeedHistory,
   uploadSpeedHistory,
-  connectionsHistory,
-  connectionCount,
-  onlineCount,
-  deviceCount,
+  hostPerf,
 } = useDashboardTrafficStream()
 
 // ---- tooltip/label formatters ----
@@ -48,18 +46,58 @@ function speedTooltipFormatter(params: unknown[]): string {
     .join('\n')
 }
 
-function connLabelFormatter(value: number): string {
-  return `${Math.round(value)}`
+function percentLabelFormatter(value: number): string {
+  return `${(value || 0).toFixed(1)}%`
 }
 
-function connTooltipFormatter(params: unknown[]): string {
+function percentTooltipFormatter(params: unknown[]): string {
   return (params as TooltipParam[])
     .map((item) => {
       const v = Array.isArray(item.value) ? item.value[1] : (item.value ?? 0)
-      return `${item.seriesName || ''}: ${Math.round(Number(v) || 0)}`
+      return `${item.seriesName || ''}: ${(Number(v) || 0).toFixed(1)}%`
     })
     .join('\n')
 }
+
+// ---- 宿主机数据 ----
+
+function formatBytes(bytes: number): string {
+  if (!bytes || bytes <= 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let val = Math.abs(bytes)
+  let i = 0
+  while (val >= 1024 && i < units.length - 1) { val /= 1024; i++ }
+  return `${val.toFixed(i === 0 ? 0 : 1)} ${units[i]}`
+}
+
+const cpuPercent = computed(() => hostPerf.value?.cpu_percent ?? 0)
+const memPercent = computed(() => hostPerf.value?.memory_percent ?? 0)
+const cpuFooter = computed(() => `使用率 ${cpuPercent.value.toFixed(1)}%`)
+const memFooter = computed(() => {
+  const p = hostPerf.value
+  if (!p || p.memory_total_bytes <= 0) return '--'
+  return `${formatBytes(p.memory_used_bytes)} / ${formatBytes(p.memory_total_bytes)}`
+})
+
+// CPU/内存历史滚动窗口
+const WINDOW = 62
+function makeInit(): ChartPoint[] {
+  const now = Date.now()
+  return new Array(WINDOW).fill(0).map((_, i) => ({
+    name: now - (WINDOW - 1 - i) * 10000,
+    value: [now - (WINDOW - 1 - i) * 10000, 0] as [number, number]
+  }))
+}
+
+const cpuHistory = ref<ChartPoint[]>(makeInit())
+const memHistory = ref<ChartPoint[]>(makeInit())
+
+watch(hostPerf, (p) => {
+  if (!p) return
+  const ts = Date.now()
+  cpuHistory.value = [...cpuHistory.value.slice(-WINDOW + 1), { name: ts, value: [ts, p.cpu_percent] }]
+  memHistory.value = [...memHistory.value.slice(-WINDOW + 1), { name: ts, value: [ts, p.memory_percent] }]
+})
 </script>
 
 <template>
@@ -106,29 +144,46 @@ function connTooltipFormatter(params: unknown[]): string {
         <div class="chart-footer">总量 {{ totalRxStr }}</div>
       </div>
 
-      <!-- 活跃连接数 -->
-      <div class="chart-cell chart-cell-conn">
-        <div class="chart-label">
-          连接
-          <span class="chart-dot" />
-        </div>
+      <!-- CPU 使用率 -->
+      <div class="chart-cell">
+        <div class="chart-label">CPU</div>
         <div class="chart-value-row">
-          <span class="chart-value-num">{{ connectionCount }}</span>
+          <span class="chart-value-num">{{ cpuPercent.toFixed(1) }}</span>
+          <span class="chart-value-unit">%</span>
         </div>
         <div class="chart-sparkline">
           <SparklineChart
-            :data="connectionsHistory as ChartPoint[]"
+            :data="cpuHistory as ChartPoint[]"
             :y-axis-floor="10"
             :window-seconds="60"
-            name="连接"
-            :label-formatter="connLabelFormatter"
-            :tooltip-formatter="connTooltipFormatter"
+            color="primary"
+            name="CPU"
+            :label-formatter="percentLabelFormatter"
+            :tooltip-formatter="percentTooltipFormatter"
           />
         </div>
-        <div class="chart-footer">
-          <span>在线 {{ onlineCount }}</span>
-          <span>设备 {{ deviceCount }}</span>
+        <div class="chart-footer">{{ cpuFooter }}</div>
+      </div>
+
+      <!-- 内存使用率 -->
+      <div class="chart-cell">
+        <div class="chart-label">内存</div>
+        <div class="chart-value-row">
+          <span class="chart-value-num">{{ memPercent.toFixed(1) }}</span>
+          <span class="chart-value-unit">%</span>
         </div>
+        <div class="chart-sparkline">
+          <SparklineChart
+            :data="memHistory as ChartPoint[]"
+            :y-axis-floor="10"
+            :window-seconds="60"
+            color="info"
+            name="内存"
+            :label-formatter="percentLabelFormatter"
+            :tooltip-formatter="percentTooltipFormatter"
+          />
+        </div>
+        <div class="chart-footer">{{ memFooter }}</div>
       </div>
     </div>
   </div>
@@ -160,10 +215,6 @@ function connTooltipFormatter(params: unknown[]): string {
   overflow: hidden;
 }
 
-.chart-cell-conn {
-  grid-column: span 2;
-}
-
 .chart-label {
   font-size: 11px;
   font-weight: 600;
@@ -173,14 +224,6 @@ function connTooltipFormatter(params: unknown[]): string {
   display: flex;
   align-items: center;
   gap: 6px;
-}
-
-.chart-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--brand);
-  display: inline-block;
 }
 
 .chart-value-row {
@@ -218,14 +261,10 @@ function connTooltipFormatter(params: unknown[]): string {
   gap: 8px;
 }
 
-/* 宽屏 3 列 */
+/* 宽屏 4 列 */
 @container (min-width: 768px) {
   .charts-card-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .chart-cell-conn {
-    grid-column: span 1;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -233,10 +272,6 @@ function connTooltipFormatter(params: unknown[]): string {
 @container (max-width: 480px) {
   .charts-card-grid {
     grid-template-columns: 1fr;
-  }
-
-  .chart-cell-conn {
-    grid-column: span 1;
   }
 
   .chart-cell {

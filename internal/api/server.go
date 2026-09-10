@@ -93,6 +93,8 @@ type Server struct {
 	smsLimiterMu sync.Mutex
 	smsLimiter   *smsRateLimiter
 
+	hostStats *hostStatsSampler
+
 	shutdownCh chan struct{}
 }
 
@@ -134,6 +136,7 @@ func New(cfg *config.Config, pool *device.Pool, fs http.FileSystem, proxyMgr *se
 		websheets:     vwebsheet.New(vwebsheet.Config{BasePath: "/api/websheets"}),
 		loginAttempts: make(map[string]loginAttempt),
 		smsLimiter:    newSMSRateLimiter(time.Now(), time.Now),
+		hostStats:     newHostStatsSampler(),
 		shutdownCh:    make(chan struct{}),
 	}
 
