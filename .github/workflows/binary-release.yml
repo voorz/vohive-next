@@ -197,7 +197,7 @@ jobs:
             echo "| Architecture | Platform | File |"
             echo "|------|---------|------|"
             echo "| amd64 | WSL / x86_64 Linux | \`vohive_v${VERSION}_linux_amd64\` |"
-            echo "| arm64 | OpenWrt aarch64 / ARM64 Linux | \`vohive_v${VERSION}_linux_arm64\` |"
+            echo "| arm64 | ARMv8 / AArch64 / OpenWrt aarch64 Linux | \`vohive_v${VERSION}_linux_arm64\` |"
             echo "| armv7 | OpenWrt armv7 / Embedded devices | \`vohive_v${VERSION}_linux_armv7\` |"
             echo ""
             echo "## Docker"
