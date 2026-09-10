@@ -23,6 +23,8 @@ const props = defineProps<{
   trafficSpeedTx?: string
   trafficMinuteRx?: string
   trafficMinuteTx?: string
+  downloadSpeedHistory?: { name: number; value: [number, number] }[]
+  uploadSpeedHistory?: { name: number; value: [number, number] }[]
 }>()
 
 const emit = defineEmits<{
@@ -367,11 +369,11 @@ const networkModeIcon = computed(() => {
               <el-icon size="16"><Settings24Regular /></el-icon>
             </button>
           </div>
-          <div v-if="hasValidSignalDbm(device?.modem?.signal_dbm)" class="hero-divider" :class="cellularHeroTone"></div>
-          <div v-if="hasValidSignalDbm(device?.modem?.signal_dbm)" class="hero-bottom signal-area">
+          <div class="hero-divider" :class="cellularHeroTone"></div>
+          <div class="hero-bottom signal-area">
             <div class="signal-left">
               <div class="signal-dbz">
-                <span class="signal-dbz-value" :class="signalTone">{{ device?.modem?.signal_dbm }}</span>
+                <span class="signal-dbz-value" :class="signalTone">{{ hasValidSignalDbm(device?.modem?.signal_dbm) ? device?.modem?.signal_dbm : 'NA' }}</span>
                 <span class="signal-dbz-unit">dBm</span>
               </div>
               <div class="signal-detail">
@@ -408,8 +410,8 @@ const networkModeIcon = computed(() => {
           :device="device"
           :traffic-speed-rx="trafficSpeedRx"
           :traffic-speed-tx="trafficSpeedTx"
-          :traffic-minute-rx="trafficMinuteRx"
-          :traffic-minute-tx="trafficMinuteTx"
+          :download-speed-history="downloadSpeedHistory"
+          :upload-speed-history="uploadSpeedHistory"
         />
         </div>
         <!-- 第二行：Activity + SIM卡管理（并排） -->

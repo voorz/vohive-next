@@ -234,7 +234,7 @@ function onDeviceDeleted() {
 }
 
 // ---- SSE Overview Stream + 实时流量 ----
-const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = useOverviewStream({
+const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx, downloadSpeedHistory, uploadSpeedHistory } = useOverviewStream({
   deviceId: () => props.selectedId,
   detail,
 })
@@ -335,6 +335,8 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx } = use
             :traffic-speed-tx="trafficSpeedTx"
             :traffic-minute-rx="rollingMinuteRx"
             :traffic-minute-tx="rollingMinuteTx"
+            :download-speed-history="downloadSpeedHistory"
+            :upload-speed-history="uploadSpeedHistory"
             :is-p-c-s-c="isPCSC"
             :reconnecting-vo-wi-fi="reconnectingVoWiFi"
             :rotating="rotating"

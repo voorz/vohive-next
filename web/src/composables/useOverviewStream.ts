@@ -8,6 +8,7 @@
 import { ref, watch, onMounted, onBeforeUnmount, type Ref } from 'vue'
 import type { DeviceOverviewItem, RealtimeTrafficSnapshot } from '../types/api'
 import { useEventStream } from './useEventStream'
+import type { ChartPoint } from '../components/SparklineChart.vue'
 
 // ---- 格式化工具 ----
 
@@ -35,6 +36,25 @@ type RollingTrafficSample = { at: number; rxBytes: number; txBytes: number }
 
 const REALTIME_TRAFFIC_WINDOW_MS = 60_000
 
+// ---- 速率历史序列 ----
+
+const WINDOW_SECONDS = 60
+const BUFFER_POINTS = 2
+const SAVED_POINTS = WINDOW_SECONDS + BUFFER_POINTS
+
+function makeInitHistory(): ChartPoint[] {
+  const now = Date.now()
+  return new Array(SAVED_POINTS).fill(0).map((_, i) => {
+    const ts = now - (SAVED_POINTS - 1 - i) * 1000
+    return { name: ts, value: [ts, 0] as [number, number] }
+  })
+}
+
+function pushHistory(history: ChartPoint[], timestamp: number, value: number): ChartPoint[] {
+  history.push({ name: timestamp, value: [timestamp, value] })
+  return history.slice(-SAVED_POINTS)
+}
+
 // ---- composable ----
 
 export type UseOverviewStreamOptions = {
@@ -49,6 +69,8 @@ export type OverviewStreamReturn = {
   trafficSpeedTx: Ref<string>
   rollingMinuteRx: Ref<string>
   rollingMinuteTx: Ref<string>
+  downloadSpeedHistory: Ref<ChartPoint[]>
+  uploadSpeedHistory: Ref<ChartPoint[]>
 }
 
 export function useOverviewStream(options: UseOverviewStreamOptions): OverviewStreamReturn {
@@ -59,6 +81,8 @@ export function useOverviewStream(options: UseOverviewStreamOptions): OverviewSt
   const rollingMinuteRx = ref('')
   const rollingMinuteTx = ref('')
   const realtimeTrafficActiveUntil = ref(0)
+  const downloadSpeedHistory = ref(makeInitHistory())
+  const uploadSpeedHistory = ref(makeInitHistory())
 
   let rollingTrafficWindow: RollingTrafficSample[] = []
 
@@ -68,6 +92,8 @@ export function useOverviewStream(options: UseOverviewStreamOptions): OverviewSt
     rollingTrafficWindow = []
     rollingMinuteRx.value = ''
     rollingMinuteTx.value = ''
+    downloadSpeedHistory.value = makeInitHistory()
+    uploadSpeedHistory.value = makeInitHistory()
   }
 
   function setRollingTrafficWindowStatus(value: string) {
@@ -119,9 +145,14 @@ export function useOverviewStream(options: UseOverviewStreamOptions): OverviewSt
     if (!data || data.device_id !== id) return
     realtimeTrafficActiveUntil.value = Date.now() + 2500
     if (data.status === 'ok') {
-      trafficSpeedRx.value = formatBytesPerSecond(Math.max(0, Number(data.rx_bps) || 0))
-      trafficSpeedTx.value = formatBytesPerSecond(Math.max(0, Number(data.tx_bps) || 0))
+      const rxBps = Math.max(0, Number(data.rx_bps) || 0)
+      const txBps = Math.max(0, Number(data.tx_bps) || 0)
+      trafficSpeedRx.value = formatBytesPerSecond(rxBps)
+      trafficSpeedTx.value = formatBytesPerSecond(txBps)
       updateRollingTrafficWindow(data.rx_delta_bytes, data.tx_delta_bytes)
+      const ts = Date.now()
+      downloadSpeedHistory.value = pushHistory(downloadSpeedHistory.value, ts, rxBps)
+      uploadSpeedHistory.value = pushHistory(uploadSpeedHistory.value, ts, txBps)
       return
     }
     if (data.status === 'waiting_sample') {
@@ -193,5 +224,7 @@ export function useOverviewStream(options: UseOverviewStreamOptions): OverviewSt
     trafficSpeedTx,
     rollingMinuteRx,
     rollingMinuteTx,
+    downloadSpeedHistory,
+    uploadSpeedHistory,
   }
 }

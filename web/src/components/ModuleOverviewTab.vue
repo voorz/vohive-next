@@ -3,6 +3,7 @@ import type { DeviceOverviewItem, CardPolicy } from '../types/api'
 import ModuleOverviewStatus from './ModuleOverviewStatus.vue'
 import ModuleOverviewDevice from './ModuleOverviewDevice.vue'
 import ModuleOverviewNetwork from './ModuleOverviewNetwork.vue'
+import type { ChartPoint } from './SparklineChart.vue'
 
 defineProps<{
   device: DeviceOverviewItem | null
@@ -12,6 +13,8 @@ defineProps<{
   trafficSpeedTx?: string
   trafficMinuteRx?: string
   trafficMinuteTx?: string
+  downloadSpeedHistory?: ChartPoint[]
+  uploadSpeedHistory?: ChartPoint[]
   isPCSC?: boolean
   reconnectingVoWiFi?: boolean
   rotating?: boolean
@@ -30,6 +33,10 @@ defineEmits<{
       :device="device"
       :reconnecting-vo-wi-fi="reconnectingVoWiFi"
       :rotating="rotating"
+      :traffic-speed-rx="trafficSpeedRx"
+      :traffic-speed-tx="trafficSpeedTx"
+      :download-speed-history="downloadSpeedHistory"
+      :upload-speed-history="uploadSpeedHistory"
       @reconnect-vowifi="$emit('reconnect-vowifi')"
       @rotate-ip="$emit('rotate-ip')"
     />
@@ -39,8 +46,8 @@ defineEmits<{
       :device="device"
       :traffic-speed-rx="trafficSpeedRx"
       :traffic-speed-tx="trafficSpeedTx"
-      :traffic-minute-rx="trafficMinuteRx"
-      :traffic-minute-tx="trafficMinuteTx"
+      :download-speed-history="downloadSpeedHistory"
+      :upload-speed-history="uploadSpeedHistory"
     />
   </div>
 </template>
