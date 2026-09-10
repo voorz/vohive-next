@@ -87,7 +87,7 @@ const {
       <div class="terminal-icon-box">
         <el-icon size="14"><Sim24Regular /></el-icon>
       </div>
-      <div class="terminal-header-title">系统控制</div>
+      <div class="terminal-header-title">策略管理</div>
     </div>
 
     <!-- 内容区 -->

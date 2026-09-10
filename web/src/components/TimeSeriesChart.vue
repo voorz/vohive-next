@@ -122,7 +122,7 @@ function buildOption() {
     },
     yAxis: {
       type: 'value',
-      splitNumber: 5,
+      splitNumber: 4,
       min: 0,
       max: props.yAxisFloor === undefined
         ? undefined

@@ -69,6 +69,8 @@ export type OverviewStreamReturn = {
   trafficSpeedTx: Ref<string>
   rollingMinuteRx: Ref<string>
   rollingMinuteTx: Ref<string>
+  rollingMinuteRxBytes: Ref<number>
+  rollingMinuteTxBytes: Ref<number>
   downloadSpeedHistory: Ref<ChartPoint[]>
   uploadSpeedHistory: Ref<ChartPoint[]>
 }
@@ -80,6 +82,8 @@ export function useOverviewStream(options: UseOverviewStreamOptions): OverviewSt
   const trafficSpeedTx = ref('')
   const rollingMinuteRx = ref('')
   const rollingMinuteTx = ref('')
+  const rollingMinuteRxBytes = ref(0)
+  const rollingMinuteTxBytes = ref(0)
   const realtimeTrafficActiveUntil = ref(0)
   const downloadSpeedHistory = ref(makeInitHistory())
   const uploadSpeedHistory = ref(makeInitHistory())
@@ -92,6 +96,15 @@ export function useOverviewStream(options: UseOverviewStreamOptions): OverviewSt
     rollingTrafficWindow = []
     rollingMinuteRx.value = ''
     rollingMinuteTx.value = ''
+    rollingMinuteRxBytes.value = 0
+    rollingMinuteTxBytes.value = 0
+    downloadSpeedHistory.value = makeInitHistory()
+    uploadSpeedHistory.value = makeInitHistory()
+  }
+
+  function resetTrafficSpeedOnly() {
+    trafficSpeedRx.value = ''
+    trafficSpeedTx.value = ''
     downloadSpeedHistory.value = makeInitHistory()
     uploadSpeedHistory.value = makeInitHistory()
   }
@@ -100,6 +113,8 @@ export function useOverviewStream(options: UseOverviewStreamOptions): OverviewSt
     rollingTrafficWindow = []
     rollingMinuteRx.value = value
     rollingMinuteTx.value = value
+    rollingMinuteRxBytes.value = 0
+    rollingMinuteTxBytes.value = 0
   }
 
   function updateRollingTrafficWindow(rxDeltaBytes: unknown, txDeltaBytes: unknown, at = Date.now()) {
@@ -118,6 +133,8 @@ export function useOverviewStream(options: UseOverviewStreamOptions): OverviewSt
     }
     rollingMinuteRx.value = formatBytes(rxBytes)
     rollingMinuteTx.value = formatBytes(txBytes)
+    rollingMinuteRxBytes.value = rxBytes
+    rollingMinuteTxBytes.value = txBytes
   }
 
   // ---- 流量速度计算 ----
@@ -125,8 +142,6 @@ export function useOverviewStream(options: UseOverviewStreamOptions): OverviewSt
   function updateTrafficSpeedFromDetail() {
     const d = detail.value
     if (!d || !d.network_connected || !d.traffic_raw || d.traffic_meta?.status !== 'ok') {
-      trafficSpeedRx.value = ''
-      trafficSpeedTx.value = ''
       resetRollingTrafficWindow()
       return
     }
@@ -135,7 +150,7 @@ export function useOverviewStream(options: UseOverviewStreamOptions): OverviewSt
     const tx = Number(d.traffic_raw?.bytes_sent ?? 0)
     trafficSpeedRx.value = formatBytesPerSecond(Math.max(0, rx) / 60)
     trafficSpeedTx.value = formatBytesPerSecond(Math.max(0, tx) / 60)
-    resetRollingTrafficWindow()
+    resetTrafficSpeedOnly()
   }
 
   // ---- SSE 事件处理 ----
@@ -224,6 +239,8 @@ export function useOverviewStream(options: UseOverviewStreamOptions): OverviewSt
     trafficSpeedTx,
     rollingMinuteRx,
     rollingMinuteTx,
+    rollingMinuteRxBytes,
+    rollingMinuteTxBytes,
     downloadSpeedHistory,
     uploadSpeedHistory,
   }

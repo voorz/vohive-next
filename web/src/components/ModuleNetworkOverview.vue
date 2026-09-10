@@ -15,7 +15,21 @@ const props = defineProps<{
   uploadSpeedHistory?: ChartPoint[]
   trafficSpeedRx?: string
   trafficSpeedTx?: string
+  trafficMinuteRxBytes?: number
+  trafficMinuteTxBytes?: number
 }>()
+
+const hasIp = computed(() => !!props.device?.public_ip || !!props.device?.public_ipv6)
+
+function bytesToMB(bytes: number): string {
+  return (bytes / 1048576).toFixed(1)
+}
+const minuteRateText = computed(() => {
+  const rx = props.trafficMinuteRxBytes ?? 0
+  const tx = props.trafficMinuteTxBytes ?? 0
+  if (rx === 0 && tx === 0) return ''
+  return `↓ ${bytesToMB(rx)} ↑ ${bytesToMB(tx)} /m`
+})
 
 const chartsData = computed<ChartSeries[]>(() => [
   {
@@ -61,6 +75,19 @@ function tooltipFormatter(params: ChartTooltipParam[]): string {
 
 <template>
   <div class="network-overview-card">
+    <div v-if="hasIp || minuteRateText" class="net-ov-ip-bar">
+      <span v-if="device?.public_ip" class="net-ov-ip-item">
+        <el-tag size="small" type="info" effect="light" round>IPv4</el-tag>
+        <span class="net-ov-ip-addr">{{ device.public_ip }}</span>
+      </span>
+      <span v-if="device?.public_ipv6" class="net-ov-ip-item">
+        <el-tag size="small" type="info" effect="light" round>IPv6</el-tag>
+        <span class="net-ov-ip-addr">{{ device.public_ipv6 }}</span>
+      </span>
+      <el-tooltip v-if="minuteRateText" content="最近一分钟" placement="bottom">
+        <span class="net-ov-minute-rate">{{ minuteRateText }}</span>
+      </el-tooltip>
+    </div>
     <div class="net-ov-chart">
       <TimeSeriesChart
         :data="chartsData"
@@ -84,6 +111,43 @@ function tooltipFormatter(params: ChartTooltipParam[]): string {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+.net-ov-ip-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  overflow: hidden;
+}
+.net-ov-ip-bar :deep(.el-tag) {
+  height: 16px;
+  line-height: 14px;
+  padding: 0 6px;
+  font-size: 11px;
+}
+.net-ov-ip-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.net-ov-ip-addr {
+  font-size: 11px;
+  color: var(--foreground);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.net-ov-minute-rate {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted-foreground);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  flex-shrink: 0;
+  cursor: default;
 }
 .net-ov-chart {
   flex: 1;

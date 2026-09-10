@@ -420,14 +420,6 @@ html.dark .el-radio-button .el-radio-button__original-radio:checked + .el-radio-
   color: var(--background) !important;
 }
 
-/* 统一 el-select / el-tag 与 el-input 的尺寸 */
-.el-tag {
-  font-size: 14px;
-  height: 28px;
-  line-height: 26px;
-  padding: 0 8px;
-}
-
 /* 暗色模式：checkbox 选中时背景为浅色，✓ 需改为深色 */
 html.dark .el-checkbox.is-checked .el-checkbox__inner,
 html.dark .el-checkbox.is-checked .el-checkbox__input.is-checked .el-checkbox__inner {

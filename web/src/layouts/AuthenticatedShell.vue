@@ -126,7 +126,7 @@ async function handleRestart() {
     title: '重启服务',
     message: () => h('div', { style: 'display:flex;flex-direction:column;gap:12px' }, [
       h('div', { style: 'color:var(--el-text-color-regular);font-size:14px;line-height:1.6' },
-        '将重启 vohive 服务，期间页面将短暂不可用。\n请输入 REST 确认操作。'
+        '将重启服务，期间页面将短暂不可用。\n请输入 REST 确认操作。'
       ),
       h(ElInput, {
         modelValue: confirmValue.value,
@@ -177,7 +177,7 @@ async function handleStop() {
     title: '停止服务',
     message: () => h('div', { style: 'display:flex;flex-direction:column;gap:12px' }, [
       h('div', { style: 'color:var(--el-text-color-regular);font-size:14px;line-height:1.6' },
-        '将停止 vohive 服务，停止后页面将不可访问。\n请输入 OFF 确认操作。'
+        '将停止服务，停止后页面将不可访问。\n请输入 OFF 确认操作。'
       ),
       h(ElInput, {
         modelValue: confirmValue.value,

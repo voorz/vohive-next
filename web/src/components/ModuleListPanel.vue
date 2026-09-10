@@ -393,7 +393,7 @@ function readinessItems(d: DeviceMgmtListItem) {
 
 /* ===== 选中状态 ===== */
 .vohive-rattlesnake-parent.selected .vohive-rattlesnake-card {
-border-color: #00bc7d;
+border-color: rgba(0, 188, 125, 0.6);
 }
 
 /* ===== 状态背景色 (仅两种：品牌色/素色) ===== */
@@ -407,7 +407,7 @@ border-color: #00bc7d;
 
 /* ===== 选中时 card border 加强 ===== */
 .vohive-rattlesnake-parent.tone-brand.selected .vohive-rattlesnake-card {
-  border-color: #00bc7d;
+  border-color: rgba(0, 188, 125, 0.6);
 }
 
 .vohive-rattlesnake-parent.tone-neutral.selected .vohive-rattlesnake-card {

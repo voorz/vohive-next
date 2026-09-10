@@ -2,7 +2,6 @@
 import type { DeviceOverviewItem, CardPolicy } from '../types/api'
 import ModuleOverviewStatus from './ModuleOverviewStatus.vue'
 import ModuleOverviewDevice from './ModuleOverviewDevice.vue'
-import ModuleOverviewNetwork from './ModuleOverviewNetwork.vue'
 import type { ChartPoint } from './SparklineChart.vue'
 
 defineProps<{
@@ -13,6 +12,8 @@ defineProps<{
   trafficSpeedTx?: string
   trafficMinuteRx?: string
   trafficMinuteTx?: string
+  trafficMinuteRxBytes?: number
+  trafficMinuteTxBytes?: number
   downloadSpeedHistory?: ChartPoint[]
   uploadSpeedHistory?: ChartPoint[]
   isPCSC?: boolean
@@ -35,20 +36,16 @@ defineEmits<{
       :rotating="rotating"
       :traffic-speed-rx="trafficSpeedRx"
       :traffic-speed-tx="trafficSpeedTx"
+      :traffic-minute-rx="trafficMinuteRx"
+      :traffic-minute-tx="trafficMinuteTx"
+      :traffic-minute-rx-bytes="trafficMinuteRxBytes"
+      :traffic-minute-tx-bytes="trafficMinuteTxBytes"
       :download-speed-history="downloadSpeedHistory"
       :upload-speed-history="uploadSpeedHistory"
       @reconnect-vowifi="$emit('reconnect-vowifi')"
       @rotate-ip="$emit('rotate-ip')"
     />
     <ModuleOverviewDevice :device="device" :is-p-c-s-c="isPCSC" />
-    <ModuleOverviewNetwork
-      v-if="!isPCSC && !device?.vowifi_enabled && device?.data_connected"
-      :device="device"
-      :traffic-speed-rx="trafficSpeedRx"
-      :traffic-speed-tx="trafficSpeedTx"
-      :download-speed-history="downloadSpeedHistory"
-      :upload-speed-history="uploadSpeedHistory"
-    />
   </div>
 </template>
 

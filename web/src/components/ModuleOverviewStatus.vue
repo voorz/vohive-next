@@ -23,6 +23,8 @@ const props = defineProps<{
   trafficSpeedTx?: string
   trafficMinuteRx?: string
   trafficMinuteTx?: string
+  trafficMinuteRxBytes?: number
+  trafficMinuteTxBytes?: number
   downloadSpeedHistory?: { name: number; value: [number, number] }[]
   uploadSpeedHistory?: { name: number; value: [number, number] }[]
 }>()
@@ -411,6 +413,8 @@ const networkModeIcon = computed(() => {
           :device="device"
           :traffic-speed-rx="trafficSpeedRx"
           :traffic-speed-tx="trafficSpeedTx"
+          :traffic-minute-rx-bytes="trafficMinuteRxBytes"
+          :traffic-minute-tx-bytes="trafficMinuteTxBytes"
           :download-speed-history="downloadSpeedHistory"
           :upload-speed-history="uploadSpeedHistory"
         />
