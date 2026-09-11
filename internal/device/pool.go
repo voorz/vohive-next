@@ -186,6 +186,12 @@ type Pool struct {
 	cancel                    context.CancelFunc
 	dataConnectHandlersMu     sync.RWMutex
 	dataConnectHandlers       []func(deviceID string)
+	dataDisconnectHandlersMu  sync.RWMutex
+	dataDisconnectHandlers    []func(deviceID string)
+	esimSwitchCompleteHandlersMu sync.RWMutex
+	esimSwitchCompleteHandlers   []func(deviceID, newICCID string)
+	proxyClearFromModemHandlersMu sync.RWMutex
+	proxyClearFromModemHandlers   []func(deviceID, oldICCID, newICCID string)
 	rescanAndReconnectForTest func() error
 
 	// discoveryEventSubscribers 用于热插拔事件通知 SSE 流。
@@ -277,6 +283,79 @@ func (p *Pool) notifyDataConnected(deviceID string) {
 	for _, handler := range handlers {
 		h := handler
 		go h(deviceID)
+	}
+}
+
+// OnDataDisconnected 注册数据断开回调 handler。
+func (p *Pool) OnDataDisconnected(handler func(deviceID string)) {
+	if p == nil || handler == nil {
+		return
+	}
+	p.dataDisconnectHandlersMu.Lock()
+	p.dataDisconnectHandlers = append(p.dataDisconnectHandlers, handler)
+	p.dataDisconnectHandlersMu.Unlock()
+}
+
+func (p *Pool) notifyDataDisconnected(deviceID string) {
+	if p == nil {
+		return
+	}
+	p.dataDisconnectHandlersMu.RLock()
+	handlers := append([]func(string){}, p.dataDisconnectHandlers...)
+	p.dataDisconnectHandlersMu.RUnlock()
+	for _, handler := range handlers {
+		h := handler
+		go h(deviceID)
+	}
+}
+
+// OnESIMSwitchComplete 注册 eSIM 切卡完成回调 handler。
+// handler 接收 deviceID 和新 ICCID（可能为空）。
+func (p *Pool) OnESIMSwitchComplete(handler func(deviceID, newICCID string)) {
+	if p == nil || handler == nil {
+		return
+	}
+	p.esimSwitchCompleteHandlersMu.Lock()
+	p.esimSwitchCompleteHandlers = append(p.esimSwitchCompleteHandlers, handler)
+	p.esimSwitchCompleteHandlersMu.Unlock()
+}
+
+func (p *Pool) notifyESIMSwitchComplete(deviceID, newICCID string) {
+	if p == nil {
+		return
+	}
+	p.esimSwitchCompleteHandlersMu.RLock()
+	handlers := append([]func(string, string){}, p.esimSwitchCompleteHandlers...)
+	p.esimSwitchCompleteHandlersMu.RUnlock()
+	for _, handler := range handlers {
+		h := handler
+		go h(deviceID, newICCID)
+	}
+}
+
+// OnProxyClearFromModem 注册切卡后代理清理回调 handler。
+// handler 接收 deviceID、旧 ICCID 和新 ICCID。
+// 当切卡完成（无论后续走 done/degraded/failed），都会异步触发此回调，
+// 由代理池系统扫描并清理匹配旧身份的出站代理和前置代理实例。
+func (p *Pool) OnProxyClearFromModem(handler func(deviceID, oldICCID, newICCID string)) {
+	if p == nil || handler == nil {
+		return
+	}
+	p.proxyClearFromModemHandlersMu.Lock()
+	p.proxyClearFromModemHandlers = append(p.proxyClearFromModemHandlers, handler)
+	p.proxyClearFromModemHandlersMu.Unlock()
+}
+
+func (p *Pool) notifyProxyClearFromModem(deviceID, oldICCID, newICCID string) {
+	if p == nil {
+		return
+	}
+	p.proxyClearFromModemHandlersMu.RLock()
+	handlers := append([]func(string, string, string){}, p.proxyClearFromModemHandlers...)
+	p.proxyClearFromModemHandlersMu.RUnlock()
+	for _, handler := range handlers {
+		h := handler
+		go h(deviceID, oldICCID, newICCID)
 	}
 }
 
@@ -1312,7 +1391,11 @@ func (p *Pool) applyNetworkPreference(worker *Worker) error {
 		worker.clearCachedIP()
 		return nil
 	}
-	return worker.StopNetwork()
+	if err := worker.StopNetwork(); err != nil {
+		return err
+	}
+	p.notifyDataDisconnected(worker.ID)
+	return nil
 }
 
 type existingQMIDataConnectionResetter interface {
@@ -2105,18 +2188,6 @@ func newESIMManagerForWorker(
 		}
 	}
 
-	// cardAbsentCheck: only injected when QMICore is available (QMI/MBIM mode).
-	// Uses IsCardAbsent() which queries UIM slot physical status, more reliable
-	// than GetSIMStatus() because some modems report SIMBlocked instead of
-	// SIMAbsent when no card is inserted.
-	// In PC/SC and AT modes, CardAbsentCheck stays nil and the full AID scan runs normally.
-	var cardAbsentCheck func() bool
-	if w.QMICore != nil {
-		cardAbsentCheck = func() bool {
-			return w.QMICore.IsCardAbsent()
-		}
-	}
-
 	mgr, err := esim.NewManager(esim.ManagerOptions{
 		DeviceID:             w.Config.ID,
 		Transport:            resolveESIMTransport(w.Config, qmiTransport != nil),
@@ -2133,7 +2204,6 @@ func newESIMManagerForWorker(
 		PostSwitchMinDelay:   defaultESIMPostSwitchMinDelay,
 		SwitchUseRefreshTrue: w.Config.ESIMSwitch.UseRefreshTrue,
 		OnOverviewUpdated:    w.Pool.onEUICCOverviewUpdated,
-		CardAbsentCheck:      cardAbsentCheck,
 	})
 	if err != nil {
 		return nil, err

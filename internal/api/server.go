@@ -141,6 +141,7 @@ func New(cfg *config.Config, pool *device.Pool, fs http.FileSystem, proxyMgr *se
 	}
 
 	s.initMCP()
+	s.RegisterOutboundProxyHandlers()
 
 	return s
 }
@@ -432,6 +433,13 @@ func (s *Server) newRouter() *gin.Engine {
 		api.GET("/upstream-proxy-country-rules", s.handleListUpstreamProxyCountryRules)                   // 列出国家规则
 		api.PUT("/upstream-proxy-country-rules/:country_code", s.handleUpsertUpstreamProxyCountryRule)    // 保存国家规则
 		api.DELETE("/upstream-proxy-country-rules/:country_code", s.handleDeleteUpstreamProxyCountryRule) // 删除国家规则
+
+		// ===== 出站代理 =====
+		api.POST("/devices/:device_id/outbound-proxy/enable", s.handleOutboundProxyEnable)           // 开启出站代理
+		api.POST("/devices/:device_id/outbound-proxy/disable", s.handleOutboundProxyDisable)         // 关闭出站代理
+		api.GET("/devices/:device_id/outbound-proxy", s.handleOutboundProxyStatus)                   // 查询出站代理状态
+		api.POST("/devices/:device_id/outbound-proxy/expose-upstream", s.handleOutboundProxyExposeUpstream)       // 暴露为前置代理
+		api.POST("/devices/:device_id/outbound-proxy/unexpose-upstream", s.handleOutboundProxyUnexposeUpstream)   // 取消暴露前置代理
 
 		// ===== eSIM =====
 		api.GET("/devices/:device_id/esim", s.handleEsimGetOverview) // 获取 eSIM 总览

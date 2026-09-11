@@ -18,12 +18,15 @@ type UpstreamProxy struct {
 	Username  string    `json:"username"`           // 可选鉴权用户名
 	Password  string    `json:"password,omitempty"` // 可选鉴权密码
 	Enabled   bool      `json:"enabled"`            // 是否启用
+	Source    string    `gorm:"default:'Manual'" json:"source"`     // 来源：Manual（用户手动添加）/ Auto（出站代理自动创建）
+	IdentityID string   `gorm:"index" json:"identity_id,omitempty"` // 身份标识：Auto 时为 ICCID；Manual 时为空
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
 	// 持久化的 lookup 结果（由 /lookup 接口写入）
 	LookupIP           string `gorm:"column:lookup_ip" json:"lookup_ip,omitempty"`
 	LookupCountry      string `gorm:"column:lookup_country" json:"lookup_country,omitempty"`
+	LookupCountryCode  string `gorm:"column:lookup_country_code" json:"lookup_country_code,omitempty"` // ISO 2 字母代码
 	LookupRegion       string `gorm:"column:lookup_region" json:"lookup_region,omitempty"`
 	LookupCity         string `gorm:"column:lookup_city" json:"lookup_city,omitempty"`
 	LookupASN          string `gorm:"column:lookup_asn" json:"lookup_asn,omitempty"`
@@ -84,12 +87,49 @@ func UpsertUpstreamProxy(p UpstreamProxy) error {
 	return DB.Save(&p).Error
 }
 
+// GetAutoUpstreamProxyByIdentity 查询指定身份（ICCID）的自动创建的前置代理
+func GetAutoUpstreamProxyByIdentity(identityID string) (*UpstreamProxy, error) {
+	identityID = strings.TrimSpace(identityID)
+	if identityID == "" {
+		return nil, nil
+	}
+	var out UpstreamProxy
+	err := DB.First(&out, "source = ? AND identity_id = ?", "Auto", identityID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteAutoUpstreamProxyByIdentity 删除指定身份（ICCID）的自动创建的前置代理
+func DeleteAutoUpstreamProxyByIdentity(identityID string) error {
+	identityID = strings.TrimSpace(identityID)
+	if identityID == "" {
+		return nil
+	}
+	// 先查到 ID，再通过 DeleteUpstreamProxy 清理关联的国家规则
+	var proxies []UpstreamProxy
+	if err := DB.Where("source = ? AND identity_id = ?", "Auto", identityID).Find(&proxies).Error; err != nil {
+		return err
+	}
+	for _, p := range proxies {
+		if err := DeleteUpstreamProxy(p.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // SaveUpstreamProxyLookup 保存代理 lookup 结果到数据库
-func SaveUpstreamProxyLookup(id string, ip, country, region, city, asn, organization string, latencyMs int64, lookupErr string) error {
+func SaveUpstreamProxyLookup(id string, ip, country, countryCode, region, city, asn, organization string, latencyMs int64, lookupErr string) error {
 	updates := map[string]interface{}{
-		"lookup_ip":           ip,
-		"lookup_country":      country,
-		"lookup_region":       region,
+		"lookup_ip":            ip,
+		"lookup_country":       country,
+		"lookup_country_code":  countryCode,
+		"lookup_region":        region,
 		"lookup_city":         city,
 		"lookup_asn":          asn,
 		"lookup_organization": organization,

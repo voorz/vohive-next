@@ -1526,6 +1526,173 @@ paths:
       summary: DeviceMgmtOperatorScanStream
       tags:
       - devices
+  /devices/{device_id}/outbound-proxy:
+    get:
+      description: 返回实例信息、运行状态、连入数量、op_ready、是否暴露为前置代理
+      parameters:
+      - description: 设备 ID
+        in: path
+        name: device_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 出站代理状态
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 参数错误
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: 内部错误
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 查询设备出站代理状态
+      tags:
+      - outbound-proxy
+  /devices/{device_id}/outbound-proxy/disable:
+    post:
+      description: 更新 cardpolicy OutboundProxyEnabled=false → 销毁代理实例 → SyncProxyConfigs
+      parameters:
+      - description: 设备 ID
+        in: path
+        name: device_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 参数错误
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: 内部错误
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 关闭设备出站代理
+      tags:
+      - outbound-proxy
+  /devices/{device_id}/outbound-proxy/enable:
+    post:
+      description: 更新 cardpolicy OutboundProxyEnabled=true → 创建代理实例 → SyncProxyConfigs
+      parameters:
+      - description: 设备 ID
+        in: path
+        name: device_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 参数错误
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: 内部错误
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 开启设备出站代理
+      tags:
+      - outbound-proxy
+  /devices/{device_id}/outbound-proxy/expose-upstream:
+    post:
+      consumes:
+      - application/json
+      description: 将出站代理信息写入 upstream_proxies 表并自动绑定国家规则
+      parameters:
+      - description: 设备 ID
+        in: path
+        name: device_id
+        required: true
+        type: string
+      - description: 国家代码（可选，不传则不绑定国家规则）
+        in: body
+        name: country_code
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 参数错误
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: 内部错误
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 将出站代理暴露为前置代理
+      tags:
+      - outbound-proxy
+  /devices/{device_id}/outbound-proxy/unexpose-upstream:
+    post:
+      description: 从 upstream_proxies 表删除出站代理的派生入口
+      parameters:
+      - description: 设备 ID
+        in: path
+        name: device_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 参数错误
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: 内部错误
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: 取消将出站代理暴露为前置代理
+      tags:
+      - outbound-proxy
   /devices/{device_id}/overview:
     get:
       parameters:

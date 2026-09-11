@@ -28,6 +28,9 @@ func applyPolicyToWorker(w *Worker, p cardpolicy.Policy) {
 	w.Config.APN = strings.TrimSpace(p.APN)
 	w.Config.SMSEnabled = true // SMS 恒开
 	w.restoreNetworkAfterVoWiFi = p.NetworkEnabled
+	// OutboundProxyEnabled 跟卡走，投影到 worker.Config 供运行时读取。
+	// 实际代理实例的创建/销毁由 API 层的 handler 联动处理（见 outbound_proxy_reconcile.go）。
+	w.Config.OutboundProxyEnabled = p.OutboundProxyEnabled
 }
 
 type policyApplyResult struct {

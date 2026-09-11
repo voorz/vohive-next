@@ -368,6 +368,17 @@ func (m *Manager) IsRunning(id string) bool {
 	return rt != nil && rt.srv != nil && rt.srv.IsRunning()
 }
 
+// GetActiveConns 返回指定实例的当前活跃连接数。
+func (m *Manager) GetActiveConns(id string) int64 {
+	m.mu.Lock()
+	rt := m.instances[id]
+	m.mu.Unlock()
+	if rt == nil || rt.srv == nil || rt.srv.Stats == nil {
+		return 0
+	}
+	return rt.srv.Stats.GetStats()["active_conns"]
+}
+
 // SnapshotAndResetTraffic 获取各实例流量增量。
 func (m *Manager) SnapshotAndResetTraffic() map[string]TrafficCounters {
 	m.mu.Lock()

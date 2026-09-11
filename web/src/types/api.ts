@@ -122,6 +122,8 @@ running: boolean
   traffic_raw?: DeviceTrafficRaw
   traffic_meta?: DeviceTrafficMeta
   backend_mode?: string
+  outbound_proxy_enabled?: boolean
+  op_ready?: boolean
 }
 
 export type DeviceMgmtListItem = {
@@ -476,12 +478,15 @@ export type UpstreamProxy = {
   username: string
   password?: string   // 列表接口返回脱敏值 "****"
   enabled: boolean
+  source?: string     // 来源：Manual（用户手动添加）/ Auto（出站代理自动创建）
+  identity_id?: string // 身份标识：Auto 时为 ICCID；Manual 时为空
   created_at?: string
   updated_at?: string
   // 持久化的 lookup 结果（由后端 /lookup 接口写入）
-  lookup_ip?: string
-  lookup_country?: string
-  lookup_region?: string
+lookup_ip?: string
+lookup_country?: string
+lookup_country_code?: string  // ISO 2 字母代码
+lookup_region?: string
   lookup_city?: string
   lookup_asn?: string
   lookup_organization?: string
@@ -514,15 +519,16 @@ export type UpstreamProxyCountryRulePayload = {
 
 // 前置代理 IP 归属与延迟查询结果
 export type UpstreamProxyLookupResult = {
-  status: string
-  ip: string
-  country?: string
-  region?: string
-  city?: string
-  asn?: string
-  organization?: string
-  latency_ms: number
-  error?: string
+status: string
+ip: string
+country?: string
+country_code?: string  // ISO 2 字母代码
+region?: string
+city?: string
+asn?: string
+organization?: string
+latency_ms: number
+error?: string
 }
 
 export type OperatorSelectionMode = 'automatic' | 'manual'

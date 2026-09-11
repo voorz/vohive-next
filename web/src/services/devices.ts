@@ -14,6 +14,19 @@ type AddDeviceResponse = {
   started?: boolean
 }
 
+type OutboundProxyStatus = {
+  enabled: boolean
+  op_ready: boolean
+  iccid?: string
+  exposed_as_upstream?: boolean
+  instances?: {
+    id: string
+    running: boolean
+    listen_port: number
+    active_conns: number
+  }[]
+}
+
 type DeleteEsimProfileResponse = {
   warning?: string
   warning_code?: string
@@ -422,6 +435,36 @@ export const devicesService = {
     return callService(async () => {
       const res = await api.post(`/devices/${id}/operator_selection`, payload)
       return res.data as import('../types/api').OperatorSelection
+    })
+  },
+  enableOutboundProxy(id: string) {
+    return callService(async () => {
+      await api.post(`/devices/${id}/outbound-proxy/enable`)
+      return true
+    })
+  },
+  disableOutboundProxy(id: string) {
+    return callService(async () => {
+      await api.post(`/devices/${id}/outbound-proxy/disable`)
+      return true
+    })
+  },
+  getOutboundProxyStatus(id: string) {
+    return callService(async () => {
+      const res = await api.get(`/devices/${id}/outbound-proxy`)
+      return res.data as OutboundProxyStatus
+    })
+  },
+  exposeOutboundProxyAsUpstream(id: string) {
+    return callService(async () => {
+      await api.post(`/devices/${id}/outbound-proxy/expose-upstream`)
+      return true
+    })
+  },
+  unexposeOutboundProxyAsUpstream(id: string) {
+    return callService(async () => {
+      await api.post(`/devices/${id}/outbound-proxy/unexpose-upstream`)
+      return true
     })
   }
 }
