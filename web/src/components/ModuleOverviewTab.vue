@@ -2,6 +2,7 @@
 import type { DeviceOverviewItem, CardPolicy } from '../types/api'
 import ModuleOverviewStatus from './ModuleOverviewStatus.vue'
 import ModuleOverviewDevice from './ModuleOverviewDevice.vue'
+import ModuleOverviewOutboundProxy from './ModuleOverviewOutboundProxy.vue'
 import type { ChartPoint } from './SparklineChart.vue'
 
 defineProps<{
@@ -44,6 +45,11 @@ defineEmits<{
       :upload-speed-history="uploadSpeedHistory"
       @reconnect-vowifi="$emit('reconnect-vowifi')"
       @rotate-ip="$emit('rotate-ip')"
+    />
+    <ModuleOverviewOutboundProxy
+      v-if="device?.data_connected"
+      :device="device"
+      @changed="$emit('changed')"
     />
     <ModuleOverviewDevice :device="device" :is-p-c-s-c="isPCSC" />
   </div>

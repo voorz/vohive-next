@@ -122,6 +122,8 @@ running: boolean
   traffic_raw?: DeviceTrafficRaw
   traffic_meta?: DeviceTrafficMeta
   backend_mode?: string
+  outbound_proxy_enabled?: boolean
+  op_ready?: boolean
 }
 
 export type DeviceMgmtListItem = {
