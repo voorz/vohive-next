@@ -186,6 +186,10 @@ type Pool struct {
 	cancel                    context.CancelFunc
 	dataConnectHandlersMu     sync.RWMutex
 	dataConnectHandlers       []func(deviceID string)
+	dataDisconnectHandlersMu  sync.RWMutex
+	dataDisconnectHandlers    []func(deviceID string)
+	esimSwitchCompleteHandlersMu sync.RWMutex
+	esimSwitchCompleteHandlers   []func(deviceID, newICCID string)
 	rescanAndReconnectForTest func() error
 
 	// discoveryEventSubscribers 用于热插拔事件通知 SSE 流。
@@ -277,6 +281,53 @@ func (p *Pool) notifyDataConnected(deviceID string) {
 	for _, handler := range handlers {
 		h := handler
 		go h(deviceID)
+	}
+}
+
+// OnDataDisconnected 注册数据断开回调 handler。
+func (p *Pool) OnDataDisconnected(handler func(deviceID string)) {
+	if p == nil || handler == nil {
+		return
+	}
+	p.dataDisconnectHandlersMu.Lock()
+	p.dataDisconnectHandlers = append(p.dataDisconnectHandlers, handler)
+	p.dataDisconnectHandlersMu.Unlock()
+}
+
+func (p *Pool) notifyDataDisconnected(deviceID string) {
+	if p == nil {
+		return
+	}
+	p.dataDisconnectHandlersMu.RLock()
+	handlers := append([]func(string){}, p.dataDisconnectHandlers...)
+	p.dataDisconnectHandlersMu.RUnlock()
+	for _, handler := range handlers {
+		h := handler
+		go h(deviceID)
+	}
+}
+
+// OnESIMSwitchComplete 注册 eSIM 切卡完成回调 handler。
+// handler 接收 deviceID 和新 ICCID（可能为空）。
+func (p *Pool) OnESIMSwitchComplete(handler func(deviceID, newICCID string)) {
+	if p == nil || handler == nil {
+		return
+	}
+	p.esimSwitchCompleteHandlersMu.Lock()
+	p.esimSwitchCompleteHandlers = append(p.esimSwitchCompleteHandlers, handler)
+	p.esimSwitchCompleteHandlersMu.Unlock()
+}
+
+func (p *Pool) notifyESIMSwitchComplete(deviceID, newICCID string) {
+	if p == nil {
+		return
+	}
+	p.esimSwitchCompleteHandlersMu.RLock()
+	handlers := append([]func(string, string){}, p.esimSwitchCompleteHandlers...)
+	p.esimSwitchCompleteHandlersMu.RUnlock()
+	for _, handler := range handlers {
+		h := handler
+		go h(deviceID, newICCID)
 	}
 }
 
@@ -1312,7 +1363,11 @@ func (p *Pool) applyNetworkPreference(worker *Worker) error {
 		worker.clearCachedIP()
 		return nil
 	}
-	return worker.StopNetwork()
+	if err := worker.StopNetwork(); err != nil {
+		return err
+	}
+	p.notifyDataDisconnected(worker.ID)
+	return nil
 }
 
 type existingQMIDataConnectionResetter interface {

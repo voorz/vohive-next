@@ -1240,6 +1240,11 @@ func (p *Pool) handleESIMSwitchAfter(deviceID string, token uint64) {
 	if worker.EsimMgr != nil {
 		p.schedulePostSwitchNotificationAutoClean(deviceID, token, worker)
 	}
+
+	// 通知出站代理联动：切卡已完成，传入新 ICCID
+	newICCID := worker.CurrentICCID()
+	p.notifyESIMSwitchComplete(deviceID, newICCID)
+
 	finalizeOK = true
 }
 

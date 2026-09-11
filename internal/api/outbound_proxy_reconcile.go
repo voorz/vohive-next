@@ -1,0 +1,500 @@
+package api
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/voorz/vohive/internal/config"
+	"github.com/voorz/vohive/internal/db"
+	"github.com/voorz/vohive/internal/proxy/server"
+	"github.com/voorz/vohive/pkg/logger"
+)
+
+// 出站代理联动逻辑（基座创建/销毁/禁用 + 暴露为前置代理）
+//
+// 章程锚点：
+// - 出站代理 = 代理基座（本地 SOCKS5/HTTP，绑定模组网卡出站）
+// - 前置代理 = 派生入口（将出站代理监听地址写入 upstream_proxies 表）
+// - 自动创建 = 随机端口 + 固定凭据（vohive/vohive），端口从 10800 开始递增探测
+// - 数据断开 = 禁用不销毁（仅设 Enabled=false）
+// - ICCID 变化 = 销毁旧实例
+
+const (
+	outboundProxyStartPort  = 10800
+	outboundProxyUsername   = "vohive"
+	outboundProxyPassword   = "vohive"
+	outboundProxyListenAddr = "0.0.0.0"
+)
+
+// EnsureOutboundProxyForDevice 为设备创建出站代理实例（基座）。
+// 如果同设备+同 ICCID 的实例已存在则直接返回。
+func (s *Server) EnsureOutboundProxyForDevice(deviceID, iccid string) error {
+	deviceID = strings.TrimSpace(deviceID)
+	iccid = strings.TrimSpace(iccid)
+	if deviceID == "" {
+		return fmt.Errorf("device_id 不能为空")
+	}
+
+	// 检查是否已存在同设备+同 ICCID 的实例
+	existing, err := db.ListProxyInstances()
+	if err != nil {
+		return fmt.Errorf("查询代理实例失败: %w", err)
+	}
+	for _, inst := range existing {
+		if inst.DeviceID == deviceID && inst.ICCID == iccid {
+			logger.Info("出站代理实例已存在，跳过创建",
+				"device", deviceID, "iccid", iccid, "instance_id", inst.ID)
+			return nil
+		}
+	}
+
+	// 探测可用端口
+	port, err := server.FindAvailablePort(outboundProxyStartPort)
+	if err != nil {
+		return fmt.Errorf("端口探测失败: %w", err)
+	}
+
+	// 生成实例 ID
+	instanceID := fmt.Sprintf("outbound-%s-%s", deviceID, iccid)
+	if len(instanceID) > 60 {
+		instanceID = instanceID[:60]
+	}
+
+	// 创建代理实例配置
+	inst := config.ProxyInstance{
+		ID:          instanceID,
+		Name:        fmt.Sprintf("出站代理-%s", deviceID),
+		DeviceID:    deviceID,
+		Enabled:     true,
+		Mode:        "socks5",
+		ListenAddr:  outboundProxyListenAddr,
+		ListenPort:  port,
+		AuthEnabled: true,
+		Username:    outboundProxyUsername,
+		Password:    outboundProxyPassword,
+		ICCID:       iccid,
+	}
+
+	// 落库
+	dbInst, err := db.ProxyInstanceFromConfig(inst)
+	if err != nil {
+		return fmt.Errorf("代理实例格式化失败: %w", err)
+	}
+	if err := db.DB.Create(&dbInst).Error; err != nil {
+		return fmt.Errorf("代理实例写入数据库失败: %w", err)
+	}
+
+	logger.Info("出站代理实例已创建",
+		"device", deviceID, "iccid", iccid,
+		"instance_id", instanceID, "port", port)
+
+	// 同步到代理管理器
+	if err := s.SyncProxyConfigs(); err != nil {
+		logger.Warn("出站代理配置同步失败（实例已落库）",
+			"device", deviceID, "err", err)
+		return err
+	}
+	return nil
+}
+
+// DestroyOutboundProxyForDevice 销毁设备的出站代理实例。
+// 如果 iccid 不为空，仅销毁匹配该 ICCID 的实例；如果 iccid 为空，销毁该设备的所有出站代理实例。
+func (s *Server) DestroyOutboundProxyForDevice(deviceID, iccid string) error {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" {
+		return fmt.Errorf("device_id 不能为空")
+	}
+	iccid = strings.TrimSpace(iccid)
+
+	instances, err := db.ListProxyInstances()
+	if err != nil {
+		return fmt.Errorf("查询代理实例失败: %w", err)
+	}
+
+	var toDelete []string
+	for _, inst := range instances {
+		if inst.DeviceID != deviceID {
+			continue
+		}
+		if iccid != "" && inst.ICCID != iccid {
+			continue
+		}
+		toDelete = append(toDelete, inst.ID)
+	}
+
+	if len(toDelete) == 0 {
+		return nil
+	}
+
+	// 从 DB 删除
+	if err := db.DB.Where("id IN ?", toDelete).Delete(&db.ProxyInstance{}).Error; err != nil {
+		return fmt.Errorf("删除代理实例失败: %w", err)
+	}
+
+	logger.Info("出站代理实例已销毁",
+		"device", deviceID, "iccid", iccid, "instances", toDelete)
+
+	// 同步到代理管理器
+	if err := s.SyncProxyConfigs(); err != nil {
+		logger.Warn("出站代理配置同步失败（实例已删除）",
+			"device", deviceID, "err", err)
+	}
+	return nil
+}
+
+// DisableOutboundProxyForDevice 禁用设备的出站代理实例（不删除）。
+// 用于数据断开场景：仅设 Enabled=false，保留 DB 记录。
+func (s *Server) DisableOutboundProxyForDevice(deviceID string) error {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" {
+		return fmt.Errorf("device_id 不能为空")
+	}
+
+	instances, err := db.ListProxyInstances()
+	if err != nil {
+		return fmt.Errorf("查询代理实例失败: %w", err)
+	}
+
+	var toDisable []string
+	for _, inst := range instances {
+		if inst.DeviceID == deviceID && inst.Enabled {
+			toDisable = append(toDisable, inst.ID)
+		}
+	}
+
+	if len(toDisable) == 0 {
+		return nil
+	}
+
+	// 更新 DB
+	if err := db.DB.Model(&db.ProxyInstance{}).
+		Where("id IN ?", toDisable).
+		Update("enabled", false).Error; err != nil {
+		return fmt.Errorf("禁用代理实例失败: %w", err)
+	}
+
+	logger.Info("出站代理实例已禁用（数据断开）",
+		"device", deviceID, "instances", toDisable)
+
+	// 同步到代理管理器
+	if err := s.SyncProxyConfigs(); err != nil {
+		logger.Warn("出站代理配置同步失败（实例已禁用）",
+			"device", deviceID, "err", err)
+	}
+	return nil
+}
+
+// EnableOutboundProxyForDevice 启用设备的出站代理实例。
+// 用于数据连接恢复场景：设 Enabled=true。
+func (s *Server) EnableOutboundProxyForDevice(deviceID string) error {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" {
+		return fmt.Errorf("device_id 不能为空")
+	}
+
+	instances, err := db.ListProxyInstances()
+	if err != nil {
+		return fmt.Errorf("查询代理实例失败: %w", err)
+	}
+
+	var toEnable []string
+	for _, inst := range instances {
+		if inst.DeviceID == deviceID && !inst.Enabled {
+			toEnable = append(toEnable, inst.ID)
+		}
+	}
+
+	if len(toEnable) == 0 {
+		return nil
+	}
+
+	if err := db.DB.Model(&db.ProxyInstance{}).
+		Where("id IN ?", toEnable).
+		Update("enabled", true).Error; err != nil {
+		return fmt.Errorf("启用代理实例失败: %w", err)
+	}
+
+	logger.Info("出站代理实例已启用（数据连接恢复）",
+		"device", deviceID, "instances", toEnable)
+
+	if err := s.SyncProxyConfigs(); err != nil {
+		logger.Warn("出站代理配置同步失败（实例已启用）",
+			"device", deviceID, "err", err)
+	}
+	return nil
+}
+
+// ExposeOutboundProxyAsUpstream 将出站代理信息写入 upstream_proxies 表（派生入口）。
+// 自动完成国家绑定（根据 SIM home country MCC → 国家代码），不需要用户手动操作。
+// 这是对现有 POST /upstream-proxies API 的封装复用，不是新建接口。
+func (s *Server) ExposeOutboundProxyAsUpstream(deviceID, iccid, countryCode string) error {
+	deviceID = strings.TrimSpace(deviceID)
+	iccid = strings.TrimSpace(iccid)
+	if deviceID == "" {
+		return fmt.Errorf("device_id 不能为空")
+	}
+
+	// 查找出站代理实例
+	instances, err := db.ListProxyInstances()
+	if err != nil {
+		return fmt.Errorf("查询代理实例失败: %w", err)
+	}
+
+	var outboundInst *db.ProxyInstance
+	for i := range instances {
+		if instances[i].DeviceID == deviceID && instances[i].ICCID == iccid {
+			outboundInst = &instances[i]
+			break
+		}
+	}
+	if outboundInst == nil {
+		return fmt.Errorf("未找到设备 %s 的出站代理实例", deviceID)
+	}
+
+	// 构建 upstream proxy ID
+	upstreamID := fmt.Sprintf("upstream-%s", outboundInst.ID)
+	addr := fmt.Sprintf("%s:%d", outboundInst.ListenAddr, outboundInst.ListenPort)
+	if outboundInst.ListenAddr == "0.0.0.0" {
+		addr = fmt.Sprintf("127.0.0.1:%d", outboundInst.ListenPort)
+	}
+
+	// 写入 upstream_proxies 表
+	upstream := db.UpstreamProxy{
+		ID:       upstreamID,
+		Name:     outboundInst.Name,
+		Addr:     addr,
+		Username: outboundInst.Username,
+		Password: outboundInst.Password,
+		Enabled:  true,
+	}
+	if err := db.UpsertUpstreamProxy(upstream); err != nil {
+		return fmt.Errorf("写入前置代理失败: %w", err)
+	}
+
+	logger.Info("出站代理已暴露为前置代理",
+		"device", deviceID, "upstream_id", upstreamID, "addr", addr)
+
+	// 自动绑定国家规则（如果提供了 countryCode）
+	countryCode = strings.TrimSpace(countryCode)
+	if countryCode != "" {
+		rule := db.UpstreamProxyCountryRule{
+			CountryCode:     strings.ToUpper(countryCode),
+			UpstreamProxyID: upstreamID,
+			Enabled:         true,
+		}
+		if err := db.UpsertUpstreamProxyCountryRule(rule); err != nil {
+			logger.Warn("自动绑定国家规则失败",
+				"device", deviceID, "country_code", countryCode, "err", err)
+		} else {
+			logger.Info("已自动绑定国家规则",
+				"device", deviceID, "country_code", countryCode, "upstream_id", upstreamID)
+		}
+	}
+
+	return nil
+}
+
+// UnexposeOutboundProxyAsUpstream 从 upstream_proxies 表删除出站代理的派生入口。
+func (s *Server) UnexposeOutboundProxyAsUpstream(deviceID, iccid string) error {
+	deviceID = strings.TrimSpace(deviceID)
+	iccid = strings.TrimSpace(iccid)
+	if deviceID == "" {
+		return fmt.Errorf("device_id 不能为空")
+	}
+
+	// 查找出站代理实例以确定 upstream ID
+	instances, err := db.ListProxyInstances()
+	if err != nil {
+		return fmt.Errorf("查询代理实例失败: %w", err)
+	}
+
+	var upstreamIDs []string
+	for _, inst := range instances {
+		if inst.DeviceID == deviceID && (iccid == "" || inst.ICCID == iccid) {
+			upstreamIDs = append(upstreamIDs, fmt.Sprintf("upstream-%s", inst.ID))
+		}
+	}
+
+	if len(upstreamIDs) == 0 {
+		return nil
+	}
+
+	for _, uid := range upstreamIDs {
+		if err := db.DeleteUpstreamProxy(uid); err != nil {
+			logger.Warn("删除前置代理失败",
+				"device", deviceID, "upstream_id", uid, "err", err)
+		} else {
+			logger.Info("已取消暴露前置代理",
+				"device", deviceID, "upstream_id", uid)
+		}
+	}
+	return nil
+}
+
+// RegisterOutboundProxyHandlers 注册数据连接/断开回调，自动管理出站代理实例。
+// 应在 Server 初始化时调用。
+func (s *Server) RegisterOutboundProxyHandlers() {
+	if s.pool == nil {
+		return
+	}
+
+	// 数据连接成功 → 启用出站代理实例
+	s.pool.OnDataConnected(func(deviceID string) {
+		iccid := s.pool.CurrentICCIDForDevice(deviceID)
+		if iccid == "" {
+			return
+		}
+
+		// 检查 cardpolicy 是否开启了出站代理
+		policy, err := db.GetCardPolicy(iccid)
+		if err != nil {
+			return
+		}
+		if !policy.OutboundProxyEnabled {
+			return
+		}
+
+		// 确保实例存在并启用
+		if err := s.EnsureOutboundProxyForDevice(deviceID, iccid); err != nil {
+			logger.Warn("数据连接后创建出站代理失败",
+				"device", deviceID, "err", err)
+			return
+		}
+		if err := s.EnableOutboundProxyForDevice(deviceID); err != nil {
+			logger.Warn("数据连接后启用出站代理失败",
+				"device", deviceID, "err", err)
+		}
+	})
+
+	// 数据断开 → 禁用出站代理实例（不销毁）
+	s.pool.OnDataDisconnected(func(deviceID string) {
+		if err := s.DisableOutboundProxyForDevice(deviceID); err != nil {
+			logger.Warn("数据断开后禁用出站代理失败",
+				"device", deviceID, "err", err)
+		}
+	})
+
+	// eSIM 切卡完成 → 检查新 ICCID 的 cardpolicy，决定是否销毁旧实例
+	s.pool.OnESIMSwitchComplete(func(deviceID, newICCID string) {
+		s.HandleESIMSwitchForOutboundProxy(deviceID, newICCID)
+	})
+}
+
+// HandleESIMSwitchForOutboundProxy 在 eSIM 切卡完成后调用，
+// 检查新 ICCID 的 cardpolicy，决定是否销毁旧实例。
+func (s *Server) HandleESIMSwitchForOutboundProxy(deviceID, newICCID string) {
+	deviceID = strings.TrimSpace(deviceID)
+	newICCID = strings.TrimSpace(newICCID)
+	if deviceID == "" {
+		return
+	}
+
+	// 检查新 ICCID 的 cardpolicy
+	var newPolicyEnabled bool
+	if newICCID != "" {
+		policy, err := db.GetCardPolicy(newICCID)
+		if err == nil {
+			newPolicyEnabled = policy.OutboundProxyEnabled
+		}
+	}
+
+	if !newPolicyEnabled {
+		// 新卡未开启出站代理 → 销毁所有旧实例
+		if err := s.DestroyOutboundProxyForDevice(deviceID, ""); err != nil {
+			logger.Warn("切卡后销毁旧出站代理失败",
+				"device", deviceID, "err", err)
+		}
+		return
+	}
+
+	// 新卡开启了出站代理 → 销毁不匹配新 ICCID 的旧实例
+	instances, err := db.ListProxyInstances()
+	if err != nil {
+		return
+	}
+	var staleIDs []string
+	for _, inst := range instances {
+		if inst.DeviceID == deviceID && inst.ICCID != newICCID {
+			staleIDs = append(staleIDs, inst.ID)
+		}
+	}
+	if len(staleIDs) > 0 {
+		if err := db.DB.Where("id IN ?", staleIDs).Delete(&db.ProxyInstance{}).Error; err != nil {
+			logger.Warn("切卡后删除旧 ICCID 代理实例失败",
+				"device", deviceID, "err", err)
+		} else {
+			logger.Info("切卡后已清理旧 ICCID 的出站代理实例",
+				"device", deviceID, "new_iccid", newICCID, "stale_instances", staleIDs)
+			_ = s.SyncProxyConfigs()
+		}
+	}
+}
+
+// GetOutboundProxyStatus 查询设备的出站代理状态。
+// 返回实例信息、运行状态、连入数量等。
+func (s *Server) GetOutboundProxyStatus(deviceID string) (map[string]any, error) {
+	deviceID = strings.TrimSpace(deviceID)
+	if deviceID == "" {
+		return nil, fmt.Errorf("device_id 不能为空")
+	}
+
+	instances, err := db.ListProxyInstances()
+	if err != nil {
+		return nil, fmt.Errorf("查询代理实例失败: %w", err)
+	}
+
+	var inst *db.ProxyInstance
+	for i := range instances {
+		if instances[i].DeviceID == deviceID {
+			inst = &instances[i]
+			break
+		}
+	}
+	if inst == nil {
+		return map[string]any{
+			"enabled":   false,
+			"op_ready":  false,
+			"running":   false,
+			"instances": []any{},
+		}, nil
+	}
+
+	// 获取运行状态
+	statuses := s.proxyMgr.ListStatus()
+
+	type instanceStatus struct {
+		ID          string `json:"id"`
+		Running     bool   `json:"running"`
+		ListenPort  int    `json:"listen_port"`
+		ActiveConns int64  `json:"active_conns"`
+	}
+
+	var statusList []instanceStatus
+	opReady := false
+	for _, st := range statuses {
+		if st.ID == inst.ID {
+			statusList = append(statusList, instanceStatus{
+				ID:          st.ID,
+				Running:     st.Running,
+				ListenPort:  st.ListenPort,
+				ActiveConns: 0, // Phase 3 补充
+			})
+			if st.Running {
+				opReady = true
+			}
+		}
+	}
+
+	// 检查是否已暴露为前置代理
+	upstreamID := fmt.Sprintf("upstream-%s", inst.ID)
+	_, upstreamErr := db.GetUpstreamProxyByID(upstreamID)
+	exposedAsUpstream := upstreamErr == nil
+
+	return map[string]any{
+		"enabled":              inst.Enabled,
+		"op_ready":             opReady,
+		"iccid":                inst.ICCID,
+		"exposed_as_upstream":  exposedAsUpstream,
+		"instances":            statusList,
+	}, nil
+}

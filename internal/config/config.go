@@ -283,12 +283,13 @@ type DeviceConfig struct {
 	Parity   string `mapstructure:"parity"`
 
 	// 以下为运行时有效策略（投影自 card_policies，按 ICCID），不再从配置文件加载
-	APN             string `mapstructure:"-"`
-	NetworkEnabled  bool   `mapstructure:"-"`
-	IPVersion       string `mapstructure:"-"`
-	VoWiFiEnabled   bool   `mapstructure:"-"`
-	AirplaneEnabled bool   `mapstructure:"-"`
-	SMSEnabled      bool   `mapstructure:"-"` // SMS 恒开，运行时强制 true
+	APN                  string `mapstructure:"-"`
+	NetworkEnabled       bool   `mapstructure:"-"`
+	IPVersion            string `mapstructure:"-"`
+	VoWiFiEnabled        bool   `mapstructure:"-"`
+	AirplaneEnabled      bool   `mapstructure:"-"`
+	SMSEnabled           bool   `mapstructure:"-"` // SMS 恒开，运行时强制 true
+	OutboundProxyEnabled bool   `mapstructure:"-"` // 出站代理开关（跟卡走，投影自 card_policies）
 
 	// USB Audio (自动发现，无需手动配置)
 	AudioDevice string `mapstructure:"-"` // Deprecated: 运行时解析,绝不从文件读取
