@@ -427,6 +427,8 @@ type deviceMgmtOverviewLiteItem struct {
 	BackendMode            string             `json:"backend_mode"`
 	NetworkConnected       bool               `json:"network_connected"`
 	RegistrationStateLabel string             `json:"registration_state_label"`
+	OutboundProxyEnabled   bool               `json:"outbound_proxy_enabled"`
+	OPReady                bool               `json:"op_ready"`
 }
 
 type deviceMgmtListModem struct {
@@ -743,6 +745,17 @@ func (s *Server) buildOverviewLiteItemFromWorkerWithModem(w *device.Worker, cfg 
 			item.ActiveESIMProfileName = name
 		}
 		item.EUICCAvailable = w.EsimMgr.EUICCAvailable()
+	}
+	// 出站代理状态：从 cardpolicy 投影 + 代理管理器运行状态判断 op_ready
+	item.OutboundProxyEnabled = cfg.OutboundProxyEnabled
+	if cfg.OutboundProxyEnabled && s.proxyMgr != nil {
+		statuses := s.proxyMgr.ListStatus()
+		for _, st := range statuses {
+			if strings.HasPrefix(st.ID, "outbound-"+w.ID) && st.Running {
+				item.OPReady = true
+				break
+			}
+		}
 	}
 	s.applyLifecycleToOverviewLiteItem(&item, w, cfg)
 	return item

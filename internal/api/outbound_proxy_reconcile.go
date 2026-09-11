@@ -477,7 +477,7 @@ func (s *Server) GetOutboundProxyStatus(deviceID string) (map[string]any, error)
 				ID:          st.ID,
 				Running:     st.Running,
 				ListenPort:  st.ListenPort,
-				ActiveConns: 0, // Phase 3 补充
+				ActiveConns: s.proxyMgr.GetActiveConns(inst.ID),
 			})
 			if st.Running {
 				opReady = true
