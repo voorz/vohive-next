@@ -218,6 +218,7 @@ type ProxyInstance struct {
 	AuthEnabled bool   `mapstructure:"auth_enabled" json:"auth_enabled"`
 	Username    string `mapstructure:"username" json:"username"`
 	Password    string `mapstructure:"password" json:"password"`
+	ICCID       string `mapstructure:"iccid" json:"iccid"` // 绑定的 eSIM profile ICCID（空表示非 profile 级别）
 }
 
 type WebConfig struct {

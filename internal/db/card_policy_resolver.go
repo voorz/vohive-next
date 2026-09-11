@@ -11,11 +11,12 @@ func (CardPolicyResolver) Resolve(iccid string) (cardpolicy.Policy, error) {
 		return cardpolicy.Policy{}, err
 	}
 	return cardpolicy.Policy{
-		ICCID:           p.ICCID,
-		NetworkEnabled:  p.NetworkEnabled,
-		VoWiFiEnabled:   p.VoWiFiEnabled,
-		AirplaneEnabled: p.AirplaneEnabled,
-		IPVersion:       p.IPVersion,
-		APN:             p.APN,
+		ICCID:                p.ICCID,
+		NetworkEnabled:       p.NetworkEnabled,
+		VoWiFiEnabled:        p.VoWiFiEnabled,
+		AirplaneEnabled:      p.AirplaneEnabled,
+		IPVersion:            p.IPVersion,
+		APN:                  p.APN,
+		OutboundProxyEnabled: p.OutboundProxyEnabled,
 	}, nil
 }

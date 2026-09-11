@@ -21,6 +21,7 @@ type ProxyInstance struct {
 	AuthEnabled bool      `json:"auth_enabled"`
 	Username    string    `json:"username"`
 	Password    string    `json:"password,omitempty"`
+	ICCID       string    `gorm:"column:iccid;index" json:"iccid"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -37,6 +38,7 @@ func ProxyInstanceFromConfig(in config.ProxyInstance) (ProxyInstance, error) {
 		AuthEnabled: in.AuthEnabled,
 		Username:    strings.TrimSpace(in.Username),
 		Password:    strings.TrimSpace(in.Password),
+		ICCID:       strings.TrimSpace(in.ICCID),
 	}
 	if out.ID == "" {
 		return ProxyInstance{}, errors.New("empty id")
@@ -60,6 +62,7 @@ func (p ProxyInstance) ToConfig() (config.ProxyInstance, error) {
 		AuthEnabled: p.AuthEnabled,
 		Username:    strings.TrimSpace(p.Username),
 		Password:    p.Password,
+		ICCID:       strings.TrimSpace(p.ICCID),
 	}
 	if !out.AuthEnabled {
 		out.Username = ""

@@ -11,15 +11,16 @@ import (
 
 // CardPolicy 是跟随卡(ICCID)走的可配置策略。SMS 恒开、SMSC 动态取，均不在此。
 type CardPolicy struct {
-	ICCID           string    `gorm:"column:iccid;primaryKey" json:"iccid"`
-	NetworkEnabled  bool      `gorm:"column:network_enabled" json:"network_enabled"`
-	VoWiFiEnabled   bool      `gorm:"column:vowifi_enabled" json:"vowifi_enabled"`
-	AirplaneEnabled bool      `gorm:"column:airplane_enabled" json:"airplane_enabled"`
-	IPVersion       string    `gorm:"column:ip_version" json:"ip_version"`
-	APN             string    `gorm:"column:apn" json:"apn"`
-	Source          string    `gorm:"column:source" json:"source"` // auto | user
-	CreatedAt       time.Time `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt       time.Time `gorm:"column:updated_at" json:"updated_at"`
+	ICCID                string    `gorm:"column:iccid;primaryKey" json:"iccid"`
+	NetworkEnabled       bool      `gorm:"column:network_enabled" json:"network_enabled"`
+	VoWiFiEnabled        bool      `gorm:"column:vowifi_enabled" json:"vowifi_enabled"`
+	AirplaneEnabled      bool      `gorm:"column:airplane_enabled" json:"airplane_enabled"`
+	IPVersion            string    `gorm:"column:ip_version" json:"ip_version"`
+	APN                  string    `gorm:"column:apn" json:"apn"`
+	Source               string    `gorm:"column:source" json:"source"` // auto | user
+	OutboundProxyEnabled bool      `gorm:"column:outbound_proxy_enabled" json:"outbound_proxy_enabled"`
+	CreatedAt            time.Time `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt            time.Time `gorm:"column:updated_at" json:"updated_at"`
 }
 
 func (CardPolicy) TableName() string { return "card_policies" }
@@ -37,13 +38,14 @@ func CanonicalICCID(iccid string) string {
 // DefaultCardPolicy 是新卡自动建档用的硬编码安全默认（不落配置文件）。
 func DefaultCardPolicy(iccid string) CardPolicy {
 	return CardPolicy{
-		ICCID:           CanonicalICCID(iccid),
-		NetworkEnabled:  false,
-		VoWiFiEnabled:   false,
-		AirplaneEnabled: false,
-		IPVersion:       "v4",
-		APN:             "",
-		Source:          "auto",
+		ICCID:                CanonicalICCID(iccid),
+		NetworkEnabled:       false,
+		VoWiFiEnabled:        false,
+		AirplaneEnabled:      false,
+		IPVersion:            "v4",
+		APN:                  "",
+		Source:               "auto",
+		OutboundProxyEnabled: false,
 	}
 }
 
@@ -99,13 +101,14 @@ func UpsertCardPolicy(p CardPolicy) error {
 	return DB.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "iccid"}},
 		DoUpdates: clause.Assignments(map[string]any{
-			"network_enabled":  p.NetworkEnabled,
-			"vowifi_enabled":   p.VoWiFiEnabled,
-			"airplane_enabled": p.AirplaneEnabled,
-			"ip_version":       p.IPVersion,
-			"apn":              p.APN,
-			"source":           p.Source,
-			"updated_at":       p.UpdatedAt,
+			"network_enabled":       p.NetworkEnabled,
+			"vowifi_enabled":        p.VoWiFiEnabled,
+			"airplane_enabled":      p.AirplaneEnabled,
+			"ip_version":            p.IPVersion,
+			"apn":                   p.APN,
+			"source":                p.Source,
+			"outbound_proxy_enabled": p.OutboundProxyEnabled,
+			"updated_at":            p.UpdatedAt,
 		}),
 	}).Create(&p).Error
 }
