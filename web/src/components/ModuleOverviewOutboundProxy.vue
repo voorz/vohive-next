@@ -3,7 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import type { DeviceOverviewItem } from '../types/api'
 import { devicesService } from '../services/devices'
 import { copyToClipboard } from '../utils/clipboard'
-import { loadPlmnInfo, mccToIso } from '../composables/plmn-info'
+import { loadPlmnInfo } from '../composables/plmn-info'
 import { ElMessage } from 'element-plus'
 import { Globe24Regular, Link24Regular } from '@vicons/fluent'
 import CountryFlag from './CountryFlag.vue'
@@ -62,18 +62,9 @@ const exposedAsUpstream = computed(() => !!status.value?.exposed_as_upstream)
 
 const instances = computed(() => status.value?.instances || [])
 
-// SIM 卡归属地 ISO（回退用）
-const simIso = computed(() => {
-  const mcc = props.device?.modem?.native_mcc
-  const mnc = props.device?.modem?.native_mnc
-  if (!mcc) return ''
-  return mccToIso(mcc, mnc)
-})
-
-// 实际出口 IP 归属地 ISO（优先用 IP 查询结果，回退到 SIM 卡归属地）
+// 实际出口 IP 归属地 ISO（仅用 IP 查询结果）
 const actualIso = computed(() => {
-  if (status.value?.ip_country_code) return status.value.ip_country_code
-  return simIso.value
+  return status.value?.ip_country_code || ''
 })
 
 // ---- 方法 ----
@@ -140,7 +131,7 @@ async function onExposeBeforeChange(): Promise<boolean> {
   exposing.value = true
   try {
     if (targetExposed) {
-      const result = await devicesService.exposeOutboundProxyAsUpstream(id, actualIso.value)
+      const result = await devicesService.exposeOutboundProxyAsUpstream(id)
       if (!result.ok) throw new Error(result.error?.message || '暴露失败')
       ElMessage.success('已暴露为前置代理')
     } else {
@@ -149,6 +140,15 @@ async function onExposeBeforeChange(): Promise<boolean> {
       ElMessage.success('已取消暴露前置代理')
     }
     await fetchStatus()
+    // 刷新前置代理 store（国家规则列表依赖此数据）
+    await upstreamStore.fetchAll()
+    // 暴露成功后延迟 3 秒再拉取一次，等待后端异步延迟测试写入 DB
+    if (targetExposed) {
+      setTimeout(() => {
+        fetchStatus()
+        upstreamStore.fetchAll()
+      }, 3000)
+    }
     return true
   } catch (e: unknown) {
     ElMessage.error(e instanceof Error ? e.message : '操作失败')
@@ -172,15 +172,14 @@ const currentRules = computed<UpstreamProxyCountryRule[]>(() => {
 // 国家规则数量
 const ruleCount = computed(() => currentRules.value.length)
 
-// 可选国家（排除已配置到其他代理的）
+// 可选国家（排除已配置到任何代理的，包括当前代理——已在列表中）
 const availableCountries = computed(() => {
   return upstreamStore.countries.filter(country => {
     const rule = upstreamStore.countryRules.find(r => r.country_code === country.country_code)
-    // 排除已配置到其他代理的规则
+    // 没有规则 → 可选
     if (!rule) return true
-    // 如果配置到了当前代理，也排除（已在列表中）
-    const proxy = upstreamStore.proxies.find(p => p.source === 'Auto' && p.identity_id === status.value?.iccid)
-    return proxy && rule.upstream_proxy_id === proxy.id
+    // 有规则 → 不可选（已配置到某个代理）
+    return false
   })
 })
 
@@ -205,6 +204,7 @@ async function handleAddRule() {
     if (!result.ok) throw new Error(result.error?.message || '添加规则失败')
     ElMessage.success('国家规则已添加')
     selectedCountry.value = ''
+    await upstreamStore.fetchAll()
   } catch (e: unknown) {
     ElMessage.error(e instanceof Error ? e.message : '操作失败')
   } finally {
@@ -218,6 +218,7 @@ async function handleDeleteRule(countryCode: string) {
     const result = await upstreamStore.deleteCountryRule(countryCode)
     if (!result.ok) throw new Error(result.error?.message || '删除规则失败')
     ElMessage.success('国家规则已删除')
+    await upstreamStore.fetchAll()
   } catch (e: unknown) {
     ElMessage.error(e instanceof Error ? e.message : '操作失败')
   } finally {
@@ -246,6 +247,16 @@ watch(
     }
   }
 )
+
+// 公网 变化时（如切换 IP 后）重新获取状态
+watch(
+  () => props.device?.public_ip,
+  (newIP, oldIP) => {
+    if (newIP !== oldIP && newIP && props.device?.id) {
+      fetchStatus()
+    }
+  }
+)
 </script>
 
 <template>
@@ -258,11 +269,11 @@ watch(
       <span class="ov-card-title">出站代理</span>
     </div>
     <div class="ov-card-body">
-      <!-- Part 1: 启动出站代理开关 -->
+      <!-- Part 1: 使用流量创建出站代理开关 -->
       <div class="field col-span-2 form-switch-row">
         <div>
-          <div class="switch-title">启动出站代理</div>
-          <div class="switch-desc">通过模组建立物理网络通道</div>
+          <div class="switch-title">使用流量创建出站代理</div>
+          <div class="switch-desc">通过当前流量在模组建立物理网络通道给代理节点使用</div>
         </div>
         <el-switch
           :model-value="proxyEnabled"
@@ -274,21 +285,23 @@ watch(
       <!-- Part 2: 实例表格 -->
         <div v-if="instances.length > 0" class="op-conn-table">
           <el-table :data="instances" :border="false">
-            <el-table-column prop="id" label="实例 ID" show-overflow-tooltip>
+<el-table-column prop="id" label="实例 ID" align="center" show-overflow-tooltip>
+<template #default="{ row }">
+<span class="op-cell-mono">{{ row.id }}</span>
+</template>
+</el-table-column>
+<el-table-column prop="running" label="运行状态" align="center">
+<template #default="{ row }">
+<span :class="row.running ? 'op-running' : 'op-stopped'">
+{{ row.running ? '运行中' : '已停止' }}
+</span>
+</template>
+</el-table-column>
+            <el-table-column prop="active_conns" label="活跃连接数" align="center">
               <template #default="{ row }">
-                <span class="op-cell-mono">{{ row.id }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="running" label="运行状态" width="100">
-              <template #default="{ row }">
-                <span :class="row.running ? 'op-running' : 'op-stopped'">
-                  {{ row.running ? '运行中' : '已停止' }}
-                </span>
-              </template>
-            </el-table-column>
-            <el-table-column prop="active_conns" label="活跃连接数" width="120" align="right">
-              <template #default="{ row }">
-                <span class="op-cell-mono">{{ row.active_conns }}</span>
+                <el-tag size="small" :type="row.active_conns > 0 ? 'success' : 'info'" effect="light" round>
+                  {{ row.active_conns }}
+                </el-tag>
               </template>
             </el-table-column>
           </el-table>
@@ -296,7 +309,7 @@ watch(
 
         <!-- Part 3: 国家路由规则 -->
         <div v-if="exposedAsUpstream" class="op-rules-section">
-          <div class="op-section-label">国家路由规则</div>
+          <div class="op-section-label">国家路由规则 <span class="op-section-hint">(VoWiFi 根据PLMN自动命中)</span></div>
           <!-- 已配置规则列表 -->
           <div v-if="currentRules.length > 0" class="op-rules-list">
             <div
@@ -351,7 +364,7 @@ watch(
         </div>
 
         <!-- Part 4: 信息统计 -->
-        <div v-if="instances.length > 0" class="op-stats-row">
+        <div v-if="exposedAsUpstream && instances.length > 0" class="op-stats-row">
           <div class="op-stat-item">
             <span class="op-stat-label">节点信息</span>
             <span class="op-stat-value">Socks5</span>
@@ -398,11 +411,11 @@ watch(
           </div>
         </div>
 
-        <!-- Part 6: 创建代理节点 switch -->
+        <!-- Part 6: 激活代理节点 switch -->
         <div v-if="proxyEnabled" class="field col-span-2 form-switch-row" :class="{ 'is-unsupported': !opReady }">
           <div>
-            <div class="switch-title">创建代理节点</div>
-            <div class="switch-desc">在通道中建立socks5代理节点</div>
+            <div class="switch-title">激活代理节点</div>
+            <div class="switch-desc">在通道中建立socks5前置代理节点并暴露到局域网</div>
           </div>
           <el-switch
             :model-value="exposedAsUpstream"
@@ -496,11 +509,12 @@ watch(
   margin-bottom: 12px;
 }
 .op-stat-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  flex: 1;
-  min-width: 0;
+display: flex;
+flex-direction: column;
+align-items: center;
+gap: 2px;
+flex: 1;
+min-width: 0;
 }
 .op-stat-label {
   font-size: 11px;
@@ -545,9 +559,13 @@ watch(
   margin-bottom: 12px;
 }
 .op-section-label {
-  font-size: 11px;
-  color: var(--muted-foreground);
-  margin-bottom: 8px;
+font-size: 11px;
+color: var(--muted-foreground);
+margin-bottom: 8px;
+}
+.op-section-hint {
+font-size: 10px;
+opacity: 0.7;
 }
 .op-rules-list {
   display: flex;

@@ -455,9 +455,9 @@ export const devicesService = {
       return res.data as OutboundProxyStatus
     })
   },
-  exposeOutboundProxyAsUpstream(id: string, countryCode?: string) {
+  exposeOutboundProxyAsUpstream(id: string) {
     return callService(async () => {
-      await api.post(`/devices/${id}/outbound-proxy/expose-upstream`, { country_code: countryCode || '' })
+      await api.post(`/devices/${id}/outbound-proxy/expose-upstream`)
       return true
     })
   },

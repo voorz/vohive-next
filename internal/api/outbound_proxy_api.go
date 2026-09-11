@@ -153,11 +153,6 @@ func (s *Server) handleOutboundProxyExposeUpstream(c *gin.Context) {
 		return
 	}
 
-	var req struct {
-		CountryCode string `json:"country_code"`
-	}
-	_ = c.ShouldBindJSON(&req)
-
 	// 获取设备当前 ICCID
 	iccid := s.pool.CurrentICCIDForDevice(deviceID)
 	if iccid == "" {
@@ -165,7 +160,7 @@ func (s *Server) handleOutboundProxyExposeUpstream(c *gin.Context) {
 		return
 	}
 
-	if err := s.ExposeOutboundProxyAsUpstream(deviceID, iccid, req.CountryCode); err != nil {
+	if err := s.ExposeOutboundProxyAsUpstream(deviceID, iccid); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
 		return
 	}

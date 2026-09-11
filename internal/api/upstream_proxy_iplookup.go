@@ -226,3 +226,192 @@ func (ipapicoProvider) Decode(body []byte) (*ipInfoResult, error) {
 		Organization: data.Org,
 	}, nil
 }
+
+// ── 直接用指定 IP 查询归属地（不走代理，多源轮换） ──
+
+// ipDirectProvider 定义一个携带 IP 查询的源接口。
+type ipDirectProvider interface {
+	Name() string
+	URL(ip string) string
+	Decode(body []byte) (*ipInfoResult, error)
+}
+
+// lookupIPInfoDirect 用指定 IP 地址直接查询归属地信息（不走代理）。
+// 依次尝试多个源，第一个成功即返回。
+func lookupIPInfoDirect(ctx context.Context, ip string) (*ipInfoResult, error) {
+	providers := []ipDirectProvider{
+		ipapiDirectProvider{},
+		ipwhoisDirectProvider{},
+		ipapicoDirectProvider{},
+	}
+
+	client := &http.Client{Timeout: 12 * time.Second}
+
+	var lastErr error
+	for _, p := range providers {
+		result, err := lookupFromDirectProvider(ctx, client, p, ip)
+		if err == nil && result != nil && result.IP != "" {
+			return result, nil
+		}
+		if err != nil {
+			lastErr = fmt.Errorf("%s: %w", p.Name(), err)
+		} else {
+			lastErr = fmt.Errorf("%s: empty result", p.Name())
+		}
+	}
+	if lastErr == nil {
+		return nil, fmt.Errorf("所有 IP 查询源均失败")
+	}
+	return nil, fmt.Errorf("所有 IP 查询源均失败: %w", lastErr)
+}
+
+func lookupFromDirectProvider(ctx context.Context, client *http.Client, p ipDirectProvider, ip string) (*ipInfoResult, error) {
+	url := p.URL(ip)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "vohive/1.0")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+		return nil, fmt.Errorf("JSON 解码失败: %w", err)
+	}
+
+	// 检查 API 级别的错误标志
+	if successRaw, ok := raw["success"]; ok {
+		var success bool
+		if err := json.Unmarshal(successRaw, &success); err == nil && !success {
+			return nil, fmt.Errorf("API 返回 success=false")
+		}
+	}
+
+	body, err := json.Marshal(raw)
+	if err != nil {
+		return nil, fmt.Errorf("重新序列化失败: %w", err)
+	}
+	return p.Decode(body)
+}
+
+// ── Direct Provider 1: ip-api.com/json/{ip} ──
+
+type ipapiDirectProvider struct{}
+
+func (ipapiDirectProvider) Name() string { return "ip-api.com" }
+func (ipapiDirectProvider) URL(ip string) string {
+	return fmt.Sprintf("http://ip-api.com/json/%s?fields=status,message,query,country,countryCode,regionName,city,as,org&ts=%d", ip, time.Now().Unix())
+}
+func (ipapiDirectProvider) Decode(body []byte) (*ipInfoResult, error) {
+	var data struct {
+		Status      bool   `json:"status"`
+		Message     string `json:"message"`
+		Query       string `json:"query"`
+		Country     string `json:"country"`
+		CountryCode string `json:"countryCode"`
+		RegionName  string `json:"regionName"`
+		City        string `json:"city"`
+		AS          string `json:"as"`
+		Org         string `json:"org"`
+	}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return nil, fmt.Errorf("ip-api.com 解码失败: %w", err)
+	}
+	if !data.Status {
+		return nil, fmt.Errorf("ip-api.com 错误: %s", data.Message)
+	}
+	return &ipInfoResult{
+		IP:           data.Query,
+		Country:      data.Country,
+		CountryCode:  data.CountryCode,
+		Region:       data.RegionName,
+		City:         data.City,
+		ASN:          data.AS,
+		Organization: data.Org,
+	}, nil
+}
+
+// ── Direct Provider 2: ipwho.is/{ip} ──
+
+type ipwhoisDirectProvider struct{}
+
+func (ipwhoisDirectProvider) Name() string { return "ipwho.is" }
+func (ipwhoisDirectProvider) URL(ip string) string {
+	return fmt.Sprintf("https://ipwho.is/%s?t=%d", ip, time.Now().UnixMilli())
+}
+func (ipwhoisDirectProvider) Decode(body []byte) (*ipInfoResult, error) {
+	var data struct {
+		IP         string `json:"ip"`
+		Country    string `json:"country"`
+		CountryCode string `json:"country_code"`
+		Region     string `json:"region"`
+		City       string `json:"city"`
+		Connection struct {
+			ASN int    `json:"asn"`
+			Org string `json:"org"`
+		} `json:"connection"`
+	}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return nil, fmt.Errorf("ipwho.is 解码失败: %w", err)
+	}
+	asnStr := ""
+	if data.Connection.ASN > 0 {
+		asnStr = fmt.Sprintf("AS%d", data.Connection.ASN)
+	}
+	return &ipInfoResult{
+		IP:           data.IP,
+		Country:      data.Country,
+		CountryCode:  data.CountryCode,
+		Region:       data.Region,
+		City:         data.City,
+		ASN:          asnStr,
+		Organization: data.Connection.Org,
+	}, nil
+}
+
+// ── Direct Provider 3: ipapi.co/{ip}/json/ ──
+
+type ipapicoDirectProvider struct{}
+
+func (ipapicoDirectProvider) Name() string { return "ipapi.co" }
+func (ipapicoDirectProvider) URL(ip string) string {
+	return fmt.Sprintf("https://ipapi.co/%s/json/?ts=%d", ip, time.Now().Unix())
+}
+func (ipapicoDirectProvider) Decode(body []byte) (*ipInfoResult, error) {
+	var data struct {
+		IP          string `json:"ip"`
+		CountryName string `json:"country_name"`
+		CountryCode string `json:"country_code"`
+		Region      string `json:"region"`
+		City        string `json:"city"`
+		ASN         string `json:"asn"`
+		Org         string `json:"org"`
+		Error       bool   `json:"error"`
+		Reason      string `json:"reason"`
+	}
+	if err := json.Unmarshal(body, &data); err != nil {
+		return nil, fmt.Errorf("ipapi.co 解码失败: %w", err)
+	}
+	if data.Error {
+		return nil, fmt.Errorf("ipapi.co 错误: %s", data.Reason)
+	}
+	return &ipInfoResult{
+		IP:           data.IP,
+		Country:      data.CountryName,
+		CountryCode:  data.CountryCode,
+		Region:       data.Region,
+		City:         data.City,
+		ASN:          data.ASN,
+		Organization: data.Org,
+	}, nil
+}

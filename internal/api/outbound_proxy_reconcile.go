@@ -1,8 +1,11 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/db"
@@ -25,6 +28,69 @@ const (
 	outboundProxyPassword   = "vohive"
 	outboundProxyListenAddr = "0.0.0.0"
 )
+
+// ipCountryCache 缓存设备公网 IP 的归属地 ISO 代码。
+// 在出站代理创建/启动时异步查询，供激活代理节点时绑定国家规则使用。
+var (
+	ipCountryCacheMu sync.RWMutex
+	ipCountryCache   = make(map[string]ipCountryEntry)
+)
+
+type ipCountryEntry struct {
+	iso      string
+	ip       string
+	fetchedAt time.Time
+}
+
+// getCachedCountryCode 返回设备缓存的 IP 归属地 ISO。
+func getCachedCountryCode(deviceID string) string {
+	ipCountryCacheMu.RLock()
+	defer ipCountryCacheMu.RUnlock()
+	entry, ok := ipCountryCache[deviceID]
+	if !ok {
+		return ""
+	}
+	// 缓存有效期 1 小时
+	if time.Since(entry.fetchedAt) > time.Hour {
+		return ""
+	}
+	return entry.iso
+}
+
+// setCachedCountryCode 设置设备缓存的 IP 归属地 ISO。
+func setCachedCountryCode(deviceID, iso, ip string) {
+	ipCountryCacheMu.Lock()
+	defer ipCountryCacheMu.Unlock()
+	ipCountryCache[deviceID] = ipCountryEntry{iso: iso, ip: ip, fetchedAt: time.Now()}
+}
+
+// lookupAndCacheCountryCode 用已有公网 IP 异步查询归属地并缓存。
+func (s *Server) lookupAndCacheCountryCode(deviceID string) {
+	if s.pool == nil {
+		return
+	}
+	worker := s.pool.GetWorker(deviceID)
+	if worker == nil {
+		return
+	}
+	publicIP := worker.GetCachedIP()
+	if publicIP == "" {
+		return
+	}
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
+
+		info, err := lookupIPInfoDirect(ctx, publicIP)
+		if err != nil {
+			logger.Warn("🌐 IP 归属地查询失败", "device", deviceID, "ip", publicIP, "err", err)
+			return
+		}
+		setCachedCountryCode(deviceID, info.CountryCode, publicIP)
+		logger.Info("🌐 IP 归属地已缓存", "device", deviceID, "ip", publicIP, "iso", info.CountryCode, "country", info.Country)
+	}()
+}
 
 // EnsureOutboundProxyForDevice 为设备创建出站代理实例（基座）。
 // 如果同设备+同 ICCID 的实例已存在则直接返回。
@@ -54,16 +120,13 @@ func (s *Server) EnsureOutboundProxyForDevice(deviceID, iccid string) error {
 		return fmt.Errorf("端口探测失败: %w", err)
 	}
 
-	// 生成实例 ID
-	instanceID := fmt.Sprintf("outbound-%s-%s", deviceID, iccid)
-	if len(instanceID) > 60 {
-		instanceID = instanceID[:60]
-	}
+	// 生成实例 ID：直接使用 deviceID
+	instanceID := deviceID
 
 	// 创建代理实例配置
 	inst := config.ProxyInstance{
 		ID:          instanceID,
-		Name:        fmt.Sprintf("出站代理-%s", deviceID),
+		Name:        deviceID,
 		DeviceID:    deviceID,
 		Enabled:     true,
 		Mode:        "socks5",
@@ -94,6 +157,10 @@ func (s *Server) EnsureOutboundProxyForDevice(deviceID, iccid string) error {
 			"device", deviceID, "err", err)
 		return err
 	}
+
+	// 异步查询 IP 归属地并缓存（用已有公网 IP，不等代理节点创建）
+	s.lookupAndCacheCountryCode(deviceID)
+
 	return nil
 }
 
@@ -241,9 +308,8 @@ func (s *Server) EnableOutboundProxyForDevice(deviceID string) error {
 }
 
 // ExposeOutboundProxyAsUpstream 将出站代理信息写入 upstream_proxies 表（派生入口）。
-// 自动完成国家绑定（根据 SIM home country MCC → 国家代码），不需要用户手动操作。
-// 这是对现有 POST /upstream-proxies API 的封装复用，不是新建接口。
-func (s *Server) ExposeOutboundProxyAsUpstream(deviceID, iccid, countryCode string) error {
+// 自动从 IP 归属地缓存读取 ISO 绑定国家规则，不需要用户手动操作。
+func (s *Server) ExposeOutboundProxyAsUpstream(deviceID, iccid string) error {
 	deviceID = strings.TrimSpace(deviceID)
 	iccid = strings.TrimSpace(iccid)
 	if deviceID == "" {
@@ -267,8 +333,8 @@ func (s *Server) ExposeOutboundProxyAsUpstream(deviceID, iccid, countryCode stri
 		return fmt.Errorf("未找到设备 %s 的出站代理实例", deviceID)
 	}
 
-	// 构建 upstream proxy ID
-	upstreamID := fmt.Sprintf("upstream-%s", outboundInst.ID)
+	// 构建 upstream proxy ID：直接使用实例 ID（即 deviceID）
+	upstreamID := outboundInst.ID
 	addr := fmt.Sprintf("%s:%d", outboundInst.ListenAddr, outboundInst.ListenPort)
 	if outboundInst.ListenAddr == "0.0.0.0" {
 		addr = fmt.Sprintf("127.0.0.1:%d", outboundInst.ListenPort)
@@ -292,8 +358,8 @@ func (s *Server) ExposeOutboundProxyAsUpstream(deviceID, iccid, countryCode stri
 	logger.Info("出站代理已暴露为前置代理",
 		"device", deviceID, "upstream_id", upstreamID, "addr", addr)
 
-	// 自动绑定国家规则（如果提供了 countryCode）
-	countryCode = strings.TrimSpace(countryCode)
+	// 从 IP 归属地缓存读取 ISO，自动绑定国家规则
+	countryCode := strings.TrimSpace(getCachedCountryCode(deviceID))
 	if countryCode != "" {
 		rule := db.UpstreamProxyCountryRule{
 			CountryCode:     strings.ToUpper(countryCode),
@@ -307,7 +373,12 @@ func (s *Server) ExposeOutboundProxyAsUpstream(deviceID, iccid, countryCode stri
 			logger.Info("已自动绑定国家规则",
 				"device", deviceID, "country_code", countryCode, "upstream_id", upstreamID)
 		}
+	} else {
+		logger.Warn("IP 归属地缓存为空，跳过自动绑定国家规则", "device", deviceID)
 	}
+
+	// 激活代理节点后立即执行一次延迟测试 + IP 查询
+	go s.monitorOneProxy(context.Background(), upstream)
 
 	return nil
 }
@@ -505,7 +576,8 @@ func (s *Server) GetOutboundProxyStatus(deviceID string) (map[string]any, error)
 		}
 	}
 
-	// 如果已暴露为前置代理，从 upstream_proxies 表的 lookup 字段读取 IP 归属地和延迟
+	// 如果已暴露为前置代理，从 upstream_proxies 表的 lookup 字段读取延迟
+	// IP 归属地优先从缓存读取（使用流量创建出站代理时已查询），回退到 upstream_proxies 表
 	result := map[string]any{
 		"enabled":             inst.Enabled,
 		"op_ready":            opReady,
@@ -513,9 +585,13 @@ func (s *Server) GetOutboundProxyStatus(deviceID string) (map[string]any, error)
 		"exposed_as_upstream": exposedAsUpstream,
 		"instances":           statusList,
 		"public_ip":           devicePublicIP,
+		"ip_country_code":     getCachedCountryCode(deviceID),
 	}
 	if exposedAsUpstream && upstreamProxy != nil {
-		result["ip_country_code"] = upstreamProxy.LookupCountryCode
+		// 如果缓存为空，回退到 upstream_proxies 表的 lookup 结果
+		if result["ip_country_code"] == "" && upstreamProxy.LookupCountryCode != "" {
+			result["ip_country_code"] = upstreamProxy.LookupCountryCode
+		}
 		result["latency_ms"] = upstreamProxy.LookupLatencyMs
 	}
 	return result, nil
