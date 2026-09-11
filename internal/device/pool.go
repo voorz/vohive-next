@@ -190,6 +190,8 @@ type Pool struct {
 	dataDisconnectHandlers    []func(deviceID string)
 	esimSwitchCompleteHandlersMu sync.RWMutex
 	esimSwitchCompleteHandlers   []func(deviceID, newICCID string)
+	proxyClearFromModemHandlersMu sync.RWMutex
+	proxyClearFromModemHandlers   []func(deviceID, oldICCID, newICCID string)
 	rescanAndReconnectForTest func() error
 
 	// discoveryEventSubscribers 用于热插拔事件通知 SSE 流。
@@ -328,6 +330,32 @@ func (p *Pool) notifyESIMSwitchComplete(deviceID, newICCID string) {
 	for _, handler := range handlers {
 		h := handler
 		go h(deviceID, newICCID)
+	}
+}
+
+// OnProxyClearFromModem 注册切卡后代理清理回调 handler。
+// handler 接收 deviceID、旧 ICCID 和新 ICCID。
+// 当切卡完成（无论后续走 done/degraded/failed），都会异步触发此回调，
+// 由代理池系统扫描并清理匹配旧身份的出站代理和前置代理实例。
+func (p *Pool) OnProxyClearFromModem(handler func(deviceID, oldICCID, newICCID string)) {
+	if p == nil || handler == nil {
+		return
+	}
+	p.proxyClearFromModemHandlersMu.Lock()
+	p.proxyClearFromModemHandlers = append(p.proxyClearFromModemHandlers, handler)
+	p.proxyClearFromModemHandlersMu.Unlock()
+}
+
+func (p *Pool) notifyProxyClearFromModem(deviceID, oldICCID, newICCID string) {
+	if p == nil {
+		return
+	}
+	p.proxyClearFromModemHandlersMu.RLock()
+	handlers := append([]func(string, string, string){}, p.proxyClearFromModemHandlers...)
+	p.proxyClearFromModemHandlersMu.RUnlock()
+	for _, handler := range handlers {
+		h := handler
+		go h(deviceID, oldICCID, newICCID)
 	}
 }
 

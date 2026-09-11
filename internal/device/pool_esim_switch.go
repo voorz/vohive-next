@@ -1123,6 +1123,14 @@ func (p *Pool) handleESIMSwitchAfter(deviceID string, token uint64) {
 	if !ok {
 		return
 	}
+
+	// 切卡后异步清理旧代理实例（不阻塞切卡恢复流程）。
+	// 无论后续走 done/degraded/failed 路径，只要 ICCID 发生变化就触发清理。
+	if snapshot.ICCIDBefore != "" && snapshot.TargetICCID != "" &&
+		normalizeSIMIdentityForCompare(snapshot.ICCIDBefore) != normalizeSIMIdentityForCompare(snapshot.TargetICCID) {
+		go p.notifyProxyClearFromModem(deviceID, snapshot.ICCIDBefore, snapshot.TargetICCID)
+	}
+
 	defer func() {
 		if snapshot.SwitchToken != 0 {
 			p.clearESIMSwitchIfToken(deviceID, snapshot.SwitchToken)
@@ -1240,10 +1248,6 @@ func (p *Pool) handleESIMSwitchAfter(deviceID string, token uint64) {
 	if worker.EsimMgr != nil {
 		p.schedulePostSwitchNotificationAutoClean(deviceID, token, worker)
 	}
-
-	// 通知出站代理联动：切卡已完成，传入新 ICCID
-	newICCID := worker.CurrentICCID()
-	p.notifyESIMSwitchComplete(deviceID, newICCID)
 
 	finalizeOK = true
 }

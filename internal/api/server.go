@@ -141,6 +141,7 @@ func New(cfg *config.Config, pool *device.Pool, fs http.FileSystem, proxyMgr *se
 	}
 
 	s.initMCP()
+	s.RegisterOutboundProxyHandlers()
 
 	return s
 }

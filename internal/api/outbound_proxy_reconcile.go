@@ -377,67 +377,62 @@ func (s *Server) RegisterOutboundProxyHandlers() {
 		}
 	})
 
-	// eSIM 切卡完成 → 检查新 ICCID 的 cardpolicy，决定是否销毁旧实例
-	s.pool.OnESIMSwitchComplete(func(deviceID, newICCID string) {
-		s.HandleESIMSwitchForOutboundProxy(deviceID, newICCID)
+	// 切卡后代理清理 → 由 SIM 身份变化触发，异步扫描代理池清理旧身份实例
+	s.pool.OnProxyClearFromModem(func(deviceID, oldICCID, newICCID string) {
+		if err := s.ClearProxyFromModem(deviceID, oldICCID, newICCID); err != nil {
+			logger.Warn("切卡后清理旧代理失败",
+				"device", deviceID, "old_iccid", oldICCID, "new_iccid", newICCID, "err", err)
+		}
 	})
 }
 
-// HandleESIMSwitchForOutboundProxy 在 eSIM 切卡完成后调用，
-// 检查新 ICCID 的 cardpolicy，决定是否销毁旧实例。
-func (s *Server) HandleESIMSwitchForOutboundProxy(deviceID, newICCID string) {
+// ClearProxyFromModem 切卡后由 SIM 身份变化触发的代理清理流程。
+// 扫描代理池中匹配旧身份的出站代理和前置代理实例，全部清理。
+// 三要素匹配：模组（deviceID）+ ICCID（旧） + 创建标识（source=Auto）。
+func (s *Server) ClearProxyFromModem(deviceID, oldICCID, newICCID string) error {
 	deviceID = strings.TrimSpace(deviceID)
+	oldICCID = strings.TrimSpace(oldICCID)
 	newICCID = strings.TrimSpace(newICCID)
-	if deviceID == "" {
-		return
+	if deviceID == "" || oldICCID == "" {
+		return nil
 	}
 
-	// 检查新 ICCID 的 cardpolicy
-	var newPolicyEnabled bool
-	if newICCID != "" {
-		policy, err := db.GetCardPolicy(newICCID)
-		if err == nil {
-			newPolicyEnabled = policy.OutboundProxyEnabled
-		}
-	}
-
-	if !newPolicyEnabled {
-		// 新卡未开启出站代理 → 销毁所有旧实例
-		if err := s.DestroyOutboundProxyForDevice(deviceID, ""); err != nil {
-			logger.Warn("切卡后销毁旧出站代理失败",
-				"device", deviceID, "err", err)
-		}
-		return
-	}
-
-	// 新卡开启了出站代理 → 销毁不匹配新 ICCID 的旧实例（含级联清理旧前置代理）
+	// 1. 清理出站代理实例：device_id 匹配 + iccid == oldICCID
 	instances, err := db.ListProxyInstances()
 	if err != nil {
-		return
+		return fmt.Errorf("查询代理实例失败: %w", err)
 	}
+	var deletedInstances []string
 	for _, inst := range instances {
-		if inst.DeviceID == deviceID && inst.ICCID != newICCID {
-			// 级联清理旧 ICCID 对应的 Auto 前置代理
-			if inst.ICCID != "" {
-				if err := db.DeleteAutoUpstreamProxyByIdentity(inst.ICCID); err != nil {
-					logger.Warn("切卡后级联删除旧前置代理失败",
-						"device", deviceID, "old_iccid", inst.ICCID, "err", err)
-				}
-			}
-			// 删除旧的 proxy_instance
-			if err := db.DB.Delete(&db.ProxyInstance{}, "id = ?", inst.ID).Error; err != nil {
-				logger.Warn("切卡后删除旧 ICCID 代理实例失败",
-					"device", deviceID, "instance_id", inst.ID, "err", err)
-			} else {
-				logger.Info("切卡后已清理旧 ICCID 的出站代理实例",
-					"device", deviceID, "new_iccid", newICCID, "instance_id", inst.ID)
-			}
+		if inst.DeviceID == deviceID && inst.ICCID == oldICCID && inst.ICCID != newICCID {
+			deletedInstances = append(deletedInstances, inst.ID)
 		}
 	}
+	if len(deletedInstances) > 0 {
+		if err := db.DB.Where("id IN ?", deletedInstances).Delete(&db.ProxyInstance{}).Error; err != nil {
+			logger.Warn("清理旧出站代理实例失败",
+				"device", deviceID, "old_iccid", oldICCID, "instances", deletedInstances, "err", err)
+		} else {
+			logger.Info("已清理旧 ICCID 的出站代理实例",
+				"device", deviceID, "old_iccid", oldICCID, "new_iccid", newICCID, "instances", deletedInstances)
+		}
+	}
+
+	// 2. 清理前置代理实例：source=Auto + identity_id == oldICCID
+	if err := db.DeleteAutoUpstreamProxyByIdentity(oldICCID); err != nil {
+		logger.Warn("清理旧 ICCID 的前置代理失败",
+			"device", deviceID, "old_iccid", oldICCID, "err", err)
+	} else {
+		logger.Info("已清理旧 ICCID 的前置代理",
+			"device", deviceID, "old_iccid", oldICCID)
+	}
+
+	// 3. 同步代理管理器
 	if err := s.SyncProxyConfigs(); err != nil {
-		logger.Warn("切卡后同步代理配置失败",
+		logger.Warn("清理后同步代理配置失败",
 			"device", deviceID, "err", err)
 	}
+	return nil
 }
 
 // GetOutboundProxyStatus 查询设备的出站代理状态。
