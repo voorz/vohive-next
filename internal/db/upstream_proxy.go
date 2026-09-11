@@ -26,6 +26,7 @@ type UpstreamProxy struct {
 	// 持久化的 lookup 结果（由 /lookup 接口写入）
 	LookupIP           string `gorm:"column:lookup_ip" json:"lookup_ip,omitempty"`
 	LookupCountry      string `gorm:"column:lookup_country" json:"lookup_country,omitempty"`
+	LookupCountryCode  string `gorm:"column:lookup_country_code" json:"lookup_country_code,omitempty"` // ISO 2 字母代码
 	LookupRegion       string `gorm:"column:lookup_region" json:"lookup_region,omitempty"`
 	LookupCity         string `gorm:"column:lookup_city" json:"lookup_city,omitempty"`
 	LookupASN          string `gorm:"column:lookup_asn" json:"lookup_asn,omitempty"`
@@ -123,11 +124,12 @@ func DeleteAutoUpstreamProxyByIdentity(identityID string) error {
 }
 
 // SaveUpstreamProxyLookup 保存代理 lookup 结果到数据库
-func SaveUpstreamProxyLookup(id string, ip, country, region, city, asn, organization string, latencyMs int64, lookupErr string) error {
+func SaveUpstreamProxyLookup(id string, ip, country, countryCode, region, city, asn, organization string, latencyMs int64, lookupErr string) error {
 	updates := map[string]interface{}{
-		"lookup_ip":           ip,
-		"lookup_country":      country,
-		"lookup_region":       region,
+		"lookup_ip":            ip,
+		"lookup_country":       country,
+		"lookup_country_code":  countryCode,
+		"lookup_region":        region,
 		"lookup_city":         city,
 		"lookup_asn":          asn,
 		"lookup_organization": organization,

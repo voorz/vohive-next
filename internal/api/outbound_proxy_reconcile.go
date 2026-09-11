@@ -384,6 +384,9 @@ func (s *Server) RegisterOutboundProxyHandlers() {
 				"device", deviceID, "old_iccid", oldICCID, "new_iccid", newICCID, "err", err)
 		}
 	})
+
+	// 启动定时监控 goroutine（延迟测试 + IP 查询，每 3 分钟一轮）
+	s.StartOutboundProxyMonitor()
 }
 
 // ClearProxyFromModem 切卡后由 SIM 身份变化触发的代理清理流程。
@@ -494,11 +497,26 @@ func (s *Server) GetOutboundProxyStatus(deviceID string) (map[string]any, error)
 	upstreamProxy, _ := db.GetAutoUpstreamProxyByIdentity(inst.ICCID)
 	exposedAsUpstream := upstreamProxy != nil
 
-	return map[string]any{
-		"enabled":              inst.Enabled,
-		"op_ready":             opReady,
-		"iccid":                inst.ICCID,
-		"exposed_as_upstream":  exposedAsUpstream,
-		"instances":            statusList,
-	}, nil
+	// 设备公网 IP：从 worker 缓存获取（出站代理启动时即有）
+	devicePublicIP := ""
+	if s.pool != nil {
+		if worker := s.pool.GetWorker(deviceID); worker != nil {
+			devicePublicIP = worker.GetCachedIP()
+		}
+	}
+
+	// 如果已暴露为前置代理，从 upstream_proxies 表的 lookup 字段读取 IP 归属地和延迟
+	result := map[string]any{
+		"enabled":             inst.Enabled,
+		"op_ready":            opReady,
+		"iccid":               inst.ICCID,
+		"exposed_as_upstream": exposedAsUpstream,
+		"instances":           statusList,
+		"public_ip":           devicePublicIP,
+	}
+	if exposedAsUpstream && upstreamProxy != nil {
+		result["ip_country_code"] = upstreamProxy.LookupCountryCode
+		result["latency_ms"] = upstreamProxy.LookupLatencyMs
+	}
+	return result, nil
 }

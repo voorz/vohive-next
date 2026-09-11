@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -374,7 +373,7 @@ func (s *Server) handleLookupUpstreamProxy(c *gin.Context) {
 	conn, dialErr := net.DialTimeout("tcp", net.JoinHostPort(host, port), 5*time.Second)
 	if dialErr != nil {
 		logger.Warn("🌐 前置代理连接失败", "id", id, "addr", proxy.Addr, "err", dialErr)
-		if saveErr := db.SaveUpstreamProxyLookup(id, "", "", "", "", "", "", -1, "TCP 连接失败: "+dialErr.Error()); saveErr != nil {
+		if saveErr := db.SaveUpstreamProxyLookup(id, "", "", "", "", "", "", "", -1, "TCP 连接失败: "+dialErr.Error()); saveErr != nil {
 			logger.Error("🌐 保存 lookup 结果失败", "id", id, "err", saveErr)
 		}
 		c.JSON(http.StatusOK, gin.H{
@@ -391,7 +390,7 @@ func (s *Server) handleLookupUpstreamProxy(c *gin.Context) {
 	latencyMs, latencyErr := measureProxyLatency(proxy.Addr, proxy.Username, proxy.Password)
 	if latencyErr != nil {
 		logger.Warn("🌐 前置代理延迟测试失败", "id", id, "addr", proxy.Addr, "err", latencyErr)
-		if saveErr := db.SaveUpstreamProxyLookup(id, "", "", "", "", "", "", -1, "SOCKS5 延迟测试失败: "+latencyErr.Error()); saveErr != nil {
+		if saveErr := db.SaveUpstreamProxyLookup(id, "", "", "", "", "", "", "", -1, "SOCKS5 延迟测试失败: "+latencyErr.Error()); saveErr != nil {
 			logger.Error("🌐 保存 lookup 结果失败", "id", id, "err", saveErr)
 		}
 		c.JSON(http.StatusOK, gin.H{
@@ -407,7 +406,7 @@ func (s *Server) handleLookupUpstreamProxy(c *gin.Context) {
 	ipInfo, ipErr := lookupIPInfoViaProxy(c.Request.Context(), proxy.Addr, proxy.Username, proxy.Password)
 	if ipErr != nil {
 		logger.Warn("🌐 出口 IP 查询失败", "id", id, "proxy_addr", proxy.Addr, "err", ipErr)
-		if saveErr := db.SaveUpstreamProxyLookup(id, "", "", "", "", "", "", latencyMs, "出口 IP 查询失败: "+ipErr.Error()); saveErr != nil {
+		if saveErr := db.SaveUpstreamProxyLookup(id, "", "", "", "", "", "", "", latencyMs, "出口 IP 查询失败: "+ipErr.Error()); saveErr != nil {
 			logger.Error("🌐 保存 lookup 结果失败", "id", id, "err", saveErr)
 		}
 		c.JSON(http.StatusOK, gin.H{
@@ -420,13 +419,14 @@ func (s *Server) handleLookupUpstreamProxy(c *gin.Context) {
 	}
 
 	logger.Info("🌐 前置代理 lookup 完成", "id", id, "addr", proxy.Addr, "exit_ip", ipInfo.IP, "latency_ms", latencyMs, "country", ipInfo.Country)
-	if saveErr := db.SaveUpstreamProxyLookup(id, ipInfo.IP, ipInfo.Country, ipInfo.Region, ipInfo.City, ipInfo.ASN, ipInfo.Organization, latencyMs, ""); saveErr != nil {
+	if saveErr := db.SaveUpstreamProxyLookup(id, ipInfo.IP, ipInfo.Country, ipInfo.CountryCode, ipInfo.Region, ipInfo.City, ipInfo.ASN, ipInfo.Organization, latencyMs, ""); saveErr != nil {
 		logger.Error("🌐 保存 lookup 结果失败", "id", id, "err", saveErr)
 	}
 	c.JSON(http.StatusOK, gin.H{
 		"status":       "ok",
 		"ip":           ipInfo.IP,
 		"country":      ipInfo.Country,
+		"country_code": ipInfo.CountryCode,
 		"region":       ipInfo.Region,
 		"city":         ipInfo.City,
 		"asn":          ipInfo.ASN,
@@ -435,20 +435,11 @@ func (s *Server) handleLookupUpstreamProxy(c *gin.Context) {
 	})
 }
 
-type ipwhoResponse struct {
-	IP         string `json:"ip"`
-	Country    string `json:"country"`
-	Region     string `json:"region"`
-	City       string `json:"city"`
-	Connection struct {
-		ASN int    `json:"asn"`
-		Org string `json:"org"`
-	} `json:"connection"`
-}
 
 type ipInfoResult struct {
 	IP           string
 	Country      string
+	CountryCode  string // ISO 2 字母代码 (如 US, DE, GB)
 	Region       string
 	City         string
 	ASN          string
@@ -475,46 +466,8 @@ func measureProxyLatency(proxyAddr, username, password string) (int64, error) {
 	return latencyMs, nil
 }
 
-// lookupIPInfoViaProxy 通过 SOCKS5 代理请求 ipwho.is，获取出口 IP 与归属信息
+// lookupIPInfoViaProxy 通过 SOCKS5 代理请求多个免费 IP 查询源，获取出口 IP 与归属信息。
+// 依次尝试 ipwho.is → ip-api.com → ipapi.co，第一个成功即返回。
 func lookupIPInfoViaProxy(ctx context.Context, proxyAddr, username, password string) (*ipInfoResult, error) {
-	var auth *proxy.Auth
-	if strings.TrimSpace(username) != "" {
-		auth = &proxy.Auth{User: strings.TrimSpace(username), Password: strings.TrimSpace(password)}
-	}
-	dialer, err := proxy.SOCKS5("tcp", proxyAddr, auth, &net.Dialer{Timeout: 10 * time.Second})
-	if err != nil {
-		return nil, fmt.Errorf("SOCKS5 dialer 创建失败: %w", err)
-	}
-	transport := &http.Transport{
-		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
-			return dialer.Dial(network, addr)
-		},
-	}
-	client := &http.Client{Timeout: 10 * time.Second, Transport: transport}
-	url := "https://ipwho.is/?t=" + fmt.Sprintf("%d", time.Now().UnixMilli())
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	var data ipwhoResponse
-	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-		return nil, err
-	}
-	asnStr := ""
-	if data.Connection.ASN > 0 {
-		asnStr = fmt.Sprintf("AS%d", data.Connection.ASN)
-	}
-	return &ipInfoResult{
-		IP:           data.IP,
-		Country:      data.Country,
-		Region:       data.Region,
-		City:         data.City,
-		ASN:          asnStr,
-		Organization: data.Connection.Org,
-	}, nil
+	return lookupIPInfoViaProxyMulti(ctx, proxyAddr, username, password)
 }
