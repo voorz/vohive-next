@@ -126,6 +126,22 @@ func (s *Server) DestroyOutboundProxyForDevice(deviceID, iccid string) error {
 		return nil
 	}
 
+	// 级联清理：删除对应的 Auto 来源前置代理
+	for _, inst := range instances {
+		if inst.DeviceID != deviceID {
+			continue
+		}
+		if iccid != "" && inst.ICCID != iccid {
+			continue
+		}
+		if inst.ICCID != "" {
+			if err := db.DeleteAutoUpstreamProxyByIdentity(inst.ICCID); err != nil {
+				logger.Warn("级联删除前置代理失败",
+					"device", deviceID, "iccid", inst.ICCID, "err", err)
+			}
+		}
+	}
+
 	// 从 DB 删除
 	if err := db.DB.Where("id IN ?", toDelete).Delete(&db.ProxyInstance{}).Error; err != nil {
 		return fmt.Errorf("删除代理实例失败: %w", err)
@@ -260,12 +276,14 @@ func (s *Server) ExposeOutboundProxyAsUpstream(deviceID, iccid, countryCode stri
 
 	// 写入 upstream_proxies 表
 	upstream := db.UpstreamProxy{
-		ID:       upstreamID,
-		Name:     outboundInst.Name,
-		Addr:     addr,
-		Username: outboundInst.Username,
-		Password: outboundInst.Password,
-		Enabled:  true,
+		ID:         upstreamID,
+		Name:       outboundInst.Name,
+		Addr:       addr,
+		Username:   outboundInst.Username,
+		Password:   outboundInst.Password,
+		Enabled:    true,
+		Source:     "Auto",
+		IdentityID: iccid,
 	}
 	if err := db.UpsertUpstreamProxy(upstream); err != nil {
 		return fmt.Errorf("写入前置代理失败: %w", err)
@@ -302,32 +320,17 @@ func (s *Server) UnexposeOutboundProxyAsUpstream(deviceID, iccid string) error {
 		return fmt.Errorf("device_id 不能为空")
 	}
 
-	// 查找出站代理实例以确定 upstream ID
-	instances, err := db.ListProxyInstances()
-	if err != nil {
-		return fmt.Errorf("查询代理实例失败: %w", err)
-	}
-
-	var upstreamIDs []string
-	for _, inst := range instances {
-		if inst.DeviceID == deviceID && (iccid == "" || inst.ICCID == iccid) {
-			upstreamIDs = append(upstreamIDs, fmt.Sprintf("upstream-%s", inst.ID))
-		}
-	}
-
-	if len(upstreamIDs) == 0 {
+	// 按 identity_id 精准删除 Auto 来源的前置代理
+	if iccid == "" {
 		return nil
 	}
 
-	for _, uid := range upstreamIDs {
-		if err := db.DeleteUpstreamProxy(uid); err != nil {
-			logger.Warn("删除前置代理失败",
-				"device", deviceID, "upstream_id", uid, "err", err)
-		} else {
-			logger.Info("已取消暴露前置代理",
-				"device", deviceID, "upstream_id", uid)
-		}
+	if err := db.DeleteAutoUpstreamProxyByIdentity(iccid); err != nil {
+		return fmt.Errorf("删除前置代理失败: %w", err)
 	}
+
+	logger.Info("已取消暴露前置代理",
+		"device", deviceID, "identity_id", iccid)
 	return nil
 }
 
@@ -407,26 +410,33 @@ func (s *Server) HandleESIMSwitchForOutboundProxy(deviceID, newICCID string) {
 		return
 	}
 
-	// 新卡开启了出站代理 → 销毁不匹配新 ICCID 的旧实例
+	// 新卡开启了出站代理 → 销毁不匹配新 ICCID 的旧实例（含级联清理旧前置代理）
 	instances, err := db.ListProxyInstances()
 	if err != nil {
 		return
 	}
-	var staleIDs []string
 	for _, inst := range instances {
 		if inst.DeviceID == deviceID && inst.ICCID != newICCID {
-			staleIDs = append(staleIDs, inst.ID)
+			// 级联清理旧 ICCID 对应的 Auto 前置代理
+			if inst.ICCID != "" {
+				if err := db.DeleteAutoUpstreamProxyByIdentity(inst.ICCID); err != nil {
+					logger.Warn("切卡后级联删除旧前置代理失败",
+						"device", deviceID, "old_iccid", inst.ICCID, "err", err)
+				}
+			}
+			// 删除旧的 proxy_instance
+			if err := db.DB.Delete(&db.ProxyInstance{}, "id = ?", inst.ID).Error; err != nil {
+				logger.Warn("切卡后删除旧 ICCID 代理实例失败",
+					"device", deviceID, "instance_id", inst.ID, "err", err)
+			} else {
+				logger.Info("切卡后已清理旧 ICCID 的出站代理实例",
+					"device", deviceID, "new_iccid", newICCID, "instance_id", inst.ID)
+			}
 		}
 	}
-	if len(staleIDs) > 0 {
-		if err := db.DB.Where("id IN ?", staleIDs).Delete(&db.ProxyInstance{}).Error; err != nil {
-			logger.Warn("切卡后删除旧 ICCID 代理实例失败",
-				"device", deviceID, "err", err)
-		} else {
-			logger.Info("切卡后已清理旧 ICCID 的出站代理实例",
-				"device", deviceID, "new_iccid", newICCID, "stale_instances", staleIDs)
-			_ = s.SyncProxyConfigs()
-		}
+	if err := s.SyncProxyConfigs(); err != nil {
+		logger.Warn("切卡后同步代理配置失败",
+			"device", deviceID, "err", err)
 	}
 }
 
@@ -485,10 +495,9 @@ func (s *Server) GetOutboundProxyStatus(deviceID string) (map[string]any, error)
 		}
 	}
 
-	// 检查是否已暴露为前置代理
-	upstreamID := fmt.Sprintf("upstream-%s", inst.ID)
-	_, upstreamErr := db.GetUpstreamProxyByID(upstreamID)
-	exposedAsUpstream := upstreamErr == nil
+	// 检查是否已暴露为前置代理（按 source=Auto AND identity_id=ICCID 精准匹配）
+	upstreamProxy, _ := db.GetAutoUpstreamProxyByIdentity(inst.ICCID)
+	exposedAsUpstream := upstreamProxy != nil
 
 	return map[string]any{
 		"enabled":              inst.Enabled,

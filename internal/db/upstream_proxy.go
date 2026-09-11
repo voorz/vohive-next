@@ -18,6 +18,8 @@ type UpstreamProxy struct {
 	Username  string    `json:"username"`           // 可选鉴权用户名
 	Password  string    `json:"password,omitempty"` // 可选鉴权密码
 	Enabled   bool      `json:"enabled"`            // 是否启用
+	Source    string    `gorm:"default:'Manual'" json:"source"`     // 来源：Manual（用户手动添加）/ Auto（出站代理自动创建）
+	IdentityID string   `gorm:"index" json:"identity_id,omitempty"` // 身份标识：Auto 时为 ICCID；Manual 时为空
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 
@@ -82,6 +84,42 @@ func UpsertUpstreamProxy(p UpstreamProxy) error {
 		return errors.New("empty addr")
 	}
 	return DB.Save(&p).Error
+}
+
+// GetAutoUpstreamProxyByIdentity 查询指定身份（ICCID）的自动创建的前置代理
+func GetAutoUpstreamProxyByIdentity(identityID string) (*UpstreamProxy, error) {
+	identityID = strings.TrimSpace(identityID)
+	if identityID == "" {
+		return nil, nil
+	}
+	var out UpstreamProxy
+	err := DB.First(&out, "source = ? AND identity_id = ?", "Auto", identityID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &out, nil
+}
+
+// DeleteAutoUpstreamProxyByIdentity 删除指定身份（ICCID）的自动创建的前置代理
+func DeleteAutoUpstreamProxyByIdentity(identityID string) error {
+	identityID = strings.TrimSpace(identityID)
+	if identityID == "" {
+		return nil
+	}
+	// 先查到 ID，再通过 DeleteUpstreamProxy 清理关联的国家规则
+	var proxies []UpstreamProxy
+	if err := DB.Where("source = ? AND identity_id = ?", "Auto", identityID).Find(&proxies).Error; err != nil {
+		return err
+	}
+	for _, p := range proxies {
+		if err := DeleteUpstreamProxy(p.ID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // SaveUpstreamProxyLookup 保存代理 lookup 结果到数据库
