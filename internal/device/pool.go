@@ -520,6 +520,21 @@ func (p *Pool) IsESIMSwitching(deviceID string) bool {
 	return p.switchingDevices[deviceID]
 }
 
+// GetESIMSwitchPhase 返回设备当前的 eSIM 切卡阶段。
+// switching 为 false 表示设备不在切卡中。
+func (p *Pool) GetESIMSwitchPhase(deviceID string) (phase esim.SwitchPhase, switching bool) {
+	p.switchMu.Lock()
+	defer p.switchMu.Unlock()
+	if !p.switchingDevices[deviceID] {
+		return "", false
+	}
+	snapshot, ok := p.switchContexts[deviceID]
+	if !ok {
+		return "", true
+	}
+	return snapshot.Phase, true
+}
+
 func atRadioReadOptionsForReason(reason string) ATRadioReadOptions {
 	switch strings.TrimSpace(reason) {
 	case "overview_detail", "startup_post_apply", "startup_warm_runtime", "startup_radio_warmup", "manual_refresh":

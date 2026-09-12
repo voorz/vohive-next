@@ -78,7 +78,12 @@ func (p *Pool) resolveAndApplyPolicy(worker *Worker, reason string) policyApplyR
 		}
 	}
 	if pol.VoWiFiEnabled {
-		p.scheduleDesiredVoWiFiRecover(worker.ID, reason, time.Now())
+		// 切卡场景下的 VoWiFi 恢复由 handleESIMSwitchAfter → restorePostSwitchConnectivity → SwitchEnd 负责。
+		// 此处跳过 scheduleDesiredVoWiFiRecover，避免切卡流程内 switchingDevices 未清除时触发
+		// 无效的恢复路径，导致前端误显示"VoWiFi 启动失败"并进入退避重试。
+		if reason != "esim_switched" && reason != "esim_switched_pcsc" {
+			p.scheduleDesiredVoWiFiRecover(worker.ID, reason, time.Now())
+		}
 	} else {
 		p.clearDesiredVoWiFiRecoverState(worker.ID)
 	}

@@ -571,6 +571,17 @@ func (s *Server) getVoWiFiRuntimeDTO(deviceID string) *voWiFiRuntimeDTO {
 		// 检查 DesiredRecoverSnapshot，如果有就构造最小 DTO 返回倒计时。
 		snap, snapOk := s.pool.GetDesiredRecoverSnapshot(deviceID)
 		if !snapOk {
+			// 不在恢复退避中，检查是否正在切卡。
+			// 切卡期间 VoWiFi runtime 已被拆除但尚未重建，此时返回带 stage_label 的最小 DTO，
+			// 使前端能显示切卡进度文本而非"VoWiFi 未连接"。
+			if phase, switching := s.pool.GetESIMSwitchPhase(deviceID); switching {
+				return &voWiFiRuntimeDTO{
+					DeviceID:   deviceID,
+					Phase:      "switching",
+					StageLabel: esimSwitchPhaseToStageLabel(string(phase)),
+					UpdatedAt:  time.Now(),
+				}
+			}
 			return nil
 		}
 		remaining := int(time.Until(snap.NextAt).Seconds())
@@ -599,6 +610,38 @@ func (s *Server) getVoWiFiRuntimeDTO(deviceID string) *voWiFiRuntimeDTO {
 		dto.RetryInSeconds = remaining
 	}
 	return dto
+}
+
+// esimSwitchPhaseToStageLabel 将 eSIM 切卡阶段转换为前端可显示的中文状态文本。
+func esimSwitchPhaseToStageLabel(phase string) string {
+	switch phase {
+	case "prepare":
+		return "SIM 切换准备中..."
+	case "apdu_switching":
+		return "正在切换 eSIM Profile..."
+	case "card_reset_settling":
+		return "卡片重置中..."
+	case "identity_refresh":
+		return "SIM 身份刷新中..."
+	case "runtime_restore":
+		return "运行时恢复中..."
+	case "vowifi_restore":
+		return "VoWiFi 恢复中..."
+	case "transport_recovering":
+		return "传输层恢复中..."
+	case "reload_skipped":
+		return "SIM 重载已跳过..."
+	case "reload_warning":
+		return "SIM 重载警告..."
+	case "degraded":
+		return "切卡降级，恢复中..."
+	case "done":
+		return "切换完成，等待启动..."
+	case "failed":
+		return "切卡失败"
+	default:
+		return "SIM 切换中，等待启动..."
+	}
 }
 
 func isLifecycleActiveForAPI(phase string) bool {

@@ -46,7 +46,7 @@ const elapsedSec = computed(() => {
   const r = rt.value
   if (!r?.stage_started_at) return 0
   const start = new Date(r.stage_started_at).getTime()
-  if (isNaN(start)) return 0
+  if (isNaN(start) || start <= 0) return 0
   return Math.max(0, Math.floor((now.value - start) / 1000))
 })
 

@@ -2803,6 +2803,18 @@ func isExpectedCardResetSignal(err error) bool {
 	return errors.Is(err, ErrQMIUIMCardReset) || errors.Is(err, ErrMBIMUICCInvalidChannel)
 }
 
+// isProfileAlreadyInTargetState 判断 EnableProfile 返回的错误是否表示目标 profile 已经处于启用状态
+// （即 profileNotInDisabledState）。这是一种幂等成功：目标已经是期望状态，无需重复操作。
+// SGP.22 ProfileOperationResult=2 对应 EnableProfile 的 profileNotInDisabledState
+// 和 DisableProfile 的 profileNotInEnabledState（同一常量值复用）。
+func isProfileAlreadyInTargetState(err error) bool {
+	var opErr *sgp22.ProfileOperationError
+	if errors.As(err, &opErr) {
+		return opErr.Result == sgp22.ProfileOperationResultProfileNotInDisabledState
+	}
+	return false
+}
+
 // isEUICCBusyTransient 判断错误是否为瞬态"eUICC 忙碌"信号。
 // SGP.22 规定 ES10b 命令返回 SW=910B 表示 eUICC 忙碌，终端应等待后
 // 重发同一命令；euicc-go 会把该 SW 直接报为普通错误（无哨兵值），
@@ -2980,19 +2992,36 @@ func (m *Manager) SwitchProfileWithResult(ctx context.Context, targetICCID strin
 	}
 
 	// 在模组重启前主动关闭 LPA 逻辑通道（AT+CCHC）
-	if err := m.closeLPAClientForOperation("switch_profile_pre_refresh", client); err == nil {
+	// 如果关闭时返回 qmi_uim_card_reset 错误，说明卡片确实因 EnableProfile+refresh 而 reset 了，
+	// 此时 enableErr（即使不是标准的 ErrQMIUIMCardReset）也应视为预期信号。
+	closeErr := m.closeLPAClientForOperation("switch_profile_pre_refresh", client)
+	if closeErr == nil {
 		clientClosed = true
 	}
+	cardResetDetectedOnClose := closeErr != nil && errors.Is(closeErr, ErrQMIUIMCardReset)
 
 	// 5. 给卡片一点时间完成内部刷新动作。
 	time.Sleep(200 * time.Millisecond)
 	releaseSwitchBarrier(SwitchPhaseCardResetSettling)
 
-	if enableErr != nil && !isExpectedCardResetSignal(enableErr) {
+	if enableErr != nil && !isExpectedCardResetSignal(enableErr) &&
+		!isProfileAlreadyInTargetState(enableErr) &&
+		!cardResetDetectedOnClose {
 		switchFailureErr = enableErr
 		if err := m.finalizeEnableProfileResult(targetICCID, enableErr); err != nil {
 			return result, err
 		}
+	}
+	if enableErr != nil && isProfileAlreadyInTargetState(enableErr) {
+		logger.Info("EnableProfile 返回 profileNotInDisabledState，目标 profile 已启用，按幂等成功处理",
+			"device", m.deviceID,
+			"target", targetICCID)
+	}
+	if enableErr != nil && cardResetDetectedOnClose && !isProfileAlreadyInTargetState(enableErr) {
+		logger.Info("EnableProfile 后检测到 card reset，切卡指令可能已提交，按预期信号处理",
+			"device", m.deviceID,
+			"target", targetICCID,
+			"enable_err", enableErr)
 	}
 	result.SwitchAccepted = true
 
