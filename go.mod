@@ -17,7 +17,7 @@ require (
 	github.com/things-go/go-socks5 v0.1.1
 	github.com/voorz/qqbot v1.0.2
 	github.com/voorz/quectel-qmi-go v0.8.8
-	github.com/voorz/vowifi-core v1.4.1
+	github.com/voorz/vowifi-core v1.4.2
 	github.com/voorz/wwan-go v0.2.9
 	github.com/warthog618/sms v0.3.0
 	go.bug.st/serial v1.6.4
