@@ -19,7 +19,7 @@ const stageLabels: Record<string, string> = {
   sms_ready: 'SMS 就绪',
   call_ready: '通话就绪',
   failed: '失败',
-  recover_failed: '恢复失败',
+  recover_failed: 'VoWiFi 启动失败',
 }
 
 // ---- 实时计时 ----
