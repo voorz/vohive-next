@@ -147,13 +147,18 @@ async function handleRestart() {
         }
         instance.confirmButtonLoading = true
         restarting.value = true
-        systemService.restart().then(() => {
+        systemService.restart().then((result) => {
+          if (!result.ok) {
+            instance.confirmButtonLoading = false
+            restarting.value = false
+            done()
+            import('element-plus').then(({ ElMessage }) => {
+              ElMessage.error(result.error?.message || '重启请求失败')
+            })
+            return
+          }
           done()
           startRestartRecovery()
-        }).catch(() => {
-          instance.confirmButtonLoading = false
-          restarting.value = false
-          done()
         })
       } else {
         done()
@@ -198,13 +203,18 @@ async function handleStop() {
         }
         instance.confirmButtonLoading = true
         stopping.value = true
-        systemService.stop().then(() => {
+        systemService.stop().then((result) => {
+          if (!result.ok) {
+            instance.confirmButtonLoading = false
+            stopping.value = false
+            done()
+            import('element-plus').then(({ ElMessage }) => {
+              ElMessage.error(result.error?.message || '停止请求失败')
+            })
+            return
+          }
           done()
           startStopRecovery()
-        }).catch(() => {
-          instance.confirmButtonLoading = false
-          stopping.value = false
-          done()
         })
       } else {
         done()

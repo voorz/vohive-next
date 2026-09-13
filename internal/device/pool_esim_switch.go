@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/voorz/vohive/internal/backend"
-	"github.com/voorz/vohive/internal/db"
 	"github.com/voorz/vohive/internal/esim"
 	"github.com/voorz/vohive/pkg/logger"
 )
@@ -1241,51 +1240,6 @@ func (p *Pool) handleESIMSwitchAfter(deviceID string, token uint64) {
 		worker.EsimMgr.WarmOverviewAsync("post_switch_finalize")
 	}
 
-	// 对齐 NekoKo：切卡后延迟 autoClean 通知
-	// 1. overview 先加载（红点出现）
-	// 2. 延迟 5 分钟后检查 process_after_switch 设置，执行 autoClean
-	// 3. autoClean 完成后再次 WarmOverviewAsync（红点递减）
-	if worker.EsimMgr != nil {
-		p.schedulePostSwitchNotificationAutoClean(deviceID, token, worker)
-	}
-
 	finalizeOK = true
 }
 
-// schedulePostSwitchNotificationAutoClean 对齐 NekoKo notifProcessAfterSwitch：
-// 切卡后延迟执行通知 autoClean，让用户先看到红点再看到通知被处理。
-func (p *Pool) schedulePostSwitchNotificationAutoClean(deviceID string, token uint64, worker *Worker) {
-	go func() {
-		// 5 分钟延迟：让用户有充足时间感知通知红点
-		select {
-		case <-time.After(5 * time.Minute):
-		case <-p.ctx.Done():
-			return
-		case <-worker.stop:
-			return
-		}
-
-		if !p.switchTokenStillCurrent(deviceID, token, "notif_autoclean") {
-			return
-		}
-
-		// 检查 process_after_switch 设置
-		settings, err := db.GetEsimNotificationSettings(deviceID)
-		if err != nil {
-			return
-		}
-		if !settings.ProcessAfterSwitch {
-			return
-		}
-
-		// 检查是否有任何 autoSend 开启
-		if !settings.AutoSendInstall && !settings.AutoSendEnable &&
-			!settings.AutoSendDisable && !settings.AutoSendDelete &&
-			!settings.DeleteWithoutSendingEnable && !settings.DeleteWithoutSendingDisable {
-			return
-		}
-
-		// 调用 AutoCleanNotifications 批量处理卡上通知（无感，只更新红点计数）
-		_ = worker.EsimMgr.AutoCleanNotifications()
-	}()
-}

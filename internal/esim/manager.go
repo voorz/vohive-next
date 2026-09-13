@@ -339,6 +339,12 @@ type Manager struct {
 	// 下次打开通知列表时优先尝试该 AID，避免全量扫描 9 个候选 AID。
 	workingAIDMu sync.RWMutex
 	workingAID   []byte
+
+	// autoCleanTimer 是后台 5 分钟自动清理通知的定时器。
+	// 当 overview 刷新发现有待处理通知时启动，通知数为 0 时取消。
+	// 产生新通知时重置计时。
+	autoCleanTimerMu sync.Mutex
+	autoCleanTimer   *time.Timer
 }
 
 // ErrOperationInProgress 表示当前有写操作（下载/切换/删除）正在进行中
@@ -2154,6 +2160,9 @@ func (m *Manager) refreshNotificationCountAsync() {
 		logger.Debug("异步通知统计完成",
 			"device", m.deviceID,
 			"count", count)
+
+		// 启动/重置后台 5 分钟 autoClean 定时器
+		m.scheduleBackgroundAutoClean(count)
 	}()
 }
 
