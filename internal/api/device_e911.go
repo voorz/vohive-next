@@ -64,4 +64,3 @@ func (s *Server) handleDeviceE911Websheet(c *gin.Context) {
 	}
 	c.JSON(http.StatusCreated, info)
 }
-

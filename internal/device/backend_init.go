@@ -33,4 +33,3 @@ func workerBackendMode(w *Worker) string {
 	}
 	return resolvedBackendMode(w.Config)
 }
-

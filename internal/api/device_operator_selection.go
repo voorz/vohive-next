@@ -37,7 +37,7 @@ func operatorSelectionErrorStatus(err error) int {
 	}
 }
 
-// handleDeviceMgmtOperatorScan 
+// handleDeviceMgmtOperatorScan
 //
 // @Summary      DeviceMgmtOperatorScan
 // @Tags         devices
@@ -66,7 +66,7 @@ func (s *Server) handleDeviceMgmtOperatorScan(c *gin.Context) {
 	c.JSON(status, body)
 }
 
-// handleDeviceMgmtOperatorScanStream 
+// handleDeviceMgmtOperatorScanStream
 //
 // @Summary      DeviceMgmtOperatorScanStream
 // @Tags         devices
@@ -174,7 +174,7 @@ func operatorScanHTTPStatusAndBody(result device.OperatorScanResult) (int, opera
 	}
 }
 
-// handleDeviceMgmtGetOperatorSelection 
+// handleDeviceMgmtGetOperatorSelection
 //
 // @Summary      DeviceMgmtGetOperatorSelection
 // @Tags         devices
@@ -203,7 +203,7 @@ func (s *Server) handleDeviceMgmtGetOperatorSelection(c *gin.Context) {
 	c.JSON(http.StatusOK, sel)
 }
 
-// handleDeviceMgmtSetOperatorSelection 
+// handleDeviceMgmtSetOperatorSelection
 //
 // @Summary      DeviceMgmtSetOperatorSelection
 // @Tags         devices

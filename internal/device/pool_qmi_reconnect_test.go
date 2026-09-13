@@ -231,7 +231,6 @@ func TestQMIHealthyWorkerAttachmentUpdateSkipsInvalidWorkers(t *testing.T) {
 	}
 }
 
-
 func TestStartAllIMEIMissAllowsConfiguredStaticQMIAttachment(t *testing.T) {
 	cfg := config.DeviceConfig{
 		ID:            "wwan0",
@@ -284,8 +283,6 @@ func TestStartAllIMEIMissAllowsStaticQMIWhenDiscoveryUnavailable(t *testing.T) {
 		t.Fatal("static QMI config should start when discovery is unavailable")
 	}
 }
-
-
 
 func TestQMIBootstrapDiscoveryCacheReusesFirstResult(t *testing.T) {
 	orig := discoverQMIDevicesFn
@@ -379,8 +376,6 @@ func TestShouldFastStartMissingQMIWorker(t *testing.T) {
 		})
 	}
 }
-
-
 
 func TestRescanReconnectManualRebootScopeAllowsOnlyTargetMutation(t *testing.T) {
 	opts := rescanReconnectOptions{

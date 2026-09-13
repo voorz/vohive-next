@@ -10,27 +10,27 @@ import (
 
 // deviceIdentityState 存储设备/SIM卡相对静态的身份标识信息
 type deviceIdentityState struct {
-IMEI             string                   // 设备的 IMEI 串号
-Manufacturer     string                   // 模组厂商名称（ATI 获取，如 Quectel）
-ChipVendor       string                   // 芯片厂商（QMI DMS GetManufacturer，如 QUALCOMM INCORPORATED）
-Model            string                   // 模组描述（QMI DMS GetModel，如 QUECTEL Mobile Broadband Module）
-HardwareRevision string                   // 模组硬件版本号（QMI/AT 获取）
+	IMEI             string                   // 设备的 IMEI 串号
+	Manufacturer     string                   // 模组厂商名称（ATI 获取，如 Quectel）
+	ChipVendor       string                   // 芯片厂商（QMI DMS GetManufacturer，如 QUALCOMM INCORPORATED）
+	Model            string                   // 模组描述（QMI DMS GetModel，如 QUECTEL Mobile Broadband Module）
+	HardwareRevision string                   // 模组硬件版本号（QMI/AT 获取）
 	ICCID            string                   // SIM 卡的唯一识别码 ICCID
-	IMSI         string                   // 国际移动用户识别码 IMSI
-	NativeSPN    string                   // SIM 卡中内置的原始服务提供商名称
-	NativeMCC    string                   // SIM 归属移动国家代码 MCC（由 IMSI + EF-AD 解析）
-	NativeMNC    string                   // SIM 归属移动网络代码 MNC（由 IMSI + EF-AD 解析）
-	GID1         string                   // 组标识符 1，用于卡片分类与特征匹配
-	GID2         string                   // 组标识符 2，用于卡片分类与特征匹配
-	PNN          []backend.PNNRecord      // PLMN 网络名称列表记录
-	OPL          []backend.OPLRecord      // 运营商 PLMN 关联列表记录
-	ServiceTable *backend.SIMServiceTable // SIM 卡内使能的服务功能表
-	Ready        bool                     // 标识卡片身份信息是否已读取并就绪
-	Phase        string                   // SIM 身份生命周期：ready / transitioning / degraded
-	TargetICCID  string                   // 切卡期间期望收敛到的目标 ICCID
-	Generation   uint64                   // 身份生命周期代数，用于拒绝旧切卡任务
-	LastReason   string                   // 最近一次身份生命周期变化原因
-	LastError    string                   // 最近一次身份收敛错误
+	IMSI             string                   // 国际移动用户识别码 IMSI
+	NativeSPN        string                   // SIM 卡中内置的原始服务提供商名称
+	NativeMCC        string                   // SIM 归属移动国家代码 MCC（由 IMSI + EF-AD 解析）
+	NativeMNC        string                   // SIM 归属移动网络代码 MNC（由 IMSI + EF-AD 解析）
+	GID1             string                   // 组标识符 1，用于卡片分类与特征匹配
+	GID2             string                   // 组标识符 2，用于卡片分类与特征匹配
+	PNN              []backend.PNNRecord      // PLMN 网络名称列表记录
+	OPL              []backend.OPLRecord      // 运营商 PLMN 关联列表记录
+	ServiceTable     *backend.SIMServiceTable // SIM 卡内使能的服务功能表
+	Ready            bool                     // 标识卡片身份信息是否已读取并就绪
+	Phase            string                   // SIM 身份生命周期：ready / transitioning / degraded
+	TargetICCID      string                   // 切卡期间期望收敛到的目标 ICCID
+	Generation       uint64                   // 身份生命周期代数，用于拒绝旧切卡任务
+	LastReason       string                   // 最近一次身份生命周期变化原因
+	LastError        string                   // 最近一次身份收敛错误
 }
 
 const (
@@ -82,10 +82,10 @@ type deviceStateStore struct {
 
 // hasRuntimeSnapshot 快速校验给定的设备状态更新对象是否包含任何有效且有意义的运行时属性
 func hasRuntimeSnapshot(status modem.DeviceStatus) bool {
-return strings.TrimSpace(status.IMEI) != "" ||
-strings.TrimSpace(status.Manufacturer) != "" ||
-strings.TrimSpace(status.ChipVendor) != "" ||
-strings.TrimSpace(status.Model) != "" ||
+	return strings.TrimSpace(status.IMEI) != "" ||
+		strings.TrimSpace(status.Manufacturer) != "" ||
+		strings.TrimSpace(status.ChipVendor) != "" ||
+		strings.TrimSpace(status.Model) != "" ||
 		strings.TrimSpace(status.HardwareRevision) != "" ||
 		strings.TrimSpace(status.Firmware) != "" ||
 		strings.TrimSpace(status.Operator) != "" ||
@@ -111,43 +111,43 @@ strings.TrimSpace(status.Model) != "" ||
 
 // projectDeviceStatusLocked 将内部缓存的 Worker 状态数据投影并合并为公开暴露的通用 `modem.DeviceStatus` 结构体
 func (w *Worker) projectDeviceStatusLocked() modem.DeviceStatus {
-status := modem.DeviceStatus{
-IMEI:            strings.TrimSpace(w.state.Identity.IMEI),
-Manufacturer:    strings.TrimSpace(w.state.Identity.Manufacturer),
-ChipVendor:      strings.TrimSpace(w.state.Identity.ChipVendor),
-Model:           strings.TrimSpace(w.state.Identity.Model),
+	status := modem.DeviceStatus{
+		IMEI:             strings.TrimSpace(w.state.Identity.IMEI),
+		Manufacturer:     strings.TrimSpace(w.state.Identity.Manufacturer),
+		ChipVendor:       strings.TrimSpace(w.state.Identity.ChipVendor),
+		Model:            strings.TrimSpace(w.state.Identity.Model),
 		HardwareRevision: strings.TrimSpace(w.state.Identity.HardwareRevision),
-		ICCID:           strings.TrimSpace(w.state.Identity.ICCID),
-		IMSI:            strings.TrimSpace(w.state.Identity.IMSI),
-		NativeSPN:       strings.TrimSpace(w.state.Identity.NativeSPN),
-		NativeMCC:       strings.TrimSpace(w.state.Identity.NativeMCC),
-		NativeMNC:       strings.TrimSpace(w.state.Identity.NativeMNC),
-		GID1:            strings.TrimSpace(w.state.Identity.GID1),
-		GID2:            strings.TrimSpace(w.state.Identity.GID2),
-		PNN:             backendPNNRecordsToModem(w.state.Identity.PNN),
-		OPL:             backendOPLRecordsToModem(w.state.Identity.OPL),
-		SIMServiceTable: backendSIMServiceTableToModem(w.state.Identity.ServiceTable),
-		Firmware:        w.state.Runtime.Firmware,
-		Operator:        w.state.Runtime.Operator,
-		SimInserted:     w.state.Runtime.SimInserted,
-		SignalDBM:       w.state.Runtime.SignalDBM,
-		SignalRSRP:      w.state.Runtime.SignalRSRP,
-		SignalRSRQ:      w.state.Runtime.SignalRSRQ,
-		SignalSINR:      w.state.Runtime.SignalSINR,
-		NR5GSignalSINR:  w.state.Runtime.NR5GSignalSINR,
-		RadioBand:       w.state.Runtime.RadioBand,
-		RadioChannel:    w.state.Runtime.RadioChannel,
-		RegStatus:       w.state.Runtime.RegStatus,
-		RegStatusText:   w.state.Runtime.RegStatusText,
-		PSAttached:      w.state.Runtime.PSAttached,
-		LAC:             w.state.Runtime.LAC,
-		CellID:          w.state.Runtime.CellID,
-		APN:             w.state.Runtime.APN,
-		IMSStatus:       w.state.Runtime.IMSStatus,
-		NetworkMode:     w.state.Runtime.NetworkMode,
-		NetworkDuplex:   w.state.Runtime.NetworkDuplex,
-		USBNetMode:      w.state.Runtime.USBNetMode,
-		OperatingMode:   w.state.Runtime.OperatingMode,
+		ICCID:            strings.TrimSpace(w.state.Identity.ICCID),
+		IMSI:             strings.TrimSpace(w.state.Identity.IMSI),
+		NativeSPN:        strings.TrimSpace(w.state.Identity.NativeSPN),
+		NativeMCC:        strings.TrimSpace(w.state.Identity.NativeMCC),
+		NativeMNC:        strings.TrimSpace(w.state.Identity.NativeMNC),
+		GID1:             strings.TrimSpace(w.state.Identity.GID1),
+		GID2:             strings.TrimSpace(w.state.Identity.GID2),
+		PNN:              backendPNNRecordsToModem(w.state.Identity.PNN),
+		OPL:              backendOPLRecordsToModem(w.state.Identity.OPL),
+		SIMServiceTable:  backendSIMServiceTableToModem(w.state.Identity.ServiceTable),
+		Firmware:         w.state.Runtime.Firmware,
+		Operator:         w.state.Runtime.Operator,
+		SimInserted:      w.state.Runtime.SimInserted,
+		SignalDBM:        w.state.Runtime.SignalDBM,
+		SignalRSRP:       w.state.Runtime.SignalRSRP,
+		SignalRSRQ:       w.state.Runtime.SignalRSRQ,
+		SignalSINR:       w.state.Runtime.SignalSINR,
+		NR5GSignalSINR:   w.state.Runtime.NR5GSignalSINR,
+		RadioBand:        w.state.Runtime.RadioBand,
+		RadioChannel:     w.state.Runtime.RadioChannel,
+		RegStatus:        w.state.Runtime.RegStatus,
+		RegStatusText:    w.state.Runtime.RegStatusText,
+		PSAttached:       w.state.Runtime.PSAttached,
+		LAC:              w.state.Runtime.LAC,
+		CellID:           w.state.Runtime.CellID,
+		APN:              w.state.Runtime.APN,
+		IMSStatus:        w.state.Runtime.IMSStatus,
+		NetworkMode:      w.state.Runtime.NetworkMode,
+		NetworkDuplex:    w.state.Runtime.NetworkDuplex,
+		USBNetMode:       w.state.Runtime.USBNetMode,
+		OperatingMode:    w.state.Runtime.OperatingMode,
 	}
 	return status
 }
@@ -357,13 +357,13 @@ func (w *Worker) mergeRuntimeStateLocked(status modem.DeviceStatus, healthy bool
 	if strings.TrimSpace(status.IMEI) != "" {
 		w.state.Identity.IMEI = strings.TrimSpace(status.IMEI)
 	}
-if strings.TrimSpace(status.Manufacturer) != "" {
-w.state.Identity.Manufacturer = strings.TrimSpace(status.Manufacturer)
-}
-if strings.TrimSpace(status.ChipVendor) != "" {
-w.state.Identity.ChipVendor = strings.TrimSpace(status.ChipVendor)
-}
-if strings.TrimSpace(status.Model) != "" {
+	if strings.TrimSpace(status.Manufacturer) != "" {
+		w.state.Identity.Manufacturer = strings.TrimSpace(status.Manufacturer)
+	}
+	if strings.TrimSpace(status.ChipVendor) != "" {
+		w.state.Identity.ChipVendor = strings.TrimSpace(status.ChipVendor)
+	}
+	if strings.TrimSpace(status.Model) != "" {
 		w.state.Identity.Model = strings.TrimSpace(status.Model)
 	}
 	if strings.TrimSpace(status.HardwareRevision) != "" {

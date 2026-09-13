@@ -16,10 +16,10 @@ import (
 	"github.com/voorz/vohive/internal/netprobe"
 	"github.com/voorz/vohive/pkg/logger"
 
+	"github.com/miekg/dns"
 	qmimanager "github.com/voorz/quectel-qmi-go/pkg/manager"
 	"github.com/voorz/quectel-qmi-go/pkg/netcfg"
 	"github.com/voorz/quectel-qmi-go/pkg/qmi"
-	"github.com/miekg/dns"
 )
 
 // 精选极速探测源

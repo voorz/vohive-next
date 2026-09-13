@@ -195,11 +195,11 @@ func discoverQMIDeviceFromSysFS(usbPath string) (*QMIDevice, error) {
 	}
 	md.ATPort, md.ATPortBackup = chooseStaticATPorts(md.ATPorts, staticPrimary)
 
-md.AudioDevice, md.AudioCardNum = findAudioDevice(scanUSBPath)
+	md.AudioDevice, md.AudioCardNum = findAudioDevice(scanUSBPath)
 
-md.USBManufacturer, md.USBProduct = readUSBProductManufacturer(scanUSBPath)
+	md.USBManufacturer, md.USBProduct = readUSBProductManufacturer(scanUSBPath)
 
-return md, nil
+	return md, nil
 }
 
 func discoverWWANQMIDevices() ([]QMIDevice, error) {

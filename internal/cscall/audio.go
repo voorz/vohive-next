@@ -82,10 +82,10 @@ type AudioBridge struct {
 
 // NewAudioBridge 创建音频桥接器
 func NewAudioBridge(alsaDev, deviceID string) (*AudioBridge, error) {
-// ALSA 设备名为空时由调用方（cscall.Manager）负责解析默认值
-if alsaDev == "" {
-return nil, fmt.Errorf("ALSA 设备名为空")
-}
+	// ALSA 设备名为空时由调用方（cscall.Manager）负责解析默认值
+	if alsaDev == "" {
+		return nil, fmt.Errorf("ALSA 设备名为空")
+	}
 
 	// 绑定随机 UDP 端口用于 RTP
 	conn, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4zero, Port: 0})
@@ -94,19 +94,19 @@ return nil, fmt.Errorf("ALSA 设备名为空")
 	}
 
 	var ssrcVal uint32
-		b := make([]byte, 4)
-		if _, err := rand.Read(b); err == nil {
-			ssrcVal = binary.BigEndian.Uint32(b) & 0x7FFFFFFF // 随机 SSRC，清除高位
-		} else {
-			ssrcVal = uint32(time.Now().UnixNano()) // 兜底
-		}
-		ab := &AudioBridge{
-			alsaDev:  alsaDev,
-			deviceID: deviceID,
-			rtpConn:  conn,
-			ssrc:     ssrcVal, // 随机 SSRC
-			stop:     make(chan struct{}),
-		}
+	b := make([]byte, 4)
+	if _, err := rand.Read(b); err == nil {
+		ssrcVal = binary.BigEndian.Uint32(b) & 0x7FFFFFFF // 随机 SSRC，清除高位
+	} else {
+		ssrcVal = uint32(time.Now().UnixNano()) // 兜底
+	}
+	ab := &AudioBridge{
+		alsaDev:  alsaDev,
+		deviceID: deviceID,
+		rtpConn:  conn,
+		ssrc:     ssrcVal, // 随机 SSRC
+		stop:     make(chan struct{}),
+	}
 	ab.pcmReady.Store(false) // 初始为 false，必须等待 +QPCMV: 1 URC
 	return ab, nil
 }

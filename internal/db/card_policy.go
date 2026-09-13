@@ -101,14 +101,14 @@ func UpsertCardPolicy(p CardPolicy) error {
 	return DB.Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "iccid"}},
 		DoUpdates: clause.Assignments(map[string]any{
-			"network_enabled":       p.NetworkEnabled,
-			"vowifi_enabled":        p.VoWiFiEnabled,
-			"airplane_enabled":      p.AirplaneEnabled,
-			"ip_version":            p.IPVersion,
-			"apn":                   p.APN,
-			"source":                p.Source,
+			"network_enabled":        p.NetworkEnabled,
+			"vowifi_enabled":         p.VoWiFiEnabled,
+			"airplane_enabled":       p.AirplaneEnabled,
+			"ip_version":             p.IPVersion,
+			"apn":                    p.APN,
+			"source":                 p.Source,
 			"outbound_proxy_enabled": p.OutboundProxyEnabled,
-			"updated_at":            p.UpdatedAt,
+			"updated_at":             p.UpdatedAt,
 		}),
 	}).Create(&p).Error
 }

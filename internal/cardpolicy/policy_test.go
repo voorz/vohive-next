@@ -2,7 +2,10 @@ package cardpolicy
 
 import "testing"
 
-type stubResolver struct{ p Policy; err error }
+type stubResolver struct {
+	p   Policy
+	err error
+}
 
 func (s stubResolver) Resolve(iccid string) (Policy, error) { return s.p, s.err }
 

@@ -86,7 +86,7 @@ func parseATI(resp string) (manufacturer, model, revision string, err error) {
 	contentLines := make([]string, 0, len(lines))
 	for _, line := range lines {
 		upper := strings.ToUpper(strings.TrimSpace(line))
-			if line == "" || line == "OK" || line == "ERROR" || strings.HasPrefix(line, "+") {
+		if line == "" || line == "OK" || line == "ERROR" || strings.HasPrefix(line, "+") {
 			continue
 		}
 		// 过滤命令回显（AT、ATI、AT+GMI 等）

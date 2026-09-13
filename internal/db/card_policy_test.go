@@ -4,8 +4,6 @@ import (
 	"testing"
 )
 
-
-
 func TestCardPolicyTableMigrated(t *testing.T) {
 	openTestDB(t)
 	if !DB.Migrator().HasTable(&CardPolicy{}) {

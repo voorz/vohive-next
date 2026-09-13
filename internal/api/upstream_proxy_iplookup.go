@@ -351,12 +351,12 @@ func (ipwhoisDirectProvider) URL(ip string) string {
 }
 func (ipwhoisDirectProvider) Decode(body []byte) (*ipInfoResult, error) {
 	var data struct {
-		IP         string `json:"ip"`
-		Country    string `json:"country"`
+		IP          string `json:"ip"`
+		Country     string `json:"country"`
 		CountryCode string `json:"country_code"`
-		Region     string `json:"region"`
-		City       string `json:"city"`
-		Connection struct {
+		Region      string `json:"region"`
+		City        string `json:"city"`
+		Connection  struct {
 			ASN int    `json:"asn"`
 			Org string `json:"org"`
 		} `json:"connection"`

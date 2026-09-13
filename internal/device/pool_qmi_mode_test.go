@@ -42,9 +42,13 @@ func (s *workerStatusBackendStub) GetICCID(ctx context.Context) (string, error) 
 func (s *workerStatusBackendStub) GetMSISDN(ctx context.Context) (string, error)    { return "", nil }
 func (s *workerStatusBackendStub) GetICCIDLive(ctx context.Context) (string, error) { return "", nil }
 func (s *workerStatusBackendStub) GetRevision(ctx context.Context) (string, error)  { return "", nil }
-func (s *workerStatusBackendStub) GetManufacturer(ctx context.Context) (string, error) { return "", nil }
+func (s *workerStatusBackendStub) GetManufacturer(ctx context.Context) (string, error) {
+	return "", nil
+}
 func (s *workerStatusBackendStub) GetModel(ctx context.Context) (string, error) { return "", nil }
-func (s *workerStatusBackendStub) GetHardwareRevision(ctx context.Context) (string, error) { return "", nil }
+func (s *workerStatusBackendStub) GetHardwareRevision(ctx context.Context) (string, error) {
+	return "", nil
+}
 func (s *workerStatusBackendStub) GetSignalInfo(ctx context.Context) (*backend.SignalInfo, error) {
 	return nil, nil
 }

@@ -74,7 +74,7 @@ func (m *Manager) handleInboundCall(ctx context.Context, req runtimehost.Inbound
 				ClientListenIP:    "0.0.0.0",
 				ClientAdvertiseIP: externalIP,
 				IMSListenIP:       "0.0.0.0",
-				IMSAdvertiseIP:     externalIP,
+				IMSAdvertiseIP:    externalIP,
 			}
 			relay, err = voicehost.NewRTPRelaySessionForIMSRemote(ctx, relayCfg, imsSDP)
 			if err != nil {

@@ -131,6 +131,7 @@ func (w *ModemWatcher) broadcastDeviceEvent(action string, dev *contract.Device)
 		Body:  body,
 	})
 }
+
 // 与旧 udev.go 行为一致：先尝试唤醒模组重启恢复流程，
 // 如果没有恢复流程在等待，则执行全量 RescanAndReconnect。
 func (w *ModemWatcher) triggerRescan(reason string) {

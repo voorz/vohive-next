@@ -54,8 +54,8 @@ func currentAPIDocsLinks() apiDocsLinks {
 // 首次调用时通过 docs.SwaggerInfo.ReadDoc() 渲染模板并缓存结果。
 func loadOpenAPISpecJSON() ([]byte, error) {
 	openAPISpecJSONOnce.Do(func() {
-	// docs 包 init() 已自动注册 SwaggerInfo，直接 ReadDoc 即可
-	openAPISpecJSON = []byte(docs.SwaggerInfo.ReadDoc())
+		// docs 包 init() 已自动注册 SwaggerInfo，直接 ReadDoc 即可
+		openAPISpecJSON = []byte(docs.SwaggerInfo.ReadDoc())
 	})
 	if openAPISpecJSONErr != nil {
 		return nil, openAPISpecJSONErr
@@ -89,7 +89,6 @@ func loadOpenAPISpecYAML() ([]byte, error) {
 	}
 	return openAPISpecYAML, nil
 }
-
 
 func normalizeYAMLValue(v any) any {
 	switch typed := v.(type) {

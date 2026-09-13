@@ -17,13 +17,13 @@ func initEsimNotificationTestDB(t *testing.T) {
 func TestSaveAndGetEsimNotification(t *testing.T) {
 	initEsimNotificationTestDB(t)
 	record := EsimNotificationRecord{
-		EID:      "EID001",
-		SeqNumber: 11,
-		ICCID:    "8986001234567890123",
-		Content:  "dGVzdA==",
-		Status:   0,
+		EID:                "EID001",
+		SeqNumber:          11,
+		ICCID:              "8986001234567890123",
+		Content:            "dGVzdA==",
+		Status:             0,
 		NotificationServer: "install.example.com",
-		NotificationType:  "install",
+		NotificationType:   "install",
 	}
 	if err := SaveEsimNotification(record); err != nil {
 		t.Fatalf("SaveEsimNotification() error=%v", err)
@@ -120,8 +120,8 @@ func TestGetEsimNotificationSettingsDefault(t *testing.T) {
 func TestUpsertEsimNotificationSettings(t *testing.T) {
 	initEsimNotificationTestDB(t)
 	settings := EsimNotificationSettings{
-		DeviceID: "dev-test",
-		AutoSendInstall: false,
+		DeviceID:         "dev-test",
+		AutoSendInstall:  false,
 		AutoRemoveEnable: false,
 	}
 	if err := UpsertEsimNotificationSettings(settings); err != nil {

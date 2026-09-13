@@ -93,7 +93,7 @@ func NewPCSCExclusiveChannel(reader, usbPath string) (*PCSCExclusiveChannel, err
 	}
 	return &PCSCExclusiveChannel{
 		reader:      reader,
-		usbPath:      usbPath,
+		usbPath:     usbPath,
 		shareMode:   ccid.ShareExclusive,
 		protocol:    ccid.ProtocolT0,
 		sendTermCap: true,
@@ -109,7 +109,7 @@ func NewPCSCSharedChannel(reader, usbPath string) (*PCSCExclusiveChannel, error)
 	}
 	return &PCSCExclusiveChannel{
 		reader:      reader,
-		usbPath:      usbPath,
+		usbPath:     usbPath,
 		shareMode:   ccid.ShareShared,
 		protocol:    ccid.ProtocolAny,
 		sendTermCap: false,

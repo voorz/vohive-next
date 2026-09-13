@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/voorz/quectel-qmi-go/pkg/qmi"
 	qmimanager "github.com/voorz/quectel-qmi-go/pkg/manager"
-	qmipkg "github.com/voorz/vohive/internal/qmi"
+	"github.com/voorz/quectel-qmi-go/pkg/qmi"
 	"github.com/voorz/vohive/internal/backend"
+	qmipkg "github.com/voorz/vohive/internal/qmi"
 	"github.com/voorz/vohive/pkg/logger"
 )
 

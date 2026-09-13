@@ -54,7 +54,7 @@ func probeUpstreamProxyConfig(c *gin.Context, proxy db.UpstreamProxy) (upstreamp
 }
 
 // handleListUpstreamProxies 获取所有前置代理实例
-// handleListUpstreamProxies 
+// handleListUpstreamProxies
 //
 // @Summary      ListUpstreamProxies
 // @Tags         upstream-proxies
@@ -103,7 +103,7 @@ func (s *Server) handleCreateUpstreamProxy(c *gin.Context) {
 }
 
 // handleUpdateUpstreamProxy 更新前置代理实例
-// handleUpdateUpstreamProxy 
+// handleUpdateUpstreamProxy
 //
 // @Summary      UpdateUpstreamProxy
 // @Tags         upstream-proxies
@@ -151,7 +151,7 @@ func (s *Server) handleUpdateUpstreamProxy(c *gin.Context) {
 }
 
 // handleDeleteUpstreamProxy 删除前置代理实例
-// handleDeleteUpstreamProxy 
+// handleDeleteUpstreamProxy
 //
 // @Summary      DeleteUpstreamProxy
 // @Tags         upstream-proxies
@@ -227,7 +227,7 @@ func buildUpstreamProxyCountryRuleResponse(rule db.UpstreamProxyCountryRule) ups
 	}
 }
 
-// handleListUpstreamProxyCountries 
+// handleListUpstreamProxyCountries
 //
 // @Summary      ListUpstreamProxyCountries
 // @Tags         upstream-proxies
@@ -258,7 +258,7 @@ func (s *Server) handleListUpstreamProxyCountryRules(c *gin.Context) {
 	c.JSON(http.StatusOK, out)
 }
 
-// handleUpsertUpstreamProxyCountryRule 
+// handleUpsertUpstreamProxyCountryRule
 //
 // @Summary      UpsertUpstreamProxyCountryRule
 // @Tags         upstream-proxies
@@ -311,7 +311,7 @@ func (s *Server) handleUpsertUpstreamProxyCountryRule(c *gin.Context) {
 	c.JSON(http.StatusOK, buildUpstreamProxyCountryRuleResponse(rule))
 }
 
-// handleDeleteUpstreamProxyCountryRule 
+// handleDeleteUpstreamProxyCountryRule
 //
 // @Summary      DeleteUpstreamProxyCountryRule
 // @Tags         upstream-proxies
@@ -340,7 +340,7 @@ func maskSecret(s string) string {
 }
 
 // handleLookupUpstreamProxy 查询前置代理 IP 归属与延迟
-// handleLookupUpstreamProxy 
+// handleLookupUpstreamProxy
 //
 // @Summary      LookupUpstreamProxy
 // @Tags         upstream-proxies
@@ -434,7 +434,6 @@ func (s *Server) handleLookupUpstreamProxy(c *gin.Context) {
 		"latency_ms":   latencyMs,
 	})
 }
-
 
 type ipInfoResult struct {
 	IP           string

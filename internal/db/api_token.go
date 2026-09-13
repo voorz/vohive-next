@@ -13,9 +13,9 @@ import (
 type APIToken struct {
 	ID         uint       `gorm:"primaryKey;autoIncrement" json:"id"`
 	Name       string     `gorm:"not null" json:"name"`
-	TokenHash  string     `gorm:"column:token_hash;not null" json:"-"`       // SHA-256 hash，不返回前端
-	Prefix     string     `gorm:"not null" json:"prefix"`                     // 前 8 位用于展示辨识
-	Expiry     int64      `gorm:"default:0" json:"expiry"`                    // Unix 时间戳，0=永不过期
+	TokenHash  string     `gorm:"column:token_hash;not null" json:"-"` // SHA-256 hash，不返回前端
+	Prefix     string     `gorm:"not null" json:"prefix"`              // 前 8 位用于展示辨识
+	Expiry     int64      `gorm:"default:0" json:"expiry"`             // Unix 时间戳，0=永不过期
 	CreatedAt  time.Time  `gorm:"autoCreateTime" json:"created_at"`
 	LastUsedAt *time.Time `json:"last_used_at"`
 }

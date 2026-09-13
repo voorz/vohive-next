@@ -209,16 +209,16 @@ type EUICCInfo struct {
 	Spec                   EUICCSpec `json:"spec,omitempty"`
 	SpecGuess              string    `json:"spec_guess,omitempty"`
 	SpecConfidence         string    `json:"spec_confidence,omitempty"`
-	FreeNvramBytes         int32     `json:"free_nvram_bytes"`       // 可用 NV 存储（字节）
-	FreeNvram              string    `json:"free_nvram"`             // 可用 NV 存储（格式化）
+	FreeNvramBytes         int32     `json:"free_nvram_bytes"`               // 可用 NV 存储（字节）
+	FreeNvram              string    `json:"free_nvram"`                     // 可用 NV 存储（格式化）
 	TotalCapacityBytes     int32     `json:"total_capacity_bytes,omitempty"` // 该 EID 的总容量（字节）
 	UsedCapacityBytes      int32     `json:"used_capacity_bytes,omitempty"`  // 该 EID 的已用容量（字节）
-	Firmware               string    `json:"firmware,omitempty"`     // 提取自 EUICCInfo2 / EUICCInfo1
-	Manufacturer           string    `json:"manufacturer,omitempty"` // 芯片制造商（基于 EID 和 PKI 数据查询）
-	Certificates           []string  `json:"certificates,omitempty"` // 支持的证书签发机构列表
-	InfoSource             string    `json:"info_source,omitempty"`  // euicc_info2 / euicc_info1
-	InfoVersion            string    `json:"info_version,omitempty"` // 1 / 2
-	InfoError              string    `json:"info_error,omitempty"`   // 标准信息读取失败时的诊断信息
+	Firmware               string    `json:"firmware,omitempty"`             // 提取自 EUICCInfo2 / EUICCInfo1
+	Manufacturer           string    `json:"manufacturer,omitempty"`         // 芯片制造商（基于 EID 和 PKI 数据查询）
+	Certificates           []string  `json:"certificates,omitempty"`         // 支持的证书签发机构列表
+	InfoSource             string    `json:"info_source,omitempty"`          // euicc_info2 / euicc_info1
+	InfoVersion            string    `json:"info_version,omitempty"`         // 1 / 2
+	InfoError              string    `json:"info_error,omitempty"`           // 标准信息读取失败时的诊断信息
 	SASAccreditationNumber string    `json:"sas_accreditation_number,omitempty"`
 	DefaultSMDPAddress     string    `json:"default_smdp_address,omitempty"`
 	RootSMDSAddress        string    `json:"root_ds_address,omitempty"`
@@ -237,18 +237,18 @@ func buildDiscoveredEUICCInfo(aid []byte, eidStr string) EUICCInfo {
 
 // ProfileItem 单个 profile 信息
 type ProfileItem struct {
-	ICCID               string `json:"iccid"`
-	ISDPAIDHex          string `json:"isdp_aid,omitempty"`
-	Name                string `json:"name"`
-	ServiceProviderName string `json:"service_provider_name"`
-	State               int    `json:"state"` // 0=disabled, 1=enabled
-	StateText           string `json:"state_text"`
-	ClassText           string `json:"class_text,omitempty"`
-	MCC                 string `json:"mcc,omitempty"`
-	MNC                 string `json:"mnc,omitempty"`
-	GID1                string `json:"gid1,omitempty"`
-	GID2                string `json:"gid2,omitempty"`
-	ProfileSizeBytes    int    `json:"profile_size_bytes,omitempty"`    // profile 实际占用字节（来自 esimstore 查询）
+	ICCID                string `json:"iccid"`
+	ISDPAIDHex           string `json:"isdp_aid,omitempty"`
+	Name                 string `json:"name"`
+	ServiceProviderName  string `json:"service_provider_name"`
+	State                int    `json:"state"` // 0=disabled, 1=enabled
+	StateText            string `json:"state_text"`
+	ClassText            string `json:"class_text,omitempty"`
+	MCC                  string `json:"mcc,omitempty"`
+	MNC                  string `json:"mnc,omitempty"`
+	GID1                 string `json:"gid1,omitempty"`
+	GID2                 string `json:"gid2,omitempty"`
+	ProfileSizeBytes     int    `json:"profile_size_bytes,omitempty"`     // profile 实际占用字节（来自 esimstore 查询）
 	ProfileSizeFormatted string `json:"profile_size_formatted,omitempty"` // 人类可读大小（如 "38.10 kb"）
 	ProfileAlias         string `json:"profile_alias,omitempty"`          // profile 别名（来自 esimstore names[0]）
 	ProfileName          string `json:"profile_name,omitempty"`           // SGP22 ProfileName（SM-DP+ 写入的产品名，不可改）

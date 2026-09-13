@@ -13,19 +13,19 @@ import (
 //
 // status 值: 0=未发送(pending), 1=已发送(sent), 2=发送失败(failed), 3=未发送直接删除(deleted)
 type EsimNotificationRecord struct {
-	EID                string `gorm:"column:eid;primaryKey" json:"eid"`
-	SeqNumber          int64  `gorm:"column:seq_number;primaryKey" json:"seq_number"`
-	ICCID              string `gorm:"column:iccid;primaryKey" json:"iccid"`
-	ProfileName        string `gorm:"column:profile_name" json:"profile_name"`             // 关联 profile 的名称（手机号/卡名）
-	MCC                string `gorm:"column:mcc" json:"mcc"`                               // 关联 profile 的 MCC（用于国旗显示）
-	Content            string `gorm:"column:content" json:"content"`                           // base64 编码的 PendingNotification
-	Timestamp          int64  `gorm:"column:timestamp" json:"timestamp"`                     // 毫秒时间戳
-	Status             int    `gorm:"column:status" json:"status"`                           // 0/1/2/3
-	ResponseCode       *int   `gorm:"column:response_code" json:"response_code"`             // HTTP 响应码
-	ResponseContent    string `gorm:"column:response_content" json:"response_content"`       // HTTP 响应内容
-	NotificationServer string `gorm:"column:notification_server" json:"notification_server"`   // RSP 服务器地址
-	NotificationType   string `gorm:"column:notification_type" json:"notification_type"`       // install/enable/disable/delete
-	DeletePending      bool   `gorm:"column:delete_pending;default:false" json:"delete_pending"` // 卡上移除失败，待重试
+	EID                string    `gorm:"column:eid;primaryKey" json:"eid"`
+	SeqNumber          int64     `gorm:"column:seq_number;primaryKey" json:"seq_number"`
+	ICCID              string    `gorm:"column:iccid;primaryKey" json:"iccid"`
+	ProfileName        string    `gorm:"column:profile_name" json:"profile_name"`                   // 关联 profile 的名称（手机号/卡名）
+	MCC                string    `gorm:"column:mcc" json:"mcc"`                                     // 关联 profile 的 MCC（用于国旗显示）
+	Content            string    `gorm:"column:content" json:"content"`                             // base64 编码的 PendingNotification
+	Timestamp          int64     `gorm:"column:timestamp" json:"timestamp"`                         // 毫秒时间戳
+	Status             int       `gorm:"column:status" json:"status"`                               // 0/1/2/3
+	ResponseCode       *int      `gorm:"column:response_code" json:"response_code"`                 // HTTP 响应码
+	ResponseContent    string    `gorm:"column:response_content" json:"response_content"`           // HTTP 响应内容
+	NotificationServer string    `gorm:"column:notification_server" json:"notification_server"`     // RSP 服务器地址
+	NotificationType   string    `gorm:"column:notification_type" json:"notification_type"`         // install/enable/disable/delete
+	DeletePending      bool      `gorm:"column:delete_pending;default:false" json:"delete_pending"` // 卡上移除失败，待重试
 	CreatedAt          time.Time `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt          time.Time `gorm:"column:updated_at" json:"updated_at"`
 }
@@ -37,24 +37,24 @@ func (EsimNotificationRecord) TableName() string {
 // EsimNotificationSettings 对标 NekoKo AppSettings 的 notif* 开关。
 // 每设备一行，控制 autoClean 行为。
 type EsimNotificationSettings struct {
-	DeviceID                   string `gorm:"column:device_id;primaryKey" json:"device_id"`
-	AutoSendInstall            bool   `gorm:"column:auto_send_install;default:true" json:"auto_send_install"`
-	AutoRemoveInstall          bool   `gorm:"column:auto_remove_install;default:false" json:"auto_remove_install"`
-	AutoSendEnable             bool   `gorm:"column:auto_send_enable;default:true" json:"auto_send_enable"`
-	AutoRemoveEnable           bool   `gorm:"column:auto_remove_enable;default:true" json:"auto_remove_enable"`
-	DeleteWithoutSendingEnable bool   `gorm:"column:delete_without_sending_enable;default:false" json:"delete_without_sending_enable"`
-	AutoSendDisable            bool   `gorm:"column:auto_send_disable;default:true" json:"auto_send_disable"`
-	AutoRemoveDisable          bool   `gorm:"column:auto_remove_disable;default:true" json:"auto_remove_disable"`
-	DeleteWithoutSendingDisable bool  `gorm:"column:delete_without_sending_disable;default:false" json:"delete_without_sending_disable"`
-	AutoSendDelete             bool   `gorm:"column:auto_send_delete;default:true" json:"auto_send_delete"`
-	AutoRemoveDelete           bool   `gorm:"column:auto_remove_delete;default:false" json:"auto_remove_delete"`
-	ProcessInitialLoad         bool   `gorm:"column:process_initial_load;default:true" json:"process_initial_load"`
-	ProcessAfterSwitch         bool   `gorm:"column:process_after_switch;default:true" json:"process_after_switch"`
-	ProcessAfterDelete         bool   `gorm:"column:process_after_delete;default:true" json:"process_after_delete"`
-	ProcessBeforeDownload      bool   `gorm:"column:process_before_download;default:true" json:"process_before_download"`
-	ProcessAfterInstall        bool   `gorm:"column:process_after_install;default:true" json:"process_after_install"`
-	CreatedAt                  time.Time `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt                  time.Time `gorm:"column:updated_at" json:"updated_at"`
+	DeviceID                    string    `gorm:"column:device_id;primaryKey" json:"device_id"`
+	AutoSendInstall             bool      `gorm:"column:auto_send_install;default:true" json:"auto_send_install"`
+	AutoRemoveInstall           bool      `gorm:"column:auto_remove_install;default:false" json:"auto_remove_install"`
+	AutoSendEnable              bool      `gorm:"column:auto_send_enable;default:true" json:"auto_send_enable"`
+	AutoRemoveEnable            bool      `gorm:"column:auto_remove_enable;default:true" json:"auto_remove_enable"`
+	DeleteWithoutSendingEnable  bool      `gorm:"column:delete_without_sending_enable;default:false" json:"delete_without_sending_enable"`
+	AutoSendDisable             bool      `gorm:"column:auto_send_disable;default:true" json:"auto_send_disable"`
+	AutoRemoveDisable           bool      `gorm:"column:auto_remove_disable;default:true" json:"auto_remove_disable"`
+	DeleteWithoutSendingDisable bool      `gorm:"column:delete_without_sending_disable;default:false" json:"delete_without_sending_disable"`
+	AutoSendDelete              bool      `gorm:"column:auto_send_delete;default:true" json:"auto_send_delete"`
+	AutoRemoveDelete            bool      `gorm:"column:auto_remove_delete;default:false" json:"auto_remove_delete"`
+	ProcessInitialLoad          bool      `gorm:"column:process_initial_load;default:true" json:"process_initial_load"`
+	ProcessAfterSwitch          bool      `gorm:"column:process_after_switch;default:true" json:"process_after_switch"`
+	ProcessAfterDelete          bool      `gorm:"column:process_after_delete;default:true" json:"process_after_delete"`
+	ProcessBeforeDownload       bool      `gorm:"column:process_before_download;default:true" json:"process_before_download"`
+	ProcessAfterInstall         bool      `gorm:"column:process_after_install;default:true" json:"process_after_install"`
+	CreatedAt                   time.Time `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt                   time.Time `gorm:"column:updated_at" json:"updated_at"`
 }
 
 func (EsimNotificationSettings) TableName() string {
@@ -104,10 +104,10 @@ func UpdateEsimNotificationStatus(eid string, seqNumber int64, iccid string, sta
 		return errors.New("database not initialized")
 	}
 	updates := map[string]interface{}{
-		"status":            status,
-		"response_code":     responseCode,
-		"response_content":  responseContent,
-		"updated_at":        time.Now(),
+		"status":           status,
+		"response_code":    responseCode,
+		"response_content": responseContent,
+		"updated_at":       time.Now(),
 	}
 	result := DB.Model(&EsimNotificationRecord{}).
 		Where("eid = ? AND seq_number = ? AND iccid = ?", eid, seqNumber, iccid).

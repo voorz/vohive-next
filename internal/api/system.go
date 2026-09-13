@@ -20,7 +20,7 @@ import (
 )
 
 // handleGetUpdateRepo 返回当前 release 源配置（无默认值）
-// handleGetUpdateRepo 
+// handleGetUpdateRepo
 //
 // @Summary      GetUpdateRepo
 // @Tags         settings
@@ -74,7 +74,7 @@ func (s *Server) handleUpdateUpdateRepo(c *gin.Context) {
 }
 
 // handleDeleteUpdateRepo 删除 release 源配置并热加载
-// handleDeleteUpdateRepo 
+// handleDeleteUpdateRepo
 //
 // @Summary      DeleteUpdateRepo
 // @Tags         settings
@@ -102,7 +102,7 @@ func (s *Server) handleDeleteUpdateRepo(c *gin.Context) {
 }
 
 // handleGetVoWiFiBehavior 返回当前 VoWiFi 行为配置
-// handleGetVoWiFiBehavior 
+// handleGetVoWiFiBehavior
 //
 // @Summary      GetVoWiFiBehavior
 // @Tags         settings
@@ -173,7 +173,7 @@ func (s *Server) handleUpdateVoWiFiBehavior(c *gin.Context) {
 }
 
 // handleGetSMSRateLimit 返回当前短信限速配置
-// handleGetSMSRateLimit 
+// handleGetSMSRateLimit
 //
 // @Summary      GetSMSRateLimit
 // @Tags         settings
@@ -224,7 +224,7 @@ func (s *Server) handleUpdateSMSRateLimit(c *gin.Context) {
 }
 
 // handleListReleases 获取 Release 列表
-// handleListReleases 
+// handleListReleases
 //
 // @Summary      ListReleases
 // @Tags         settings
@@ -264,7 +264,7 @@ func (s *Server) handleApplyUpdateByTag(c *gin.Context) {
 }
 
 // handleLocalUpdate 上传本地二进制文件进行更新
-// handleLocalUpdate 
+// handleLocalUpdate
 //
 // @Summary      LocalUpdate
 // @Tags         settings
@@ -305,7 +305,7 @@ func (s *Server) handleLocalUpdate(c *gin.Context) {
 }
 
 // handleGetSite 返回站点信息配置
-// handleGetSite 
+// handleGetSite
 //
 // @Summary      GetSite
 // @Tags         settings
@@ -364,7 +364,7 @@ func (s *Server) handleUpdateSite(c *gin.Context) {
 }
 
 // handleUploadSiteLogo 上传自定义 logo
-// handleUploadSiteLogo 
+// handleUploadSiteLogo
 //
 // @Summary      UploadSiteLogo
 // @Tags         settings
@@ -423,7 +423,7 @@ func (s *Server) handleUploadSiteLogo(c *gin.Context) {
 }
 
 // handleUploadSiteFavicon 上传自定义 favicon
-// handleUploadSiteFavicon 
+// handleUploadSiteFavicon
 //
 // @Summary      UploadSiteFavicon
 // @Tags         settings
@@ -479,7 +479,7 @@ func (s *Server) handleUploadSiteFavicon(c *gin.Context) {
 }
 
 // handleServeSiteLogo 提供自定义 logo 文件（无需鉴权）
-// handleServeSiteLogo 
+// handleServeSiteLogo
 //
 // @Summary      ServeSiteLogo
 // @Tags         site
@@ -509,7 +509,7 @@ func (s *Server) handleServeSiteLogo(c *gin.Context) {
 }
 
 // handleServeSiteFavicon 提供自定义 favicon 文件（无需鉴权）
-// handleServeSiteFavicon 
+// handleServeSiteFavicon
 //
 // @Summary      ServeSiteFavicon
 // @Tags         site
@@ -540,7 +540,7 @@ func (s *Server) handleServeSiteFavicon(c *gin.Context) {
 }
 
 // handleGetSecurity 返回安全配置
-// handleGetSecurity 
+// handleGetSecurity
 //
 // @Summary      GetSecurity
 // @Tags         settings
@@ -596,7 +596,7 @@ func (s *Server) handleUpdateSecurity(c *gin.Context) {
 }
 
 // handleListAPITokens 列出全部 API Token
-// handleListAPITokens 
+// handleListAPITokens
 //
 // @Summary      ListAPITokens
 // @Tags         settings
@@ -650,7 +650,7 @@ func (s *Server) handleCreateAPIToken(c *gin.Context) {
 }
 
 // handleDeleteAPIToken 删除指定 API Token（按 ID）
-// handleDeleteAPIToken 
+// handleDeleteAPIToken
 //
 // @Summary      DeleteAPIToken
 // @Tags         settings
@@ -677,7 +677,7 @@ func (s *Server) handleDeleteAPIToken(c *gin.Context) {
 }
 
 // handleGetServerConfig 返回服务器配置
-// handleGetServerConfig 
+// handleGetServerConfig
 //
 // @Summary      GetServerConfig
 // @Tags         settings, mcp-auto
@@ -695,9 +695,9 @@ func (s *Server) handleGetServerConfig(c *gin.Context) {
 	}
 	port := strings.TrimPrefix(cfg.Server.Port, ":")
 	c.JSON(http.StatusOK, gin.H{
-		"port":              port,
-		"debug":             cfg.Server.Debug,
-		"pcsc_driver_mode":  cfg.Server.PcscDriverMode,
+		"port":             port,
+		"debug":            cfg.Server.Debug,
+		"pcsc_driver_mode": cfg.Server.PcscDriverMode,
 	})
 }
 
@@ -735,7 +735,7 @@ func (s *Server) handleUpdateServerConfig(c *gin.Context) {
 }
 
 // handleUpdateWebCredentials 更新管理员用户名和密码
-// handleUpdateWebCredentials 
+// handleUpdateWebCredentials
 //
 // @Summary      UpdateWebCredentials
 // @Tags         settings
@@ -783,7 +783,7 @@ func (s *Server) handleUpdateWebCredentials(c *gin.Context) {
 }
 
 // handleCheckUpdate 检查系统更新
-// handleCheckUpdate 
+// handleCheckUpdate
 //
 // @Summary      CheckUpdate
 // @Tags         settings

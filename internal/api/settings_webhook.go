@@ -26,7 +26,7 @@ type testWebhookResponse struct {
 	FailedURLs []string `json:"failed_urls,omitempty"`
 }
 
-// handleTestWebhookNotification 
+// handleTestWebhookNotification
 //
 // @Summary      TestWebhookNotification
 // @Tags         settings

@@ -27,6 +27,7 @@ type dashboardAggregatedTraffic struct {
 // 事件:
 //   - "traffic": 聚合流量快照（~1s 间隔）
 //   - "overview": 设备计数/连接数概览（10s 间隔）
+//
 // handleDashboardOverviewStream SSE 仪表盘聚合实时流量
 //
 // @Summary      SSE 仪表盘聚合实时流量
@@ -51,9 +52,9 @@ func (s *Server) handleDashboardOverviewStream(c *gin.Context) {
 
 	// ---- 订阅管理 ----
 	type sub struct {
-		ch  <-chan proxytraffic.RealtimeSnapshot
-		un  func()
-		id  string
+		ch <-chan proxytraffic.RealtimeSnapshot
+		un func()
+		id string
 	}
 	var subMu sync.Mutex
 	subs := make(map[string]*sub)
@@ -231,4 +232,3 @@ func (s *Server) handleDashboardOverviewStream(c *gin.Context) {
 		}
 	}
 }
-

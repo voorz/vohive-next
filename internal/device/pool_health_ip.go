@@ -211,21 +211,21 @@ func (p *Pool) runHealthCheckTick() bool {
 							break
 						}
 
-					logger.Info("定时检查发现免扫类型节点缺少 Worker，直接尝试初始化拉起", "device", md.ID)
-					go func(c config.DeviceConfig) {
-						if _, err := p.AddWorkerFromConfig(c); err != nil {
-							logger.Warn("快速拉起节点失败，可能为底层掉线或冲突，下个周期重试", "device", c.ID, "err", err)
-						} else {
-							notify.GlobalNotificationBroadcaster.Broadcast(notify.FrontendNotification{
-								Level:      "low",
-								Event:      "device_online",
-								Title:      "设备已连接，VoWiFi实例恢复中",
-								Body:       c.ID,
-								DeviceID:   c.ID,
-								DeviceName: c.Name,
-							})
-						}
-					}(md)
+						logger.Info("定时检查发现免扫类型节点缺少 Worker，直接尝试初始化拉起", "device", md.ID)
+						go func(c config.DeviceConfig) {
+							if _, err := p.AddWorkerFromConfig(c); err != nil {
+								logger.Warn("快速拉起节点失败，可能为底层掉线或冲突，下个周期重试", "device", c.ID, "err", err)
+							} else {
+								notify.GlobalNotificationBroadcaster.Broadcast(notify.FrontendNotification{
+									Level:      "low",
+									Event:      "device_online",
+									Title:      "设备已连接，VoWiFi实例恢复中",
+									Body:       c.ID,
+									DeviceID:   c.ID,
+									DeviceName: c.Name,
+								})
+							}
+						}(md)
 						continue
 					}
 

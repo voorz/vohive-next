@@ -72,9 +72,13 @@ func (s *startNetworkMBIMBackendStub) GetIMSI(context.Context) (string, error)  
 func (s *startNetworkMBIMBackendStub) GetICCID(context.Context) (string, error)    { return "", nil }
 func (s *startNetworkMBIMBackendStub) GetMSISDN(context.Context) (string, error)   { return "", nil }
 func (s *startNetworkMBIMBackendStub) GetRevision(context.Context) (string, error) { return "", nil }
-func (s *startNetworkMBIMBackendStub) GetManufacturer(context.Context) (string, error) { return "", nil }
+func (s *startNetworkMBIMBackendStub) GetManufacturer(context.Context) (string, error) {
+	return "", nil
+}
 func (s *startNetworkMBIMBackendStub) GetModel(context.Context) (string, error) { return "", nil }
-func (s *startNetworkMBIMBackendStub) GetHardwareRevision(context.Context) (string, error) { return "", nil }
+func (s *startNetworkMBIMBackendStub) GetHardwareRevision(context.Context) (string, error) {
+	return "", nil
+}
 func (s *startNetworkMBIMBackendStub) GetSignalInfo(context.Context) (*backend.SignalInfo, error) {
 	return &backend.SignalInfo{}, nil
 }

@@ -17,9 +17,9 @@ type USBIdentity struct {
 	VendorID     string
 	ProductID    string
 	// 扩展信息（来自 debugfs D:/I:/E: 行）
-	USBVersion  string           // 例如 "2.01"
-	DeviceClass string           // 例如 "0b(scard)"
-	Interfaces  []USBInterface  // 接口驱动列表
+	USBVersion  string         // 例如 "2.01"
+	DeviceClass string         // 例如 "0b(scard)"
+	Interfaces  []USBInterface // 接口驱动列表
 }
 
 // USBInterface 描述一个 USB 接口的驱动和端点摘要

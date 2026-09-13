@@ -296,7 +296,7 @@ type DeviceConfig struct {
 
 	// USB 描述符元数据（首次发现时从 sysfs 填充并持久化，设备离线后仍可读取）
 	USBManufacturer string `mapstructure:"usb_manufacturer"` // USB manufacturer 字段（如 "BAIWANG"）
-	USBProduct      string `mapstructure:"usb_product"`       // USB product 字段（如 "Baiwang"）
+	USBProduct      string `mapstructure:"usb_product"`      // USB product 字段（如 "Baiwang"）
 }
 
 type TelegramConfig struct {

@@ -69,7 +69,7 @@ type updateVoiceGatewayRequest struct {
 }
 
 // handleGetVoiceGateway GET /api/settings/voice-gateway
-// handleGetVoiceGateway 
+// handleGetVoiceGateway
 //
 // @Summary      GetVoiceGateway
 // @Tags         settings, mcp-auto
@@ -145,7 +145,7 @@ func (s *Server) handleGetVoiceGateway(c *gin.Context) {
 }
 
 // handleUpdateVoiceGateway PUT /api/settings/voice-gateway
-// handleUpdateVoiceGateway 
+// handleUpdateVoiceGateway
 //
 // @Summary      UpdateVoiceGateway
 // @Tags         settings
@@ -240,7 +240,7 @@ func (s *Server) handleUpdateVoiceGateway(c *gin.Context) {
 }
 
 // handleRegenerateVoicePassword POST /api/settings/voice-gateway/regenerate-password
-// handleRegenerateVoicePassword 
+// handleRegenerateVoicePassword
 //
 // @Summary      RegenerateVoicePassword
 // @Tags         settings
@@ -285,7 +285,7 @@ func (s *Server) handleRegenerateVoicePassword(c *gin.Context) {
 
 // handleTestLinphonePush POST /api/settings/voice-gateway/test-linphone-push
 // 测试 Linphone 官方推送 API 密钥是否有效（使用 API Key 认证）
-// handleTestLinphonePush 
+// handleTestLinphonePush
 //
 // @Summary      TestLinphonePush
 // @Tags         settings
@@ -316,7 +316,7 @@ func (s *Server) handleTestLinphonePush(c *gin.Context) {
 		ForceAttemptHTTP2:     false,
 		MaxIdleConns:          1,
 		IdleConnTimeout:       10 * time.Second,
-		TLSHandshakeTimeout:  10 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
 	}
 	client := &http.Client{Timeout: 15 * time.Second, Transport: transport}
@@ -393,4 +393,3 @@ func (s *Server) handleTestLinphonePush(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"status": "ok", "message": "Linphone API 密钥验证通过" + pushMsg})
 }
-

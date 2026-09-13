@@ -48,7 +48,7 @@ type proxyConfigRequest struct {
 }
 
 // handleProxyOverview 获取代理配置概览
-// handleProxyOverview 
+// handleProxyOverview
 //
 // @Summary      ProxyOverview
 // @Tags         proxy-instances, mcp-auto
@@ -99,7 +99,7 @@ func (s *Server) handleProxyOverview(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-// handleProxyInstanceGet 
+// handleProxyInstanceGet
 //
 // @Summary      ProxyInstanceGet
 // @Tags         proxy-instances
@@ -126,7 +126,7 @@ func (s *Server) handleProxyInstanceGet(c *gin.Context) {
 }
 
 // handleProxyUpdateConfig 更新代理配置
-// handleProxyUpdateConfig 
+// handleProxyUpdateConfig
 //
 // @Summary      ProxyUpdateConfig
 // @Tags         proxy-instances
@@ -240,7 +240,7 @@ func normalizeProxyMode(mode string) (string, error) {
 }
 
 // handleProxyInstanceStart 启动代理实例
-// handleProxyInstanceStart 
+// handleProxyInstanceStart
 //
 // @Summary      ProxyInstanceStart
 // @Tags         proxy-instances
@@ -268,7 +268,7 @@ func (s *Server) handleProxyInstanceStart(c *gin.Context) {
 }
 
 // handleProxyInstanceStop 停止代理实例
-// handleProxyInstanceStop 
+// handleProxyInstanceStop
 //
 // @Summary      ProxyInstanceStop
 // @Tags         proxy-instances
@@ -296,7 +296,7 @@ func (s *Server) handleProxyInstanceStop(c *gin.Context) {
 }
 
 // handleProxyInstanceRestart 重启代理实例
-// handleProxyInstanceRestart 
+// handleProxyInstanceRestart
 //
 // @Summary      ProxyInstanceRestart
 // @Tags         proxy-instances

@@ -128,7 +128,7 @@ type updateNotificationSettingsRequest struct {
 	} `json:"pushplus"`
 }
 
-// handleGetNotificationSettings 
+// handleGetNotificationSettings
 //
 // @Summary      GetNotificationSettings
 // @Tags         settings
@@ -188,7 +188,7 @@ func (s *Server) handleGetNotificationSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, resp)
 }
 
-// handleUpdateNotificationSettings 
+// handleUpdateNotificationSettings
 //
 // @Summary      UpdateNotificationSettings
 // @Tags         settings

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	swusim "github.com/voorz/vowifi-core/engine/sim"
 	"github.com/voorz/vohive/pkg/logger"
+	swusim "github.com/voorz/vowifi-core/engine/sim"
 )
 
 // BuildUSIMAuthAPDU 构造 USIM AKA 鉴权 APDU（RAND/AUTN），用于逻辑通道下发。

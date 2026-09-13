@@ -68,21 +68,21 @@ type loginAttempt struct {
 
 // Server 是 API 服务器的核心结构
 type Server struct {
-	cfg         config.ServerConfig // HTTP 服务器配置
-	fullCfg     *config.Config      // 完整配置引用
-	pool        *device.Pool        // 设备工作器池
-	auth        config.WebConfig    // Web 认证配置
-	fs          http.FileSystem     // 静态文件系统
-	configPath  string              // 配置文件路径
-	proxyMgr    *server.Manager     // 代理实例管理器
-	trafficRT   realtimeTrafficSubscriber
-	proxyRepo   repo.ProxyInstanceRepository
-	proxySyncMu sync.Mutex
-	voiceGW     *voicehost.Gateway
-	voiceBus    *voice.Bus
-	notifyMgr   *notify.Manager
+	cfg          config.ServerConfig // HTTP 服务器配置
+	fullCfg      *config.Config      // 完整配置引用
+	pool         *device.Pool        // 设备工作器池
+	auth         config.WebConfig    // Web 认证配置
+	fs           http.FileSystem     // 静态文件系统
+	configPath   string              // 配置文件路径
+	proxyMgr     *server.Manager     // 代理实例管理器
+	trafficRT    realtimeTrafficSubscriber
+	proxyRepo    repo.ProxyInstanceRepository
+	proxySyncMu  sync.Mutex
+	voiceGW      *voicehost.Gateway
+	voiceBus     *voice.Bus
+	notifyMgr    *notify.Manager
 	pushNotifier PushNotifier // Linphone 推送接口
-	websheets   *vwebsheet.Broker
+	websheets    *vwebsheet.Broker
 
 	httpSrvMu sync.Mutex
 	httpSrv   *http.Server
@@ -326,7 +326,7 @@ func (s *Server) newRouter() *gin.Engine {
 		api.DELETE("/sms/thread", s.handleDeleteSMSThread)        // 删除指定历史短信会话
 
 		// ===== 语音通话 =====
-		api.GET("/devices/:device_id/voice/stream", s.handleVoiceStream)               // SSE 通话状态实时流
+		api.GET("/devices/:device_id/voice/stream", s.handleVoiceStream)                // SSE 通话状态实时流
 		api.GET("/devices/:device_id/voice/history", s.handleGetVoiceHistory)           // 获取通话记录列表
 		api.DELETE("/devices/:device_id/voice/history", s.handleDeleteAllVoiceHistory)  // 删除所有通话记录
 		api.DELETE("/devices/:device_id/voice/history/:id", s.handleDeleteVoiceHistory) // 删除单条通话记录
@@ -344,48 +344,48 @@ func (s *Server) newRouter() *gin.Engine {
 		api.POST("/settings/notifications/feishu/test", s.handleTestFeishuNotification)
 		api.POST("/settings/notifications/qq/test", s.handleTestQQNotification)
 		api.POST("/settings/notifications/pushplus/test", s.handleTestPushplusNotification)
-		api.POST("/settings/password", s.handleChangePassword)             // 修改登录密码
-		api.GET("/system/info", s.handleSystemInfo)                        // 获取系统运行与版本信息
-		api.GET("/system/update/check", s.handleCheckUpdate)               // 检查系统更新
-		api.GET("/system/update/releases", s.handleListReleases)           // 获取 Release 列表
-		api.POST("/system/update/apply", s.handleApplyUpdate)              // 应用最新版本更新
-		api.POST("/system/update/apply/:tag", s.handleApplyUpdateByTag)    // 按 tag 应用指定版本更新
-		api.POST("/system/update/local", s.handleLocalUpdate)              // 上传本地二进制更新
-		api.POST("/system/restart", s.handleSystemRestart)              // 重启 vohive 服务
-		api.POST("/system/stop", s.handleSystemStop)                   // 停止 vohive 服务
-		api.GET("/system/pcsc-driver", s.handleGetPcscDriverStatus)        // 检测 PC/SC 驱动状态
-		api.POST("/system/pcsc-driver/install", s.handleInstallPcscDriver) // 安装 PC/SC 驱动
-		api.POST("/system/pcsc-driver/stop", s.handleStopPcscDriver)      // 停止 pcscd 服务
-		api.POST("/system/pcsc-driver/start", s.handleStartPcscDriver)    // 启动 pcscd 服务
-		api.GET("/settings/update-repo", s.handleGetUpdateRepo)            // 获取 release 源配置
-		api.PUT("/settings/update-repo", s.handleUpdateUpdateRepo)         // 更新 release 源配置
-		api.DELETE("/settings/update-repo", s.handleDeleteUpdateRepo)      // 删除 release 源配置
-		api.GET("/settings/sms-limit", s.handleGetSMSRateLimit)            // 获取短信限速配置
-		api.PUT("/settings/sms-limit", s.handleUpdateSMSRateLimit)         // 更新短信限速配置
-		api.GET("/settings/vowifi-behavior", s.handleGetVoWiFiBehavior)    // 获取 VoWiFi 行为配置
-		api.PUT("/settings/vowifi-behavior", s.handleUpdateVoWiFiBehavior) // 更新 VoWiFi 行为配置
-		api.GET("/settings/security", s.handleGetSecurity)                 // 获取安全配置
-		api.PUT("/settings/security", s.handleUpdateSecurity)              // 更新安全配置
-		api.GET("/settings/api-tokens", s.handleListAPITokens)             // 列出全部 API Token
-		api.POST("/settings/api-tokens", s.handleCreateAPIToken)           // 创建新 API Token
-		api.DELETE("/settings/api-tokens/:id", s.handleDeleteAPIToken)     // 删除指定 API Token
-		api.GET("/settings/server", s.handleGetServerConfig)               // 获取服务器配置
-		api.PUT("/settings/server", s.handleUpdateServerConfig)            // 更新服务器配置
-		api.PUT("/settings/web-credentials", s.handleUpdateWebCredentials) // 更新管理员用户名+密码
-		api.GET("/settings/site", s.handleGetSite)                         // 获取站点信息
-		api.PUT("/settings/site", s.handleUpdateSite)                      // 更新站点名称/副标题
-		api.POST("/settings/site/logo", s.handleUploadSiteLogo)            // 上传自定义 logo
-		api.POST("/settings/site/favicon", s.handleUploadSiteFavicon)      // 上传自定义 favicon
-		api.GET("/settings/voice-gateway", s.handleGetVoiceGateway)        // 获取语音网关配置
-		api.PUT("/settings/voice-gateway", s.handleUpdateVoiceGateway)     // 更新语音网关配置
+		api.POST("/settings/password", s.handleChangePassword)                                   // 修改登录密码
+		api.GET("/system/info", s.handleSystemInfo)                                              // 获取系统运行与版本信息
+		api.GET("/system/update/check", s.handleCheckUpdate)                                     // 检查系统更新
+		api.GET("/system/update/releases", s.handleListReleases)                                 // 获取 Release 列表
+		api.POST("/system/update/apply", s.handleApplyUpdate)                                    // 应用最新版本更新
+		api.POST("/system/update/apply/:tag", s.handleApplyUpdateByTag)                          // 按 tag 应用指定版本更新
+		api.POST("/system/update/local", s.handleLocalUpdate)                                    // 上传本地二进制更新
+		api.POST("/system/restart", s.handleSystemRestart)                                       // 重启 vohive 服务
+		api.POST("/system/stop", s.handleSystemStop)                                             // 停止 vohive 服务
+		api.GET("/system/pcsc-driver", s.handleGetPcscDriverStatus)                              // 检测 PC/SC 驱动状态
+		api.POST("/system/pcsc-driver/install", s.handleInstallPcscDriver)                       // 安装 PC/SC 驱动
+		api.POST("/system/pcsc-driver/stop", s.handleStopPcscDriver)                             // 停止 pcscd 服务
+		api.POST("/system/pcsc-driver/start", s.handleStartPcscDriver)                           // 启动 pcscd 服务
+		api.GET("/settings/update-repo", s.handleGetUpdateRepo)                                  // 获取 release 源配置
+		api.PUT("/settings/update-repo", s.handleUpdateUpdateRepo)                               // 更新 release 源配置
+		api.DELETE("/settings/update-repo", s.handleDeleteUpdateRepo)                            // 删除 release 源配置
+		api.GET("/settings/sms-limit", s.handleGetSMSRateLimit)                                  // 获取短信限速配置
+		api.PUT("/settings/sms-limit", s.handleUpdateSMSRateLimit)                               // 更新短信限速配置
+		api.GET("/settings/vowifi-behavior", s.handleGetVoWiFiBehavior)                          // 获取 VoWiFi 行为配置
+		api.PUT("/settings/vowifi-behavior", s.handleUpdateVoWiFiBehavior)                       // 更新 VoWiFi 行为配置
+		api.GET("/settings/security", s.handleGetSecurity)                                       // 获取安全配置
+		api.PUT("/settings/security", s.handleUpdateSecurity)                                    // 更新安全配置
+		api.GET("/settings/api-tokens", s.handleListAPITokens)                                   // 列出全部 API Token
+		api.POST("/settings/api-tokens", s.handleCreateAPIToken)                                 // 创建新 API Token
+		api.DELETE("/settings/api-tokens/:id", s.handleDeleteAPIToken)                           // 删除指定 API Token
+		api.GET("/settings/server", s.handleGetServerConfig)                                     // 获取服务器配置
+		api.PUT("/settings/server", s.handleUpdateServerConfig)                                  // 更新服务器配置
+		api.PUT("/settings/web-credentials", s.handleUpdateWebCredentials)                       // 更新管理员用户名+密码
+		api.GET("/settings/site", s.handleGetSite)                                               // 获取站点信息
+		api.PUT("/settings/site", s.handleUpdateSite)                                            // 更新站点名称/副标题
+		api.POST("/settings/site/logo", s.handleUploadSiteLogo)                                  // 上传自定义 logo
+		api.POST("/settings/site/favicon", s.handleUploadSiteFavicon)                            // 上传自定义 favicon
+		api.GET("/settings/voice-gateway", s.handleGetVoiceGateway)                              // 获取语音网关配置
+		api.PUT("/settings/voice-gateway", s.handleUpdateVoiceGateway)                           // 更新语音网关配置
 		api.POST("/settings/voice-gateway/regenerate-password", s.handleRegenerateVoicePassword) // 重新生成授权码
-		api.POST("/settings/voice-gateway/test-linphone-push", s.handleTestLinphonePush)     // 测试 Linphone 推送账户
+		api.POST("/settings/voice-gateway/test-linphone-push", s.handleTestLinphonePush)         // 测试 Linphone 推送账户
 
 		// MCP Streamable HTTP（需鉴权，复用 authMiddleware）
 		api.POST("/mcp", s.handleMcpRequest)
 
 		api.GET("/devices", s.handleDeviceMgmtList)                                            // 获取设备列表（管理页用）
-		api.GET("/devices/stream", s.handleDeviceMgmtListStream)                              // SSE 设备列表实时状态流
+		api.GET("/devices/stream", s.handleDeviceMgmtListStream)                               // SSE 设备列表实时状态流
 		api.POST("/devices", s.handleDeviceMgmtAddDevice)                                      // 添加新设备
 		api.GET("/devices/discovered", s.handleDeviceMgmtDiscovered)                           // 获取已发现的硬件设备
 		api.POST("/devices/actions/rescan", s.handleDeviceRescan)                              // 手动触发设备重扫描
@@ -396,7 +396,7 @@ func (s *Server) newRouter() *gin.Engine {
 		api.DELETE("/devices/:device_id", s.handleDeviceMgmtDeleteDevice)                      // 删除设备
 		api.POST("/devices/:device_id/actions/refresh", s.handleDeviceMgmtRefreshInfo)         // 手动触发刷新设备缓存信息
 		api.POST("/devices/:device_id/actions/reboot", s.handleDeviceMgmtReboot)               // 重启设备模组
-		api.POST("/devices/:device_id/actions/reload-sim", s.handleDeviceMgmtReloadSIM)       // 重载 SIM 卡（power cycle）
+		api.POST("/devices/:device_id/actions/reload-sim", s.handleDeviceMgmtReloadSIM)        // 重载 SIM 卡（power cycle）
 		api.POST("/devices/:device_id/actions/at", s.handleDeviceMgmtExecuteAT)                // 执行 AT 命令
 		api.POST("/devices/:device_id/actions/ussd", s.handleDeviceMgmtExecuteUSSD)            // 执行 USSD 指令
 		api.POST("/devices/:device_id/actions/ussd/continue", s.handleDeviceMgmtContinueUSSD)  // USSD 续轮输入（多轮交互）
@@ -435,22 +435,22 @@ func (s *Server) newRouter() *gin.Engine {
 		api.DELETE("/upstream-proxy-country-rules/:country_code", s.handleDeleteUpstreamProxyCountryRule) // 删除国家规则
 
 		// ===== 出站代理 =====
-		api.POST("/devices/:device_id/outbound-proxy/enable", s.handleOutboundProxyEnable)           // 开启出站代理
-		api.POST("/devices/:device_id/outbound-proxy/disable", s.handleOutboundProxyDisable)         // 关闭出站代理
-		api.GET("/devices/:device_id/outbound-proxy", s.handleOutboundProxyStatus)                   // 查询出站代理状态
-		api.POST("/devices/:device_id/outbound-proxy/expose-upstream", s.handleOutboundProxyExposeUpstream)       // 暴露为前置代理
-		api.POST("/devices/:device_id/outbound-proxy/unexpose-upstream", s.handleOutboundProxyUnexposeUpstream)   // 取消暴露前置代理
+		api.POST("/devices/:device_id/outbound-proxy/enable", s.handleOutboundProxyEnable)                      // 开启出站代理
+		api.POST("/devices/:device_id/outbound-proxy/disable", s.handleOutboundProxyDisable)                    // 关闭出站代理
+		api.GET("/devices/:device_id/outbound-proxy", s.handleOutboundProxyStatus)                              // 查询出站代理状态
+		api.POST("/devices/:device_id/outbound-proxy/expose-upstream", s.handleOutboundProxyExposeUpstream)     // 暴露为前置代理
+		api.POST("/devices/:device_id/outbound-proxy/unexpose-upstream", s.handleOutboundProxyUnexposeUpstream) // 取消暴露前置代理
 
 		// ===== eSIM =====
 		api.GET("/devices/:device_id/esim", s.handleEsimGetOverview) // 获取 eSIM 总览
 		api.GET("/devices/:device_id/esim/profiles", s.handleEsimListProfiles)
 		api.GET("/devices/:device_id/esim/notifications", s.handleEsimListNotifications)
-		api.POST("/devices/:device_id/esim/notifications/actions/process", s.handleEsimProcessNotifications) // 逐条处理通知（SSE 流式进度）
+		api.POST("/devices/:device_id/esim/notifications/actions/process", s.handleEsimProcessNotifications)      // 逐条处理通知（SSE 流式进度）
 		api.POST("/devices/:device_id/esim/notifications/:sequence/actions/retry", s.handleEsimRetryNotification) // 获取 eSIM profile 列表
-		api.GET("/devices/:device_id/esim/notification-settings", s.handleEsimGetNotificationSettings)               // 获取通知处理设置
-		api.PUT("/devices/:device_id/esim/notification-settings", s.handleEsimUpdateNotificationSettings)            // 更新通知处理设置
-		api.GET("/devices/:device_id/esim/notification-history", s.handleEsimListNotificationHistory)                 // 获取通知历史记录
-		api.DELETE("/devices/:device_id/esim/notification-history", s.handleEsimClearNotificationHistory)           // 清空通知历史记录
+		api.GET("/devices/:device_id/esim/notification-settings", s.handleEsimGetNotificationSettings)            // 获取通知处理设置
+		api.PUT("/devices/:device_id/esim/notification-settings", s.handleEsimUpdateNotificationSettings)         // 更新通知处理设置
+		api.GET("/devices/:device_id/esim/notification-history", s.handleEsimListNotificationHistory)             // 获取通知历史记录
+		api.DELETE("/devices/:device_id/esim/notification-history", s.handleEsimClearNotificationHistory)         // 清空通知历史记录
 		api.POST("/devices/:device_id/esim/actions/switch", s.handleEsimSwitchProfile)                            // 切换 eSIM profile
 		api.GET("/devices/:device_id/esim/eids", s.handleEsimGetEID)                                              // 获取 EID
 		api.GET("/devices/:device_id/esim/chip-info", s.handleEsimGetChipInfo)                                    // 获取 eUICC 芯片信息
@@ -467,10 +467,10 @@ func (s *Server) newRouter() *gin.Engine {
 		api.POST("/devices/:device_id/vowifi/e911/websheet", s.handleDeviceE911Websheet)            // 打开 E911 设置 websheet
 
 		// ===== 日志 =====
-		api.GET("/logs/stream", s.handleLogStream)             // SSE 实时日志流
-		api.GET("/logs/history", s.handleLogHistoryByDate)     // 获取历史日志（支持 date 参数）
-		api.GET("/logs/dates", s.handleLogDates)               // 获取可用日志日期列表
-		api.DELETE("/logs/history", s.handleClearHistory)      // 清理历史日志文件
+		api.GET("/logs/stream", s.handleLogStream)         // SSE 实时日志流
+		api.GET("/logs/history", s.handleLogHistoryByDate) // 获取历史日志（支持 date 参数）
+		api.GET("/logs/dates", s.handleLogDates)           // 获取可用日志日期列表
+		api.DELETE("/logs/history", s.handleClearHistory)  // 清理历史日志文件
 
 		// ===== 运营商配置 =====
 		api.GET("/carrier", s.handleListCarriers)                            // 运营商列表（carrier_visible + carrier_index）

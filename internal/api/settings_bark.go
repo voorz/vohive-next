@@ -24,7 +24,7 @@ type testBarkResponse struct {
 	FailedURLs []string `json:"failed_urls,omitempty"`
 }
 
-// handleTestBarkNotification 
+// handleTestBarkNotification
 //
 // @Summary      TestBarkNotification
 // @Tags         settings

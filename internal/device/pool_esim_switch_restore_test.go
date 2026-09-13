@@ -171,9 +171,13 @@ func (s *esimSwitchRestoreBackendStub) GetMSISDN(ctx context.Context) (string, e
 func (s *esimSwitchRestoreBackendStub) GetRevision(ctx context.Context) (string, error) {
 	return "", nil
 }
-func (s *esimSwitchRestoreBackendStub) GetManufacturer(ctx context.Context) (string, error) { return "", nil }
+func (s *esimSwitchRestoreBackendStub) GetManufacturer(ctx context.Context) (string, error) {
+	return "", nil
+}
 func (s *esimSwitchRestoreBackendStub) GetModel(ctx context.Context) (string, error) { return "", nil }
-func (s *esimSwitchRestoreBackendStub) GetHardwareRevision(ctx context.Context) (string, error) { return "", nil }
+func (s *esimSwitchRestoreBackendStub) GetHardwareRevision(ctx context.Context) (string, error) {
+	return "", nil
+}
 func (s *esimSwitchRestoreBackendStub) GetSignalInfo(ctx context.Context) (*backend.SignalInfo, error) {
 	return nil, nil
 }

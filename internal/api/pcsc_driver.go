@@ -13,7 +13,7 @@ import (
 // pcscDriverStatus 表示 PC/SC 驱动检测状态
 type pcscDriverStatus struct {
 	PcscdInstalled   bool   `json:"pcscd_installed"`
-	LibccidInstalled bool  `json:"libccid_installed"`
+	LibccidInstalled bool   `json:"libccid_installed"`
 	PcscdActive      bool   `json:"pcscd_active"`
 	AllReady         bool   `json:"all_ready"`
 	Message          string `json:"message"`
@@ -66,7 +66,7 @@ func getPcscDriverStatus() pcscDriverStatus {
 }
 
 // handleGetPcscDriverStatus GET /api/system/pcsc-driver
-// handleGetPcscDriverStatus 
+// handleGetPcscDriverStatus
 //
 // @Summary      GetPcscDriverStatus
 // @Tags         settings

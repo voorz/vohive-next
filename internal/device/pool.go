@@ -177,22 +177,22 @@ type Pool struct {
 	transportRecovery *TransportRecoveryController
 	// modemRebootRecovering 只用于模组重启恢复去重；不能复用 rebuilding，
 	// 否则恢复扫描内的 AddWorkerFromConfig 会被自己的标记挡住。
-	modemRebootRecovering     map[string]bool
-	modemRebootWakeups        map[string]chan struct{}
-	cfg                       *config.Config
-	notifier                  Notifier
-	mu                        sync.RWMutex
-	ctx                       context.Context
-	cancel                    context.CancelFunc
-	dataConnectHandlersMu     sync.RWMutex
-	dataConnectHandlers       []func(deviceID string)
-	dataDisconnectHandlersMu  sync.RWMutex
-	dataDisconnectHandlers    []func(deviceID string)
-	esimSwitchCompleteHandlersMu sync.RWMutex
-	esimSwitchCompleteHandlers   []func(deviceID, newICCID string)
+	modemRebootRecovering         map[string]bool
+	modemRebootWakeups            map[string]chan struct{}
+	cfg                           *config.Config
+	notifier                      Notifier
+	mu                            sync.RWMutex
+	ctx                           context.Context
+	cancel                        context.CancelFunc
+	dataConnectHandlersMu         sync.RWMutex
+	dataConnectHandlers           []func(deviceID string)
+	dataDisconnectHandlersMu      sync.RWMutex
+	dataDisconnectHandlers        []func(deviceID string)
+	esimSwitchCompleteHandlersMu  sync.RWMutex
+	esimSwitchCompleteHandlers    []func(deviceID, newICCID string)
 	proxyClearFromModemHandlersMu sync.RWMutex
 	proxyClearFromModemHandlers   []func(deviceID, oldICCID, newICCID string)
-	rescanAndReconnectForTest func() error
+	rescanAndReconnectForTest     func() error
 
 	// discoveryEventSubscribers 用于热插拔事件通知 SSE 流。
 	// RescanAndReconnect 完成后向所有订阅者发送信号，触发 discovered 事件推送。
@@ -205,9 +205,9 @@ type Pool struct {
 	euiccStateSubscribers map[string][]chan struct{}
 
 	// SIP 注册器 (用于 CS 域语音桥接查路由)
-	sipRegistrar   *sipgw.Registrar
-	voiceGateway   *voicehost.Gateway
-	callEventPub   vowifihost.CallEventPublisher
+	sipRegistrar *sipgw.Registrar
+	voiceGateway *voicehost.Gateway
+	callEventPub vowifihost.CallEventPublisher
 
 	// VoWiFi host 侧整合（多实例）
 	vowifiHost         *vowifihost.Manager
@@ -226,8 +226,8 @@ type Pool struct {
 	// 概览监控页面流定阅数统计
 	overviewSubs atomic.Int32
 
-// 热插拔监听
-modemWatcher   *ModemWatcher
+	// 热插拔监听
+	modemWatcher   *ModemWatcher
 	ccidWatcher    *CCIDWatcher
 	startOnce      sync.Once
 	policyResolver cardpolicy.Resolver
@@ -642,9 +642,9 @@ func (w *Worker) collectRuntimeStatus(ctx context.Context, reason string) modem.
 		})
 
 		wg.Wait()
-// 从 Manager 获取 AT 来源的模组品牌（如 Quectel），补填到 Manufacturer。
-// 注意：API 层的优先级已改为 ATI 优先（firstNonEmpty(status.Manufacturer, cfg.USBManufacturer)），
-// 这里负责采集 ATI/QMI 来源的厂商名和型号作为首选值。
+		// 从 Manager 获取 AT 来源的模组品牌（如 Quectel），补填到 Manufacturer。
+		// 注意：API 层的优先级已改为 ATI 优先（firstNonEmpty(status.Manufacturer, cfg.USBManufacturer)），
+		// 这里负责采集 ATI/QMI 来源的厂商名和型号作为首选值。
 		if w.Modem != nil {
 			if m := w.Modem; m != nil {
 				// ATI 缓存值仅在 status.Manufacturer 为空时填入（不覆盖已有值）
@@ -1508,11 +1508,11 @@ func (p *Pool) startPoolBackgroundServicesOnce() {
 		go p.startVoWiFiDesiredReconcileLoop()
 		p.startInitialDesiredVoWiFiAutoStart(5 * time.Second)
 
-p.modemWatcher = NewModemWatcher(p)
-p.modemWatcher.Start()
+		p.modemWatcher = NewModemWatcher(p)
+		p.modemWatcher.Start()
 
-p.ccidWatcher = NewCCIDWatcher(p)
-p.ccidWatcher.Start()
+		p.ccidWatcher = NewCCIDWatcher(p)
+		p.ccidWatcher.Start()
 	})
 }
 
@@ -1567,30 +1567,30 @@ func qmiManagedAttachmentChanged(cfg config.DeviceConfig, dev QMIDevice) bool {
 }
 
 func applyQMIManagedAttachment(cfg config.DeviceConfig, dev QMIDevice) config.DeviceConfig {
-if v := strings.TrimSpace(dev.ControlPath); v != "" {
-cfg.ControlDevice = v
-cfg.QMIDevice = v
-}
-if v := strings.TrimSpace(dev.NetInterface); v != "" {
-cfg.Interface = v
-}
-if v := strings.TrimSpace(dev.USBPath); v != "" {
-cfg.USBPath = v
-}
-if v := strings.TrimSpace(dev.ATPort); v != "" {
-cfg.ATPort = v
-cfg.ManagePort = v
-}
-if v := strings.TrimSpace(dev.AudioDevice); v != "" {
-cfg.AudioDevice = v
-}
-if v := strings.TrimSpace(dev.USBManufacturer); v != "" {
-cfg.USBManufacturer = v
-}
-if v := strings.TrimSpace(dev.USBProduct); v != "" {
-cfg.USBProduct = v
-}
-return cfg
+	if v := strings.TrimSpace(dev.ControlPath); v != "" {
+		cfg.ControlDevice = v
+		cfg.QMIDevice = v
+	}
+	if v := strings.TrimSpace(dev.NetInterface); v != "" {
+		cfg.Interface = v
+	}
+	if v := strings.TrimSpace(dev.USBPath); v != "" {
+		cfg.USBPath = v
+	}
+	if v := strings.TrimSpace(dev.ATPort); v != "" {
+		cfg.ATPort = v
+		cfg.ManagePort = v
+	}
+	if v := strings.TrimSpace(dev.AudioDevice); v != "" {
+		cfg.AudioDevice = v
+	}
+	if v := strings.TrimSpace(dev.USBManufacturer); v != "" {
+		cfg.USBManufacturer = v
+	}
+	if v := strings.TrimSpace(dev.USBProduct); v != "" {
+		cfg.USBProduct = v
+	}
+	return cfg
 }
 
 func qmiHealthyWorkerAttachmentUpdate(worker *Worker, live QMIDevice) (bool, config.DeviceConfig) {
@@ -1741,18 +1741,18 @@ func (p *Pool) rescanAndReconnect(opts rescanReconnectOptions) error {
 			if p.lifecycle != nil {
 				p.lifecycle.BeginRecovery(md.ID, LifecyclePhaseWorkerStarting, "rescan_device_online", qmiLifecycleRecoveryTTL)
 			}
-		if _, err := p.AddWorkerFromConfig(cfg); err != nil {
-			logger.Warn("自动启动设备失败", "device", md.ID, "err", err)
-		} else {
-			broadcastDeviceOnline(md.ID, md.Name)
-			if md.VoWiFiEnabled {
-				go func(deviceID string) {
-					if err := p.enableVoWiFiWhenReady(deviceID, 5*time.Second, "device_recovery"); err != nil {
-						logger.Warn("设备恢复后自动重启 VoWiFi 失败", "device", deviceID, "err", err)
-					}
-				}(md.ID)
+			if _, err := p.AddWorkerFromConfig(cfg); err != nil {
+				logger.Warn("自动启动设备失败", "device", md.ID, "err", err)
+			} else {
+				broadcastDeviceOnline(md.ID, md.Name)
+				if md.VoWiFiEnabled {
+					go func(deviceID string) {
+						if err := p.enableVoWiFiWhenReady(deviceID, 5*time.Second, "device_recovery"); err != nil {
+							logger.Warn("设备恢复后自动重启 VoWiFi 失败", "device", deviceID, "err", err)
+						}
+					}(md.ID)
+				}
 			}
-		}
 		} else if !worker.IsDeviceHealthy() {
 			if !opts.allowWorkerMutation(md.ID) {
 				logger.Debug("跳过非目标设备重新初始化：当前处于手动重启恢复重扫窗口",
@@ -2209,7 +2209,7 @@ func newESIMManagerForWorker(
 		Modem:                w.Modem,
 		Backend:              w.Backend,
 		QMITransport:         qmiTransport,
-		PCSCUSBPath:           w.Config.PCSCUSBPath,
+		PCSCUSBPath:          w.Config.PCSCUSBPath,
 		OnBeforeSwitch:       beforeWithOperation,
 		OnAfterSwitch:        afterWithOperation,
 		OnSwitchFailed:       failedWithOperation,

@@ -34,7 +34,7 @@ func (s *Server) patchCardPolicyForDevice(deviceID string, mutate func(*db.CardP
 	return iccid, true, nil
 }
 
-// handleGetCardPolicy 
+// handleGetCardPolicy
 //
 // @Summary      GetCardPolicy
 // @Tags         card-policy
@@ -60,7 +60,7 @@ func (s *Server) handleGetCardPolicy(c *gin.Context) {
 	c.JSON(http.StatusOK, pol)
 }
 
-// handleListCardPolicies 
+// handleListCardPolicies
 //
 // @Summary      ListCardPolicies
 // @Tags         card-policy
@@ -81,7 +81,7 @@ func (s *Server) handleListCardPolicies(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"policies": out})
 }
 
-// handlePutCardPolicy 
+// handlePutCardPolicy
 //
 // @Summary      PutCardPolicy
 // @Tags         card-policy
@@ -137,4 +137,3 @@ func (s *Server) handlePutCardPolicy(c *gin.Context) {
 
 	c.JSON(http.StatusOK, pol)
 }
-

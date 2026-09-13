@@ -25,14 +25,16 @@ type ussdDeviceBackendStub struct {
 
 var _ backend.DeviceBackend = (*ussdDeviceBackendStub)(nil)
 
-func (s *ussdDeviceBackendStub) GetIMEI(ctx context.Context) (string, error)     { return s.imei, nil }
-func (s *ussdDeviceBackendStub) GetIMSI(ctx context.Context) (string, error)     { return "", nil }
-func (s *ussdDeviceBackendStub) GetICCID(ctx context.Context) (string, error)    { return "", nil }
-func (s *ussdDeviceBackendStub) GetMSISDN(ctx context.Context) (string, error)   { return "", nil }
-func (s *ussdDeviceBackendStub) GetRevision(ctx context.Context) (string, error) { return "", nil }
+func (s *ussdDeviceBackendStub) GetIMEI(ctx context.Context) (string, error)         { return s.imei, nil }
+func (s *ussdDeviceBackendStub) GetIMSI(ctx context.Context) (string, error)         { return "", nil }
+func (s *ussdDeviceBackendStub) GetICCID(ctx context.Context) (string, error)        { return "", nil }
+func (s *ussdDeviceBackendStub) GetMSISDN(ctx context.Context) (string, error)       { return "", nil }
+func (s *ussdDeviceBackendStub) GetRevision(ctx context.Context) (string, error)     { return "", nil }
 func (s *ussdDeviceBackendStub) GetManufacturer(ctx context.Context) (string, error) { return "", nil }
-func (s *ussdDeviceBackendStub) GetModel(ctx context.Context) (string, error) { return "", nil }
-func (s *ussdDeviceBackendStub) GetHardwareRevision(ctx context.Context) (string, error) { return "", nil }
+func (s *ussdDeviceBackendStub) GetModel(ctx context.Context) (string, error)        { return "", nil }
+func (s *ussdDeviceBackendStub) GetHardwareRevision(ctx context.Context) (string, error) {
+	return "", nil
+}
 func (s *ussdDeviceBackendStub) GetSignalInfo(ctx context.Context) (*backend.SignalInfo, error) {
 	return nil, nil
 }

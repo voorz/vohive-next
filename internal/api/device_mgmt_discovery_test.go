@@ -52,7 +52,6 @@ devices:
 		return dev, "222222222222222"
 	}
 
-
 	got := requestDiscoveredDevices(t, &Server{pool: device.NewPool(&config.Config{}), configPath: path})
 	if len(got.Devices) != 1 {
 		t.Fatalf("devices len = %d, want 1", len(got.Devices))
@@ -94,7 +93,6 @@ devices: []
 		return dev, "" // AT/QMI 探不到 IMEI
 	}
 	probeIMEIViaMBIMForMgmtFn = func(string) (string, error) { return "", fmt.Errorf("mbim hung") } // MBIM 也读不到
-
 
 	got := requestDiscoveredDevices(t, &Server{pool: device.NewPool(&config.Config{}), configPath: path})
 	if len(got.Devices) != 1 {
@@ -139,7 +137,6 @@ devices:
 		dev.IMEI = "111111111111111"
 		return dev, "111111111111111"
 	}
-
 
 	got := requestDiscoveredDevices(t, &Server{pool: device.NewPool(&config.Config{}), configPath: path})
 	d := got.Devices[0]

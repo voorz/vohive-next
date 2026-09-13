@@ -26,9 +26,9 @@ func (CarrierIndex) TableName() string { return "carrier_index" }
 // CarrierVisible 存储用户添加到可见列表的运营商。
 // hidden=true 表示从列表隐藏（软删除），用户可重新添加。
 type CarrierVisible struct {
-	PLMN     string    `gorm:"column:plmn;primaryKey" json:"plmn"`
-	Hidden   bool      `gorm:"column:hidden" json:"hidden"`
-	AddedAt  time.Time `gorm:"column:added_at" json:"added_at"`
+	PLMN    string    `gorm:"column:plmn;primaryKey" json:"plmn"`
+	Hidden  bool      `gorm:"column:hidden" json:"hidden"`
+	AddedAt time.Time `gorm:"column:added_at" json:"added_at"`
 }
 
 func (CarrierVisible) TableName() string { return "carrier_visible" }

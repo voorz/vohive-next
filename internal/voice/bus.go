@@ -9,10 +9,10 @@ import (
 type CallState string
 
 const (
-	CallStateDialing  CallState = "dialing"
-	CallStateRinging  CallState = "ringing"
+	CallStateDialing   CallState = "dialing"
+	CallStateRinging   CallState = "ringing"
 	CallStateConnected CallState = "connected"
-	CallStateEnded    CallState = "ended"
+	CallStateEnded     CallState = "ended"
 )
 
 // CallDirection 通话方向
@@ -29,16 +29,16 @@ type CallType string
 const (
 	CallTypeIncoming CallType = "incoming"
 	CallTypeOutgoing CallType = "outgoing"
-	CallTypeMissed  CallType = "missed"
+	CallTypeMissed   CallType = "missed"
 )
 
 // CallEvent 通话状态变更事件
 type CallEvent struct {
-	DeviceID  string      `json:"device_id"`
-	CallID    string      `json:"call_id"`
-	State     CallState   `json:"state"`
+	DeviceID  string        `json:"device_id"`
+	CallID    string        `json:"call_id"`
+	State     CallState     `json:"state"`
 	Direction CallDirection `json:"direction"`
-	Number    string      `json:"number"`
+	Number    string        `json:"number"`
 	// 通话开始时间（Established 时设置）
 	StartedAt *time.Time `json:"started_at,omitempty"`
 	// 通话结束时间（Ended 时设置）

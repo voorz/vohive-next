@@ -18,7 +18,7 @@ type networkPatchRequest struct {
 	APN       string `json:"apn"`
 }
 
-// handleDeviceNetworkPatch 
+// handleDeviceNetworkPatch
 //
 // @Summary      DeviceNetworkPatch
 // @Tags         devices
@@ -63,7 +63,7 @@ func (s *Server) handleDeviceNetworkPatch(c *gin.Context) {
 	s.handleDeviceMgmtStopNetwork(c)
 }
 
-// handleDeviceVoWiFiPatch 
+// handleDeviceVoWiFiPatch
 //
 // @Summary      DeviceVoWiFiPatch
 // @Tags         devices

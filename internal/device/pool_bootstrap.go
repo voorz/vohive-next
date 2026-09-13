@@ -279,15 +279,15 @@ func (p *Pool) AddWorkerFromConfig(devCfg config.DeviceConfig) (*Worker, error) 
 				devCfg.ATPort = hw.ATPort
 				devCfg.ManagePort = hw.ATPort
 			}
-if devCfg.AudioDevice == "" && hw.AudioDevice != "" {
-devCfg.AudioDevice = hw.AudioDevice
-}
-if devCfg.USBManufacturer == "" && hw.USBManufacturer != "" {
-devCfg.USBManufacturer = hw.USBManufacturer
-}
-if devCfg.USBProduct == "" && hw.USBProduct != "" {
-devCfg.USBProduct = hw.USBProduct
-}
+			if devCfg.AudioDevice == "" && hw.AudioDevice != "" {
+				devCfg.AudioDevice = hw.AudioDevice
+			}
+			if devCfg.USBManufacturer == "" && hw.USBManufacturer != "" {
+				devCfg.USBManufacturer = hw.USBManufacturer
+			}
+			if devCfg.USBProduct == "" && hw.USBProduct != "" {
+				devCfg.USBProduct = hw.USBProduct
+			}
 			if devCfg.ControlDevice == "" {
 				devCfg.ControlDevice = strings.TrimSpace(hw.ControlPath)
 				devCfg.QMIDevice = strings.TrimSpace(hw.ControlPath)
@@ -326,8 +326,8 @@ devCfg.USBProduct = hw.USBProduct
 				hardware := p.collectRescanHardware(qmiList, liveWorkerIndex)
 				resolved := ResolveDeviceIdentities(hardware, []config.DeviceConfig{devCfg})
 				if len(resolved.Matched) > 0 {
-hw := resolved.Matched[0].Hardware
-selected = hw.toQMIDeviceWithUSB()
+					hw := resolved.Matched[0].Hardware
+					selected = hw.toQMIDeviceWithUSB()
 					selectedByDiscovery = true
 				}
 			}
@@ -784,11 +784,11 @@ func (p *Pool) addPCSCWorker(devCfg config.DeviceConfig) (*Worker, error) {
 	}
 
 	w := &Worker{
-		ID:          devCfg.ID,
-		Config:      devCfg,
-		Pool:        p,
-		stop:        make(chan struct{}),
-		reassembler: smscodec.NewReassembler(),
+		ID:           devCfg.ID,
+		Config:       devCfg,
+		Pool:         p,
+		stop:         make(chan struct{}),
+		reassembler:  smscodec.NewReassembler(),
 		pcscAccessMu: &sync.Mutex{},
 	}
 	p.assignWorkerGeneration(w)
@@ -806,8 +806,8 @@ func (p *Pool) addPCSCWorker(devCfg config.DeviceConfig) (*Worker, error) {
 	mgr, err := esim.NewManager(esim.ManagerOptions{
 		DeviceID:     devCfg.ID,
 		Transport:    config.ESIMTransportPCSC,
-		PCSCUSBPath: devCfg.PCSCUSBPath,
-		PCSCSerial:  devCfg.PCSCSerial,
+		PCSCUSBPath:  devCfg.PCSCUSBPath,
+		PCSCSerial:   devCfg.PCSCSerial,
 		PCSCAccessMu: w.pcscAccessMu,
 		OnBeforeSwitch: func(op esim.SwitchOperation, targetICCID string) uint64 {
 			return onBefore(op, targetICCID)

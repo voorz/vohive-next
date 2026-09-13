@@ -193,13 +193,13 @@ func BuildWorkerDiscoveryIndex(workers []*Worker, includeRuntimeStatus bool) Wor
 				v := status.USBNetMode
 				info.USBNetMode = &v
 			}
-		if manu := strings.TrimSpace(status.Manufacturer); manu != "" {
+			if manu := strings.TrimSpace(status.Manufacturer); manu != "" {
 				info.Manufacturer = manu
 			}
-		if cv := strings.TrimSpace(status.ChipVendor); cv != "" {
+			if cv := strings.TrimSpace(status.ChipVendor); cv != "" {
 				info.ChipVendor = cv
 			}
-		if mdl := strings.TrimSpace(status.Model); mdl != "" {
+			if mdl := strings.TrimSpace(status.Model); mdl != "" {
 				info.Model = mdl
 			}
 			if fw := strings.TrimSpace(status.Firmware); fw != "" {

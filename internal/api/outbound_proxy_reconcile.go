@@ -37,8 +37,8 @@ var (
 )
 
 type ipCountryEntry struct {
-	iso      string
-	ip       string
+	iso       string
+	ip        string
 	fetchedAt time.Time
 }
 

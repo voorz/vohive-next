@@ -25,7 +25,8 @@ import (
 //   - ringing: 振铃中（来电）
 //   - connected: 通话中
 //   - ended: 通话结束
-// handleVoiceStream 
+//
+// handleVoiceStream
 //
 // @Summary      VoiceStream
 // @Tags         voice
@@ -102,7 +103,7 @@ func (s *Server) handleVoiceStream(c *gin.Context) {
 // handleGetVoiceHistory 获取通话记录列表
 //
 // GET /devices/:device_id/voice/history?limit=50&before_ts=&before_peer=
-// handleGetVoiceHistory 
+// handleGetVoiceHistory
 //
 // @Summary      GetVoiceHistory
 // @Tags         voice
@@ -140,7 +141,7 @@ func (s *Server) handleGetVoiceHistory(c *gin.Context) {
 // handleDeleteVoiceHistory 删除单条通话记录
 //
 // DELETE /devices/:device_id/voice/history/:id
-// handleDeleteVoiceHistory 
+// handleDeleteVoiceHistory
 //
 // @Summary      DeleteVoiceHistory
 // @Tags         voice
@@ -176,7 +177,7 @@ func (s *Server) handleDeleteVoiceHistory(c *gin.Context) {
 // handleDeleteAllVoiceHistory 删除某设备的所有通话记录
 //
 // DELETE /devices/:device_id/voice/history
-// handleDeleteAllVoiceHistory 
+// handleDeleteAllVoiceHistory
 //
 // @Summary      DeleteAllVoiceHistory
 // @Tags         voice

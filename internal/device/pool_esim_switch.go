@@ -1280,8 +1280,8 @@ func (p *Pool) schedulePostSwitchNotificationAutoClean(deviceID string, token ui
 
 		// 检查是否有任何 autoSend 开启
 		if !settings.AutoSendInstall && !settings.AutoSendEnable &&
-				!settings.AutoSendDisable && !settings.AutoSendDelete &&
-				!settings.DeleteWithoutSendingEnable && !settings.DeleteWithoutSendingDisable {
+			!settings.AutoSendDisable && !settings.AutoSendDelete &&
+			!settings.DeleteWithoutSendingEnable && !settings.DeleteWithoutSendingDisable {
 			return
 		}
 

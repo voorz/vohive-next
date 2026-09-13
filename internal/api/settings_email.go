@@ -21,7 +21,7 @@ type testEmailRequest struct {
 	ToAddresses []string `json:"to_addresses"`
 }
 
-// handleTestEmailNotification 
+// handleTestEmailNotification
 //
 // @Summary      TestEmailNotification
 // @Tags         settings

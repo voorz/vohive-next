@@ -17,24 +17,24 @@ import (
 
 // PC/SC APDU 常量 (ISO 7816 / 3GPP TS 31.102)
 var (
-	usimAID        = []byte{0xA0, 0x00, 0x00, 0x00, 0x87, 0x10, 0x02}
-	efIMSI         = []byte{0x6F, 0x07}
-	efICCID        = []byte{0x2F, 0xE2}
-	efAD           = []byte{0x6F, 0xAD}
-	efGID1         = []byte{0x6F, 0x3E} // Group Identifier 1 (3GPP TS 31.102 §4.2.6)
-	efGID2         = []byte{0x6F, 0x3F} // Group Identifier 2 (3GPP TS 31.102 §4.2.7)
-	efMF           = []byte{0x3F, 0x00}
+	usimAID = []byte{0xA0, 0x00, 0x00, 0x00, 0x87, 0x10, 0x02}
+	efIMSI  = []byte{0x6F, 0x07}
+	efICCID = []byte{0x2F, 0xE2}
+	efAD    = []byte{0x6F, 0xAD}
+	efGID1  = []byte{0x6F, 0x3E} // Group Identifier 1 (3GPP TS 31.102 §4.2.6)
+	efGID2  = []byte{0x6F, 0x3F} // Group Identifier 2 (3GPP TS 31.102 §4.2.7)
+	efMF    = []byte{0x3F, 0x00}
 )
 
 // pcscModemAdapter 通过 PC/SC 读卡器实现 runtimehost.Modem 接口。
 // 用于 PC/SC 设备的 VoWiFi 启动流程，使 AKA 认证可通过 PC/SC 通道执行。
 type pcscModemAdapter struct {
-	deviceID string
-	usbPath  string // USB 路径，运行时匹配 reader 字符串
-	sn       string // 读卡器 SN（正规设备 USB 路径匹配失败时回退匹配）
-	channel  *esim.PCSCExclusiveChannel
+	deviceID  string
+	usbPath   string // USB 路径，运行时匹配 reader 字符串
+	sn        string // 读卡器 SN（正规设备 USB 路径匹配失败时回退匹配）
+	channel   *esim.PCSCExclusiveChannel
 	connected bool
-	accessMu *sync.Mutex // 可选：与 eSIM 管理器共享的读卡器访问锁
+	accessMu  *sync.Mutex // 可选：与 eSIM 管理器共享的读卡器访问锁
 }
 
 var _ runtimehost.Modem = (*pcscModemAdapter)(nil)
@@ -58,8 +58,8 @@ func newPCSCModemAdapter(deviceID, usbPath, sn string, mu *sync.Mutex) (*pcscMod
 	return &pcscModemAdapter{
 		deviceID: deviceID,
 		usbPath:  usbPath,
-		sn:      sn,
-		channel: ch,
+		sn:       sn,
+		channel:  ch,
 		accessMu: mu,
 	}, nil
 }

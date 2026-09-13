@@ -16,14 +16,16 @@ type esimIMEIBackendStub struct {
 	imei string
 }
 
-func (s *esimIMEIBackendStub) GetIMEI(ctx context.Context) (string, error)     { return s.imei, nil }
-func (s *esimIMEIBackendStub) GetIMSI(ctx context.Context) (string, error)     { return "", nil }
-func (s *esimIMEIBackendStub) GetICCID(ctx context.Context) (string, error)    { return "", nil }
-func (s *esimIMEIBackendStub) GetMSISDN(ctx context.Context) (string, error)   { return "", nil }
-func (s *esimIMEIBackendStub) GetRevision(ctx context.Context) (string, error) { return "", nil }
+func (s *esimIMEIBackendStub) GetIMEI(ctx context.Context) (string, error)         { return s.imei, nil }
+func (s *esimIMEIBackendStub) GetIMSI(ctx context.Context) (string, error)         { return "", nil }
+func (s *esimIMEIBackendStub) GetICCID(ctx context.Context) (string, error)        { return "", nil }
+func (s *esimIMEIBackendStub) GetMSISDN(ctx context.Context) (string, error)       { return "", nil }
+func (s *esimIMEIBackendStub) GetRevision(ctx context.Context) (string, error)     { return "", nil }
 func (s *esimIMEIBackendStub) GetManufacturer(ctx context.Context) (string, error) { return "", nil }
-func (s *esimIMEIBackendStub) GetModel(ctx context.Context) (string, error) { return "", nil }
-func (s *esimIMEIBackendStub) GetHardwareRevision(ctx context.Context) (string, error) { return "", nil }
+func (s *esimIMEIBackendStub) GetModel(ctx context.Context) (string, error)        { return "", nil }
+func (s *esimIMEIBackendStub) GetHardwareRevision(ctx context.Context) (string, error) {
+	return "", nil
+}
 func (s *esimIMEIBackendStub) GetSignalInfo(ctx context.Context) (*backend.SignalInfo, error) {
 	return nil, nil
 }

@@ -55,7 +55,7 @@ type mcpContent struct {
 // ── Streamable HTTP Transport ──
 // 单 POST 端点，无 SSE 连接，无 session 管理，请求-响应模式
 
-// handleMcpRequest 
+// handleMcpRequest
 //
 // @Summary      McpRequest
 // @Tags         mcp
@@ -72,7 +72,7 @@ func (s *Server) handleMcpRequest(c *gin.Context) {
 		logger.Warn("MCP 请求解析失败", "err", err, "ip", c.ClientIP())
 		c.JSON(http.StatusBadRequest, jsonRPCResponse{
 			JSONRPC: "2.0",
-			Error:  &jsonRPCError{Code: -32700, Message: "parse error"},
+			Error:   &jsonRPCError{Code: -32700, Message: "parse error"},
 		})
 		return
 	}
@@ -101,7 +101,7 @@ func (s *Server) dispatchMCP(req jsonRPCRequest, token string) jsonRPCResponse {
 			Result: gin.H{
 				"protocolVersion": "2025-03-26",
 				"capabilities":    gin.H{"tools": gin.H{}},
-				"serverInfo":       gin.H{"name": "vohive", "version": "0.0.1"},
+				"serverInfo":      gin.H{"name": "vohive", "version": "0.0.1"},
 			},
 		}
 

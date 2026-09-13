@@ -81,18 +81,18 @@ type Manager struct {
 	atTimeoutStreak int
 
 	// 设备信息 (从 AT 指令获取)
-	manufacturer    string
-	model           string
+	manufacturer     string
+	model            string
 	hardwareRevision string
-	imei        string
-	firmware    string
-	iccid       string
-	imsi        string
-	operator    string
-	simInserted bool
-	signalDBM   int
-	signalRSRQ  int
-	signalRSRP  int
+	imei             string
+	firmware         string
+	iccid            string
+	imsi             string
+	operator         string
+	simInserted      bool
+	signalDBM        int
+	signalRSRQ       int
+	signalRSRP       int
 
 	// 网络信息
 	regStatus     int    // 网络注册状态 (0-5)
@@ -1146,42 +1146,42 @@ type SIMServiceTable struct {
 
 // GetFullStatus 返回完整状态信息
 type DeviceStatus struct {
-	IMEI            string           `json:"imei"`
-	Manufacturer    string           `json:"manufacturer,omitempty"`   // 模组厂商（ATI 获取，如 Quectel）
-	Model           string           `json:"model,omitempty"`          // 模组描述（QMI DMS GetModel）
-	ChipVendor      string           `json:"chip_vendor,omitempty"`    // 芯片厂商（QMI DMS GetManufacturer，如 QUALCOMM INCORPORATED）
-	HardwareRevision string          `json:"hardware_revision,omitempty"`
-	Firmware        string           `json:"firmware"`
-	ICCID           string           `json:"iccid"`
-	IMSI            string           `json:"imsi"`
-	NativeSPN       string           `json:"native_spn,omitempty"`
-	NativeMCC       string           `json:"native_mcc,omitempty"`
-	NativeMNC       string           `json:"native_mnc,omitempty"`
-	GID1            string           `json:"gid1,omitempty"`
-	GID2            string           `json:"gid2,omitempty"`
-	PNN             []PNNRecord      `json:"pnn,omitempty"`
-	OPL             []OPLRecord      `json:"opl,omitempty"`
-	SIMServiceTable *SIMServiceTable `json:"sim_service_table,omitempty"`
-	Operator        string           `json:"operator"`
-	SimInserted     bool             `json:"sim_inserted"`
-	SignalDBM       int              `json:"signal_dbm"`
-	SignalRSRP      int              `json:"signal_rsrp"`
-	SignalRSRQ      int              `json:"signal_rsrq"`
-	SignalSINR      int              `json:"signal_sinr,omitempty"`
-	NR5GSignalSINR  int              `json:"nr5g_signal_sinr,omitempty"`
-	RadioBand       string           `json:"radio_band,omitempty"`
-	RadioChannel    uint32           `json:"radio_channel,omitempty"`
-	RegStatus       int              `json:"reg_status"`
-	RegStatusText   string           `json:"reg_status_text"`
-	PSAttached      bool             `json:"ps_attached"`
-	LAC             string           `json:"lac"`
-	CellID          string           `json:"cell_id"`
-	APN             string           `json:"apn"`
-	IMSStatus       int              `json:"ims_status"`
-	NetworkMode     string           `json:"network_mode"`
-	NetworkDuplex   string           `json:"network_duplex"`
-	USBNetMode      int              `json:"usbnet_mode"`
-	OperatingMode   *int             `json:"operating_mode,omitempty"`
+	IMEI             string           `json:"imei"`
+	Manufacturer     string           `json:"manufacturer,omitempty"` // 模组厂商（ATI 获取，如 Quectel）
+	Model            string           `json:"model,omitempty"`        // 模组描述（QMI DMS GetModel）
+	ChipVendor       string           `json:"chip_vendor,omitempty"`  // 芯片厂商（QMI DMS GetManufacturer，如 QUALCOMM INCORPORATED）
+	HardwareRevision string           `json:"hardware_revision,omitempty"`
+	Firmware         string           `json:"firmware"`
+	ICCID            string           `json:"iccid"`
+	IMSI             string           `json:"imsi"`
+	NativeSPN        string           `json:"native_spn,omitempty"`
+	NativeMCC        string           `json:"native_mcc,omitempty"`
+	NativeMNC        string           `json:"native_mnc,omitempty"`
+	GID1             string           `json:"gid1,omitempty"`
+	GID2             string           `json:"gid2,omitempty"`
+	PNN              []PNNRecord      `json:"pnn,omitempty"`
+	OPL              []OPLRecord      `json:"opl,omitempty"`
+	SIMServiceTable  *SIMServiceTable `json:"sim_service_table,omitempty"`
+	Operator         string           `json:"operator"`
+	SimInserted      bool             `json:"sim_inserted"`
+	SignalDBM        int              `json:"signal_dbm"`
+	SignalRSRP       int              `json:"signal_rsrp"`
+	SignalRSRQ       int              `json:"signal_rsrq"`
+	SignalSINR       int              `json:"signal_sinr,omitempty"`
+	NR5GSignalSINR   int              `json:"nr5g_signal_sinr,omitempty"`
+	RadioBand        string           `json:"radio_band,omitempty"`
+	RadioChannel     uint32           `json:"radio_channel,omitempty"`
+	RegStatus        int              `json:"reg_status"`
+	RegStatusText    string           `json:"reg_status_text"`
+	PSAttached       bool             `json:"ps_attached"`
+	LAC              string           `json:"lac"`
+	CellID           string           `json:"cell_id"`
+	APN              string           `json:"apn"`
+	IMSStatus        int              `json:"ims_status"`
+	NetworkMode      string           `json:"network_mode"`
+	NetworkDuplex    string           `json:"network_duplex"`
+	USBNetMode       int              `json:"usbnet_mode"`
+	OperatingMode    *int             `json:"operating_mode,omitempty"`
 }
 
 func (m *Manager) GetFullStatus() DeviceStatus {
@@ -1193,23 +1193,23 @@ func (m *Manager) GetFullStatus() DeviceStatus {
 		Model:            m.model,
 		HardwareRevision: m.hardwareRevision,
 		Firmware:         m.firmware,
-		ICCID:         m.iccid,
-		IMSI:          m.imsi,
-		Operator:      m.operator,
-		SimInserted:   m.simInserted,
-		SignalDBM:     m.signalDBM,
-		SignalRSRP:    m.signalRSRP,
-		SignalRSRQ:    m.signalRSRQ,
-		RegStatus:     m.regStatus,
-		RegStatusText: m.regStatusText,
-		LAC:           m.lac,
-		CellID:        m.cellID,
-		APN:           m.apn,
-		IMSStatus:     m.imsStatus,
-		NetworkMode:   m.networkMode,
-		NetworkDuplex: m.networkDuplex,
-		USBNetMode:    m.usbnetMode,
-		OperatingMode: nil,
+		ICCID:            m.iccid,
+		IMSI:             m.imsi,
+		Operator:         m.operator,
+		SimInserted:      m.simInserted,
+		SignalDBM:        m.signalDBM,
+		SignalRSRP:       m.signalRSRP,
+		SignalRSRQ:       m.signalRSRQ,
+		RegStatus:        m.regStatus,
+		RegStatusText:    m.regStatusText,
+		LAC:              m.lac,
+		CellID:           m.cellID,
+		APN:              m.apn,
+		IMSStatus:        m.imsStatus,
+		NetworkMode:      m.networkMode,
+		NetworkDuplex:    m.networkDuplex,
+		USBNetMode:       m.usbnetMode,
+		OperatingMode:    nil,
 	}
 }
 

@@ -4,13 +4,13 @@ import "strings"
 
 // atCommandResidue 是已知的 AT 命令残留值，不应作为厂商名/型号显示。
 var atCommandResidue = map[string]struct{}{
-	"AT":    {},
-	"ATI":   {},
+	"AT":     {},
+	"ATI":    {},
 	"AT+GMI": {},
 	"AT+GMM": {},
 	"AT+GMR": {},
-	"OK":    {},
-	"ERROR": {},
+	"OK":     {},
+	"ERROR":  {},
 }
 
 // isValidIdentity 判断字符串是否为有效的厂商名/型号。

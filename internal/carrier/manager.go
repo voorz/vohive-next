@@ -30,26 +30,26 @@ type ListItem struct {
 
 // Detail 对应前端 CarrierDetail 类型。
 type Detail struct {
-	Key             string                 `json:"key"`
-	MCC             string                 `json:"mcc"`
-	MNC             string                 `json:"mnc"`
-	Name            string                 `json:"name"`
-	IKEAddr         string                 `json:"ike_addr"`
-	DeviceIMSTAC    int                    `json:"device_ims_tac"`
-	DeviceIMSCellID int                    `json:"device_ims_cell_id"`
+	Key             string                       `json:"key"`
+	MCC             string                       `json:"mcc"`
+	MNC             string                       `json:"mnc"`
+	Name            string                       `json:"name"`
+	IKEAddr         string                       `json:"ike_addr"`
+	DeviceIMSTAC    int                          `json:"device_ims_tac"`
+	DeviceIMSCellID int                          `json:"device_ims_cell_id"`
 	SystemDefault   *corevcarrier.CarrierProfile `json:"system_default"`
 	UserConfig      *corevcarrier.CarrierProfile `json:"user_config"`
-	Active          bool                   `json:"active"`
+	Active          bool                         `json:"active"`
 }
 
 // SavePayload 对应前端 CarrierSavePayload 类型。
 type SavePayload struct {
-	Name            string                 `json:"name"`
-	IKEAddr         string                 `json:"ike_addr"`
-	DeviceIMSTAC    int                    `json:"device_ims_tac"`
-	DeviceIMSCellID int                    `json:"device_ims_cell_id"`
+	Name            string                       `json:"name"`
+	IKEAddr         string                       `json:"ike_addr"`
+	DeviceIMSTAC    int                          `json:"device_ims_tac"`
+	DeviceIMSCellID int                          `json:"device_ims_cell_id"`
 	Config          *corevcarrier.CarrierProfile `json:"config"`
-	Active          bool                   `json:"active"`
+	Active          bool                         `json:"active"`
 }
 
 // LoadActiveOverrides 已移除：运营商配置现在纯 DB 查询，不需要启动时加载到内存。

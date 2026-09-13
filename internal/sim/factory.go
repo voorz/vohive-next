@@ -96,7 +96,7 @@ func BuildAKAProvider(w AKAProviderWorker) swusim.AKAProvider {
 	}
 	if strings.EqualFold(strings.TrimSpace(w.BackendMode()), backend.BackendMBIM) {
 		caps, _ := w.MBIMCapability()
-		
+
 		var mbimAuth swusim.AKAProvider
 		if caps != nil && caps.AuthAKAUsable() {
 			if provider, ok := w.MBIMAKAProvider(); ok && provider != nil {

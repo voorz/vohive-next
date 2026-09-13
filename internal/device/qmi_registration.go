@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/voorz/quectel-qmi-go/pkg/qmi"
 	qmimanager "github.com/voorz/quectel-qmi-go/pkg/manager"
-	qmipkg "github.com/voorz/vohive/internal/qmi"
+	"github.com/voorz/quectel-qmi-go/pkg/qmi"
 	"github.com/voorz/vohive/internal/backend"
 	"github.com/voorz/vohive/internal/config"
+	qmipkg "github.com/voorz/vohive/internal/qmi"
 	"github.com/voorz/vohive/pkg/logger"
 )
 

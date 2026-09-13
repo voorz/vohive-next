@@ -30,8 +30,8 @@ const (
 
 // PlmnEntry represents one entry in all.json.
 type PlmnEntry struct {
-	MCC   string `json:"mcc"`
-	MNC   string `json:"mnc"`
+	MCC     string `json:"mcc"`
+	MNC     string `json:"mnc"`
 	Country struct {
 		Name   string `json:"name"`
 		ISO    string `json:"iso"`
@@ -39,14 +39,14 @@ type PlmnEntry struct {
 		Region string `json:"region"`
 	} `json:"country"`
 	Operators []struct {
-		Brand    string `json:"brand"`
-		Operator string `json:"operator"`
-		Status   string `json:"status"`
-		Type     string `json:"type"`
-		Bands    string `json:"bands"`
-		Icon     string `json:"icon"`
+		Brand     string `json:"brand"`
+		Operator  string `json:"operator"`
+		Status    string `json:"status"`
+		Type      string `json:"type"`
+		Bands     string `json:"bands"`
+		Icon      string `json:"icon"`
 		IconScope string `json:"icon_scope"`
-		Subs     []struct {
+		Subs      []struct {
 			Brand        string   `json:"brand"`
 			Names        []string `json:"names"`
 			GID1         string   `json:"gid1"`

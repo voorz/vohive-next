@@ -180,9 +180,9 @@ func UpdateVoWiFiBehaviorInFile(path string, ikeRetryCount int, overrideRFOff bo
 		vowifi = make(map[string]any)
 	}
 	vowifi["behavior"] = map[string]any{
-		"ike_retry_count":         ikeRetryCount,
-		"override_rf_off":         overrideRFOff,
-		"rf_off_delay":            rfOffDelay,
+		"ike_retry_count":          ikeRetryCount,
+		"override_rf_off":          overrideRFOff,
+		"rf_off_delay":             rfOffDelay,
 		"recover_interval_seconds": recoverIntervalSeconds,
 	}
 	root["vowifi"] = vowifi
@@ -356,9 +356,9 @@ func UpdateServerConfigInFile(path string, port string, debug bool, pcscDriverMo
 	}
 
 	root["server"] = map[string]any{
-		"port":              port,
-		"debug":             debug,
-		"pcsc_driver_mode":  pcscDriverMode,
+		"port":             port,
+		"debug":            debug,
+		"pcsc_driver_mode": pcscDriverMode,
 	}
 
 	out, err := yaml.Marshal(root)

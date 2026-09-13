@@ -87,11 +87,11 @@ func buildTelegramTextMessage(chatID int64, text string) tgbotapi.MessageConfig 
 	var buf strings.Builder
 	buf.WriteString(escapeMarkdownV2(cleanText))
 	if code != "" {
-	buf.WriteString("\n\n")
-	buf.WriteString(escapeMarkdownV2("验证码："))
-	buf.WriteString("```\n")
-	buf.WriteString(code)
-	buf.WriteString("\n```")
+		buf.WriteString("\n\n")
+		buf.WriteString(escapeMarkdownV2("验证码："))
+		buf.WriteString("```\n")
+		buf.WriteString(code)
+		buf.WriteString("\n```")
 	}
 
 	msg := tgbotapi.NewMessage(chatID, buf.String())
@@ -151,10 +151,10 @@ func renderTelegramMarkdownV2(ctx NotificationContext) string {
 	code := extractVerificationCode(ctx.Text)
 	if code != "" {
 		buf.WriteString("\n")
-	buf.WriteString(escapeMarkdownV2("验证码："))
-	buf.WriteString("```\n")
-	buf.WriteString(code)
-	buf.WriteString("\n```")
+		buf.WriteString(escapeMarkdownV2("验证码："))
+		buf.WriteString("```\n")
+		buf.WriteString(code)
+		buf.WriteString("\n```")
 	}
 
 	return buf.String()

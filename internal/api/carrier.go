@@ -8,8 +8,8 @@ import (
 
 	carrierconfig "github.com/voorz/vohive/internal/carrier"
 	"github.com/voorz/vohive/internal/db"
-	"github.com/voorz/vowifi-core/runtimehost/carrier"
 	"github.com/voorz/vohive/pkg/logger"
+	"github.com/voorz/vowifi-core/runtimehost/carrier"
 
 	"github.com/gin-gonic/gin"
 )
@@ -240,7 +240,7 @@ func (s *Server) handleGetCarrier(c *gin.Context) {
 
 // handleSaveCarrierConfig PUT /api/carrier/:mcc/:mnc?brand=
 // 保存用户配置到 carrier_templates + carrier_activation。
-// handleSaveCarrierConfig 
+// handleSaveCarrierConfig
 //
 // @Summary      SaveCarrierConfig
 // @Tags         carrier
@@ -318,7 +318,7 @@ func (s *Server) handleSaveCarrierConfig(c *gin.Context) {
 
 // handleDeleteCarrierConfig DELETE /api/carrier/:mcc/:mnc/config?brand=
 // 删除 carrier_templates 中的用户模板，清除激活记录。
-// handleDeleteCarrierConfig 
+// handleDeleteCarrierConfig
 //
 // @Summary      DeleteCarrierConfig
 // @Tags         carrier
@@ -346,7 +346,7 @@ func (s *Server) handleDeleteCarrierConfig(c *gin.Context) {
 
 // handleActivateCarrier POST /api/carrier/:mcc/:mnc/activate?brand=
 // 激活用户模板。
-// handleActivateCarrier 
+// handleActivateCarrier
 //
 // @Summary      ActivateCarrier
 // @Tags         carrier
@@ -378,7 +378,7 @@ func (s *Server) handleActivateCarrier(c *gin.Context) {
 
 // handleDeactivateCarrier POST /api/carrier/:mcc/:mnc/deactivate?brand=
 // 禁用用户模板，回退到系统默认。
-// handleDeactivateCarrier 
+// handleDeactivateCarrier
 //
 // @Summary      DeactivateCarrier
 // @Tags         carrier
@@ -409,7 +409,7 @@ func (s *Server) handleDeactivateCarrier(c *gin.Context) {
 
 // handleBatchAddVisible POST /api/carriers/visible/batch
 // 从 plmn-index 批量添加运营商到可见列表。
-// handleBatchAddVisible 
+// handleBatchAddVisible
 //
 // @Summary      BatchAddVisible
 // @Tags         carrier
@@ -467,7 +467,7 @@ func (s *Server) handleRemoveVisible(c *gin.Context) {
 
 // handleSearchCarrierIndex GET /api/carriers/search?q=
 // 搜索 plmn-index 中的运营商（从本地 DB carrier_index 表）。
-// handleSearchCarrierIndex 
+// handleSearchCarrierIndex
 //
 // @Summary      SearchCarrierIndex
 // @Tags         carrier
@@ -490,4 +490,3 @@ func (s *Server) handleSearchCarrierIndex(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, results)
 }
-

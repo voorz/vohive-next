@@ -17,25 +17,25 @@ import (
 
 // CompatibleModem 描述可接管的 modem（QMI + 非QMI）。
 type CompatibleModem struct {
-	ControlPath      string
-	NetInterface     string
-	USBPath          string
-	IMEI             string
-	VendorID         uint16
-	ProductID        uint16
-	DriverName       string
-	ATPorts          []string
-	ATPort           string
-	AudioDevice      string
-	Mode             string
-	TransportType    string
-	NetworkCapable   bool
-	USBProduct       string // USB 描述符 product 字段
-	USBManufacturer  string // USB 描述符 manufacturer 字段
-	Manufacturer     string // 模组厂商（ATI 获取，如 "Quectel"）
-	Model            string // 模组描述（QMI DMS GetModel 获取，如 "QUECTEL Mobile Broadband Module"）
-	ChipVendor       string // 芯片厂商（QMI DMS GetManufacturer 获取，如 "QUALCOMM INCORPORATED"）
-	Firmware         string // 固件版本（ATI Revision 行获取）
+	ControlPath     string
+	NetInterface    string
+	USBPath         string
+	IMEI            string
+	VendorID        uint16
+	ProductID       uint16
+	DriverName      string
+	ATPorts         []string
+	ATPort          string
+	AudioDevice     string
+	Mode            string
+	TransportType   string
+	NetworkCapable  bool
+	USBProduct      string // USB 描述符 product 字段
+	USBManufacturer string // USB 描述符 manufacturer 字段
+	Manufacturer    string // 模组厂商（ATI 获取，如 "Quectel"）
+	Model           string // 模组描述（QMI DMS GetModel 获取，如 "QUECTEL Mobile Broadband Module"）
+	ChipVendor      string // 芯片厂商（QMI DMS GetManufacturer 获取，如 "QUALCOMM INCORPORATED"）
+	Firmware        string // 固件版本（ATI Revision 行获取）
 }
 
 var discoverFallbackModemsFn = discoverFallbackModems
@@ -191,8 +191,8 @@ func discoverFallbackOne(usbPath string) (CompatibleModem, bool) {
 			VendorID:        vid,
 			ProductID:       pid,
 			DriverName:      capability.DriverName,
-			ATPorts:          atPorts,
-			ATPort:           atPort,
+			ATPorts:         atPorts,
+			ATPort:          atPort,
 			AudioDevice:     "",
 			Mode:            mode,
 			TransportType:   mode,
@@ -214,8 +214,8 @@ func discoverFallbackOne(usbPath string) (CompatibleModem, bool) {
 			VendorID:        vid,
 			ProductID:       pid,
 			DriverName:      capability.DriverName,
-			ATPorts:          atPorts,
-			ATPort:           atPort,
+			ATPorts:         atPorts,
+			ATPort:          atPort,
 			AudioDevice:     "",
 			Mode:            mode,
 			TransportType:   mode,
@@ -249,8 +249,8 @@ func discoverFallbackOne(usbPath string) (CompatibleModem, bool) {
 		VendorID:        vid,
 		ProductID:       pid,
 		DriverName:      driver,
-		ATPorts:          atPorts,
-		ATPort:           atPort,
+		ATPorts:         atPorts,
+		ATPort:          atPort,
 		AudioDevice:     "",
 		Mode:            mode,
 		TransportType:   mode,
@@ -265,7 +265,7 @@ func classifyMode(controlPath, driver string) string {
 	d := strings.ToLower(strings.TrimSpace(driver))
 	switch {
 	case strings.Contains(d, "mbim"), strings.Contains(c, "mbim"):
-		return "mbim" 
+		return "mbim"
 	case strings.Contains(d, "qmi"), strings.Contains(d, "gobinet"), strings.Contains(d, "qcqmi"), strings.Contains(c, "qmi"):
 		return "qmi"
 	case strings.Contains(d, "rndis"):

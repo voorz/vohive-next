@@ -13,10 +13,10 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/minio/selfupdate"
 	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/global"
 	"github.com/voorz/vohive/pkg/logger"
-	"github.com/minio/selfupdate"
 	"golang.org/x/mod/semver"
 )
 

@@ -4,10 +4,10 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"time"
-	"encoding/hex"
 
 	dev "github.com/voorz/vohive/internal/device"
 	mbimcore "github.com/voorz/vohive/internal/mbim"

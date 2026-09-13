@@ -66,15 +66,15 @@ type mbimInboxBackendStub struct {
 	deletedIdx []int
 }
 
-func (s *mbimInboxBackendStub) Mode() string                                { return backend.BackendMBIM }
-func (s *mbimInboxBackendStub) Close() error                                { return nil }
-func (s *mbimInboxBackendStub) GetIMEI(context.Context) (string, error)     { return "", nil }
-func (s *mbimInboxBackendStub) GetIMSI(context.Context) (string, error)     { return "", nil }
-func (s *mbimInboxBackendStub) GetICCID(context.Context) (string, error)    { return "", nil }
-func (s *mbimInboxBackendStub) GetMSISDN(context.Context) (string, error)   { return "", nil }
-func (s *mbimInboxBackendStub) GetRevision(context.Context) (string, error) { return "", nil }
-func (s *mbimInboxBackendStub) GetManufacturer(context.Context) (string, error) { return "", nil }
-func (s *mbimInboxBackendStub) GetModel(context.Context) (string, error) { return "", nil }
+func (s *mbimInboxBackendStub) Mode() string                                        { return backend.BackendMBIM }
+func (s *mbimInboxBackendStub) Close() error                                        { return nil }
+func (s *mbimInboxBackendStub) GetIMEI(context.Context) (string, error)             { return "", nil }
+func (s *mbimInboxBackendStub) GetIMSI(context.Context) (string, error)             { return "", nil }
+func (s *mbimInboxBackendStub) GetICCID(context.Context) (string, error)            { return "", nil }
+func (s *mbimInboxBackendStub) GetMSISDN(context.Context) (string, error)           { return "", nil }
+func (s *mbimInboxBackendStub) GetRevision(context.Context) (string, error)         { return "", nil }
+func (s *mbimInboxBackendStub) GetManufacturer(context.Context) (string, error)     { return "", nil }
+func (s *mbimInboxBackendStub) GetModel(context.Context) (string, error)            { return "", nil }
 func (s *mbimInboxBackendStub) GetHardwareRevision(context.Context) (string, error) { return "", nil }
 func (s *mbimInboxBackendStub) GetSignalInfo(context.Context) (*backend.SignalInfo, error) {
 	return nil, nil

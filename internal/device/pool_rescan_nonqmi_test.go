@@ -58,7 +58,7 @@ func TestRescanReconnectsNonQMIDeviceByIMEI(t *testing.T) {
 
 	p := NewPool(&config.Config{})
 	defer p.cancel()
-	
+
 	// 预置一个空 worker，以便断言其配置被更新，
 	// 避免自动拉起触发底层真实 backend.NewBackend 报错而无法捕获更新结果。
 	p.workers = map[string]*Worker{
@@ -78,7 +78,7 @@ func TestRescanReconnectsNonQMIDeviceByIMEI(t *testing.T) {
 	hardware := p.collectRescanHardware(discovered, liveWorkerIndex)
 	managed := config.ListDevices()
 	resolved := ResolveDeviceIdentities(hardware, managed)
-	
+
 	if len(resolved.Matched) != 1 {
 		t.Fatalf("Expected 1 matched device, got %d", len(resolved.Matched))
 	}

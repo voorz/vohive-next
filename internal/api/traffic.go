@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// handleTrafficAnalysis 
+// handleTrafficAnalysis
 //
 // @Summary      TrafficAnalysis
 // @Tags         dashboard

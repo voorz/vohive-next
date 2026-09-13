@@ -8,9 +8,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/voorz/sipgo"
 	"github.com/voorz/sipgo/sip"
-	"github.com/google/uuid"
 	"github.com/voorz/vohive/internal/modem"
 	"github.com/voorz/vohive/internal/sipgw"
 	"github.com/voorz/vohive/pkg/logger"
@@ -29,8 +29,8 @@ const (
 
 // atHelper 定义了可选的 AT 命令执行能力（用于 QMI 后端开启 PCM over USB）
 type atHelper interface {
-	EnableUSBAudio() error   // AT+QPCMV=1,2 开启 PCM over USB
-	DisableUSBAudio() error  // AT+QPCMV=0   关闭 PCM over USB
+	EnableUSBAudio() error  // AT+QPCMV=1,2 开启 PCM over USB
+	DisableUSBAudio() error // AT+QPCMV=0   关闭 PCM over USB
 }
 
 // Manager 负责管理 CS 域的来电并桥接到 SIP/RTP

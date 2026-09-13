@@ -46,14 +46,14 @@ func loadAutoMCPTools() {
 		var spec struct {
 			BasePath string `json:"basePath"` // 如 "/api"
 			Paths    map[string]map[string]struct {
-				Summary    string `json:"summary"`
+				Summary    string   `json:"summary"`
 				Tags       []string `json:"tags"`
 				Parameters []struct {
 					Name     string `json:"name"`
-					In       string `json:"in"`       // path / query / body
+					In       string `json:"in"` // path / query / body
 					Required bool   `json:"required"`
-					Type     string `json:"type"`      // string/integer/...
-					Schema  struct {
+					Type     string `json:"type"` // string/integer/...
+					Schema   struct {
 						Ref string `json:"$ref"` // body 参数可能有 $ref
 					} `json:"schema"`
 				} `json:"parameters"`
@@ -108,7 +108,8 @@ func loadAutoMCPTools() {
 
 // buildMCPToolName 从 HTTP method + path 生成 MCP 工具名。
 // 例：POST /sms/send → send_sms
-//     POST /devices/{device_id}/actions/reboot → reboot_device
+//
+//	POST /devices/{device_id}/actions/reboot → reboot_device
 func buildMCPToolName(method, path string) string {
 	// 去掉 path variables，提取有意义的部分
 	segments := strings.Split(strings.Trim(path, "/"), "/")
@@ -152,7 +153,7 @@ func buildMCPInputSchema(params []struct {
 	In       string `json:"in"`
 	Required bool   `json:"required"`
 	Type     string `json:"type"`
-	Schema  struct {
+	Schema   struct {
 		Ref string `json:"$ref"`
 	} `json:"schema"`
 }) map[string]any {
