@@ -13,12 +13,11 @@ import {
   WifiWarning24Filled,
   ArrowSort24Regular
 } from '@vicons/fluent'
-import { WifiCalling3Round, SimCardAlertRound, SimCardRound, NoSimOutlined } from '@vicons/material'
+import { WifiCalling3Round, SimCardAlertRound, SimCardRound, NoSimOutlined, SignalCellularNoSimTwotone, Md3GMobiledataSharp, Md4GMobiledataSharp, Md4GPlusMobiledataSharp, Md5GSharp } from '@vicons/material'
 import { Airplane } from '@vicons/ionicons5'
 import { loadPlmnCatalog } from '../composables/plmn-catalog'
 import { downloadIcon, getCachedIcon } from '../composables/useOperatorIcon'
 import { useEventStream } from '../composables/useEventStream'
-import { getDeviceIcon } from '../utils/deviceIcon'
 
 const props = defineProps<{
   selectedId?: string
@@ -221,6 +220,32 @@ function readinessItems(d: DeviceMgmtListItem) {
   ]
 }
 
+// 设备状态图标（替代品牌图标，按优先级判断）
+function deviceStatusIcon(d: DeviceMgmtListItem) {
+  // PC/SC 读卡器不显示状态图标
+  if (d?.esim_transport === 'pcsc') return null
+  // VoWiFi 已就绪 → 最高优先级
+  if (vowifiState(d) === 'ready') return WifiCalling3Round
+  // VoWiFi 启用但未就绪
+  if (vowifiState(d) === 'enabled-not-ready') return WifiWarning24Filled
+  // 未驻网
+  if (!isRadioRegistered(d)) return SignalCellularNoSimTwotone
+  // 按网络制式
+  const mode = String(d?.modem?.network_mode || '').toUpperCase()
+  if (mode.includes('NR5G') || mode.includes('5G')) return Md5GSharp
+  if (mode.includes('LTE') && mode.includes('PLUS')) return Md4GPlusMobiledataSharp
+  if (mode.includes('LTE') || mode.includes('4G')) return Md4GMobiledataSharp
+  if (mode.includes('UMTS') || mode.includes('GSM') || mode.includes('CDMA') || mode.includes('3G')) return Md3GMobiledataSharp
+  return null
+}
+
+// 设备类型标签：读卡器 / 4G模组 / 5G模组
+function deviceTypeTag(d: DeviceMgmtListItem): string {
+  if (d?.esim_transport === 'pcsc') return '读卡器'
+  if (d?.modem?.nr5g_bands && d.modem.nr5g_bands.length > 0) return '5G模组'
+  return '4G模组'
+}
+
 </script>
 
 <template>
@@ -289,7 +314,7 @@ function readinessItems(d: DeviceMgmtListItem) {
                   <WifiOff24Regular v-else />
                 </el-icon>
               </div>
-              <span class="vohive-rattlesnake-type-tag" :class="{ 'type-reader': item.esim_transport === 'pcsc' }">{{ item.esim_transport === 'pcsc' ? '读卡器' : '模组' }}</span>
+              <span class="vohive-rattlesnake-type-tag" :class="{ 'type-reader': item.esim_transport === 'pcsc', 'type-5g': item.esim_transport !== 'pcsc' && item.modem?.nr5g_bands && item.modem.nr5g_bands.length > 0 }">{{ deviceTypeTag(item) }}</span>
             </div>
             <div class="vohive-rattlesnake-content-box">
               <!-- 设备名 -->
@@ -314,8 +339,10 @@ function readinessItems(d: DeviceMgmtListItem) {
                   :class="{ ready: ri.ready === true, 'not-ready': ri.ready === false }"
                 />
               </div>
-              <!-- 设备类型图标（居右下，在 content-box 内） -->
-              <img :src="getDeviceIcon({ esim_transport: item.esim_transport, manufacturer: item.manufacturer })" :alt="item.esim_transport === 'pcsc' ? 'reader' : 'modem'" class="vohive-rattlesnake-device-icon" />
+              <!-- 设备状态图标（居右下，替代品牌图标） -->
+              <el-icon v-if="deviceStatusIcon(item)" size="64" class="vohive-rattlesnake-device-icon">
+                <component :is="deviceStatusIcon(item)" />
+              </el-icon>
             </div>
           </div>
         </div>
@@ -510,18 +537,20 @@ border-color: rgba(0, 188, 125, 0.6);
   opacity: 0.2;
 }
 
-/* ===== 设备图标（content-box 内，贴内容区域右下角，不遮就绪条） ===== */
+/* ===== 设备状态图标（content-box 内，垂直居中，若隐若现） ===== */
 .vohive-rattlesnake-device-icon {
   position: absolute;
-  top: 0;
-  bottom: 20px;
+  top: 50%;
   right: 12px;
-  max-width: 25%;
-  object-fit: contain;
-  object-position: right bottom;
+  transform: translateY(-50%);
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 0;
-  margin: 0 0 0 auto;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
+  margin: 0;
+  opacity: 0.1;
   z-index: 5;
 }
 
@@ -586,6 +615,12 @@ border-color: rgba(0, 188, 125, 0.6);
   background: rgba(218, 159, 0, 0.2);
   color: #da9f00;
   border: 1px solid rgba(218, 159, 0, 0.3);
+}
+
+.vohive-rattlesnake-type-tag.type-5g {
+  background: rgba(168, 85, 247, 0.2);
+  color: #a855f7;
+  border: 1px solid rgba(168, 85, 247, 0.3);
 }
 
 /* 状态胶囊标签 */
