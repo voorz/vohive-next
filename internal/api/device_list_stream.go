@@ -192,7 +192,7 @@ func (s *Server) handleDeviceMgmtListStream(c *gin.Context) {
 
 	sendData()
 
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
 	resyncTicker := time.NewTicker(5 * time.Second)
