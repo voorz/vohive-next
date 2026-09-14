@@ -112,6 +112,9 @@ watch([vowifiStatus, () => props.device?.id], ([status, id]) => {
   // 同一设备：从启动中变为 ok → 触发礼花
   if (status === 'ok' && isStarting.value) {
     isStarting.value = false
+    // 烟花效果开关：false 关闭，true 开启
+    const confettiEnabled = false
+    if (!confettiEnabled) return
     // 左侧发射
     confetti({
       particleCount: 80,
