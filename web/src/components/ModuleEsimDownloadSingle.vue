@@ -17,6 +17,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   downloaded: []
+  progress: [payload: { pct: number; msg: string; error?: string }]
 }>()
 
 const lpaCode = ref('')
@@ -172,6 +173,7 @@ async function downloadProfile(force = false) {
   downloadProgress.value = 0
   downloadMsg.value = '正在连接...'
   downloadError.value = ''
+  emit('progress', { pct: 0, msg: '正在连接...' })
 
   const params = new URLSearchParams({ smdp: smdp.value })
   if (matchingId.value) params.set('matching_id', matchingId.value)
@@ -219,10 +221,12 @@ async function downloadProfile(force = false) {
             downloadError.value = evt.code === 'euicc_insufficient_memory'
               ? 'eUICC 安装 profile 时空间不足，请删除未使用的 profile 后重试。'
               : evt.msg
+            emit('progress', { pct: evt.pct, msg: evt.msg, error: downloadError.value })
             break outer
           }
           downloadProgress.value = evt.pct
           downloadMsg.value = evt.msg
+          emit('progress', { pct: evt.pct, msg: evt.msg })
           if (evt.step === 'done') {
             const notice = describeDownloadTerminalNotice(evt)
             if (notice.tone === 'warning') {
