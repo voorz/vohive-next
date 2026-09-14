@@ -5,15 +5,7 @@ import { useDevicesStore } from '../stores/devices'
 import ListSkeleton from './ListSkeleton.vue'
 import EmptyState from './EmptyState.vue'
 import CountryFlag from './CountryFlag.vue'
-import ModemIcon from '../assets/svgs/modem-600x800.svg'
-import ReaderIcon from '../assets/svgs/estk-600x800.svg'
-import BaiwangIcon from '../assets/svgs/baiwang-600x800.svg'
 
-function detailDeviceIcon(item: { esim_transport?: string; manufacturer?: string }): string {
-  if (item.esim_transport === 'pcsc') return ReaderIcon
-  if (item.manufacturer?.toUpperCase() === 'BAIWANG') return BaiwangIcon
-  return ModemIcon
-}
 import ModuleAtTerminal from './ModuleAtTerminal.vue'
 import ModuleUssdTerminal from './ModuleUssdTerminal.vue'
 import ModuleConfigTab from './ModuleConfigTab.vue'
@@ -22,7 +14,7 @@ import ModuleOverviewTab from './ModuleOverviewTab.vue'
 import ModuleVoiceTab from './ModuleVoiceTab.vue'
 import ModuleControlGrid from './ModuleControlGrid.vue'
 import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
-import { useSimOperatorDisplay } from '../composables/useSimOperatorDisplay'
+import { useSimOperatorDisplay, imsiMccMnc } from '../composables/useSimOperatorDisplay'
 import { ArrowSync24Regular, Add24Regular, ChevronUp24Regular } from '@vicons/fluent'
 import { MenuRound } from '@vicons/material'
 import { cardsService } from '../services/cards'
@@ -60,8 +52,10 @@ const plmnInfo = ref<PlmnInfoEntry | null>(null)
 
 onMounted(() => loadPlmnInfo())
 
-watch(() => [detail.value?.modem?.native_mcc, detail.value?.modem?.native_mnc], ([mcc, mnc]) => {
-  const key = mcc && mnc ? `${mcc}-${mnc}` : ''
+watch(() => [detail.value?.modem?.native_mcc, detail.value?.modem?.native_mnc, detail.value?.modem?.imsi], () => {
+  // 优先用 native_mcc/native_mnc，回退从 IMSI 前缀解析
+  const fallback = imsiMccMnc(detail.value?.modem)
+  const key = fallback ? `${fallback.mcc}-${fallback.mnc}` : ''
   plmnInfo.value = key ? getPlmnInfo(key) : null
 }, { immediate: true })
 
@@ -250,7 +244,6 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx, rollin
     <div v-if="detail" class="detail-header">
       <!-- 窄屏下拉选择器 + 添加按钮 + 重启模组 -->
       <div class="detail-header-narrow">
-        <img :src="detailDeviceIcon(detail)" alt="device" class="device-icon-svg narrow-logo" />
         <el-select
           :model-value="props.selectedId"
           @change="(v: string) => emit('select', v)"
@@ -273,7 +266,6 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx, rollin
       </div>
       <!-- 宽屏：图标盒子 + 设备名 + 详细信息 + 重启模组 -->
       <div class="detail-header-wide">
-        <img :src="detailDeviceIcon(detail)" alt="device" class="device-icon-svg" />
         <div class="detail-header-info">
           <div class="detail-header-name">{{ deviceDisplayName }}</div>
           <div class="detail-header-meta">
@@ -489,13 +481,7 @@ const { trafficSpeedRx, trafficSpeedTx, rollingMinuteRx, rollingMinuteTx, rollin
   cursor: not-allowed;
 }
 
-/* 图标盒子 */
-.device-icon-svg {
-  width: 38px;
-  height: 38px;
-  object-fit: contain;
-  flex-shrink: 0;
-}
+/* 图标盒子已移除 */
 
 .detail-header-info {
   flex: 1;

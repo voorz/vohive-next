@@ -13,6 +13,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   downloaded: []
+  progress: [payload: { pct: number; msg: string; error?: string; errorCode?: string; errorDetails?: string; subjectCode?: string; reasonCode?: string; subjectIdentifier?: string; batchCurrent?: number; batchTotal?: number }]
 }>()
 
 // 可选的 EID 列表
@@ -126,6 +127,7 @@ async function downloadBatch() {
   batchProgress.value = 0
   batchMsg.value = ''
   batchError.value = ''
+  emit('progress', { pct: 0, msg: '准备批量下载...', batchCurrent: 0, batchTotal: lines.length })
 
   const targetAidHex = selectedEid.value?.aid || pickNextDownloadAid(props.chipInfo, '')
   const base = api.defaults.baseURL || ''
@@ -154,6 +156,7 @@ async function downloadBatch() {
     }
 
     batchMsg.value = `正在下载 ${parsed.smdp}...`
+    emit('progress', { pct: batchProgress.value, msg: batchMsg.value, batchCurrent: i + 1, batchTotal: lines.length })
 
     const params = new URLSearchParams({ smdp: parsed.smdp })
     if (parsed.matchingId) params.set('matching_id', parsed.matchingId)
@@ -185,15 +188,17 @@ async function downloadBatch() {
           if (!lineData.startsWith('data:')) continue
           const payload = lineData.slice('data:'.length).trim()
           try {
-            const evt = JSON.parse(payload) as { step: string; pct: number; msg: string }
+            const evt = JSON.parse(payload) as { step: string; pct: number; msg: string; code?: string; details?: string; subjectCode?: string; reasonCode?: string; subjectIdentifier?: string }
             batchProgress.value = Math.round(((i + evt.pct / 100) / lines.length) * 100)
             batchMsg.value = evt.msg
+            emit('progress', { pct: batchProgress.value, msg: evt.msg, batchCurrent: i + 1, batchTotal: lines.length })
             if (evt.step === 'done') {
               successCount++
               break
             }
             if (evt.step === 'error') {
               batchError.value = `第 ${i + 1} 个下载失败: ${evt.msg}`
+              emit('progress', { pct: batchProgress.value, msg: batchMsg.value, error: batchError.value, errorCode: evt.code, errorDetails: evt.details, subjectCode: evt.subjectCode, reasonCode: evt.reasonCode, subjectIdentifier: evt.subjectIdentifier, batchCurrent: i + 1, batchTotal: lines.length })
               break
             }
           } catch { /* 忽略 */ }
@@ -206,6 +211,7 @@ async function downloadBatch() {
 
   batchProgress.value = 100
   batchMsg.value = `批量下载完成 (${successCount}/${lines.length})`
+  emit('progress', { pct: 100, msg: batchMsg.value, batchCurrent: lines.length, batchTotal: lines.length })
   if (successCount > 0) {
     ElMessage.success(`成功下载 ${successCount} 个 Profile`)
     emit('downloaded')
@@ -219,7 +225,7 @@ async function downloadBatch() {
     <!-- EID 选择（始终显示） -->
     <div class="batch-field">
       <label class="batch-label">目标 EID（eUICC 芯片）</label>
-      <el-select v-model="selectedEidIndex" class="eid-select" popper-class="eid-select-popper">
+      <el-select v-model="selectedEidIndex" class="eid-select" popper-class="eid-select-popper" :disabled="eidOptions.length <= 1">
         <el-option
           v-for="(eid, idx) in eidOptions"
           :key="eid.eid || idx"

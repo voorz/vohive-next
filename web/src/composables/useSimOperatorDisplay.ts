@@ -34,7 +34,21 @@ function normalizeSPN(v: unknown): string {
 function nativeMccMnc(modem: ModemStatus | undefined): string {
   const mcc = String(modem?.native_mcc ?? '').trim()
   const mnc = String(modem?.native_mnc ?? '').trim()
-  return mcc && mnc ? `${mcc}${mnc}` : ''
+  if (mcc && mnc) return `${mcc}${mnc}`
+  // 回退：从 IMSI 前缀解析 MCC/MNC（与后端 e911/availability.go 同逻辑）
+  const imsi = String(modem?.imsi ?? '').trim()
+  if (imsi.length >= 6) return `${imsi.slice(0, 3)}${imsi.slice(3, 6)}`
+  return ''
+}
+
+/** 从 IMSI 前缀解析 MCC 和 MNC（回退逻辑，与后端 e911/availability.go 同逻辑） */
+export function imsiMccMnc(modem: ModemStatus | undefined): { mcc: string; mnc: string } | null {
+  const mcc = String(modem?.native_mcc ?? '').trim()
+  const mnc = String(modem?.native_mnc ?? '').trim()
+  if (mcc && mnc) return { mcc, mnc }
+  const imsi = String(modem?.imsi ?? '').trim()
+  if (imsi.length >= 6) return { mcc: imsi.slice(0, 3), mnc: imsi.slice(3, 6) }
+  return null
 }
 
 // ─── PNN/OPL 层 ───

@@ -1804,6 +1804,15 @@ func (m *Manager) GetSysInfo(ctx context.Context) (*qmi.SysInfo, error) {
 	return m.qmiMgr.GetSysInfo(ctx)
 }
 
+// GetBandCapabilities 获取模组支持的频段能力（LTE + 5G NR 频段列表）。
+// 通过 QMI DMS GetBandCapabilities 查询。
+func (m *Manager) GetBandCapabilities(ctx context.Context) (*qmi.BandCapabilities, error) {
+	if m == nil || m.qmiMgr == nil {
+		return nil, fmt.Errorf("qmi_manager_not_available")
+	}
+	return m.qmiMgr.GetBandCapabilities(ctx)
+}
+
 // --- NAS Low-level Methods ---
 
 func (m *Manager) NASGetRFBandInfo(ctx context.Context) (*qmi.RFBandInfo, error) {

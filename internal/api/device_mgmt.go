@@ -451,6 +451,7 @@ type deviceMgmtListModem struct {
 	ICCID            string `json:"iccid,omitempty"`
 	RegStatus        int    `json:"reg_status"`
 	PSAttached       bool   `json:"ps_attached"`
+	NR5GBands        []uint16 `json:"nr5g_bands,omitempty"`
 	OperatingMode    *int   `json:"operating_mode,omitempty"`
 }
 
@@ -962,6 +963,7 @@ func (s *Server) handleDeviceMgmtList(c *gin.Context) {
 				RegStatus:        status.RegStatus,
 				PSAttached:       status.PSAttached,
 				OperatingMode:    status.OperatingMode,
+				NR5GBands:        status.NR5GBands,
 			},
 		}
 		s.applyLifecycleToListItem(&item, true, cfg)
@@ -2304,27 +2306,36 @@ func formatEsimDownloadDoneEvent(result esim.DownloadProfileResult) string {
 }
 
 func formatEsimDownloadErrorEvent(err error) string {
-	msg := "下载失败"
 	var downloadErr *esim.DownloadProfileError
 	if errors.As(err, &downloadErr) && downloadErr != nil {
-		if downloadErr.Message != "" {
-			msg += ": " + downloadErr.Message
-		} else if err != nil {
-			msg += ": " + err.Error()
+		msg := downloadErr.Message
+		if msg == "" {
+			msg = err.Error()
 		}
-		base := fmt.Sprintf(`{"step":"error","msg":%q,"pct":-1`, msg)
+		base := fmt.Sprintf(`{"step":"error","msg":%q,"pct":0`, msg)
 		if code := strings.TrimSpace(downloadErr.Code); code != "" {
 			base += fmt.Sprintf(`,"code":%q`, code)
 		}
 		if details := strings.TrimSpace(downloadErr.Details); details != "" {
 			base += fmt.Sprintf(`,"details":%q`, details)
 		}
+		// SM-DP+ 结构化错误字段（参考 NekokoLPA SmdpException）
+		if sc := strings.TrimSpace(downloadErr.SmdpSubjectCode); sc != "" {
+			base += fmt.Sprintf(`,"subjectCode":%q`, sc)
+		}
+		if rc := strings.TrimSpace(downloadErr.SmdpReasonCode); rc != "" {
+			base += fmt.Sprintf(`,"reasonCode":%q`, rc)
+		}
+		if si := strings.TrimSpace(downloadErr.SmdpSubjectIdentifier); si != "" {
+			base += fmt.Sprintf(`,"subjectIdentifier":%q`, si)
+		}
 		return base + `}`
 	}
+	msg := "下载失败"
 	if err != nil {
-		msg += ": " + err.Error()
+		msg = err.Error()
 	}
-	return fmt.Sprintf(`{"step":"error","msg":%q,"pct":-1}`, msg)
+	return fmt.Sprintf(`{"step":"error","msg":%q,"pct":0}`, msg)
 }
 
 func writeEsimDownloadDoneEvent(c *gin.Context, result esim.DownloadProfileResult) {
@@ -2433,7 +2444,7 @@ func (s *Server) handleEsimListNotifications(c *gin.Context) {
 		c.JSON(esimNotificationHTTPStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	// autoClean 可能在 ListNotifications 内部处理了通知（发送/删除），
+	// autoClean 在 ListNotifications 内部同步处理了通知（发送/删除），
 	// 异步刷新 overview 缓存让下次请求时红点计数同步递减。
 	go worker.EsimMgr.WarmOverviewAsync("list_notifications_cleanup")
 	c.JSON(http.StatusOK, gin.H{"items": items})
@@ -3490,7 +3501,7 @@ func (s *Server) handleDeviceMgmtOverviewStreamSingle(c *gin.Context) {
 	}
 
 	notify := c.Writer.CloseNotify()
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
 	// 订阅 VoWiFi 运行态变更——状态一变（如 IMS 注册成功）立即推送，无需等待 Ticker。

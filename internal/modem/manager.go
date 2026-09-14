@@ -1180,6 +1180,9 @@ type DeviceStatus struct {
 	IMSStatus        int              `json:"ims_status"`
 	NetworkMode      string           `json:"network_mode"`
 	NetworkDuplex    string           `json:"network_duplex"`
+	// 模组硬件支持的频段能力（仅 QMI 后端填充）
+	LTEBands         []uint16         `json:"lte_bands,omitempty"`
+	NR5GBands        []uint16         `json:"nr5g_bands,omitempty"`
 	USBNetMode       int              `json:"usbnet_mode"`
 	OperatingMode    *int             `json:"operating_mode,omitempty"`
 }

@@ -17,6 +17,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   downloaded: []
+  progress: [payload: { pct: number; msg: string; error?: string; errorCode?: string; errorDetails?: string; subjectCode?: string; reasonCode?: string; subjectIdentifier?: string }]
 }>()
 
 const lpaCode = ref('')
@@ -172,6 +173,7 @@ async function downloadProfile(force = false) {
   downloadProgress.value = 0
   downloadMsg.value = '正在连接...'
   downloadError.value = ''
+  emit('progress', { pct: 0, msg: '正在连接...' })
 
   const params = new URLSearchParams({ smdp: smdp.value })
   if (matchingId.value) params.set('matching_id', matchingId.value)
@@ -214,15 +216,17 @@ async function downloadProfile(force = false) {
 
         const payload = line.slice('data:'.length).trim()
         try {
-          const evt = JSON.parse(payload) as { step: string; msg: string; pct: number; code?: string; space_delta?: EsimSpaceDelta }
+          const evt = JSON.parse(payload) as { step: string; msg: string; pct: number; code?: string; details?: string; subjectCode?: string; reasonCode?: string; subjectIdentifier?: string; space_delta?: EsimSpaceDelta }
           if (evt.step === 'error') {
             downloadError.value = evt.code === 'euicc_insufficient_memory'
               ? 'eUICC 安装 profile 时空间不足，请删除未使用的 profile 后重试。'
               : evt.msg
+            emit('progress', { pct: evt.pct, msg: evt.msg, error: downloadError.value, errorCode: evt.code, errorDetails: evt.details, subjectCode: evt.subjectCode, reasonCode: evt.reasonCode, subjectIdentifier: evt.subjectIdentifier })
             break outer
           }
           downloadProgress.value = evt.pct
           downloadMsg.value = evt.msg
+          emit('progress', { pct: evt.pct, msg: evt.msg })
           if (evt.step === 'done') {
             const notice = describeDownloadTerminalNotice(evt)
             if (notice.tone === 'warning') {
@@ -252,7 +256,7 @@ async function downloadProfile(force = false) {
     <!-- EID 选择（始终显示） -->
     <div class="single-field">
       <label class="single-label">目标 EID（eUICC 芯片）</label>
-      <el-select v-model="selectedEidIndex" class="eid-select" popper-class="eid-select-popper" @change="onEidChange">
+      <el-select v-model="selectedEidIndex" class="eid-select" popper-class="eid-select-popper" :disabled="eidOptions.length <= 1" @change="onEidChange">
         <el-option
           v-for="(eid, idx) in eidOptions"
           :key="eid.eid || idx"

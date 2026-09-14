@@ -50,10 +50,9 @@ func DefaultCardPolicy(iccid string) CardPolicy {
 }
 
 // NormalizeCardPolicy 仅做字段归一（trim ICCID、空 ip 归一为 v4）。
-// 注意：airplane_enabled 表示“用户的纯飞行意图”，独立于 vowifi——不再强制
-// vowifi=on ⇒ airplane=on。VoWiFi 接管射频是运行时投影的派生行为（见
-// applyPolicyToWorker / resolveAndApplyPolicy 的 VoWiFi 优先分支），不污染存储意图；
-// 这样关闭 VoWiFi 后能按存储的飞行意图正确回退（之前是飞行回飞行，之前在线回在线）。
+// 开启 VoWiFi 时强制 airplane=on：VoWiFi 接管射频，等效飞行模式；
+// 关闭 VoWiFi 时不动 airplane：保持飞行意图，避免关闭 VoWiFi 后卡回基站
+// 导致跨区域驻网风控问题。
 func NormalizeCardPolicy(p *CardPolicy) {
 	if p == nil {
 		return
@@ -64,6 +63,9 @@ func NormalizeCardPolicy(p *CardPolicy) {
 		p.IPVersion = strings.TrimSpace(p.IPVersion)
 	default:
 		p.IPVersion = "v4"
+	}
+	if p.VoWiFiEnabled {
+		p.AirplaneEnabled = true
 	}
 }
 

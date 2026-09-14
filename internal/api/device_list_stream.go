@@ -150,10 +150,11 @@ func (s *Server) handleDeviceMgmtListStream(c *gin.Context) {
 					ICCID:            status.ICCID,
 					RegStatus:        status.RegStatus,
 					PSAttached:       status.PSAttached,
-					OperatingMode:    status.OperatingMode,
-				},
-			}
-			s.applyLifecycleToListItem(&item, true, cfg)
+				OperatingMode:    status.OperatingMode,
+				NR5GBands:        status.NR5GBands,
+			},
+		}
+		s.applyLifecycleToListItem(&item, true, cfg)
 			items = append(items, item)
 		}
 
@@ -192,7 +193,7 @@ func (s *Server) handleDeviceMgmtListStream(c *gin.Context) {
 
 	sendData()
 
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
 	resyncTicker := time.NewTicker(5 * time.Second)

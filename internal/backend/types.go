@@ -1,6 +1,9 @@
 package backend
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // SignalInfo 信号质量信息（AT 和 QMI 后端统一返回此结构）
 type SignalInfo struct {
@@ -88,6 +91,26 @@ type SMS struct {
 type SMSSummary struct {
 	Index int
 	Tag   int // 0=已读, 1=未读, 2=已发送, 3=未发送
+}
+
+// BandCapabilities 模组硬件支持的频段能力（AT 和 QMI/MBIM 后端统一返回此结构）。
+// AT 后端不支持查询模组频段能力，调用方应通过 BandCapabilitiesProvider 可选接口判断。
+type BandCapabilities struct {
+	// LTE 频段编号列表（如 1, 3, 41 对应 B1, B3, B41）
+	LTEBands []uint16 `json:"lte_bands,omitempty"`
+	// 5G NR 频段编号列表（如 71, 78, 257 对应 n71, n78, n257）
+	NR5GBands []uint16 `json:"nr5g_bands,omitempty"`
+}
+
+// BandCapabilitiesProvider 可选接口：查询模组硬件支持的频段能力。
+// 只有 QMI 和 MBIM 后端实现此接口；AT 后端不支持。
+// 调用方应通过类型断言检查后端是否实现此接口：
+//
+//	if provider, ok := backend.(BandCapabilitiesProvider); ok {
+//	    caps, err := provider.GetBandCapabilities(ctx)
+//	}
+type BandCapabilitiesProvider interface {
+	GetBandCapabilities(ctx context.Context) (*BandCapabilities, error)
 }
 
 // OperatingMode 操作模式（映射 AT+CFUN 值和 QMI DMS OperatingMode）

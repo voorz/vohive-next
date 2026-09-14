@@ -4,6 +4,7 @@ import type { EsimChipInfo } from '../types/api'
 import ModuleEsimDownloadEuiccInfo from './ModuleEsimDownloadEuiccInfo.vue'
 import ModuleEsimDownloadSingle from './ModuleEsimDownloadSingle.vue'
 import ModuleEsimDownloadBatch from './ModuleEsimDownloadBatch.vue'
+import ModuleDownloadOverlay from './ModuleDownloadOverlay.vue'
 
 const _props = defineProps<{
   deviceId: string
@@ -17,8 +18,53 @@ const emit = defineEmits<{
 
 const mode = ref<'single' | 'batch'>('single')
 
+// ── 全屏遮罩状态 ──
+const overlayVisible = ref(false)
+const overlayProgress = ref(0)
+const overlayMessage = ref('')
+const overlayError = ref('')
+const overlayErrorCode = ref('')
+const overlayErrorDetails = ref('')
+const overlaySubjectCode = ref('')
+const overlayReasonCode = ref('')
+const overlaySubjectIdentifier = ref('')
+const overlayBatchCurrent = ref(0)
+const overlayBatchTotal = ref(0)
+
+function onProgress(p: { pct: number; msg: string; error?: string; errorCode?: string; errorDetails?: string; subjectCode?: string; reasonCode?: string; subjectIdentifier?: string; batchCurrent?: number; batchTotal?: number }) {
+  overlayVisible.value = true
+  overlayProgress.value = p.pct
+  overlayMessage.value = p.msg
+  overlayError.value = p.error || ''
+  overlayErrorCode.value = p.errorCode || ''
+  overlayErrorDetails.value = p.errorDetails || ''
+  overlaySubjectCode.value = p.subjectCode || ''
+  overlayReasonCode.value = p.reasonCode || ''
+  overlaySubjectIdentifier.value = p.subjectIdentifier || ''
+  if (p.batchCurrent !== undefined) overlayBatchCurrent.value = p.batchCurrent
+  if (p.batchTotal !== undefined) overlayBatchTotal.value = p.batchTotal
+}
+
 function onDownloaded() {
+  // 下载完成：保持 overlay 显示最终状态 1.5s 后关闭
+  setTimeout(() => {
+    overlayVisible.value = false
+  }, 1500)
   emit('downloaded')
+}
+
+function closeOverlay() {
+  overlayVisible.value = false
+  overlayProgress.value = 0
+  overlayMessage.value = ''
+  overlayError.value = ''
+  overlayErrorCode.value = ''
+  overlayErrorDetails.value = ''
+  overlaySubjectCode.value = ''
+  overlayReasonCode.value = ''
+  overlaySubjectIdentifier.value = ''
+  overlayBatchCurrent.value = 0
+  overlayBatchTotal.value = 0
 }
 </script>
 
@@ -53,16 +99,34 @@ function onDownloaded() {
           :device-id="deviceId"
           :chip-info="chipInfo"
           :device-imei="deviceImei"
+          @progress="onProgress"
           @downloaded="onDownloaded"
         />
         <ModuleEsimDownloadBatch
           v-else
           :device-id="deviceId"
           :chip-info="chipInfo"
+          @progress="onProgress"
           @downloaded="onDownloaded"
         />
       </div>
     </div>
+
+    <!-- 全屏下载遮罩 -->
+    <ModuleDownloadOverlay
+      :visible="overlayVisible"
+      :progress="overlayProgress"
+      :message="overlayMessage"
+      :error="overlayError"
+      :error-code="overlayErrorCode"
+      :error-details="overlayErrorDetails"
+      :subject-code="overlaySubjectCode"
+      :reason-code="overlayReasonCode"
+      :subject-identifier="overlaySubjectIdentifier"
+      :batch-current="overlayBatchCurrent"
+      :batch-total="overlayBatchTotal"
+      @close="closeOverlay"
+    />
   </div>
 </template>
 

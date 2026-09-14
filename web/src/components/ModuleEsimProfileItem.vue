@@ -317,8 +317,7 @@ const sizePillClass = computed(() => {
   height: 18px;
   border: none;
   border-radius: 999px;
-  background: var(--muted-foreground);
-  opacity: 0.4;
+  background: color-mix(in oklab, var(--muted-foreground) 40%, transparent);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -327,7 +326,7 @@ const sizePillClass = computed(() => {
   transition: all 0.2s;
 }
 .profile-card-switch:hover:not(:disabled) {
-  opacity: 0.6;
+  background: color-mix(in oklab, var(--muted-foreground) 55%, transparent);
 }
 .profile-card-switch:disabled {
   opacity: 0.3;

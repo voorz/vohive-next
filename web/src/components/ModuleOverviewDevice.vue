@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import type { DeviceOverviewItem, CarrierWebsheetInfo } from '../types/api'
 import { useSensitiveVisibility } from '../composables/useSensitiveVisibility'
-import { useSimOperatorDisplay } from '../composables/useSimOperatorDisplay'
+import { useSimOperatorDisplay, imsiMccMnc } from '../composables/useSimOperatorDisplay'
 import { activeEsimProfileDisplayName } from './deviceOverviewActiveEsim'
 import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
 import { Eye24Regular, EyeOff24Regular, Sim24Regular } from '@vicons/fluent'
@@ -55,9 +55,11 @@ const countryName = computed(() => plmnInfo.value?.country?.name || '--')
 onMounted(() => loadPlmnInfo())
 
 watch(
-  () => [props.device?.modem?.native_mcc, props.device?.modem?.native_mnc],
-  ([mcc, mnc]) => {
-    const key = mcc && mnc ? `${mcc}-${mnc}` : ''
+  () => [props.device?.modem?.native_mcc, props.device?.modem?.native_mnc, props.device?.modem?.imsi],
+  () => {
+    // 优先用 native_mcc/native_mnc，回退从 IMSI 前缀解析
+    const fallback = imsiMccMnc(props.device?.modem)
+    const key = fallback ? `${fallback.mcc}-${fallback.mnc}` : ''
     plmnInfo.value = key ? getPlmnInfo(key) : null
   },
   { immediate: true }

@@ -30,7 +30,9 @@ function nextMirror(
   // 开启时的互斥
   switch (field) {
     case 'vowifi_enabled':
-      return { ...cur, vowifi_enabled: true, network_enabled: false, volte_enabled: false }
+      // 开 VoWiFi 时强制 airplane=on：VoWiFi 接管射频等效飞行模式；
+      // 关 VoWiFi 时保持飞行意图以防基站风控（后端 NormalizeCardPolicy 同步）。
+      return { ...cur, vowifi_enabled: true, airplane_enabled: true, network_enabled: false, volte_enabled: false }
     case 'airplane_enabled':
       return { ...cur, airplane_enabled: true, network_enabled: false, volte_enabled: false }
     case 'network_enabled':
@@ -111,13 +113,15 @@ export function useCardPolicyToggles(
     const next = nextMirror(local.value, 'vowifi_enabled', val)
     // 保存执行前快照
     const prev = { ...local.value }
-    // 提前同步互斥字段到 UI
+    // 提前同步互斥字段到 UI（含 airplane_enabled：开 VoWiFi 时强制 airplane=on）
     local.value.network_enabled = next.network_enabled
+    local.value.airplane_enabled = next.airplane_enabled
     local.value.volte_enabled = next.volte_enabled
     const result = await executors.applyVoWiFi(val, next, prev)
     vowifiPending.value = false
     if (!result.ok) {
       local.value.vowifi_enabled = !val
+      local.value.airplane_enabled = prev.airplane_enabled
       vowifiFailed.value = true
       return
     }

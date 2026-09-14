@@ -27,6 +27,7 @@ import (
 	"github.com/voorz/vohive/internal/db"
 	"github.com/voorz/vohive/internal/modem"
 	"github.com/voorz/vohive/pkg/logger"
+	"github.com/voorz/vohive/pkg/notify"
 )
 
 // 支持的 ISD-R AID 列表
@@ -339,6 +340,7 @@ type Manager struct {
 	// 下次打开通知列表时优先尝试该 AID，避免全量扫描 9 个候选 AID。
 	workingAIDMu sync.RWMutex
 	workingAID   []byte
+
 }
 
 // ErrOperationInProgress 表示当前有写操作（下载/切换/删除）正在进行中
@@ -1746,8 +1748,8 @@ func (m *Manager) loadOverview() (*EsimOverview, error) {
 		}
 		m.setOverviewCache(overview, nil, generation)
 		m.resetScanBackoff()
-		// 异步统计通知数量，避免首次加载时 safeListNotification 的同步延迟
-		m.refreshNotificationCountAsync()
+		// 异步统计通知数量并触发自动清理
+		m.refreshNotificationCountAndAutoClean()
 		return cloneOverview(overview), nil
 	})
 	if err != nil {
@@ -2132,9 +2134,9 @@ func (m *Manager) loadOverviewFresh() (*EsimOverview, error) {
 	return overview, nil
 }
 
-// refreshNotificationCountAsync 异步统计待处理通知数量并更新 overviewCache。
-// 在 loadOverviewFresh 返回后调用，避免首次加载时 safeListNotification + DB 查询的同步延迟。
-func (m *Manager) refreshNotificationCountAsync() {
+// refreshNotificationCountAndAutoClean 异步统计待处理通知数量并更新 overviewCache。
+// 如果发现有通知，立即异步触发 autoClean（不等用户打开通知列表）。
+func (m *Manager) refreshNotificationCountAndAutoClean() {
 	if m == nil {
 		return
 	}
@@ -2154,6 +2156,20 @@ func (m *Manager) refreshNotificationCountAsync() {
 		logger.Debug("异步通知统计完成",
 			"device", m.deviceID,
 			"count", count)
+
+		// 广播通知计数给前端
+		notify.GlobalNotificationBroadcaster.Broadcast(notify.FrontendNotification{
+			Level:    "low",
+			Event:    "esim_notif_count",
+			Title:    "通知计数更新",
+			Body:     strconv.Itoa(count),
+			DeviceID: m.deviceID,
+		})
+
+		// 有通知时立即异步触发 autoClean（不需要等用户打开通知列表）
+		if count > 0 {
+			m.triggerAutoCleanAsync()
+		}
 	}()
 }
 
@@ -3703,15 +3719,10 @@ func (m *Manager) autoCleanPendingNotifications(client *lpa.Client, pendingNotif
 		// G8: 按事件类型查对应开关
 		shouldSend, shouldRemove, shouldDeleteWithoutSending := getNotificationActionSettings(meta.ProfileManagementOperation, settings)
 
-		// shouldDeleteWithoutSending: 直接从卡上移除，不发送，DB status=3
+		// shouldDeleteWithoutSending: 直接从卡上移除，不发送，DB status=3（只处理一次，不重试）
 		if shouldDeleteWithoutSending {
-			if err := retryWithBackoff(3, 300*time.Millisecond, nil, func() error {
-				err := client.RemoveNotificationFromList(seq)
-				if errors.Is(err, sgp22.ErrNothingToDelete) {
-					return nil
-				}
-				return err
-			}); err != nil {
+			err := client.RemoveNotificationFromList(seq)
+			if err != nil && !errors.Is(err, sgp22.ErrNothingToDelete) {
 				logger.Warn("eSIM 通知直接移除失败（deleteWithoutSending）",
 					"device", m.deviceID,
 					"AID", aidHex,
@@ -3736,23 +3747,9 @@ func (m *Manager) autoCleanPendingNotifications(client *lpa.Client, pendingNotif
 			continue
 		}
 
-		// shouldSend: 发送到 RSP 服务器
+		// shouldSend: 发送到 RSP 服务器（只处理一次，不重试）
 		if shouldSend {
-			if err := retryWithBackoff(3, 300*time.Millisecond,
-				func(attempt int, wait time.Duration, err error) {
-					logger.Warn("eSIM 通知自动清理发送失败，稍后重试",
-						"device", m.deviceID,
-						"AID", aidHex,
-						"sequence", seq,
-						"event", eventName,
-						"attempt", fmt.Sprintf("%d/%d", attempt, 3),
-						"wait_ms", wait.Milliseconds(),
-						"err", err)
-				},
-				func() error {
-					return client.HandleNotification(pn)
-				},
-			); err != nil {
+			if err := client.HandleNotification(pn); err != nil {
 				// G5: 发送失败 → 更新 DB status=2(failed)
 				if eid != "" {
 					iccidStr := ""
@@ -3801,27 +3798,10 @@ func (m *Manager) autoCleanPendingNotifications(client *lpa.Client, pendingNotif
 			}
 		}
 
-		// shouldRemove: 发送后从卡上移除
+		// shouldRemove: 发送后从卡上移除（只处理一次，不重试）
 		if shouldRemove {
-			if err := retryWithBackoff(3, 300*time.Millisecond,
-				func(attempt int, wait time.Duration, err error) {
-					logger.Warn("eSIM 通知自动清理移除卡内通知失败，稍后重试",
-						"device", m.deviceID,
-						"AID", aidHex,
-						"sequence", seq,
-						"event", eventName,
-						"attempt", fmt.Sprintf("%d/%d", attempt, 3),
-						"wait_ms", wait.Milliseconds(),
-						"err", err)
-				},
-				func() error {
-					err := client.RemoveNotificationFromList(seq)
-					if errors.Is(err, sgp22.ErrNothingToDelete) {
-						return nil
-					}
-					return err
-				},
-			); err != nil {
+			err := client.RemoveNotificationFromList(seq)
+			if err != nil && !errors.Is(err, sgp22.ErrNothingToDelete) {
 				// 移除卡内失败 → 标记 deletePending=true
 				if eid != "" {
 					iccidStr := ""
@@ -3851,6 +3831,16 @@ func (m *Manager) autoCleanPendingNotifications(client *lpa.Client, pendingNotif
 			"AID", aidHex,
 			"sequence", seq,
 			"event", eventName)
+
+		// 广播通知计数变化给前端
+		remaining := len(pendingNotifications) - len(cleaned)
+		notify.GlobalNotificationBroadcaster.Broadcast(notify.FrontendNotification{
+			Level:    "low",
+			Event:   "esim_notif_count",
+			Title:   "通知计数更新",
+			Body:    strconv.Itoa(remaining),
+			DeviceID: m.deviceID,
+		})
 	}
 	return cleaned
 }
@@ -3900,6 +3890,59 @@ func encodePendingNotificationBase64(pn *sgp22.PendingNotification) string {
 // listNotificationItemsWithCleanup 使用 combined 策略一次获取全量 PendingNotification（对标 NekoKo NotificationStrategy.combined）。
 // 注意：此处不再同步执行 autoClean（对标 NekoKo _backgroundProcess 的延迟触发）。
 // autoClean 改由 SSE 接口 ProcessNotificationsSSE 逐条异步执行，让用户先看到列表再感知处理过程。
+// triggerAutoCleanAsync 异步触发 autoClean（不需要用户打开通知列表）。
+// 由 refreshNotificationCountAndAutoClean 在发现有通知时调用。
+// 独立打开 LPA channel，处理完后更新 overview 缓存计数并广播给前端。
+func (m *Manager) triggerAutoCleanAsync() {
+	if m == nil {
+		return
+	}
+	go func() {
+		logger.Info("autoClean 异步触发开始",
+			"device", m.deviceID)
+		// 不获取写锁（lockOperation），避免阻塞 overview 请求。
+		// forEachEUICC 内部已有 waitForNoWriteOperation 排队机制。
+		m.preCleanChannels()
+
+		// 遍历所有 eUICC，对每个执行 autoClean
+		totalCleaned := 0
+		_ = m.forEachEUICC(func(client *lpa.Client, aid []byte, eidStr string) error {
+			aidHex := strings.ToUpper(hex.EncodeToString(aid))
+			pending, err := safeRetrieveAllNotifications(client)
+			if err != nil || len(pending) == 0 {
+				return nil
+			}
+			cleaned := m.autoCleanPendingNotifications(client, pending, aidHex, eidStr)
+			if len(cleaned) > 0 {
+				totalCleaned += len(cleaned)
+				logger.Info("eSIM 通知异步 autoClean 完成",
+					"device", m.deviceID,
+					"AID", aidHex,
+					"cleaned_count", len(cleaned))
+			}
+			return nil
+		})
+
+		if totalCleaned > 0 {
+			// 重新统计通知数并更新缓存 + 广播
+			count, _ := m.countPendingNotifications()
+			m.cacheMu.Lock()
+			if m.overviewCache != nil {
+				m.overviewCache.NotificationCount = count
+			}
+			m.cacheMu.Unlock()
+
+			notify.GlobalNotificationBroadcaster.Broadcast(notify.FrontendNotification{
+				Level:    "low",
+				Event:    "esim_notif_count",
+				Title:    "通知计数更新",
+				Body:     strconv.Itoa(count),
+				DeviceID: m.deviceID,
+			})
+		}
+	}()
+}
+
 // eid 参数用于合并 DB 中的通知状态（对标 NekoKo _refreshStatusMap + syncAndGetCount）。
 func (m *Manager) listNotificationItemsWithCleanup(client *lpa.Client, aidHex, eid string) ([]NotificationItem, error) {
 	pendingNotifications, err := safeRetrieveAllNotifications(client)
@@ -3907,12 +3950,38 @@ func (m *Manager) listNotificationItemsWithCleanup(client *lpa.Client, aidHex, e
 		return nil, err
 	}
 
+	// 同 channel 内同步执行 autoClean（只处理一次，不重试）
+	// 恢复初始实现方式：列出通知时同步发送 enable/disable 等通知
+	cleaned := m.autoCleanPendingNotifications(client, pendingNotifications, aidHex, eid)
+	if len(cleaned) > 0 {
+		logger.Info("eSIM 通知 autoClean 完成（同 channel）",
+			"device", m.deviceID,
+			"AID", aidHex,
+			"cleaned_count", len(cleaned))
+
+		// autoClean 处理了通知后，同步更新 overview 缓存中的通知计数
+		// 避免 overview 统计（countPendingNotifications）与实际卡上通知数不一致
+		remainingCount := len(pendingNotifications) - len(cleaned)
+		m.cacheMu.Lock()
+		if m.overviewCache != nil {
+			m.overviewCache.NotificationCount = remainingCount
+		}
+		m.cacheMu.Unlock()
+
+		// 广播通知计数变化给前端
+		notify.GlobalNotificationBroadcaster.Broadcast(notify.FrontendNotification{
+			Level:    "low",
+			Event:    "esim_notif_count",
+			Title:    "通知计数更新",
+			Body:     strconv.Itoa(remainingCount),
+			DeviceID: m.deviceID,
+		})
+	}
+
 	// G3: syncNotificationsWithDB — 对比 DB 和卡上通知，清理不一致的记录
 	dbStatusMap := m.syncNotificationsWithDB(eid, pendingNotifications)
 
-	// 从 overview 缓存获取 profiles，用于关联卡名和国旗（对标 NekoKo _preloadProfileMetadata）。
-	// 仅读缓存，不触发同步加载——切卡后 overview 缓存为空时 profile_name 留空，
-	// 前端先展示通知列表，overview 异步加载完成后下次请求自然补全。
+	// 从 overview 缓存获取 profiles，用于关联卡名和国旗。
 	var profiles []ProfileItem
 	m.cacheMu.RLock()
 	if m.overviewCache != nil {
@@ -3922,8 +3991,18 @@ func (m *Manager) listNotificationItemsWithCleanup(client *lpa.Client, aidHex, e
 	}
 	m.cacheMu.RUnlock()
 
-	// G2: 合并 DB 状态构建 NotificationItem（status==1 的不返回）
-	return buildNotificationItemsFromPending(pendingNotifications, aidHex, eid, dbStatusMap, profiles), nil
+	// 过滤掉已清理的通知，只返回卡上剩余的（autoClean 失败/未处理的通知）
+	var remaining []*sgp22.PendingNotification
+	for _, pn := range pendingNotifications {
+		if pn == nil || pn.Notification == nil {
+			continue
+		}
+		if !cleaned[pn.Notification.SequenceNumber] {
+			remaining = append(remaining, pn)
+		}
+	}
+
+	return buildNotificationItemsFromPending(remaining, aidHex, eid, dbStatusMap, profiles), nil
 }
 
 // syncNotificationsWithDB 对比 DB 记录和卡上通知列表，清理不一致的记录（对标 NekoKo syncAndGetCount）。
@@ -4281,7 +4360,7 @@ func (m *Manager) DownloadProfile(ctx context.Context, aidHex, smdp, matchingID,
 		}
 	}()
 
-	preDownloadNotifications, preDownloadNotificationsErr := safeListNotification(client, sgp22.NotificationEventInstall)
+	preDownloadNotifications, _ := safeListNotification(client, sgp22.NotificationEventInstall)
 
 	report("preflight", "正在检查 eUICC 剩余空间...", 10)
 	beforeFreeNvramBytes := int32(0)
@@ -4320,36 +4399,17 @@ func (m *Manager) DownloadProfile(ctx context.Context, aidHex, smdp, matchingID,
 		return DownloadProfileResult{}, fmt.Errorf("无效的 SM-DP+ 地址 %q", smdp)
 	}
 
-	activationCode := &lpa.ActivationCode{
-		SMDP:             &url.URL{Scheme: "https", Host: parsedURL.Host},
-		MatchingID:       strings.TrimSpace(matchingID),
-		IMEI:             imei,
-		ConfirmationCode: strings.TrimSpace(confirmationCode),
-	}
-
 	logger.Info("开始下载 eSIM profile",
 		"device", m.deviceID,
 		"smdp", parsedURL.Host,
 		"matchingID", matchingID,
 		"AID", aidHex)
 
-	installStarted := false
-	opts := &lpa.DownloadOptions{
-		OnProgress: func(stage lpa.DownloadStage) {
-			switch stage {
-			case lpa.DownloadStageAuthenticateClient:
-				report("auth_client", "正在向 SM-DP+ 进行客户端身份认证...", 30)
-			case lpa.DownloadStageAuthenticateServer:
-				report("auth_server", "正在向 SM-DP+ 请求 Profile 数据包...", 60)
-			case lpa.DownloadStageInstall:
-				installStarted = true
-				report("install", "正在将 Profile 写入 eUICC...", 80)
-			}
-		},
-	}
-	downloadResult, err := client.DownloadProfile(ctx, activationCode, opts)
+	// 使用分步下载（参考 NekokoLPA），替代 client.DownloadProfile 的一步封装
+	// 分步调用能保留 SM-DP+ 返回的完整结构化错误信息（SubjectCode/ReasonCode）
+	sessionResult, err := m.downloadProfileStepByStep(ctx, client, parsedURL.Host, matchingID, strings.TrimSpace(confirmationCode), imei, progressFn)
 	if err != nil {
-		downloadErr := NewDownloadProfileError(err)
+		downloadErr := m.classifyDownloadStepError(err)
 		logger.Warn("下载 eSIM profile 失败",
 			"device", m.deviceID,
 			"smdp", parsedURL.Host,
@@ -4361,23 +4421,15 @@ func (m *Manager) DownloadProfile(ctx context.Context, aidHex, smdp, matchingID,
 			"bpp_error_reason", downloadErr.BPPErrorReason,
 			"details", downloadErr.Details,
 			"err", err)
-		if installStarted && preDownloadNotificationsErr == nil {
-			report("notify", "安装结果异常，正在确认并发送下载通知...", 90)
-			m.closeLPAClientForOperation("download_profile_finalize_error", client)
-			client = nil
-			if recovered, ok := m.recoverDownloadInstallFinalizeError(ctx, targetAID, preDownloadNotifications, err); ok {
-				result = recovered
-				m.invalidateOverviewCache("download_profile_recovered")
-				m.beginOverviewReloadSuppression(postDownloadOverviewSettleDelay)
-				m.triggerOverviewReload("download_profile_recovered")
-				return result, nil
-			}
-		}
 		m.invalidateOverviewCache("download_profile_failed")
 		return DownloadProfileResult{}, downloadErr
 	}
 
 	report("notify", "正在向运营商发送下载通知...", 90)
+	var downloadResult *sgp22.LoadBoundProfilePackageResponse
+	if sessionResult != nil && sessionResult.LoadBoundProfilePackageResponse != nil {
+		downloadResult = sessionResult.LoadBoundProfilePackageResponse
+	}
 	lastSeq := downloadNotificationBaseline(preDownloadNotifications, downloadResultNotificationMetadata(downloadResult))
 	result = m.sendDownloadInstallNotification(client, lastSeq, 300*time.Millisecond)
 
