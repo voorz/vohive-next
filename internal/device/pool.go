@@ -640,6 +640,17 @@ func (w *Worker) collectRuntimeStatus(ctx context.Context, reason string) modem.
 				mu.Unlock()
 			}
 		})
+		call(func() {
+			// 可选接口：仅 QMI 后端实现，AT/MBIM 自动跳过
+			if provider, ok := w.Backend.(backend.BandCapabilitiesProvider); ok {
+				if caps, err := provider.GetBandCapabilities(ctx); err == nil && caps != nil {
+					mu.Lock()
+					status.LTEBands = caps.LTEBands
+					status.NR5GBands = caps.NR5GBands
+					mu.Unlock()
+				}
+			}
+		})
 
 		wg.Wait()
 		// 从 Manager 获取 AT 来源的模组品牌（如 Quectel），补填到 Manufacturer。

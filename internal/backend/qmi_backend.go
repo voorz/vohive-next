@@ -67,6 +67,9 @@ type QMISource interface {
 	// 获取短信中心号码（由底层 QMI 库实现）
 	GetSMSC(ctx context.Context) (string, error)
 
+	// 获取模组支持的频段能力（LTE + 5G NR 频段列表）
+	GetBandCapabilities(ctx context.Context) (*qmi.BandCapabilities, error)
+
 	// 获取设备状态快照（由 NAS Indication 事件驱动更新，零 IPC）
 	GetDeviceSnapshot() *manager.DeviceSnapshot
 }
@@ -619,6 +622,19 @@ func qmiOperatorDisplay(mcc, mnc uint16) string {
 		return plmn6
 	}
 	return plmn5
+}
+
+// GetBandCapabilities 获取模组支持的频段能力（QMI DMS GetBandCapabilities）。
+// 实现 BandCapabilitiesProvider 可选接口。
+func (q *QMIBackend) GetBandCapabilities(ctx context.Context) (*BandCapabilities, error) {
+	caps, err := q.source.GetBandCapabilities(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return &BandCapabilities{
+		LTEBands:  caps.ExtendedLTEBandCapability,
+		NR5GBands: caps.NR5GBandCapability,
+	}, nil
 }
 
 func (q *QMIBackend) IsSimInserted(ctx context.Context) (bool, error) {
