@@ -13,7 +13,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   downloaded: []
-  progress: [payload: { pct: number; msg: string; error?: string; batchCurrent?: number; batchTotal?: number }]
+  progress: [payload: { pct: number; msg: string; error?: string; errorCode?: string; errorDetails?: string; subjectCode?: string; reasonCode?: string; subjectIdentifier?: string; batchCurrent?: number; batchTotal?: number }]
 }>()
 
 // 可选的 EID 列表
@@ -188,7 +188,7 @@ async function downloadBatch() {
           if (!lineData.startsWith('data:')) continue
           const payload = lineData.slice('data:'.length).trim()
           try {
-            const evt = JSON.parse(payload) as { step: string; pct: number; msg: string }
+            const evt = JSON.parse(payload) as { step: string; pct: number; msg: string; code?: string; details?: string; subjectCode?: string; reasonCode?: string; subjectIdentifier?: string }
             batchProgress.value = Math.round(((i + evt.pct / 100) / lines.length) * 100)
             batchMsg.value = evt.msg
             emit('progress', { pct: batchProgress.value, msg: evt.msg, batchCurrent: i + 1, batchTotal: lines.length })
@@ -198,7 +198,7 @@ async function downloadBatch() {
             }
             if (evt.step === 'error') {
               batchError.value = `第 ${i + 1} 个下载失败: ${evt.msg}`
-              emit('progress', { pct: batchProgress.value, msg: batchMsg.value, error: batchError.value, batchCurrent: i + 1, batchTotal: lines.length })
+              emit('progress', { pct: batchProgress.value, msg: batchMsg.value, error: batchError.value, errorCode: evt.code, errorDetails: evt.details, subjectCode: evt.subjectCode, reasonCode: evt.reasonCode, subjectIdentifier: evt.subjectIdentifier, batchCurrent: i + 1, batchTotal: lines.length })
               break
             }
           } catch { /* 忽略 */ }

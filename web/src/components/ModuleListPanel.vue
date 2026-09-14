@@ -13,8 +13,8 @@ import {
   WifiWarning24Filled,
   ArrowSort24Regular
 } from '@vicons/fluent'
-import { WifiCalling3Round, SimCardAlertRound, SimCardRound, NoSimOutlined, SignalCellularNoSimTwotone, Md3GMobiledataSharp, Md4GMobiledataSharp, Md4GPlusMobiledataSharp, Md5GSharp } from '@vicons/material'
-import { Airplane } from '@vicons/ionicons5'
+import { WifiCalling3Round, SignalCellularNoSimTwotone, Md3GMobiledataSharp, Md4GMobiledataSharp, Md4GPlusMobiledataSharp, Md5GSharp } from '@vicons/material'
+import { Airplane, HardwareChipSharp } from '@vicons/ionicons5'
 import { loadPlmnCatalog } from '../composables/plmn-catalog'
 import { downloadIcon, getCachedIcon } from '../composables/useOperatorIcon'
 import { useEventStream } from '../composables/useEventStream'
@@ -195,12 +195,6 @@ function vowifiState(d: DeviceMgmtListItem): 'off' | 'enabled-not-ready' | 'read
   return 'enabled-not-ready'
 }
 
-// eUICC 状态图标
-function simIcon(d: DeviceMgmtListItem) {
-  if (d.euicc_available === true) return SimCardRound
-  if (d.euicc_available === false) return SimCardAlertRound
-  return NoSimOutlined
-}
 function simIconColor(d: DeviceMgmtListItem): string {
   if (d.euicc_available === true) return 'var(--brand)'
   if (d.euicc_available === false) return 'var(--destructive)'
@@ -222,9 +216,13 @@ function readinessItems(d: DeviceMgmtListItem) {
 
 // 设备状态图标（替代品牌图标，按优先级判断）
 function deviceStatusIcon(d: DeviceMgmtListItem) {
-  // PC/SC 读卡器不显示状态图标
-  if (d?.esim_transport === 'pcsc') return null
-  // VoWiFi 已就绪 → 最高优先级
+  // PC/SC 读卡器：无 modem，只判断 VoWiFi 状态
+  if (d?.esim_transport === 'pcsc') {
+    if (vowifiState(d) === 'ready') return WifiCalling3Round
+    if (vowifiState(d) === 'enabled-not-ready') return WifiWarning24Filled
+    return null
+  }
+  // 模组：VoWiFi 已就绪 → 最高优先级
   if (vowifiState(d) === 'ready') return WifiCalling3Round
   // VoWiFi 启用但未就绪
   if (vowifiState(d) === 'enabled-not-ready') return WifiWarning24Filled
@@ -306,7 +304,7 @@ function deviceTypeTag(d: DeviceMgmtListItem): string {
                   </el-icon>
                 </template>
                 <el-icon size="20" class="vohive-rattlesnake-sim" :style="{ color: simIconColor(item) }" :title="item.euicc_available === true ? 'eUICC 可用' : item.euicc_available === false ? 'eUICC 不可用' : 'eUICC 状态未知'">
-                  <component :is="simIcon(item)" />
+                  <HardwareChipSharp />
                 </el-icon>
                 <el-icon size="20" class="vohive-rattlesnake-vowifi" :class="vowifiState(item)">
                   <WifiCalling3Round v-if="vowifiState(item) === 'ready'" />

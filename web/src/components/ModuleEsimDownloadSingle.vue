@@ -17,7 +17,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   downloaded: []
-  progress: [payload: { pct: number; msg: string; error?: string }]
+  progress: [payload: { pct: number; msg: string; error?: string; errorCode?: string; errorDetails?: string; subjectCode?: string; reasonCode?: string; subjectIdentifier?: string }]
 }>()
 
 const lpaCode = ref('')
@@ -216,12 +216,12 @@ async function downloadProfile(force = false) {
 
         const payload = line.slice('data:'.length).trim()
         try {
-          const evt = JSON.parse(payload) as { step: string; msg: string; pct: number; code?: string; space_delta?: EsimSpaceDelta }
+          const evt = JSON.parse(payload) as { step: string; msg: string; pct: number; code?: string; details?: string; subjectCode?: string; reasonCode?: string; subjectIdentifier?: string; space_delta?: EsimSpaceDelta }
           if (evt.step === 'error') {
             downloadError.value = evt.code === 'euicc_insufficient_memory'
               ? 'eUICC 安装 profile 时空间不足，请删除未使用的 profile 后重试。'
               : evt.msg
-            emit('progress', { pct: evt.pct, msg: evt.msg, error: downloadError.value })
+            emit('progress', { pct: evt.pct, msg: evt.msg, error: downloadError.value, errorCode: evt.code, errorDetails: evt.details, subjectCode: evt.subjectCode, reasonCode: evt.reasonCode, subjectIdentifier: evt.subjectIdentifier })
             break outer
           }
           downloadProgress.value = evt.pct

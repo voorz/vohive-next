@@ -1,12 +1,17 @@
 <script setup lang="ts">
-import { computed, onMounted, onBeforeUnmount } from 'vue'
-import { CheckmarkCircle24Filled, DismissCircle24Filled, Spinner24Regular } from '@vicons/fluent'
+import { computed } from 'vue'
+import { CheckmarkCircle24Filled, DismissCircle24Filled, SpinnerIos20Regular } from '@vicons/fluent'
 
 const props = defineProps<{
   visible: boolean
   progress: number
   message: string
   error: string
+  errorCode?: string
+  errorDetails?: string
+  subjectCode?: string
+  reasonCode?: string
+  subjectIdentifier?: string
   batchCurrent?: number
   batchTotal?: number
 }>()
@@ -21,197 +26,194 @@ const status = computed<'downloading' | 'done' | 'error'>(() => {
   return 'downloading'
 })
 
-const progressDisplay = computed(() => {
-  if (status.value === 'done') return '100%'
-  return `${Math.min(props.progress, 99)}%`
+const safeProgress = computed(() => Math.max(0, Math.min(props.progress, 100)))
+
+const canClose = computed(() => status.value !== 'downloading')
+
+// SM-DP+ 错误码行：[SM-DP+ Error (subjectCode, reasonCode)]
+const smdpErrorCodeLine = computed(() => {
+  if (!props.subjectCode && !props.reasonCode) return ''
+  return `[SM-DP+ Error (${props.subjectCode || 'N/A'}, ${props.reasonCode || 'N/A'})]`
 })
 
-// ESC 键关闭（仅完成/失败状态可关闭）
-function onKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && props.visible && status.value !== 'downloading') {
-    emit('close')
-  }
-}
+// SM-DP+ Identifier 行：[Identifier: xxx]
+const smdpIdentifierLine = computed(() => {
+  if (!props.subjectIdentifier) return ''
+  return `[Identifier: ${props.subjectIdentifier}]`
+})
 
-onMounted(() => window.addEventListener('keydown', onKeydown))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKeydown))
+// 弹窗标题始终不变
+const titleText = '下载 eSIM Profile'
 </script>
 
 <template>
-  <Transition name="overlay-fade">
-    <div v-if="visible" class="download-overlay" @click.self="status !== 'downloading' && emit('close')">
-      <div class="overlay-card">
-        <!-- 图标 -->
-        <div class="overlay-icon-box">
-          <el-icon v-if="status === 'downloading'" size="32" class="overlay-spinner">
-            <Spinner24Regular />
-          </el-icon>
-          <el-icon v-else-if="status === 'done'" size="32" class="overlay-icon-done">
-            <CheckmarkCircle24Filled />
-          </el-icon>
-          <el-icon v-else size="32" class="overlay-icon-error">
-            <DismissCircle24Filled />
-          </el-icon>
-        </div>
+  <el-dialog
+    :model-value="visible"
+    @update:model-value="(v: boolean) => { if (!v && canClose) emit('close') }"
+    :title="titleText"
+    width="min(440px, 90vw)"
+    :close-on-click-modal="false"
+    :close-on-press-escape="canClose"
+    :show-close="canClose"
+    :align-center="true"
+  >
+    <div class="dl-body">
+      <!-- 图标 -->
+      <el-icon v-if="status === 'downloading'" size="32" class="dl-spinner">
+        <SpinnerIos20Regular />
+      </el-icon>
+      <el-icon v-else-if="status === 'done'" size="32" class="dl-done-icon">
+        <CheckmarkCircle24Filled />
+      </el-icon>
+      <el-icon v-else size="32" class="dl-error-icon">
+        <DismissCircle24Filled />
+      </el-icon>
 
-        <!-- 标题 -->
-        <div class="overlay-title">
-          {{ status === 'downloading' ? '正在下载 eSIM Profile' : status === 'done' ? '下载完成' : '下载失败' }}
-        </div>
+      <!-- 百分比（下载中/成功时显示，失败时隐藏） -->
+      <div v-if="status !== 'error'" class="dl-pct">
+        {{ status === 'done' ? '100%' : `${safeProgress}%` }}
+      </div>
 
-        <!-- 批量计数 -->
-        <div v-if="batchTotal && batchTotal > 1" class="overlay-batch-count">
-          {{ batchCurrent }} / {{ batchTotal }}
-        </div>
+      <!-- 进度条（下载中/成功时显示，失败时隐藏） -->
+      <el-progress
+        v-if="status !== 'error'"
+        :percentage="status === 'done' ? 100 : safeProgress"
+        :status="status === 'done' ? 'success' : undefined"
+        :stroke-width="6"
+        :show-text="false"
+      />
 
-        <!-- 进度条 -->
-        <div class="overlay-progress-track">
-          <div
-            class="overlay-progress-fill"
-            :class="{ error: status === 'error', done: status === 'done' }"
-            :style="{ width: progressDisplay }"
-          />
-        </div>
+      <!-- 状态消息 -->
+      <div v-if="status === 'error'" class="dl-status-text">
+        下载失败
+      </div>
+      <div v-else class="dl-status-text">
+        {{ message }}
+      </div>
 
-        <!-- 状态文字 -->
-        <div class="overlay-message" :class="{ error: status === 'error' }">
-          {{ error || message || progressDisplay }}
-        </div>
+      <!-- 批量计数 -->
+      <div v-if="batchTotal && batchTotal > 1" class="dl-batch">
+        {{ batchCurrent }} / {{ batchTotal }}
+      </div>
 
-        <!-- 关闭按钮（非下载中显示） -->
-        <button
-          v-if="status !== 'downloading'"
-          class="overlay-close-btn"
-          @click="emit('close')"
-        >
-          关闭
-        </button>
+      <!-- 错误信息卡片 -->
+      <div v-if="status === 'error' && error" class="dl-error-card">
+        <div class="dl-error-card-header">ERROR</div>
+        <div v-if="smdpErrorCodeLine" class="dl-error-code-line">{{ smdpErrorCodeLine }}</div>
+        <div class="dl-error-msg">{{ error }}</div>
+        <div v-if="smdpIdentifierLine" class="dl-error-identifier-line">{{ smdpIdentifierLine }}</div>
+      </div>
+
+      <!-- 下载中提示 -->
+      <div v-if="status === 'downloading'" class="dl-hint">
+        请勿关闭此窗口，下载完成后将自动关闭
       </div>
     </div>
-  </Transition>
+
+    <template #footer>
+      <el-button
+        v-if="canClose"
+        size="default"
+        @click="emit('close')"
+      >
+        关闭
+      </el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <style scoped>
-.download-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-}
-
-.overlay-card {
+.dl-body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 14px;
-  padding: 32px 40px;
-  border-radius: 12px;
-  background: var(--card, #fff);
-  border: 1px solid var(--border, #e4e4e7);
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
-  min-width: 360px;
-  max-width: 480px;
+  gap: 12px;
+  padding: 8px 0;
 }
 
-.overlay-icon-box {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.dl-spinner {
+  color: var(--brand);
+  animation: dl-spin 0.8s linear infinite;
 }
 
-.overlay-spinner {
-  color: var(--brand, #00bc7d);
-  animation: overlay-spin 0.8s linear infinite;
-}
-
-@keyframes overlay-spin {
+@keyframes dl-spin {
   to { transform: rotate(360deg); }
 }
 
-.overlay-icon-done {
-  color: var(--brand, #00bc7d);
+.dl-done-icon {
+  color: var(--brand);
 }
 
-.overlay-icon-error {
-  color: #ef4444;
+.dl-error-icon {
+  color: var(--destructive);
 }
 
-.overlay-title {
-  font-size: 15px;
+.dl-pct {
+  font-size: 22px;
   font-weight: 700;
-  color: var(--foreground, #18181b);
+  color: var(--foreground);
+  line-height: 1;
 }
 
-.overlay-batch-count {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted-foreground, #71717a);
-}
-
-.overlay-progress-track {
-  width: 100%;
-  height: 8px;
-  border-radius: 999px;
-  background: var(--muted, #f4f4f5);
-  overflow: hidden;
-}
-
-.overlay-progress-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: var(--brand, #00bc7d);
-  transition: width 0.3s ease;
-}
-
-.overlay-progress-fill.error {
-  background: #ef4444;
-}
-
-.overlay-progress-fill.done {
-  background: var(--brand, #00bc7d);
-}
-
-.overlay-message {
-  font-size: 12px;
-  color: var(--muted-foreground, #71717a);
+.dl-status-text {
+  font-size: 13px;
+  color: var(--muted-foreground);
   text-align: center;
-  word-break: break-word;
-  max-width: 100%;
 }
 
-.overlay-message.error {
-  color: #ef4444;
-}
-
-.overlay-close-btn {
-  padding: 6px 20px;
-  border: 1px solid var(--border, #e4e4e7);
-  border-radius: 6px;
-  background: transparent;
-  color: var(--foreground, #18181b);
+.dl-batch {
   font-size: 12px;
   font-weight: 600;
-  cursor: pointer;
-  transition: all 0.12s;
+  color: var(--muted-foreground);
 }
 
-.overlay-close-btn:hover {
-  background: var(--muted, #f4f4f5);
+.dl-hint {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  text-align: center;
+  opacity: 0.7;
 }
 
-/* Transition */
-.overlay-fade-enter-active,
-.overlay-fade-leave-active {
-  transition: opacity 0.2s ease;
+.dl-error-card {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 6px);
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: var(--muted);
 }
 
-.overlay-fade-enter-from,
-.overlay-fade-leave-to {
-  opacity: 0;
+.dl-error-card-header {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--destructive);
+}
+
+.dl-error-msg {
+  font-size: 12px;
+  color: var(--foreground);
+  text-align: center;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.dl-error-code-line {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  text-align: center;
+  line-height: 1.5;
+}
+
+.dl-error-identifier-line {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  text-align: center;
+  line-height: 1.5;
+  opacity: 0.8;
 }
 </style>
