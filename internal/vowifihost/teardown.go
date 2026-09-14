@@ -86,9 +86,10 @@ func (m *Manager) TeardownForReconnect(ctx context.Context, deviceID string) boo
 }
 
 func (m *Manager) TeardownForSwitch(ctx context.Context, deviceID string) bool {
-	if !m.TeardownSession(ctx, deviceID, TeardownOptions{Reason: "switch", RestoreSMS: true}) {
-		return false
-	}
+	m.TeardownSession(ctx, deviceID, TeardownOptions{Reason: "switch", RestoreSMS: true})
+	// 清除旧的恢复退避快照，避免切卡过程中 ticker 采样到旧的 recover_failed 状态
+	// 无论 TeardownSession 是否成功拆除 runtime instance，都需要清除
+	m.ClearDesiredRecoverState(deviceID)
 	logger.Info("eSIM 切卡前已拆除旧 VoWiFi 实例", "device", strings.TrimSpace(deviceID))
 	return true
 }
