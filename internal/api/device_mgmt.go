@@ -451,6 +451,7 @@ type deviceMgmtListModem struct {
 	ICCID            string `json:"iccid,omitempty"`
 	RegStatus        int    `json:"reg_status"`
 	PSAttached       bool   `json:"ps_attached"`
+	NR5GBands        []uint16 `json:"nr5g_bands,omitempty"`
 	OperatingMode    *int   `json:"operating_mode,omitempty"`
 }
 
@@ -962,6 +963,7 @@ func (s *Server) handleDeviceMgmtList(c *gin.Context) {
 				RegStatus:        status.RegStatus,
 				PSAttached:       status.PSAttached,
 				OperatingMode:    status.OperatingMode,
+				NR5GBands:        status.NR5GBands,
 			},
 		}
 		s.applyLifecycleToListItem(&item, true, cfg)

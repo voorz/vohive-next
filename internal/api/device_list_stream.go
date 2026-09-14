@@ -150,10 +150,11 @@ func (s *Server) handleDeviceMgmtListStream(c *gin.Context) {
 					ICCID:            status.ICCID,
 					RegStatus:        status.RegStatus,
 					PSAttached:       status.PSAttached,
-					OperatingMode:    status.OperatingMode,
-				},
-			}
-			s.applyLifecycleToListItem(&item, true, cfg)
+				OperatingMode:    status.OperatingMode,
+				NR5GBands:        status.NR5GBands,
+			},
+		}
+		s.applyLifecycleToListItem(&item, true, cfg)
 			items = append(items, item)
 		}
 
