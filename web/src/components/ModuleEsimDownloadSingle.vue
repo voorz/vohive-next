@@ -252,7 +252,7 @@ async function downloadProfile(force = false) {
     <!-- EID 选择（始终显示） -->
     <div class="single-field">
       <label class="single-label">目标 EID（eUICC 芯片）</label>
-      <el-select v-model="selectedEidIndex" class="eid-select" popper-class="eid-select-popper" @change="onEidChange">
+      <el-select v-model="selectedEidIndex" class="eid-select" popper-class="eid-select-popper" :disabled="eidOptions.length <= 1" @change="onEidChange">
         <el-option
           v-for="(eid, idx) in eidOptions"
           :key="eid.eid || idx"

@@ -14,7 +14,7 @@ import ModuleOverviewTab from './ModuleOverviewTab.vue'
 import ModuleVoiceTab from './ModuleVoiceTab.vue'
 import ModuleControlGrid from './ModuleControlGrid.vue'
 import { getPlmnInfo, loadPlmnInfo, type PlmnInfoEntry } from '../composables/plmn-info'
-import { useSimOperatorDisplay } from '../composables/useSimOperatorDisplay'
+import { useSimOperatorDisplay, imsiMccMnc } from '../composables/useSimOperatorDisplay'
 import { ArrowSync24Regular, Add24Regular, ChevronUp24Regular } from '@vicons/fluent'
 import { MenuRound } from '@vicons/material'
 import { cardsService } from '../services/cards'
@@ -52,8 +52,10 @@ const plmnInfo = ref<PlmnInfoEntry | null>(null)
 
 onMounted(() => loadPlmnInfo())
 
-watch(() => [detail.value?.modem?.native_mcc, detail.value?.modem?.native_mnc], ([mcc, mnc]) => {
-  const key = mcc && mnc ? `${mcc}-${mnc}` : ''
+watch(() => [detail.value?.modem?.native_mcc, detail.value?.modem?.native_mnc, detail.value?.modem?.imsi], () => {
+  // 优先用 native_mcc/native_mnc，回退从 IMSI 前缀解析
+  const fallback = imsiMccMnc(detail.value?.modem)
+  const key = fallback ? `${fallback.mcc}-${fallback.mnc}` : ''
   plmnInfo.value = key ? getPlmnInfo(key) : null
 }, { immediate: true })
 

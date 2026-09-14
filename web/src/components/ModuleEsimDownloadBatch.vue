@@ -219,7 +219,7 @@ async function downloadBatch() {
     <!-- EID 选择（始终显示） -->
     <div class="batch-field">
       <label class="batch-label">目标 EID（eUICC 芯片）</label>
-      <el-select v-model="selectedEidIndex" class="eid-select" popper-class="eid-select-popper">
+      <el-select v-model="selectedEidIndex" class="eid-select" popper-class="eid-select-popper" :disabled="eidOptions.length <= 1">
         <el-option
           v-for="(eid, idx) in eidOptions"
           :key="eid.eid || idx"
