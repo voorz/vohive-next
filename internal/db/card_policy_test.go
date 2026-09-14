@@ -32,24 +32,31 @@ func TestDefaultCardPolicy(t *testing.T) {
 	}
 }
 
-// airplane_enabled 是独立的“用户飞行意图”，归一不再因 vowifi=on 强制 airplane=on，
-// 否则关闭 VoWiFi 后无法区分“飞行是用户主动开的”还是“VoWiFi 的副产品”，导致无法回退。
-func TestNormalizeCardPolicyAirplaneIndependent(t *testing.T) {
-	// vowifi=on 但用户未开飞行：airplane 保持 false（之前是在线，关 vowifi 应回在线）
+// vowifi=on 时强制 airplane=on：VoWiFi 接管射频等效飞行模式；
+// 关 vowifi 时不动 airplane（保持飞行意图，避免关后卡回基站风控）。
+func TestNormalizeCardPolicyVowifiForcesAirplane(t *testing.T) {
+	// vowifi=on 但用户未开飞行：airplane 应被强制为 true
 	p := CardPolicy{ICCID: "x", VoWiFiEnabled: true, AirplaneEnabled: false, IPVersion: ""}
 	NormalizeCardPolicy(&p)
-	if p.AirplaneEnabled {
-		t.Fatal("vowifi=on 不应强制 airplane=on：airplane 须保持用户意图")
+	if !p.AirplaneEnabled {
+		t.Fatal("vowifi=on 应强制 airplane=on")
 	}
 	if p.IPVersion != "v4" {
 		t.Fatalf("空 ip 应归一为 v4，得 %q", p.IPVersion)
 	}
 
-	// vowifi=on 且用户开了飞行：airplane 保持 true（之前是飞行，关 vowifi 应回飞行）
+	// vowifi=on 且用户已开飞行：airplane 保持 true
 	q := CardPolicy{ICCID: "x", VoWiFiEnabled: true, AirplaneEnabled: true}
 	NormalizeCardPolicy(&q)
 	if !q.AirplaneEnabled {
-		t.Fatal("用户已开飞行意图须保留")
+		t.Fatal("vowifi=on 且 airplane=on 应保持 true")
+	}
+
+	// vowifi=off 且 airplane=off：airplane 保持 false
+	r := CardPolicy{ICCID: "x", VoWiFiEnabled: false, AirplaneEnabled: false}
+	NormalizeCardPolicy(&r)
+	if r.AirplaneEnabled {
+		t.Fatal("vowifi=off 且 airplane=off 应保持 false")
 	}
 }
 

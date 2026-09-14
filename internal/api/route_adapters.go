@@ -85,8 +85,9 @@ func (s *Server) handleDeviceVoWiFiPatch(c *gin.Context) {
 	deviceID := deviceIDParam(c)
 
 	if *req.Enabled {
-		// 落库：仅置 vowifi_enabled=true。不碰 airplane_enabled——它是用户的纯飞行
-		// 意图，作为关闭 VoWiFi 后的回退依据；VoWiFi 接管射频由运行时投影派生。
+		// 落库：置 vowifi_enabled=true 且 airplane_enabled=true。
+		// VoWiFi 接管射频等效飞行模式；关闭 VoWiFi 时保持飞行意图（不关 airplane），
+		// 避免关闭后卡回基站导致跨区域驻网风控。
 		_, applied, _ := s.patchCardPolicyForDevice(deviceID, vowifiEnablePolicyMutation)
 		// 同步 w.Config，使概览即时切到 VoWiFi 模式面板（EnableVoWiFi 不碰 Config）。
 		s.pool.SetWorkerVoWiFiPolicy(deviceID, true)
@@ -106,8 +107,12 @@ func (s *Server) handleDeviceVoWiFiPatch(c *gin.Context) {
 	s.handleVoWiFiDisable(c)
 }
 
-// vowifiEnablePolicyMutation 开 VoWiFi 的落库副作用：只置 vowifi，飞行意图保持不变。
-func vowifiEnablePolicyMutation(p *db.CardPolicy) { p.VoWiFiEnabled = true }
+// vowifiEnablePolicyMutation 开 VoWiFi 的落库副作用：置 vowifi 并强制 airplane=on。
+// VoWiFi 接管射频等效飞行模式；关闭 VoWiFi 时保持飞行意图以防基站风控。
+func vowifiEnablePolicyMutation(p *db.CardPolicy) {
+	p.VoWiFiEnabled = true
+	p.AirplaneEnabled = true
+}
 
 // vowifiDisablePolicyMutation 关 VoWiFi 的落库副作用：只清 vowifi，保留用户飞行意图以便回退。
 func vowifiDisablePolicyMutation(p *db.CardPolicy) { p.VoWiFiEnabled = false }

@@ -151,9 +151,9 @@ func TestPatchCardPolicyForDeviceNoICCID(t *testing.T) {
 	}
 }
 
-// TestPatchCardPolicyVoWiFiKeepsAirplaneIntent 验证开 VoWiFi 不再强制 airplane=true：
-// airplane 反映用户的纯飞行意图，独立于 vowifi。
-func TestPatchCardPolicyVoWiFiKeepsAirplaneIntent(t *testing.T) {
+// TestPatchCardPolicyVoWiFiForcesAirplane 验证开 VoWiFi 时 airplane 被强制为 true：
+// VoWiFi 接管射频等效飞行模式。
+func TestPatchCardPolicyVoWiFiForcesAirplane(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	openTestDB(t)
 
@@ -163,14 +163,14 @@ func TestPatchCardPolicyVoWiFiKeepsAirplaneIntent(t *testing.T) {
 	injectWorker(p, w)
 
 	s := &Server{pool: p}
-	// 从在线开 VoWiFi（飞行意图为 false）：airplane 应保持 false，不被强制为 true。
+	// 从在线开 VoWiFi（飞行意图为 false）：airplane 应被强制为 true。
 	_, _, err := s.patchCardPolicyForDevice("wwan-vowifi", vowifiEnablePolicyMutation)
 	if err != nil {
 		t.Fatalf("error=%v", err)
 	}
 	got, _ := db.GetCardPolicy("8986vowifi01")
-	if !got.VoWiFiEnabled || got.AirplaneEnabled {
-		t.Fatalf("开 VoWiFi 不应强制 airplane=true: vowifi=%v airplane=%v", got.VoWiFiEnabled, got.AirplaneEnabled)
+	if !got.VoWiFiEnabled || !got.AirplaneEnabled {
+		t.Fatalf("开 VoWiFi 应强制 airplane=true: vowifi=%v airplane=%v", got.VoWiFiEnabled, got.AirplaneEnabled)
 	}
 }
 
@@ -195,7 +195,7 @@ func TestVoWiFiToggleCyclePreservesAirplaneIntent(t *testing.T) {
 		t.Fatalf("开飞行 error=%v", err)
 	}
 
-	// 2) 开 VoWiFi（落库副作用：只置 vowifi）
+	// 2) 开 VoWiFi（落库副作用：置 vowifi 且 airplane=on）
 	if _, _, err := s.patchCardPolicyForDevice("wwan-cycle", vowifiEnablePolicyMutation); err != nil {
 		t.Fatalf("开 vowifi error=%v", err)
 	}
@@ -204,7 +204,7 @@ func TestVoWiFiToggleCyclePreservesAirplaneIntent(t *testing.T) {
 		t.Fatalf("开 VoWiFi 期间飞行意图应保留: %+v", mid)
 	}
 
-	// 3) 关 VoWiFi（落库副作用：只清 vowifi），应回退到飞行
+	// 3) 关 VoWiFi（落库副作用：只清 vowifi，保留 airplane），应回退到飞行
 	if _, _, err := s.patchCardPolicyForDevice("wwan-cycle", vowifiDisablePolicyMutation); err != nil {
 		t.Fatalf("关 vowifi error=%v", err)
 	}
