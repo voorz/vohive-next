@@ -6,6 +6,7 @@ import { errorMessage } from '../services/http'
 import { useSensitiveVisibility } from '../composables/useSensitiveVisibility'
 import { applyOptimisticActiveState } from './deviceEsimOptimistic'
 import { onNotificationCountChange } from '../composables/useEsimNotifications'
+import { onNotifCountChange } from '../composables/useNotificationStream'
 import type { EsimChipInfo, EsimEUICCProfiles, EsimProfileItem } from '../types/api'
 import ModuleEsimChipCard from './ModuleEsimChipCard.vue'
 import ModuleEsimProfileItem from './ModuleEsimProfileItem.vue'
@@ -57,8 +58,15 @@ const downloadViewOpen = ref(false)
 
 // F4: 监听通知数量变化，实时更新红点
 let unsubCountChange: (() => void) | null = null
+let unsubSSENotifCount: (() => void) | null = null
 onMounted(() => {
   unsubCountChange = onNotificationCountChange((devId, count) => {
+    if (devId === props.deviceId) {
+      notificationCount.value = count
+    }
+  })
+  // 后端 SSE 推送的通知计数变化（autoClean 每处理完一条后实时推送）
+  unsubSSENotifCount = onNotifCountChange((devId, count) => {
     if (devId === props.deviceId) {
       notificationCount.value = count
     }
@@ -66,6 +74,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   if (unsubCountChange) unsubCountChange()
+  if (unsubSSENotifCount) unsubSSENotifCount()
 })
 
 // Sensitive visibility

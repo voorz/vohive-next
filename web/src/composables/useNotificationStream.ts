@@ -4,6 +4,7 @@
  * 订阅 /notifications/stream，根据 level 分发：
  * - low  → ElNotification 右上角气泡（自动消失）
  * - high → highNotification ref（由调用方渲染自定义浮窗）
+ * - event='esim_notif_count' → 不弹气泡，通过 onNotifCountChange 回调通知订阅者
  */
 
 import { ref, onBeforeUnmount } from 'vue'
@@ -20,6 +21,16 @@ export type FrontendNotification = {
   timestamp: string
 }
 
+type NotifCountCallback = (deviceId: string, count: number) => void
+const notifCountListeners = new Set<NotifCountCallback>()
+
+export function onNotifCountChange(cb: NotifCountCallback) {
+  notifCountListeners.add(cb)
+  return () => {
+    notifCountListeners.delete(cb)
+  }
+}
+
 export function useNotificationStream() {
   const highNotification = ref<FrontendNotification | null>(null)
 
@@ -29,6 +40,12 @@ export function useNotificationStream() {
     reconnectDelayMs: 5000,
     parse: (payload: string) => JSON.parse(payload) as FrontendNotification,
     onEvent: (n: FrontendNotification) => {
+      // eSIM 通知计数变化事件：不弹气泡，走回调
+      if (n.event === 'esim_notif_count') {
+        const count = parseInt(n.body, 10) || 0
+        notifCountListeners.forEach(cb => cb(n.device_id || '', count))
+        return
+      }
       if (n.level === 'high') {
         highNotification.value = n
       } else {

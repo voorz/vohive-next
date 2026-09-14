@@ -128,7 +128,7 @@ const notifStatusLabel = (status: NotificationStatus) => {
   switch (status) {
     case 'sent': return { text: '已发送', class: 'notif-status-sent' }
     case 'failed': return { text: '发送失败', class: 'notif-status-failed' }
-    default: return null
+    default: return { text: '待发送', class: 'notif-status-pending' }
   }
 }
 

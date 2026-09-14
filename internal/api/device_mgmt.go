@@ -2433,7 +2433,7 @@ func (s *Server) handleEsimListNotifications(c *gin.Context) {
 		c.JSON(esimNotificationHTTPStatus(err), gin.H{"error": err.Error()})
 		return
 	}
-	// autoClean 可能在 ListNotifications 内部处理了通知（发送/删除），
+	// autoClean 在 ListNotifications 内部同步处理了通知（发送/删除），
 	// 异步刷新 overview 缓存让下次请求时红点计数同步递减。
 	go worker.EsimMgr.WarmOverviewAsync("list_notifications_cleanup")
 	c.JSON(http.StatusOK, gin.H{"items": items})
