@@ -2306,27 +2306,36 @@ func formatEsimDownloadDoneEvent(result esim.DownloadProfileResult) string {
 }
 
 func formatEsimDownloadErrorEvent(err error) string {
-	msg := "下载失败"
 	var downloadErr *esim.DownloadProfileError
 	if errors.As(err, &downloadErr) && downloadErr != nil {
-		if downloadErr.Message != "" {
-			msg += ": " + downloadErr.Message
-		} else if err != nil {
-			msg += ": " + err.Error()
+		msg := downloadErr.Message
+		if msg == "" {
+			msg = err.Error()
 		}
-		base := fmt.Sprintf(`{"step":"error","msg":%q,"pct":-1`, msg)
+		base := fmt.Sprintf(`{"step":"error","msg":%q,"pct":0`, msg)
 		if code := strings.TrimSpace(downloadErr.Code); code != "" {
 			base += fmt.Sprintf(`,"code":%q`, code)
 		}
 		if details := strings.TrimSpace(downloadErr.Details); details != "" {
 			base += fmt.Sprintf(`,"details":%q`, details)
 		}
+		// SM-DP+ 结构化错误字段（参考 NekokoLPA SmdpException）
+		if sc := strings.TrimSpace(downloadErr.SmdpSubjectCode); sc != "" {
+			base += fmt.Sprintf(`,"subjectCode":%q`, sc)
+		}
+		if rc := strings.TrimSpace(downloadErr.SmdpReasonCode); rc != "" {
+			base += fmt.Sprintf(`,"reasonCode":%q`, rc)
+		}
+		if si := strings.TrimSpace(downloadErr.SmdpSubjectIdentifier); si != "" {
+			base += fmt.Sprintf(`,"subjectIdentifier":%q`, si)
+		}
 		return base + `}`
 	}
+	msg := "下载失败"
 	if err != nil {
-		msg += ": " + err.Error()
+		msg = err.Error()
 	}
-	return fmt.Sprintf(`{"step":"error","msg":%q,"pct":-1}`, msg)
+	return fmt.Sprintf(`{"step":"error","msg":%q,"pct":0}`, msg)
 }
 
 func writeEsimDownloadDoneEvent(c *gin.Context, result esim.DownloadProfileResult) {

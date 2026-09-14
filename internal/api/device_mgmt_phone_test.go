@@ -519,8 +519,8 @@ func TestFormatEsimDownloadErrorEventKeepsLegacyFieldsAndAddsCode(t *testing.T) 
 
 	if !containsAll(event,
 		`"step":"error"`,
-		`"msg":"下载失败: eUICC 安装 profile 时空间不足，请删除未使用的 profile 后重试"`,
-		`"pct":-1`,
+		`"msg":"eUICC 安装 profile 时空间不足，请删除未使用的 profile 后重试"`,
+		`"pct":0`,
 		`"code":"euicc_insufficient_memory"`,
 		`"details":"loadProfileElements,installFailedDueToInsufficientMemoryForProfile"`,
 	) {
@@ -531,7 +531,7 @@ func TestFormatEsimDownloadErrorEventKeepsLegacyFieldsAndAddsCode(t *testing.T) 
 func TestFormatEsimDownloadErrorEventSupportsPlainError(t *testing.T) {
 	event := formatEsimDownloadErrorEvent(errors.New("network down"))
 
-	if !containsAll(event, `"step":"error"`, `"msg":"下载失败: network down"`, `"pct":-1`) {
+	if !containsAll(event, `"step":"error"`, `"msg":"network down"`, `"pct":0`) {
 		t.Fatalf("event=%q want legacy plain error fields", event)
 	}
 	if strings.Contains(event, `"code"`) || strings.Contains(event, `"details"`) {

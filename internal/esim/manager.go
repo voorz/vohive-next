@@ -4360,7 +4360,7 @@ func (m *Manager) DownloadProfile(ctx context.Context, aidHex, smdp, matchingID,
 		}
 	}()
 
-	preDownloadNotifications, preDownloadNotificationsErr := safeListNotification(client, sgp22.NotificationEventInstall)
+	preDownloadNotifications, _ := safeListNotification(client, sgp22.NotificationEventInstall)
 
 	report("preflight", "正在检查 eUICC 剩余空间...", 10)
 	beforeFreeNvramBytes := int32(0)
@@ -4399,36 +4399,17 @@ func (m *Manager) DownloadProfile(ctx context.Context, aidHex, smdp, matchingID,
 		return DownloadProfileResult{}, fmt.Errorf("无效的 SM-DP+ 地址 %q", smdp)
 	}
 
-	activationCode := &lpa.ActivationCode{
-		SMDP:             &url.URL{Scheme: "https", Host: parsedURL.Host},
-		MatchingID:       strings.TrimSpace(matchingID),
-		IMEI:             imei,
-		ConfirmationCode: strings.TrimSpace(confirmationCode),
-	}
-
 	logger.Info("开始下载 eSIM profile",
 		"device", m.deviceID,
 		"smdp", parsedURL.Host,
 		"matchingID", matchingID,
 		"AID", aidHex)
 
-	installStarted := false
-	opts := &lpa.DownloadOptions{
-		OnProgress: func(stage lpa.DownloadStage) {
-			switch stage {
-			case lpa.DownloadStageAuthenticateClient:
-				report("auth_client", "正在向 SM-DP+ 进行客户端身份认证...", 30)
-			case lpa.DownloadStageAuthenticateServer:
-				report("auth_server", "正在向 SM-DP+ 请求 Profile 数据包...", 60)
-			case lpa.DownloadStageInstall:
-				installStarted = true
-				report("install", "正在将 Profile 写入 eUICC...", 80)
-			}
-		},
-	}
-	downloadResult, err := client.DownloadProfile(ctx, activationCode, opts)
+	// 使用分步下载（参考 NekokoLPA），替代 client.DownloadProfile 的一步封装
+	// 分步调用能保留 SM-DP+ 返回的完整结构化错误信息（SubjectCode/ReasonCode）
+	sessionResult, err := m.downloadProfileStepByStep(ctx, client, parsedURL.Host, matchingID, strings.TrimSpace(confirmationCode), imei, progressFn)
 	if err != nil {
-		downloadErr := NewDownloadProfileError(err)
+		downloadErr := m.classifyDownloadStepError(err)
 		logger.Warn("下载 eSIM profile 失败",
 			"device", m.deviceID,
 			"smdp", parsedURL.Host,
@@ -4440,23 +4421,15 @@ func (m *Manager) DownloadProfile(ctx context.Context, aidHex, smdp, matchingID,
 			"bpp_error_reason", downloadErr.BPPErrorReason,
 			"details", downloadErr.Details,
 			"err", err)
-		if installStarted && preDownloadNotificationsErr == nil {
-			report("notify", "安装结果异常，正在确认并发送下载通知...", 90)
-			m.closeLPAClientForOperation("download_profile_finalize_error", client)
-			client = nil
-			if recovered, ok := m.recoverDownloadInstallFinalizeError(ctx, targetAID, preDownloadNotifications, err); ok {
-				result = recovered
-				m.invalidateOverviewCache("download_profile_recovered")
-				m.beginOverviewReloadSuppression(postDownloadOverviewSettleDelay)
-				m.triggerOverviewReload("download_profile_recovered")
-				return result, nil
-			}
-		}
 		m.invalidateOverviewCache("download_profile_failed")
 		return DownloadProfileResult{}, downloadErr
 	}
 
 	report("notify", "正在向运营商发送下载通知...", 90)
+	var downloadResult *sgp22.LoadBoundProfilePackageResponse
+	if sessionResult != nil && sessionResult.LoadBoundProfilePackageResponse != nil {
+		downloadResult = sessionResult.LoadBoundProfilePackageResponse
+	}
 	lastSeq := downloadNotificationBaseline(preDownloadNotifications, downloadResultNotificationMetadata(downloadResult))
 	result = m.sendDownloadInstallNotification(client, lastSeq, 300*time.Millisecond)
 
