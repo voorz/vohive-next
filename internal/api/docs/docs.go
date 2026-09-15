@@ -1510,6 +1510,85 @@ const docTemplate = `{
                 }
             }
         },
+        "/devices/{device_id}/esim/actions/preview": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "devices"
+                ],
+                "summary": "EsimPreviewProfile",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "device_id",
+                        "name": "device_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "SM-DP+ 地址",
+                        "name": "smdp",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Matching ID",
+                        "name": "matching_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "确认码",
+                        "name": "confirmation_code",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "目标 AID hex",
+                        "name": "aid_hex",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "IMEI",
+                        "name": "imei",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "成功",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "参数错误",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "未授权",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
         "/devices/{device_id}/esim/actions/switch": {
             "post": {
                 "security": [

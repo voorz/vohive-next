@@ -949,6 +949,58 @@ paths:
       summary: EsimDownloadProfile
       tags:
       - devices
+  /devices/{device_id}/esim/actions/preview:
+    get:
+      parameters:
+      - description: device_id
+        in: path
+        name: device_id
+        required: true
+        type: string
+      - description: SM-DP+ 地址
+        in: query
+        name: smdp
+        required: true
+        type: string
+      - description: Matching ID
+        in: query
+        name: matching_id
+        type: string
+      - description: 确认码
+        in: query
+        name: confirmation_code
+        type: string
+      - description: 目标 AID hex
+        in: query
+        name: aid_hex
+        type: string
+      - description: IMEI
+        in: query
+        name: imei
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 成功
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: 参数错误
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: 未授权
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: EsimPreviewProfile
+      tags:
+      - devices
   /devices/{device_id}/esim/actions/switch:
     post:
       consumes:

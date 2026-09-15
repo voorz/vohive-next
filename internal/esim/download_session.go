@@ -388,6 +388,202 @@ func (s *DownloadSession) State() *DownloadSessionState {
 	return s.state
 }
 
+// PreviewResult 是查询阶段（Preview）返回的结构化数据。
+// 参考 NekokoLPA 的 _buildPreview 数据采集。
+type PreviewResult struct {
+	ProfileMetadata *PreviewMetadata  `json:"metadata"`
+	EuiccInfo2      *PreviewEuiccInfo2 `json:"euicc_info2"`
+	CCRequired      bool              `json:"cc_required"`
+	// 证书 DER 编码（Base64），供开发者模式导出
+	EuiccCertDER string `json:"euicc_cert_der,omitempty"`
+	EumCertDER  string `json:"eum_cert_der,omitempty"`
+}
+
+// PreviewMetadata 是从 ProfileMetadata TLV 解析出的 Profile 元数据。
+type PreviewMetadata struct {
+	ICCID                string `json:"iccid"`
+	ProfileName          string `json:"profile_name"`
+	ServiceProviderName string `json:"service_provider_name"`
+	ProfileClass         string `json:"profile_class,omitempty"`
+	IconType             string `json:"icon_type,omitempty"`
+	IconBase64           string `json:"icon_base64,omitempty"`
+	ProfileOwnerMCC      string `json:"profile_owner_mcc,omitempty"`
+	ProfileOwnerMNC      string `json:"profile_owner_mnc,omitempty"`
+	EstimatedProfileSize int   `json:"estimated_profile_size,omitempty"` // 预估 Profile 大小（字节）
+}
+
+// PreviewEuiccInfo2 是从 EUICCInfo2 中提取的空间信息。
+type PreviewEuiccInfo2 struct {
+	FreeNonVolatileMemory int `json:"free_non_volatile_memory"`
+	FreeVolatileMemory    int `json:"free_volatile_memory,omitempty"`
+	InstalledApplication  int `json:"installed_application,omitempty"`
+}
+
+// PreviewSession 执行查询阶段（Step1-Step4），返回 Profile 元数据。
+// 不执行 PrepareDownload / GetBPP / LoadBPP。
+// 参考 NekokoLPA 的 _startPreview() 流程。
+func (s *DownloadSession) PreviewSession(imei string, progressFn DownloadProgressFn) (*PreviewResult, error) {
+	report := func(step, msg string, pct int) {
+		if progressFn != nil {
+			progressFn(DownloadProgressEvent{Step: step, Msg: msg, Pct: pct})
+		}
+	}
+
+	// Step 1: 从 eUICC 获取 EUICCInfo1 和 Challenge
+	report("preflight", "正在读取 eUICC 信息...", 15)
+	if err := s.Step1GetEuiccInfoAndChallenge(); err != nil {
+		return nil, err
+	}
+
+	// Step 2: 向 SM-DP+ 发起 InitiateAuthentication
+	report("initiate_auth", "正在向 SM-DP+ 发起认证请求...", 30)
+	if err := s.Step2InitiateAuthentication(); err != nil {
+		return nil, err
+	}
+
+	// Step 3: eUICC 验证 SM-DP+ 服务器签名
+	report("auth_server", "正在验证 SM-DP+ 服务器签名...", 50)
+	if err := s.Step3AuthenticateServer(imei); err != nil {
+		return nil, err
+	}
+
+	// Step 4: 向 SM-DP+ 发送 AuthenticateClient，获取 ProfileMetadata
+	report("auth_client", "正在获取 Profile 元数据...", 70)
+	if err := s.Step4AuthenticateClient(); err != nil {
+		return nil, err
+	}
+
+	// 解析 ProfileInfo
+	result := &PreviewResult{}
+	if s.state.ProfileMetadata != nil {
+		profileInfo := new(sgp22.ProfileInfo)
+		if err := profileInfo.UnmarshalBERTLV(s.state.ProfileMetadata); err == nil {
+			result.ProfileMetadata = buildPreviewMetadata(profileInfo)
+		}
+	}
+
+	// 获取 EUICCInfo2 中的空间信息
+	// 从 AuthenticateServerResponse 中提取，或者直接调用 EUICCInfo2()
+	euiccInfo2TLV, err := s.client.EUICCInfo2()
+	if err == nil && euiccInfo2TLV != nil {
+		result.EuiccInfo2 = extractPreviewEuiccInfo2(euiccInfo2TLV)
+	}
+
+	// 解析 SmdpSigned2 中的 ccRequiredFlag
+	if s.state.SmdpSigned2 != nil {
+		result.CCRequired = parseCCRequiredFlag(s.state.SmdpSigned2)
+	}
+
+	// 从 AuthenticateServerResponse 中提取 eUICC 证书和 EUM 证书
+	// AuthenticateServerResponse (tag 0xBF38, Constructed) 包含一个子节点：
+	//   AuthenticateResponseOk SEQUENCE: [0]euiccSigned1 [1]euiccSignature1 [2]euiccCertificate [3]nextCertInChain
+	if s.state.AuthenticateServerResponse != nil {
+		outerChildren := s.state.AuthenticateServerResponse.Children
+		logger.Info("PreviewSession 证书提取调试",
+			"outerChildren_len", len(outerChildren),
+			"resp_tag", s.state.AuthenticateServerResponse.Tag.Value())
+		if len(outerChildren) > 0 && outerChildren[0] != nil {
+			authRespOk := outerChildren[0]
+			children := authRespOk.Children
+			logger.Info("PreviewSession AuthenticateResponseOk 子节点",
+				"children_len", len(children))
+			if len(children) >= 3 && children[2] != nil {
+				result.EuiccCertDER = base64.StdEncoding.EncodeToString(children[2].Bytes())
+				logger.Info("PreviewSession 提取到 eUICC 证书", "der_len", len(children[2].Bytes()))
+			}
+			if len(children) >= 4 && children[3] != nil {
+				result.EumCertDER = base64.StdEncoding.EncodeToString(children[3].Bytes())
+				logger.Info("PreviewSession 提取到 EUM 证书", "der_len", len(children[3].Bytes()))
+			}
+		}
+	} else {
+		logger.Warn("PreviewSession AuthenticateServerResponse 为空")
+	}
+
+	report("preview", "查询完成", 100)
+	return result, nil
+}
+
+// buildPreviewMetadata 从 sgp22.ProfileInfo 构建 PreviewMetadata。
+func buildPreviewMetadata(info *sgp22.ProfileInfo) *PreviewMetadata {
+	if info == nil {
+		return nil
+	}
+	md := &PreviewMetadata{
+		ProfileName:          info.ProfileName,
+		ServiceProviderName: info.ServiceProviderName,
+		ICCID:                info.ICCID.String(),
+		ProfileClass:         info.ProfileClass.String(),
+		ProfileOwnerMCC:     info.ProfileOwner.MCC(),
+		ProfileOwnerMNC:     info.ProfileOwner.MNC(),
+	}
+	return md
+}
+
+// extractPreviewEuiccInfo2 从 EUICCInfo2 TLV 中提取空间信息。
+// 参考 euicc_info.go applyEUICCInfoTLV 中的 extCardResource 解析逻辑。
+func extractPreviewEuiccInfo2(tlv *bertlv.TLV) *PreviewEuiccInfo2 {
+	if tlv == nil {
+		return nil
+	}
+	info := &PreviewEuiccInfo2{}
+	// extCardResource: tag = ContextSpecific.Constructed(4) = 0xA4
+	// 但实际在 EUICCInfo2 中 tag 是 0x24 (ContextSpecific.Primitive(4))
+	// 参考 euicc_info.go: tlv.First(bertlv.ContextSpecific.Primitive(4))
+	if resource := tlv.First(bertlv.ContextSpecific.Primitive(4)); resource != nil {
+		data, _ := resource.MarshalBinary()
+		if len(data) > 0 {
+			data[0] = 0x30 // 改为 Constructed
+			if err := resource.UnmarshalBinary(data); err == nil {
+				// freeNonVolatileMemory: tag = ContextSpecific.Primitive(2) = 0x82
+				if freeNv := resource.First(bertlv.ContextSpecific.Primitive(2)); freeNv != nil {
+					// 解析整数
+					for _, b := range freeNv.Value {
+						info.FreeNonVolatileMemory = (info.FreeNonVolatileMemory << 8) | int(b)
+					}
+				}
+				// freeVolatileMemory: tag = ContextSpecific.Primitive(3) = 0x83
+				if freeV := resource.First(bertlv.ContextSpecific.Primitive(3)); freeV != nil {
+					for _, b := range freeV.Value {
+						info.FreeVolatileMemory = (info.FreeVolatileMemory << 8) | int(b)
+					}
+				}
+				// installedApplication: tag = ContextSpecific.Primitive(1) = 0x81
+				if installed := resource.First(bertlv.ContextSpecific.Primitive(1)); installed != nil {
+					for _, b := range installed.Value {
+						info.InstalledApplication = (info.InstalledApplication << 8) | int(b)
+					}
+				}
+			}
+		}
+	}
+	return info
+}
+
+// parseCCRequiredFlag 从 SmdpSigned2 TLV 中解析 ccRequiredFlag。
+// SmdpSigned2 结构（SGP.22）:
+//   SEQUENCE {
+//     transactionId [1] OCTET STRING,       -- tag 0x80
+//     ccRequiredFlag [2] BOOLEAN,           -- tag 0x01 (Primitive, context 1)
+//     bppEuiccOtpk [3] SubjectKeyIdentifier,-- tag 0x5F49
+//     rpmPending [4] OCTET STRING            -- tag 0x04
+//   }
+// ccRequiredFlag 的 tag 是 0x01 (context-specific, primitive, number 1)
+func parseCCRequiredFlag(smdpSigned2 *bertlv.TLV) bool {
+	if smdpSigned2 == nil {
+		return false
+	}
+	// 在 TLV children 中查找 tag value 1 (context-specific primitive 1 = ccRequiredFlag)
+	for _, child := range smdpSigned2.Children {
+		if child.Tag.Value() == 1 && child.Tag.ContextSpecific() && child.Tag.Primitive() {
+			if len(child.Value) > 0 && child.Value[0] != 0x00 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // decodeEs9Base64TLV 从 SM-DP+ JSON 响应中解析 Base64 编码的 BER-TLV 字段。
 func decodeEs9Base64TLV(data map[string]any, key string) (*bertlv.TLV, error) {
 	raw, ok := data[key]

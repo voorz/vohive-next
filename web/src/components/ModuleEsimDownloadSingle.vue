@@ -15,9 +15,41 @@ const props = defineProps<{
   deviceImei?: string
 }>()
 
+interface PreviewMetadata {
+  iccid: string
+  profile_name: string
+  service_provider_name: string
+  profile_class?: string
+  icon_base64?: string
+  profile_owner_mcc?: string
+  profile_owner_mnc?: string
+  estimated_profile_size?: number
+}
+
+interface PreviewEuiccInfo2 {
+  free_non_volatile_memory: number
+  free_volatile_memory?: number
+  installed_application?: number
+}
+
+interface PreviewResult {
+  metadata: PreviewMetadata
+  euicc_info2: PreviewEuiccInfo2
+  cc_required: boolean
+  euicc_cert_der?: string
+  eum_cert_der?: string
+}
+
+interface DoneData {
+  iccid?: string
+  profile_name?: string
+  service_provider_name?: string
+  free_non_volatile_memory?: number
+}
+
 const emit = defineEmits<{
   downloaded: []
-  progress: [payload: { pct: number; msg: string; error?: string; errorCode?: string; errorDetails?: string; subjectCode?: string; reasonCode?: string; subjectIdentifier?: string }]
+  progress: [payload: { pct: number; msg: string; error?: string; errorCode?: string; errorDetails?: string; subjectCode?: string; reasonCode?: string; subjectIdentifier?: string; phase?: 'preview-loading' | 'preview-ready' | 'downloading' | 'done' | 'error' | 'idle'; previewData?: PreviewResult | null; doneData?: DoneData | null }]
 }>()
 
 const lpaCode = ref('')
@@ -112,6 +144,86 @@ const downloadProgress = ref(0)
 const downloadMsg = ref('')
 const downloadError = ref('')
 
+// 预览阶段状态
+let pendingPreviewData: PreviewResult | null = null
+
+async function previewProfile() {
+  const targetAidHex = aidHex.value || pickNextDownloadAid(props.chipInfo, '')
+  if (!smdp.value) {
+    ElMessage.warning('请输入 SM-DP+ 地址')
+    return null
+  }
+
+  emit('progress', { pct: 0, msg: '正在查询...', phase: 'preview-loading' })
+
+  const params = new URLSearchParams({ smdp: smdp.value })
+  if (matchingId.value) params.set('matching_id', matchingId.value)
+  if (confirmationCode.value) params.set('confirmation_code', confirmationCode.value)
+  if (targetAidHex) params.set('aid_hex', targetAidHex)
+  if (imei.value.trim()) params.set('imei', imei.value.trim())
+
+  const base = api.defaults.baseURL || ''
+  const url = `${base}/devices/${props.deviceId}/esim/actions/preview?${params}`
+  const token = localStorage.getItem('token') || ''
+
+  try {
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${token}`, Accept: 'text/event-stream' }
+    })
+    if (!res.ok) {
+      const text = await res.text()
+      throw new Error(text || `HTTP ${res.status}`)
+    }
+    if (!res.body) throw new Error('No stream body')
+
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+
+      while (true) {
+        const nl = buffer.indexOf('\n')
+        if (nl < 0) break
+        let line = buffer.slice(0, nl)
+        buffer = buffer.slice(nl + 1)
+        if (line.endsWith('\r')) line = line.slice(0, -1)
+        if (!line.startsWith('data:')) continue
+
+        const payload = line.slice('data:'.length).trim()
+        try {
+          const evt = JSON.parse(payload) as { step: string; msg: string; pct: number; metadata?: PreviewMetadata; euicc_info2?: PreviewEuiccInfo2; cc_required?: boolean; euicc_cert_der?: string; eum_cert_der?: string; code?: string; details?: string; subjectCode?: string; reasonCode?: string; subjectIdentifier?: string }
+          if (evt.step === 'error') {
+            emit('progress', { pct: 0, msg: evt.msg, error: evt.msg, errorCode: evt.code, errorDetails: evt.details, subjectCode: evt.subjectCode, reasonCode: evt.reasonCode, subjectIdentifier: evt.subjectIdentifier, phase: 'error' })
+            return null
+          }
+          emit('progress', { pct: evt.pct, msg: evt.msg, phase: 'preview-loading' })
+          if (evt.step === 'preview' && evt.metadata && evt.euicc_info2) {
+            const preview: PreviewResult = {
+              metadata: evt.metadata,
+              euicc_info2: evt.euicc_info2,
+              cc_required: evt.cc_required || false,
+              euicc_cert_der: evt.euicc_cert_der,
+              eum_cert_der: evt.eum_cert_der,
+            }
+            pendingPreviewData = preview
+            emit('progress', { pct: 100, msg: '查询完成', phase: 'preview-ready', previewData: preview })
+            return preview
+          }
+        } catch { /* 非 JSON 行，忽略 */ }
+      }
+    }
+  } catch (e: unknown) {
+    emit('progress', { pct: 0, msg: '查询失败', error: errorMessage(e, '查询失败'), phase: 'error' })
+    return null
+  }
+  return null
+}
+
 function clearForm() {
   lpaCode.value = ''
   smdp.value = ''
@@ -157,6 +269,16 @@ async function downloadProfile(force = false) {
     return
   }
 
+  // 阶段1：先执行预览查询
+  if (!pendingPreviewData && !force) {
+    const preview = await previewProfile()
+    if (!preview) return // 预览失败，错误已在 SSE 中处理
+    // 等待用户在 overlay 上点击“下载”按钮
+    // confirm-download 事件由 overlay 直接触发，此处不做处理
+    return
+  }
+
+  // 空间检查
   if (!force) {
     const space = checkFreeNvram()
     if (space && space.bytes < SPACE_WARNING_THRESHOLD) {
@@ -169,11 +291,14 @@ async function downloadProfile(force = false) {
     }
   }
 
+  // 清除预览数据，进入下载阶段
+  pendingPreviewData = null
+
   downloading.value = true
   downloadProgress.value = 0
   downloadMsg.value = '正在连接...'
   downloadError.value = ''
-  emit('progress', { pct: 0, msg: '正在连接...' })
+  emit('progress', { pct: 0, msg: '正在连接...', phase: 'downloading' })
 
   const params = new URLSearchParams({ smdp: smdp.value })
   if (matchingId.value) params.set('matching_id', matchingId.value)
@@ -216,17 +341,17 @@ async function downloadProfile(force = false) {
 
         const payload = line.slice('data:'.length).trim()
         try {
-          const evt = JSON.parse(payload) as { step: string; msg: string; pct: number; code?: string; details?: string; subjectCode?: string; reasonCode?: string; subjectIdentifier?: string; space_delta?: EsimSpaceDelta }
+          const evt = JSON.parse(payload) as { step: string; msg: string; pct: number; code?: string; details?: string; subjectCode?: string; reasonCode?: string; subjectIdentifier?: string; space_delta?: EsimSpaceDelta; iccid?: string; profile_name?: string; service_provider_name?: string; free_non_volatile_memory?: number }
           if (evt.step === 'error') {
             downloadError.value = evt.code === 'euicc_insufficient_memory'
               ? 'eUICC 安装 profile 时空间不足，请删除未使用的 profile 后重试。'
               : evt.msg
-            emit('progress', { pct: evt.pct, msg: evt.msg, error: downloadError.value, errorCode: evt.code, errorDetails: evt.details, subjectCode: evt.subjectCode, reasonCode: evt.reasonCode, subjectIdentifier: evt.subjectIdentifier })
+            emit('progress', { pct: evt.pct, msg: evt.msg, error: downloadError.value, errorCode: evt.code, errorDetails: evt.details, subjectCode: evt.subjectCode, reasonCode: evt.reasonCode, subjectIdentifier: evt.subjectIdentifier, phase: 'error' })
             break outer
           }
           downloadProgress.value = evt.pct
           downloadMsg.value = evt.msg
-          emit('progress', { pct: evt.pct, msg: evt.msg })
+          emit('progress', { pct: evt.pct, msg: evt.msg, phase: 'downloading' })
           if (evt.step === 'done') {
             const notice = describeDownloadTerminalNotice(evt)
             if (notice.tone === 'warning') {
@@ -234,6 +359,14 @@ async function downloadProfile(force = false) {
             } else {
               ElMessage.success(notice.message)
             }
+            // 推送 done 状态数据
+            const doneData: DoneData = {
+              iccid: evt.iccid,
+              profile_name: evt.profile_name,
+              service_provider_name: evt.service_provider_name,
+              free_non_volatile_memory: evt.free_non_volatile_memory,
+            }
+emit('progress', { pct: 100, msg: '下载完成', phase: 'done', doneData })
             emit('downloaded')
             clearForm()
             break outer
@@ -249,6 +382,16 @@ async function downloadProfile(force = false) {
     downloading.value = false
   }
 }
+
+// 由父组件 ModuleEsimDownload.vue 调用，用于预览确认后执行实际下载
+async function executeDownload(cc?: string) {
+  if (cc) {
+    confirmationCode.value = cc
+  }
+  await downloadProfile()
+}
+
+defineExpose({ executeDownload })
 </script>
 
 <template>

@@ -76,7 +76,7 @@ func (m *Manager) downloadProfileStepByStep(
 		return nil, m.handleStepError(session, err, sgp22.CancelSessionReasonLoadBppExecutionError)
 	}
 
-	report("done", "Profile 安装完成", 100)
+	report("installed", "Profile 安装完成", 85)
 	return result, nil
 }
 
