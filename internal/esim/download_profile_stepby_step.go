@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	sgp22 "github.com/damonto/euicc-go/v2"
-	"github.com/damonto/euicc-go/lpa"
+	sgp22 "github.com/voorz/euicc-go/v2"
+	"github.com/voorz/euicc-go/lpa"
 	"github.com/voorz/vohive/pkg/logger"
 )
 

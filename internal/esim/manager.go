@@ -18,10 +18,10 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	"github.com/damonto/euicc-go/bertlv"
-	"github.com/damonto/euicc-go/driver"
-	"github.com/damonto/euicc-go/lpa"
-	sgp22 "github.com/damonto/euicc-go/v2"
+	"github.com/voorz/euicc-go/bertlv"
+	"github.com/voorz/euicc-go/driver"
+	"github.com/voorz/euicc-go/lpa"
+	sgp22 "github.com/voorz/euicc-go/v2"
 	"github.com/voorz/vohive/internal/apduarbiter"
 	backendpkg "github.com/voorz/vohive/internal/backend"
 	"github.com/voorz/vohive/internal/db"
@@ -3885,7 +3885,7 @@ func encodePendingNotificationBase64(pn *sgp22.PendingNotification) string {
 	if pn == nil || pn.PendingNotification == nil {
 		return ""
 	}
-	data := pn.PendingNotification.Bytes()
+	data, _ := pn.PendingNotification.Bytes()
 	if len(data) == 0 {
 		return ""
 	}

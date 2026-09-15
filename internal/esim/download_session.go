@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/damonto/euicc-go/bertlv"
-	sgp22 "github.com/damonto/euicc-go/v2"
-	"github.com/damonto/euicc-go/lpa"
+	"github.com/voorz/euicc-go/bertlv"
+	sgp22 "github.com/voorz/euicc-go/v2"
+	"github.com/voorz/euicc-go/lpa"
 	"github.com/voorz/vohive/pkg/logger"
 )
 
@@ -103,8 +103,9 @@ func (s *DownloadSession) Step1GetEuiccInfoAndChallenge() error {
 	}
 	s.state.EuiccChallenge = challenge
 
+	info1Bytes, _ := info1.Bytes()
 	logger.Info("Step1: 获取 eUICC Info1 和 Challenge 完成",
-		"info1_len", len(info1.Bytes()),
+		"info1_len", len(info1Bytes),
 		"challenge_len", len(challenge))
 	return nil
 }
@@ -114,7 +115,8 @@ func (s *DownloadSession) Step1GetEuiccInfoAndChallenge() error {
 func (s *DownloadSession) Step2InitiateAuthentication() error {
 	// 构建 ES9+ InitiateAuthentication 请求体
 	euiccChallengeB64 := base64.StdEncoding.EncodeToString(s.state.EuiccChallenge)
-	euiccInfo1B64 := base64.StdEncoding.EncodeToString(s.state.EuiccInfo1.Bytes())
+	euiccInfo1Bytes, _ := s.state.EuiccInfo1.Bytes()
+	euiccInfo1B64 := base64.StdEncoding.EncodeToString(euiccInfo1Bytes)
 
 	body := map[string]any{
 		"euiccChallenge": euiccChallengeB64,
@@ -195,8 +197,9 @@ func (s *DownloadSession) Step3AuthenticateServer(imei string) error {
 	// authenticateClientRequest.Response 就是 authenticateServerResponse
 	s.state.AuthenticateServerResponse = authenticateClientRequest.Response
 
+	authRespBytes, _ := authenticateClientRequest.Response.Bytes()
 	logger.Info("Step3: AuthenticateServer (eUICC) 完成",
-		"response_len", len(authenticateClientRequest.Response.Bytes()))
+		"response_len", len(authRespBytes))
 	return nil
 }
 
@@ -204,7 +207,8 @@ func (s *DownloadSession) Step3AuthenticateServer(imei string) error {
 // 参考 NekokoLPA Es9PlusService.authenticateClient。
 func (s *DownloadSession) Step4AuthenticateClient() error {
 	transactionIDStr := strings.ToUpper(hex.EncodeToString(s.state.TransactionID))
-	authServerRespB64 := base64.StdEncoding.EncodeToString(s.state.AuthenticateServerResponse.Bytes())
+	authServerRespBytes, _ := s.state.AuthenticateServerResponse.Bytes()
+	authServerRespB64 := base64.StdEncoding.EncodeToString(authServerRespBytes)
 
 	body := map[string]any{
 		"transactionId":             transactionIDStr,
@@ -271,9 +275,10 @@ func (s *DownloadSession) Step5PrepareDownload() ([]byte, error) {
 	// bppRequest.Response 是 prepareDownloadResponse
 	prepareDownloadResponse := bppRequest.Response
 
+	prepareRespBytes, _ := prepareDownloadResponse.Bytes()
 	logger.Info("Step5: PrepareDownload (eUICC) 完成",
-		"response_len", len(prepareDownloadResponse.Bytes()))
-	return prepareDownloadResponse.Bytes(), nil
+		"response_len", len(prepareRespBytes))
+	return prepareRespBytes, nil
 }
 
 // Step6GetBoundProfilePackage 向 SM-DP+ 请求 BoundProfilePackage，然后安装到 eUICC。
@@ -300,7 +305,10 @@ func (s *DownloadSession) Step6GetBoundProfilePackage(prepareDownloadResponse []
 		return nil, fmt.Errorf("SM-DP+ 未返回 boundProfilePackage")
 	}
 
-	bppBytes := bppTLV.Bytes()
+	bppBytes, err := bppTLV.Bytes()
+	if err != nil {
+		return nil, fmt.Errorf("序列化 BPP TLV 失败: %w", err)
+	}
 	logger.Info("Step6: GetBoundProfilePackage (SM-DP+) 完成",
 		"bpp_bytes", len(bppBytes))
 
@@ -372,7 +380,8 @@ func (s *DownloadSession) CancelSession(reason sgp22.CancelSessionReason) error 
 
 	// 通过自定义 HTTP 客户端发送 CancelSession
 	transactionIDStr := strings.ToUpper(hex.EncodeToString(s.state.TransactionID))
-	cancelRespB64 := base64.StdEncoding.EncodeToString(cancelRequest.Response.Bytes())
+	cancelRespBytes, _ := cancelRequest.Response.Bytes()
+	cancelRespB64 := base64.StdEncoding.EncodeToString(cancelRespBytes)
 
 	body := map[string]any{
 		"transactionId":          transactionIDStr,
@@ -488,12 +497,14 @@ func (s *DownloadSession) PreviewSession(imei string, progressFn DownloadProgres
 			logger.Info("PreviewSession AuthenticateResponseOk 子节点",
 				"children_len", len(children))
 			if len(children) >= 3 && children[2] != nil {
-				result.EuiccCertDER = base64.StdEncoding.EncodeToString(children[2].Bytes())
-				logger.Info("PreviewSession 提取到 eUICC 证书", "der_len", len(children[2].Bytes()))
+			euiccCertBytes, _ := children[2].Bytes()
+			result.EuiccCertDER = base64.StdEncoding.EncodeToString(euiccCertBytes)
+			logger.Info("PreviewSession 提取到 eUICC 证书", "der_len", len(euiccCertBytes))
 			}
 			if len(children) >= 4 && children[3] != nil {
-				result.EumCertDER = base64.StdEncoding.EncodeToString(children[3].Bytes())
-				logger.Info("PreviewSession 提取到 EUM 证书", "der_len", len(children[3].Bytes()))
+			eumCertBytes, _ := children[3].Bytes()
+			result.EumCertDER = base64.StdEncoding.EncodeToString(eumCertBytes)
+			logger.Info("PreviewSession 提取到 EUM 证书", "der_len", len(eumCertBytes))
 			}
 		}
 	} else {

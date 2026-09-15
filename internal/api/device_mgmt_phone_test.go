@@ -11,7 +11,7 @@ import (
 	"testing"
 	"unsafe"
 
-	sgp22 "github.com/damonto/euicc-go/v2"
+	sgp22 "github.com/voorz/euicc-go/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/voorz/vohive/internal/apduarbiter"
 	"github.com/voorz/vohive/internal/config"

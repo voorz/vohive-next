@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	sgp22 "github.com/damonto/euicc-go/v2"
+	sgp22 "github.com/voorz/euicc-go/v2"
 )
 
 const (

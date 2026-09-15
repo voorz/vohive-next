@@ -3,9 +3,9 @@ package esim
 import (
 	"fmt"
 
-	"github.com/damonto/euicc-go/bertlv"
-	"github.com/damonto/euicc-go/bertlv/primitive"
-	"github.com/damonto/euicc-go/lpa"
+	"github.com/voorz/euicc-go/bertlv"
+	"github.com/voorz/euicc-go/bertlv/primitive"
+	"github.com/voorz/euicc-go/lpa"
 	"github.com/voorz/vohive/internal/esim/pki"
 	"github.com/voorz/vohive/pkg/logger"
 )
