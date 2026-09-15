@@ -2302,6 +2302,19 @@ func formatEsimDownloadDoneEvent(result esim.DownloadProfileResult) string {
 	if warningCode := strings.TrimSpace(result.WarningCode); warningCode != "" {
 		base += fmt.Sprintf(`,"warning_code":%q`, warningCode)
 	}
+	// 安装结果数据（参考 NekokoLPA _buildSuccessView）
+	if iccid := strings.TrimSpace(result.ICCID); iccid != "" {
+		base += fmt.Sprintf(`,"iccid":%q`, iccid)
+	}
+	if name := strings.TrimSpace(result.ProfileName); name != "" {
+		base += fmt.Sprintf(`,"profile_name":%q`, name)
+	}
+	if spn := strings.TrimSpace(result.ServiceProviderName); spn != "" {
+		base += fmt.Sprintf(`,"service_provider_name":%q`, spn)
+	}
+	if result.FreeNonVolatileMemory > 0 {
+		base += fmt.Sprintf(`,"free_non_volatile_memory":%d`, result.FreeNonVolatileMemory)
+	}
 	return base + `}`
 }
 

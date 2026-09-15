@@ -18,10 +18,10 @@ import (
 
 	"golang.org/x/sync/singleflight"
 
-	"github.com/damonto/euicc-go/bertlv"
-	"github.com/damonto/euicc-go/driver"
-	"github.com/damonto/euicc-go/lpa"
-	sgp22 "github.com/damonto/euicc-go/v2"
+	"github.com/voorz/euicc-go/bertlv"
+	"github.com/voorz/euicc-go/driver"
+	"github.com/voorz/euicc-go/lpa"
+	sgp22 "github.com/voorz/euicc-go/v2"
 	"github.com/voorz/vohive/internal/apduarbiter"
 	backendpkg "github.com/voorz/vohive/internal/backend"
 	"github.com/voorz/vohive/internal/db"
@@ -3264,6 +3264,11 @@ type DownloadProfileResult struct {
 	Warning     string
 	WarningCode string
 	SpaceDelta  *SpaceDelta
+	// 安装结果数据
+	ICCID                string `json:"iccid,omitempty"`
+	ProfileName          string `json:"profile_name,omitempty"`
+	ServiceProviderName string `json:"service_provider_name,omitempty"`
+	FreeNonVolatileMemory int   `json:"free_non_volatile_memory,omitempty"`
 }
 
 type spaceDeltaOperation string
@@ -3880,7 +3885,7 @@ func encodePendingNotificationBase64(pn *sgp22.PendingNotification) string {
 	if pn == nil || pn.PendingNotification == nil {
 		return ""
 	}
-	data := pn.PendingNotification.Bytes()
+	data, _ := pn.PendingNotification.Bytes()
 	if len(data) == 0 {
 		return ""
 	}
@@ -4435,6 +4440,16 @@ func (m *Manager) DownloadProfile(ctx context.Context, aidHex, smdp, matchingID,
 
 	afterFreeNvramBytes := m.readFreeNvramBytesWithRetry(client, 3, 300*time.Millisecond)
 	result.SpaceDelta = buildSpaceDeltaForOperation(spaceDeltaOperationDownload, beforeFreeNvramBytes, afterFreeNvramBytes)
+
+	// 提取安装结果数据（参考 NekokoLPA _buildSuccessView）
+	if sessionResult != nil {
+		result.ICCID = sessionResult.ICCID.String()
+		if sessionResult.ProfileInfo != nil {
+			result.ProfileName = sessionResult.ProfileInfo.ProfileName
+			result.ServiceProviderName = sessionResult.ProfileInfo.ServiceProviderName
+		}
+	}
+	result.FreeNonVolatileMemory = int(afterFreeNvramBytes)
 
 	logger.Info("eSIM profile 下载完成",
 		"device", m.deviceID,

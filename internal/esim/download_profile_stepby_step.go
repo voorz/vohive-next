@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	sgp22 "github.com/damonto/euicc-go/v2"
-	"github.com/damonto/euicc-go/lpa"
+	sgp22 "github.com/voorz/euicc-go/v2"
+	"github.com/voorz/euicc-go/lpa"
 	"github.com/voorz/vohive/pkg/logger"
 )
 
@@ -76,7 +76,7 @@ func (m *Manager) downloadProfileStepByStep(
 		return nil, m.handleStepError(session, err, sgp22.CancelSessionReasonLoadBppExecutionError)
 	}
 
-	report("done", "Profile 安装完成", 100)
+	report("installed", "Profile 安装完成", 85)
 	return result, nil
 }
 

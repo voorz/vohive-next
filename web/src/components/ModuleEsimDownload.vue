@@ -5,6 +5,7 @@ import ModuleEsimDownloadEuiccInfo from './ModuleEsimDownloadEuiccInfo.vue'
 import ModuleEsimDownloadSingle from './ModuleEsimDownloadSingle.vue'
 import ModuleEsimDownloadBatch from './ModuleEsimDownloadBatch.vue'
 import ModuleDownloadOverlay from './ModuleDownloadOverlay.vue'
+import type { PreviewData, DoneData } from './ModuleDownloadOverlay.vue'
 
 const _props = defineProps<{
   deviceId: string
@@ -31,7 +32,31 @@ const overlaySubjectIdentifier = ref('')
 const overlayBatchCurrent = ref(0)
 const overlayBatchTotal = ref(0)
 
-function onProgress(p: { pct: number; msg: string; error?: string; errorCode?: string; errorDetails?: string; subjectCode?: string; reasonCode?: string; subjectIdentifier?: string; batchCurrent?: number; batchTotal?: number }) {
+// ── 阶段状态（三阶段流程） ──
+const overlayPhase = ref<'idle' | 'preview-loading' | 'preview-ready' | 'downloading' | 'done' | 'error'>('idle')
+const overlayPreviewData = ref<PreviewData | null>(null)
+const overlayDoneData = ref<DoneData | null>(null)
+
+// Single 组件引用
+const singleRef = ref<InstanceType<typeof ModuleEsimDownloadSingle> | null>(null)
+
+interface ProgressPayload {
+  pct: number
+  msg: string
+  error?: string
+  errorCode?: string
+  errorDetails?: string
+  subjectCode?: string
+  reasonCode?: string
+  subjectIdentifier?: string
+  batchCurrent?: number
+  batchTotal?: number
+  phase?: 'preview-loading' | 'preview-ready' | 'downloading' | 'done' | 'error' | 'idle'
+  previewData?: PreviewData | null
+  doneData?: DoneData | null
+}
+
+function onProgress(p: ProgressPayload) {
   overlayVisible.value = true
   overlayProgress.value = p.pct
   overlayMessage.value = p.msg
@@ -43,18 +68,18 @@ function onProgress(p: { pct: number; msg: string; error?: string; errorCode?: s
   overlaySubjectIdentifier.value = p.subjectIdentifier || ''
   if (p.batchCurrent !== undefined) overlayBatchCurrent.value = p.batchCurrent
   if (p.batchTotal !== undefined) overlayBatchTotal.value = p.batchTotal
+  if (p.phase) overlayPhase.value = p.phase
+  if (p.previewData !== undefined) overlayPreviewData.value = p.previewData
+  if (p.doneData !== undefined) overlayDoneData.value = p.doneData
 }
 
 function onDownloaded() {
-  // 下载完成：保持 overlay 显示最终状态 1.5s 后关闭
-  setTimeout(() => {
-    overlayVisible.value = false
-  }, 1500)
   emit('downloaded')
 }
 
 function closeOverlay() {
   overlayVisible.value = false
+  overlayPhase.value = 'idle'
   overlayProgress.value = 0
   overlayMessage.value = ''
   overlayError.value = ''
@@ -65,6 +90,16 @@ function closeOverlay() {
   overlaySubjectIdentifier.value = ''
   overlayBatchCurrent.value = 0
   overlayBatchTotal.value = 0
+  overlayPreviewData.value = null
+  overlayDoneData.value = null
+}
+
+function onConfirmDownload(confirmationCode: string) {
+  singleRef.value?.executeDownload(confirmationCode)
+}
+
+function onCancelPreview() {
+  closeOverlay()
 }
 </script>
 
@@ -96,6 +131,7 @@ function closeOverlay() {
       <div class="download-section-body">
         <ModuleEsimDownloadSingle
           v-if="mode === 'single'"
+          ref="singleRef"
           :device-id="deviceId"
           :chip-info="chipInfo"
           :device-imei="deviceImei"
@@ -125,7 +161,12 @@ function closeOverlay() {
       :subject-identifier="overlaySubjectIdentifier"
       :batch-current="overlayBatchCurrent"
       :batch-total="overlayBatchTotal"
+      :phase="overlayPhase"
+      :preview-data="overlayPreviewData"
+      :done-data="overlayDoneData"
       @close="closeOverlay"
+      @cancel="onCancelPreview"
+      @confirm-download="onConfirmDownload"
     />
   </div>
 </template>
