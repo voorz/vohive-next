@@ -188,6 +188,30 @@ func (p *Pool) runHealthCheckTick() bool {
 				p.mu.RUnlock()
 
 				if md.ModemIMEI != "" && !hasWorker && !isRebuilding && !isRebootRecovering {
+					// PC/SC 读卡器设备：走专属恢复路线，直接调用 AddWorkerFromConfig 拉起。
+					// addPCSCWorker 内部有 pcscReaderOnline 检查，设备不在线时安全返回错误，下个周期重试。
+					// 避免落入 QMI 重连扫描路径（该路径不扫描 CCID/PC/SC 读卡器，永远无法发现设备）。
+					if config.NormalizeESIMTransport(md.ESIMTransport) == config.ESIMTransportPCSC {
+						logger.Info("定时检查发现 PC/SC 读卡器设备缺少 Worker，直接尝试拉起",
+							"device", md.ID)
+						go func(c config.DeviceConfig) {
+							if _, err := p.AddWorkerFromConfig(c); err != nil {
+								logger.Warn("PC/SC 读卡器拉起失败，下个周期重试",
+									"device", c.ID, "err", err)
+							} else {
+								notify.GlobalNotificationBroadcaster.Broadcast(notify.FrontendNotification{
+									Level:      "low",
+									Event:      "device_online",
+									Title:      "设备已连接，VoWiFi实例恢复中",
+									Body:        c.ID,
+									DeviceID:   c.ID,
+									DeviceName: c.Name,
+								})
+							}
+						}(md)
+						continue
+					}
+
 					isQMIConf := strings.ToLower(strings.TrimSpace(md.DeviceBackend)) == "qmi" ||
 						(strings.TrimSpace(md.DeviceBackend) == "" && strings.TrimSpace(md.ControlDevice) != "")
 
