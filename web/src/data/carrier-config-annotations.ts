@@ -41,7 +41,7 @@ export const configAnnotations: Record<string, Record<string, ParamAnnotation>> 
       recommend: '0（禁用）或 30',
     },
     'NAT 保活 (秒)': {
-      desc: 'NAT Keepalive 间隔。在 NAT 环境下定期发送 keepalive 包维持端口映射。0=禁用。',
+      desc: 'NAT Keepalive 间隔。在 NAT 环境下定期发送 keepalive 包维持端口映射。0=默认。',
       recommend: '20',
     },
     '重认证间隔 (秒)': {
@@ -231,12 +231,12 @@ export const configAnnotations: Record<string, Record<string, ParamAnnotation>> 
       desc: 'P-Access-Network-Info 头中的固定 IEEE 802.11 标识。部分运营商要求特定格式的 WiFi 节点 ID。',
       recommend: '空（自动生成随机值）',
     },
-    'TCP Keepalive (秒)': {
+    'TCP Keepalive (秒，0=默认)': {
       desc: 'TCP 模式下的 Keepalive 间隔。防止 NAT 或防火墙超时断开 TCP 连接。',
       recommend: '30',
     },
-    'OPTIONS Ping (秒)': {
-      desc: '定期发送 SIP OPTIONS 请求探测 P-CSCF 可达性。0=禁用。',
+    'OPTIONS Ping (秒，0=默认)': {
+      desc: '定期发送 SIP OPTIONS 请求探测 P-CSCF 可达性。0=默认。',
       recommend: '45',
     },
     'Contact 参数顺序': {
