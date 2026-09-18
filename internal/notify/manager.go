@@ -282,7 +282,7 @@ func (m *Manager) NotifySMSWithSource(deviceID, sender, content, source string, 
 		source = "蜂窝"
 	}
 
-	logger.Info("开始发送短信通知",
+	logger.Info("开始向通知渠道推送短信",
 		"event", "sms_received",
 		"sms_device", deviceID,
 		"source", source,
