@@ -259,28 +259,6 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 					"device", downDeviceID)
 			}()
 		},
-		OnIMSReady: func(vc *voiceclient.Client, imsDeviceID string) {
-			agent := &voicehost.IMSOutboundAgent{
-				Transport: vc.SIPClient(),
-				UA:        vc.SIPUA(),
-				Profile: voicehost.IMSProfile{
-					IMPI:      vc.PrivateID(),
-					IMPU:      vc.PublicURI(),
-					Domain:    vc.HomeDomain(),
-					LocalIP:   vc.LocalIP().String(),
-					UserAgent: "vowifi-core",
-				},
-				Domain:    vc.HomeDomain(),
-				UserAgent: "vowifi-core",
-				LocalTag:  "vowifi-core",
-			}
-			if m.voiceGateway != nil {
-				m.voiceGateway.RegisterAgent(imsDeviceID, agent)
-				logger.Info("VoWiFi 语音 Agent 已注册",
-					"event", "VOWIFI_VOICE_AGENT_REGISTERED",
-					"device", imsDeviceID)
-			}
-		},
 		OnInboundCall: func(ctx context.Context, callReq runtimehost.InboundCallRequest) (runtimehost.InboundCallResponse, error) {
 			return m.handleInboundCall(ctx, callReq)
 		},
