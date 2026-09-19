@@ -1205,35 +1205,20 @@ func (m *Manager) doForEachEUICC(aids [][]byte, fn func(client *lpa.Client, aid 
 			aidHex := fmt.Sprintf("%X", aid)
 			client, err := m.createLPAWithAID(aid)
 			if err != nil {
-				logger.Debug("eUICC AID 扫描阶段",
-					"device", m.deviceID,
-					"stage", "select_open_failed",
-					"AID", aidHex,
-					"err", err)
+				//logger.Debug("eUICC AID 扫描阶段","device", m.deviceID,"stage", "select_open_failed","AID", aidHex,"err", err)
 				return err
 			}
 			defer m.closeLPAClientForOperation("for_each_euicc", client)
-			logger.Debug("eUICC AID 扫描阶段",
-				"device", m.deviceID,
-				"stage", "select_open_ok",
-				"AID", aidHex)
+			//logger.Debug("eUICC AID 扫描阶段","device", m.deviceID,"stage", "select_open_ok","AID", aidHex)
 
 			eid, err := client.EID()
 			if err != nil {
-				logger.Debug("eUICC AID 扫描阶段",
-					"device", m.deviceID,
-					"stage", "eid_failed",
-					"AID", aidHex,
-					"err", err)
+				//logger.Debug("eUICC AID 扫描阶段","device", m.deviceID,"stage", "eid_failed","AID", aidHex,"err", err)
 				return err
 			}
 
 			eidStr := hex.EncodeToString(eid)
-			logger.Debug("eUICC AID 扫描阶段",
-				"device", m.deviceID,
-				"stage", "eid_ok",
-				"AID", aidHex,
-				"EID", eidStr)
+			//logger.Debug("eUICC AID 扫描阶段","device", m.deviceID,"stage", "eid_ok","AID", aidHex,"EID", eidStr)
 			if seenEIDs[eidStr] {
 				logger.Debug("跳过重复 EID", "AID", aidHex, "EID", eidStr)
 				return nil
@@ -1257,10 +1242,7 @@ func (m *Manager) doForEachEUICC(aids [][]byte, fn func(client *lpa.Client, aid 
 	}
 
 	if lastErr != nil {
-		logger.Debug("AID 扫描过程中有错误，本轮已发现 eUICC，后续读取仍会重新全量扫描",
-			"device", m.deviceID,
-			"success_aids_count", len(successAIDs),
-			"err", lastErr)
+		logger.Debug("AID 扫描过程中有错误，本轮已发现 eUICC，后续读取仍会重新全量扫描","device", m.deviceID,"success_aids_count", len(successAIDs),"err", lastErr)
 		return true, nil
 	}
 
@@ -1283,10 +1265,7 @@ func (m *Manager) GetEIDs() ([]EUICCInfo, error) {
 			return nil, err
 		}
 		m.SeedDiscoveredEUICCs(result)
-		logger.Info("读取 eUICC EID 完成",
-			"device", m.deviceID,
-			"source", "scan",
-			"count", len(result))
+		logger.Info("读取 eUICC EID 完成","device", m.deviceID,"source", "scan","count", len(result))
 		return result, nil
 	})
 
@@ -1332,11 +1311,7 @@ func (m *Manager) GetEUICCChipInfo(forceRefresh bool) (*EUICCChipInfo, error) {
 			info.EIDs = append(info.EIDs, euiccInfo)
 			fnMu.Unlock()
 
-			logger.Info("获取 eUICC 信息",
-				"device", m.deviceID,
-				"AID", euiccInfo.AIDHex,
-				"EID", eidStr,
-				"freeNvram", euiccInfo.FreeNvram)
+			logger.Info("获取 eUICC 信息","device", m.deviceID,"AID", euiccInfo.AIDHex,"EID", eidStr,"freeNvram", euiccInfo.FreeNvram)
 			return nil
 		}); err != nil {
 			return nil, err
@@ -1895,22 +1870,13 @@ func (m *Manager) loadProfilesFresh() ([]EUICCProfiles, error) {
 	var fnMu sync.Mutex
 	if err := m.forEachEUICC(func(client *lpa.Client, aid []byte, eidStr string) error {
 		aidHex := fmt.Sprintf("%X", aid)
-		logger.Debug("eUICC AID 扫描阶段",
-			"device", m.deviceID,
-			"stage", "profiles_start",
-			"AID", aidHex,
-			"EID", eidStr)
+		//logger.Debug("eUICC AID 扫描阶段","device", m.deviceID,"stage", "profiles_start","AID", aidHex,"EID", eidStr)
 		profiles, profileErr := listBasicProfiles(client)
 
 		fnMu.Lock()
 		defer fnMu.Unlock()
 		if profileErr != nil {
-			logger.Debug("eUICC AID 扫描阶段",
-				"device", m.deviceID,
-				"stage", "profiles_failed",
-				"AID", aidHex,
-				"EID", eidStr,
-				"err", profileErr)
+			//logger.Debug("eUICC AID 扫描阶段","device", m.deviceID,"stage", "profiles_failed","AID", aidHex,"EID", eidStr,"err", profileErr)
 			profileGroups = append(profileGroups, EUICCProfiles{
 				EID:      eidStr,
 				AIDHex:   aidHex,
@@ -1920,17 +1886,8 @@ func (m *Manager) loadProfilesFresh() ([]EUICCProfiles, error) {
 		}
 		group := buildProfileGroup(eidStr, aid, profiles)
 		profileGroups = append(profileGroups, group)
-		logger.Debug("eUICC AID 扫描阶段",
-			"device", m.deviceID,
-			"stage", "profiles_ok",
-			"AID", aidHex,
-			"EID", eidStr,
-			"profileCount", len(profiles))
-		logger.Info("获取 eUICC profiles",
-			"device", m.deviceID,
-			"AID", aidHex,
-			"EID", eidStr,
-			"profileCount", len(profiles))
+		//logger.Debug("eUICC AID 扫描阶段","device", m.deviceID,"stage", "profiles_ok","AID", aidHex,"EID", eidStr,"profileCount", len(profiles))
+		logger.Info("获取 eUICC profiles","device", m.deviceID,"AID", aidHex,"EID", eidStr,"profileCount", len(profiles))
 		return nil
 	}); err != nil {
 		return nil, err
@@ -2054,11 +2011,7 @@ func (m *Manager) loadOverviewFresh() (*EsimOverview, error) {
 		euiccInfo := buildDiscoveredEUICCInfo(aid, eidStr)
 		aidHex := euiccInfo.AIDHex
 		m.parseEUICCInfo2ForEID(client, &euiccInfo)
-		logger.Debug("eUICC AID 扫描阶段",
-			"device", m.deviceID,
-			"stage", "profiles_start",
-			"AID", aidHex,
-			"EID", eidStr)
+		//logger.Debug("eUICC AID 扫描阶段","device", m.deviceID,"stage", "profiles_start","AID", aidHex,"EID", eidStr)
 		profiles, profileErr := listBasicProfiles(client)
 
 		// 通知统计已移至异步（refreshNotificationCountAsync），
@@ -2068,12 +2021,7 @@ func (m *Manager) loadOverviewFresh() (*EsimOverview, error) {
 		defer fnMu.Unlock()
 		info.EIDs = append(info.EIDs, euiccInfo)
 		if profileErr != nil {
-			logger.Debug("eUICC AID 扫描阶段",
-				"device", m.deviceID,
-				"stage", "profiles_failed",
-				"AID", aidHex,
-				"EID", eidStr,
-				"err", profileErr)
+			//logger.Debug("eUICC AID 扫描阶段","device", m.deviceID,"stage", "profiles_failed","AID", aidHex,"EID", eidStr,"err", profileErr)
 			profileGroups = append(profileGroups, EUICCProfiles{
 				EID:      eidStr,
 				AIDHex:   aidHex,
@@ -2083,18 +2031,8 @@ func (m *Manager) loadOverviewFresh() (*EsimOverview, error) {
 		}
 		group := buildProfileGroup(eidStr, aid, profiles)
 		profileGroups = append(profileGroups, group)
-		logger.Debug("eUICC AID 扫描阶段",
-			"device", m.deviceID,
-			"stage", "profiles_ok",
-			"AID", aidHex,
-			"EID", eidStr,
-			"profileCount", len(profiles))
-		logger.Info("获取 eUICC 信息和 profiles",
-			"device", m.deviceID,
-			"AID", aidHex,
-			"EID", eidStr,
-			"freeNvram", euiccInfo.FreeNvram,
-			"profileCount", len(profiles))
+		//logger.Debug("eUICC AID 扫描阶段","device", m.deviceID,"stage", "profiles_ok","AID", aidHex,"EID", eidStr,"profileCount", len(profiles))
+		logger.Info("获取 eUICC 信息和 profiles","device", m.deviceID,"AID", aidHex,"EID", eidStr,"freeNvram", euiccInfo.FreeNvram,"profileCount", len(profiles))
 		return nil
 	}); err != nil {
 		return nil, err
