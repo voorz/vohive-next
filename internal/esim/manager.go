@@ -1055,15 +1055,19 @@ func (m *Manager) forEachEUICC(fn func(client *lpa.Client, aid []byte, eidStr st
 		return err
 	}
 
+	// 全部候选 AID 均失败，返回结构化错误以便上层精确判定三态
+	lastAIDHex := ""
+	if len(aids) > 0 {
+		lastAIDHex = fmt.Sprintf("%X", aids[len(aids)-1])
+	}
+	scanErr := newScanError(lastAIDHex, err)
 	logger.Warn("AID 扫描未发现 eUICC",
 		"device", m.deviceID,
 		"policy", plan.Policy,
 		"triedCount", len(aids),
+		"scan_code", string(scanErr.Code),
 		"err", err)
-	if err != nil {
-		return ErrNoEUCCFound
-	}
-	return ErrNoEUCCFound
+	return scanErr
 }
 
 func (m *Manager) waitForNoWriteOperation() error {
@@ -1716,7 +1720,8 @@ func (m *Manager) loadOverview() (*EsimOverview, error) {
 		overview, loadErr := loader()
 		if loadErr != nil {
 			m.setOverviewCache(nil, loadErr, generation)
-			if errors.Is(loadErr, ErrNoEUCCFound) {
+			// 记录扫描失败（用于退避策略），兼容旧 ErrNoEUCCFound 和新 EUICCScanError
+			if errors.Is(loadErr, ErrNoEUCCFound) || IsScanCardAbsent(loadErr) {
 				m.recordScanFailure()
 			}
 			return nil, loadErr

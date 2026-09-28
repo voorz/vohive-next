@@ -2852,7 +2852,7 @@ func (s *Server) handleEsimGetOverview(c *gin.Context) {
 				respondEsimBusy(c, "refresh_overview", err)
 				return
 			}
-			if errors.Is(err, esim.ErrNoEUCCFound) {
+			if errors.Is(err, esim.ErrNoEUCCFound) || esim.IsScanCardAbsent(err) {
 				c.JSON(http.StatusOK, gin.H{"chip_info": nil, "profiles": []interface{}{}})
 				return
 			}
@@ -2867,7 +2867,7 @@ func (s *Server) handleEsimGetOverview(c *gin.Context) {
 			respondEsimBusy(c, "get_overview", err)
 			return
 		}
-		if errors.Is(err, esim.ErrNoEUCCFound) {
+		if errors.Is(err, esim.ErrNoEUCCFound) || esim.IsScanCardAbsent(err) {
 			c.JSON(http.StatusOK, gin.H{"chip_info": nil, "profiles": []interface{}{}})
 			return
 		}

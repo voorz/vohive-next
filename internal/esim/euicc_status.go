@@ -1,9 +1,12 @@
 package esim
 
+import "errors"
+
 // EUICCAvailable 返回 eUICC 可用状态的三态指针：
-// - nil: overview 缓存未加载（尚未扫描），不显示"重载"按钮
-// - &true: 缓存非空且检测到至少一个 eUICC（ChipInfo.EIDs 非空），不显示"重载"按钮
-// - &false: 缓存已加载但扫描失败（ErrNoEUCCFound 等），显示"重载"按钮
+// - nil: overview 缓存未加载（尚未扫描）、设备没有 eUICC（物理 SIM 卡）、
+//        或扫描失败但属于临时性故障（操作进行中/传输层不可用），不阻止 VoWiFi
+// - &true: 缓存非空且检测到至少一个 eUICC（ChipInfo.EIDs 非空），不阻止 VoWiFi
+// - &false: 缓存已加载但扫描失败（eUICC 硬件故障），阻止 VoWiFi
 func (m *Manager) EUICCAvailable() *bool {
 	if m == nil {
 		return nil
@@ -19,9 +22,26 @@ func (m *Manager) EUICCAvailable() *bool {
 		result := true
 		return &result
 	}
-	// 扫描失败或 ChipInfo 为空
-	result := false
-	return &result
+	// 扫描失败：根据错误类别决定是否阻止 VoWiFi
+	if m.overviewLastErr != nil {
+		// 卡不在位 或 物理SIM卡（所有AID返回6A82/6A88）：不阻止
+		if IsScanCardAbsent(m.overviewLastErr) {
+			return nil
+		}
+		// 临时性故障（操作进行中/传输层不可用）：不阻止，让 VoWiFi 尝试启动
+		if IsScanTemporary(m.overviewLastErr) {
+			return nil
+		}
+		// 兼容旧错误 ErrNoEUCCFound：不阻止
+		if errors.Is(m.overviewLastErr, ErrNoEUCCFound) {
+			return nil
+		}
+		// eUICC 硬件故障：阻止 VoWiFi 启动
+		result := false
+		return &result
+	}
+	// overviewCache 为空但无错误（边界情况）：不阻止
+	return nil
 }
 
 // OverviewStateCallback 在 overview 缓存更新（扫描完成/失败/刷新）时被调用。
