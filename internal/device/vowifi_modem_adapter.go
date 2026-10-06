@@ -9,8 +9,6 @@ import (
 	"github.com/voorz/vohive/internal/apduarbiter"
 	"github.com/voorz/vohive/internal/backend"
 	"github.com/voorz/vohive/internal/modem"
-	"github.com/voorz/vowifi-core/runtimehost"
-	"github.com/voorz/vowifi-core/runtimehost/identity"
 )
 
 func newVoWiFiModemInterface(w *Worker, deviceID string) (vowifihost.Modem, error) {

@@ -10,6 +10,7 @@
 package carrier
 
 import (
+	"fmt"
 	"strings"
 	"time"
 )
@@ -138,4 +139,44 @@ func ResolvePCSCFAddr(p *CarrierProfile) string {
 		return ""
 	}
 	return getString(*p, "ims.pcscf_addr")
+}
+
+// PlmnKey 规范化 PLMN key（MCC+MNC，MNC 补零到 3 位）。
+func PlmnKey(mcc, mnc string) string {
+	mcc = strings.TrimSpace(mcc)
+	mnc = strings.TrimSpace(mnc)
+	if len(mnc) < 3 {
+		mnc = strings.Repeat("0", 3-len(mnc)) + mnc
+	}
+	return mcc + mnc
+}
+
+// LookupWithIdentity 按身份查找运营商配置（简化：只用 PLMN key 查 DB）。
+func LookupWithIdentity(mcc, mnc, gid1, gid2, spn string) (*CarrierProfile, error) {
+	r := &DBProfileResolver{}
+	return r.LookupActiveProfile(PlmnKey(mcc, mnc))
+}
+
+// Generic 返回通用模板（新设计中无嵌入通用模板，返回 nil）。
+func Generic() (*CarrierProfile, error) {
+	return nil, nil
+}
+
+// IsVoWiFiBlockedMCC 检查 MCC 是否被运营商策略阻止 VoWiFi。
+// 简化实现：目前无阻止列表，返回 false。
+func IsVoWiFiBlockedMCC(mcc string) bool {
+	return false
+}
+
+// IsVoWiFiPolicyBlockedError 检查错误是否为运营商策略阻止。
+func IsVoWiFiPolicyBlockedError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "VoWiFiBlocked")
+}
+
+// NewVoWiFiBlockedMCCError 创建 MCC 阻止错误。
+func NewVoWiFiBlockedMCCError(mcc string) error {
+	return fmt.Errorf("VoWiFiBlocked: MCC %s 被运营商策略阻止", mcc)
 }

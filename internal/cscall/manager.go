@@ -1,6 +1,7 @@
 package cscall
 
 import (
+	"strings"
 	"context"
 	"fmt"
 	"math/rand"
@@ -14,7 +15,6 @@ import (
 	"github.com/voorz/vohive/internal/modem"
 	"github.com/voorz/vohive/internal/sipgw"
 	"github.com/voorz/vohive/pkg/logger"
-	"github.com/voorz/vowifi-core/runtimehost/voicehost"
 )
 
 // CallState 定义 CS 呼叫状态
@@ -476,15 +476,15 @@ func (m *Manager) handleClientAnswer(call *CSCall, callID string, res *sip.Respo
 	logger.Info(fmt.Sprintf("[%s] CSCall: 客户端已接听，开始建立媒体通道", m.deviceID))
 
 	// 解析 SDP 获取远端 RTP 地址
-	sdpInfo, err := voicehost.ParseSDP(res.Body())
-	if err == nil {
+	sdpIP, sdpPort := parseSDPStub(res.Body())
+	if sdpIP != "" {
 		call.clientAddr = &net.UDPAddr{
-			IP:   net.ParseIP(sdpInfo.ConnectionIP),
-			Port: sdpInfo.MediaPort,
+			IP:   net.ParseIP(sdpIP),
+			Port: sdpPort,
 		}
-		call.audio.SetClientAddr(sdpInfo.ConnectionIP, sdpInfo.MediaPort)
+		call.audio.SetClientAddr(sdpIP, sdpPort)
 	} else {
-		logger.Warn(fmt.Sprintf("[%s] CSCall: 解析协商 SDP 失败, 回退到通过第一个 RTP 包学习其地址", m.deviceID), "err", err)
+		logger.Warn(fmt.Sprintf("[%s] CSCall: 解析协商 SDP 失败, 回退到通过第一个 RTP 包学习其地址", m.deviceID))
 	}
 
 	// 构造 ACK - RFC 3261 §13.2.2.4
@@ -683,8 +683,8 @@ func (m *Manager) HandleOutboundInvite(deviceID string, req *sip.Request, tx sip
 
 	// 解析 Linphone SDP 中的 RTP 客户端地址
 	if body := req.Body(); len(body) > 0 {
-		if sdpInfo, err := voicehost.ParseSDP(body); err == nil {
-			ab.SetClientAddr(sdpInfo.ConnectionIP, sdpInfo.MediaPort)
+		if sdpIP, sdpPort := parseSDPStub(body); sdpIP != "" {
+			ab.SetClientAddr(sdpIP, sdpPort)
 		}
 	}
 
@@ -948,4 +948,16 @@ func (m *Manager) endCallAndHangup(sendClientSignal bool, sendATH bool) {
 			}
 		}
 	}
+}
+
+// parseSDPStub 简单解析 SDP 获取连接 IP（语音暂不处理，最小实现）。
+func parseSDPStub(body []byte) (ip string, port int) {
+	for _, line := range strings.Split(string(body), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "c=IN IP4 ") {
+			ip = strings.TrimPrefix(line, "c=IN IP4 ")
+			ip = strings.Fields(ip)[0]
+		}
+	}
+	return ip, 0
 }

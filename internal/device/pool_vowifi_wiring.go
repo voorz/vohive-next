@@ -6,15 +6,11 @@ import (
 	"github.com/voorz/sipgo/sip"
 	"github.com/voorz/vohive/internal/sipgw"
 	"github.com/voorz/vohive/pkg/logger"
-	"github.com/voorz/vowifi-core/runtimehost/voicehost"
 )
 
-// SetVoiceGateway 注入 VoWiFi 语音网关，用于优先走 IMS 外呼/挂断路径。
-func (p *Pool) SetVoiceGateway(g *voicehost.Gateway) {
-	p.mu.Lock()
-	p.voiceGateway = g
-	p.mu.Unlock()
-	p.voWiFiHost().ConfigureRuntimeDependencies(g, vowifiDeliveryStore{}, poolVoWiFiRuntimeDispatcher{pool: p})
+// SetVoiceGateway 注入 VoWiFi 语音网关（语音暂不处理，保留接口兼容）。
+func (p *Pool) SetVoiceGateway(g interface{}) {
+	// 语音部分暂不处理，此为空实现
 }
 
 // UpdateVoWiFiBehavior 热更新 VoWiFi 行为参数到运行时。
@@ -42,11 +38,9 @@ func (p *Pool) SetVoWiFiSIPRegistrar(r *sipgw.Registrar) {
 	p.voWiFiHost().SetSIPRegistrar(r)
 }
 
-// GetVoiceGateway 返回绑定的 VoiceGateway 实例
-func (p *Pool) GetVoiceGateway() *voicehost.Gateway {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-	return p.voiceGateway
+// GetVoiceGateway 返回绑定的 VoiceGateway 实例（语音暂不处理，返回 nil）
+func (p *Pool) GetVoiceGateway() interface{} {
+	return nil
 }
 
 // SetSIPRegistrar 注入 SIP 注册器，统一注册通话路由回调。
@@ -93,8 +87,7 @@ func (p *Pool) SetSIPRegistrar(r *sipgw.Registrar) {
 
 		p.mu.RLock()
 		w, ok := p.workers[deviceID]
-		voiceGW := p.voiceGateway
-		p.mu.RUnlock()
+			p.mu.RUnlock()
 
 		// 路由判断：按设备状态选择通话通道
 		// 1. VoWiFi 在线 → 走 VoWiFi IMS VoiceGateway
@@ -130,8 +123,7 @@ func (p *Pool) SetSIPRegistrar(r *sipgw.Registrar) {
 
 		p.mu.RLock()
 		w, ok := p.workers[deviceID]
-		voiceGW := p.voiceGateway
-		p.mu.RUnlock()
+			p.mu.RUnlock()
 
 		// 按通话类型路由 BYE
 		if ok && w.CSCallMgr != nil && w.CSCallMgr.HasCall(callID) {
@@ -157,8 +149,7 @@ func (p *Pool) SetSIPRegistrar(r *sipgw.Registrar) {
 
 		p.mu.RLock()
 		w, ok := p.workers[deviceID]
-		voiceGW := p.voiceGateway
-		p.mu.RUnlock()
+			p.mu.RUnlock()
 
 		// 按通话类型路由 CANCEL
 		if ok && w.CSCallMgr != nil && w.CSCallMgr.HasCall(callID) {

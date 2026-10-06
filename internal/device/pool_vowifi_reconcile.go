@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/voorz/vowifi-core/runtimehost/carrier"
+	carrier "github.com/voorz/vohive/internal/carrier"
 
 	"github.com/voorz/vohive/internal/vowifihost"
 	"github.com/voorz/vohive/pkg/logger"

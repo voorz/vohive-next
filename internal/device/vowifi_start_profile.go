@@ -8,8 +8,6 @@ import (
 
 	"github.com/voorz/vohive/internal/modem"
 	"github.com/voorz/vohive/pkg/logger"
-	"github.com/voorz/vowifi-core/runtimehost"
-	"github.com/voorz/vowifi-core/runtimehost/identity"
 )
 
 func (p *Pool) buildVoWiFiStartProfile(worker *Worker, traceID string) (vowifihost.IdentityProfile, error) {
@@ -193,7 +191,7 @@ func vowifiProfileMCCMNC(status modem.DeviceStatus) (mcc, mnc, source string) {
 
 func newVoWiFiSIMReadyStartupState(deviceID, dataplaneMode, networkMode string, now time.Time) vowifihost.DeviceStartupState {
 	return vowifihost.DeviceStartupState{
-		Phase:         runtimehost.PhaseSIMReady,
+		Phase:         "sim_ready",
 		DeviceID:      deviceID,
 		DataplaneMode: dataplaneMode,
 		NetworkMode:   strings.TrimSpace(networkMode),

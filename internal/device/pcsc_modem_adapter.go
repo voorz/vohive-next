@@ -11,8 +11,6 @@ import (
 	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/esim"
 	"github.com/voorz/vohive/pkg/logger"
-	"github.com/voorz/vowifi-core/runtimehost"
-	"github.com/voorz/vowifi-core/runtimehost/identity"
 )
 
 // PC/SC APDU 常量 (ISO 7816 / 3GPP TS 31.102)

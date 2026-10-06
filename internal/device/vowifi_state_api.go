@@ -5,8 +5,6 @@ import (
 	"fmt"
 
 	"github.com/voorz/vohive/pkg/smscodec"
-	"github.com/voorz/vowifi-core/runtimehost"
-	"github.com/voorz/vowifi-core/runtimehost/messaging"
 )
 
 func (p *Pool) GetVoWiFiApp() *ims.Client {

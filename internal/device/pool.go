@@ -25,8 +25,6 @@ import (
 	"github.com/voorz/vohive/internal/vowifihost"
 	"github.com/voorz/vohive/pkg/logger"
 	"github.com/voorz/vohive/pkg/smscodec"
-	"github.com/voorz/vowifi-core/runtimehost"
-	"github.com/voorz/vowifi-core/runtimehost/voicehost"
 
 	qmimanager "github.com/voorz/quectel-qmi-go/pkg/manager"
 	"github.com/voorz/quectel-qmi-go/pkg/qmi"
@@ -206,7 +204,6 @@ type Pool struct {
 
 	// SIP 注册器 (用于 CS 域语音桥接查路由)
 	sipRegistrar *sipgw.Registrar
-	voiceGateway *voicehost.Gateway
 	callEventPub vowifihost.CallEventPublisher
 
 	// VoWiFi host 侧整合（多实例）
@@ -255,7 +252,7 @@ func NewPool(cfg *config.Config) *Pool {
 	}
 	p.transportRecovery = NewTransportRecoveryController(p)
 	p.voWiFiHost().ConfigureAdapter(p)
-	p.voWiFiHost().ConfigureRuntimeDependencies(p.GetVoiceGateway(), vowifiDeliveryStore{}, poolVoWiFiRuntimeDispatcher{pool: p})
+	p.voWiFiHost().ConfigureRuntimeDependencies( vowifiDeliveryStore{}, poolVoWiFiRuntimeDispatcher{pool: p})
 	if cfg != nil {
 		p.voWiFiHost().SetIKERetryCount(cfg.VoWiFi.Behavior.IKERetryCount)
 		p.voWiFiHost().SetRecoverInterval(cfg.VoWiFi.Behavior.RecoverIntervalSeconds)

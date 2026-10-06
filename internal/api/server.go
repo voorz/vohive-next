@@ -31,7 +31,6 @@ import (
 	"github.com/voorz/vohive/internal/voice"
 	vwebsheet "github.com/voorz/vohive/internal/websheet"
 	"github.com/voorz/vohive/pkg/smscodec"
-	"github.com/voorz/vowifi-core/runtimehost/voicehost"
 
 	"github.com/spf13/viper"
 	"github.com/voorz/vohive/pkg/logger"
@@ -78,7 +77,6 @@ type Server struct {
 	trafficRT    realtimeTrafficSubscriber
 	proxyRepo    repo.ProxyInstanceRepository
 	proxySyncMu  sync.Mutex
-	voiceGW      *voicehost.Gateway
 	voiceBus     *voice.Bus
 	notifyMgr    *notify.Manager
 	pushNotifier PushNotifier // Linphone 推送接口
@@ -115,7 +113,7 @@ func (s *Server) SetPushNotifier(p PushNotifier) {
 
 // New 创建一个新的 API 服务器实例
 // proxyMgr 参数可为 nil，此时代理管理功能不可用
-func New(cfg *config.Config, pool *device.Pool, fs http.FileSystem, proxyMgr *server.Manager, voiceGW *voicehost.Gateway, notifyMgr *notify.Manager, configPath string) *Server {
+func New(cfg *config.Config, pool *device.Pool, fs http.FileSystem, proxyMgr *server.Manager, notifyMgr *notify.Manager, configPath string) *Server {
 	if !cfg.Server.Debug {
 		gin.SetMode(gin.ReleaseMode)
 	}
@@ -130,7 +128,6 @@ func New(cfg *config.Config, pool *device.Pool, fs http.FileSystem, proxyMgr *se
 		fs:            fs,
 		configPath:    configPath,
 		proxyMgr:      proxyMgr,
-		voiceGW:       voiceGW,
 		notifyMgr:     notifyMgr,
 		proxyRepo:     repo.NewDBRepo(),
 		websheets:     vwebsheet.New(vwebsheet.Config{BasePath: "/api/websheets"}),
@@ -1512,9 +1509,6 @@ func (s *Server) handleStatusDetail(c *gin.Context) {
 			vowifi["imscore"] = status
 			vowifi["smsip"] = status
 		}
-	}
-	if s.voiceGW != nil {
-		vowifi["voice"] = s.voiceGW.DeviceStatus(worker.ID)
 	}
 	response["vowifi"] = vowifi
 

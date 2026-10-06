@@ -7,7 +7,6 @@ import (
 
 	"github.com/voorz/vohive/internal/backend"
 	"github.com/voorz/vohive/pkg/logger"
-	"github.com/voorz/vowifi-core/runtimehost/identity"
 )
 
 // qmiModemAdapter 将 QMIBackend 适配为 vowifi.Modem + simauth.ATModem 接口。

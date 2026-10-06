@@ -1,6 +1,7 @@
 package device
 
 import (
+	"github.com/voorz/ims-go/ims"
 	"context"
 	"fmt"
 	"strings"
@@ -13,10 +14,7 @@ import (
 	"github.com/voorz/vohive/internal/vowifihost"
 	"github.com/voorz/vohive/pkg/logger"
 	"github.com/voorz/vohive/pkg/mbim"
-	"github.com/voorz/vowifi-core/engine/swu"
-	"github.com/voorz/vowifi-core/runtimehost"
-	"github.com/voorz/vowifi-core/runtimehost/carrier"
-	"github.com/voorz/vowifi-core/runtimehost/identity"
+	carrier "github.com/voorz/vohive/internal/carrier"
 )
 
 type voWiFiStartContext struct {
@@ -188,7 +186,7 @@ func (p *Pool) prepareVoWiFiStartContext(deviceID, traceID, runtimeEPDGOverride 
 	} else {
 		logger.Info("VoWiFi 使用 APDU(AKA) 鉴权", "trace_id", traceID, "device", deviceID)
 	}
-	startCtx.SIM = runtimehost.NewReaderSIMAdapter(akaProvider)
+	startCtx.SIM = &akaProviderAdapter{provider: akaProvider, imsi: startProfile.IMSI}
 
 	if carrier.IsVoWiFiBlockedMCC(startProfile.MCC) {
 		err := carrier.NewVoWiFiBlockedMCCError(startProfile.MCC)
@@ -264,7 +262,7 @@ func (p *Pool) prepareVoWiFiStartContext(deviceID, traceID, runtimeEPDGOverride 
 	startCtx.Proxy = resolveVoWiFiCountryProxy(startProfile.MCC, traceID, deviceID)
 
 	startCtx.NetworkMode = modemIface.GetNetworkMode()
-	startCtx.StartupState = newVoWiFiSIMReadyStartupState(deviceID, swu.DataplaneModeUserspace, startCtx.NetworkMode, time.Now())
+	startCtx.StartupState = newVoWiFiSIMReadyStartupState(deviceID, ims.DataplaneUserspace, startCtx.NetworkMode, time.Now())
 	p.recordVoWiFiStartupState(deviceID, startCtx.StartupState)
 	return startCtx, nil
 }
@@ -328,3 +326,22 @@ func (p *Pool) beforeVoWiFiStart(deviceID string, modemIface vowifihost.Modem, p
 		return nil
 	}
 }
+
+// akaProviderAdapter 将 ims.AKAProvider 适配为 vowifihost.SIMAdapter。
+type akaProviderAdapter struct {
+	provider ims.AKAProvider
+	imsi     string
+}
+
+func (a *akaProviderAdapter) GetIMSI() (string, error) {
+	if a.imsi != "" {
+		return a.imsi, nil
+	}
+	return "", fmt.Errorf("IMSI not available")
+}
+
+func (a *akaProviderAdapter) CalculateAKA(rand16, autn16 []byte) (ims.AKAResult, error) {
+	return a.provider.CalculateAKA(rand16, autn16)
+}
+
+func (a *akaProviderAdapter) Close() error { return nil }

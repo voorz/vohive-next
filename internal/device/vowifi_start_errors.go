@@ -9,8 +9,8 @@ import (
 	"github.com/voorz/vohive/internal/backend"
 	"github.com/voorz/vohive/internal/vowifihost"
 	"github.com/voorz/vohive/pkg/logger"
-	"github.com/voorz/vowifi-core/runtimehost"
-	"github.com/voorz/vowifi-core/runtimehost/carrier"
+	"github.com/voorz/vohive/internal/vowifihost"
+	carrier "github.com/voorz/vohive/internal/carrier"
 )
 
 func logVoWiFiFailureSummary(traceID, deviceID, stage, errorClass, reason string, retryable bool, nextRetry time.Duration) {

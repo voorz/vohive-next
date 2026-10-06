@@ -9,8 +9,6 @@ import (
 	"github.com/voorz/vohive/internal/modem"
 	"github.com/voorz/vohive/internal/websheet"
 	"github.com/voorz/vohive/pkg/logger"
-	"github.com/voorz/vowifi-core/runtimehost/carrier"
-	runtimee911 "github.com/voorz/vowifi-core/runtimehost/e911"
 )
 
 // ErrNotSupported means device status does not support e911 updates.

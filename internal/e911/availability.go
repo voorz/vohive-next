@@ -4,20 +4,11 @@ import (
 	"strings"
 
 	"github.com/voorz/vohive/internal/modem"
-	"github.com/voorz/vowifi-core/runtimehost/carrier"
 )
 
 func SetupAvailable(status modem.DeviceStatus) bool {
-	mcc, mnc := nativePLMN(status)
-	if mcc == "" || mnc == "" {
-		return false
-	}
-	cfg := carrier.ResolveEffectiveCarrierConfig(carrier.EffectiveCarrierConfigInput{
-		MCC: mcc,
-		MNC: mnc,
-		SPN: status.NativeSPN,
-	})
-	return cfg.E911.Enabled
+	// e911 暂不处理（IMS 注册/SMS 优先），返回 false
+	return false
 }
 
 func nativePLMN(status modem.DeviceStatus) (string, string) {

@@ -22,7 +22,7 @@ import (
 	"github.com/voorz/vohive/internal/modem"
 	proxytraffic "github.com/voorz/vohive/internal/proxy/traffic"
 	"github.com/voorz/vohive/pkg/logger"
-	"github.com/voorz/vowifi-core/runtimehost"
+	"github.com/voorz/vohive/internal/vowifihost"
 
 	"github.com/gin-gonic/gin"
 )
@@ -526,42 +526,17 @@ type voWiFiRuntimeDTO struct {
 	RetryInSeconds int `json:"retry_in_seconds,omitempty"`
 }
 
-func runtimeStateToDTO(st runtimehost.State, status modem.DeviceStatus) *voWiFiRuntimeDTO {
+func runtimeStateToDTO(st vowifihost.DeviceStartupState, status modem.DeviceStatus) *voWiFiRuntimeDTO {
+	// ims-go 迁移：DeviceStartupState 为简化版，详细 IMS/SMS 状态由 ims.Client 内部管理。
+	// 前端显示的核心字段（Phase/LastReason/UpdatedAt）保留；历史详细字段暂留零值。
 	return &voWiFiRuntimeDTO{
-		DeviceID:       st.DeviceID,
-		Phase:          string(st.Phase),
-		DataplaneMode:  st.DataplaneMode,
-		ICCID:          strings.TrimSpace(status.ICCID),
-		IMSI:           strings.TrimSpace(status.IMSI),
-		SIMReady:       st.SIMReady,
-		AccessReady:    st.AccessReady,
-		TunnelReady:    st.TunnelReady,
-		IMSReady:       st.IMSReady,
-		SMSReady:       st.SMSReady,
-		CallReady:      st.CallReady,
-		RegStatus:      st.RegStatus,
-		RegStatusText:  st.RegStatusText,
-		NetworkMode:    st.NetworkMode,
-		LastErrorClass: st.LastErrorClass,
-		LastError:      st.LastError,
-		LastReason:     st.LastReason,
-		UpdatedAt:      st.UpdatedAt,
-
-		// 实时进度
-		Generation:     st.Generation,
-		Stage:          st.Stage,
-		StageLabel:     st.StageLabel,
-		StageStartedAt: st.StageStartedAt,
-		AttemptIndex:   st.AttemptIndex,
-		MaxAttempts:    st.MaxAttempts,
-
-		// IMS REGISTER 细节
-		RegisterVariantIndex: st.RegisterVariantIndex,
-		RegisterVariantTotal: st.RegisterVariantTotal,
-		RegisterRound:        st.RegisterRound,
-		MaxChallengeRounds:   st.MaxChallengeRounds,
-		LastSIPStatus:        st.LastSIPStatus,
-		LastSIPReason:        st.LastSIPReason,
+		DeviceID:   st.DeviceID,
+		Phase:      st.Phase,
+		ICCID:      strings.TrimSpace(status.ICCID),
+		IMSI:       strings.TrimSpace(status.IMSI),
+		NetworkMode: st.NetworkMode,
+		LastReason:  st.LastReason,
+		UpdatedAt:   st.UpdatedAt,
 	}
 }
 
