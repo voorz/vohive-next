@@ -186,7 +186,9 @@ func (s *Server) handleGetCarrier(c *gin.Context) {
 		name = brand
 	}
 	if name == "" && sysDefault != nil {
-		name = sysDefault.Name
+		if n, ok := (*sysDefault)["name"].(string); ok {
+			name = n
+		}
 	}
 	if name == "" {
 		name = plmnKey
@@ -198,7 +200,7 @@ func (s *Server) handleGetCarrier(c *gin.Context) {
 	if tpl != nil && tpl.ProfileJSON != "" {
 		var p carrier.CarrierProfile
 		if err := json.Unmarshal([]byte(tpl.ProfileJSON), &p); err == nil {
-			p.TemplateLevel = "user"
+			p["template_level"] = "user"
 			userConfig = &p
 		}
 	}
@@ -211,13 +213,13 @@ func (s *Server) handleGetCarrier(c *gin.Context) {
 	deviceIMSTAC := 0
 	deviceIMSCellID := 0
 	if userConfig != nil {
-		ikeAddr = userConfig.IKE.Addr
-		deviceIMSTAC = userConfig.Device.IMSTAC
-		deviceIMSCellID = userConfig.Device.IMSCellID
+		ikeAddr = carrier.GetString(userConfig, "ike.addr")
+		deviceIMSTAC = carrier.GetInt(userConfig, "device.ims_tac")
+		deviceIMSCellID = carrier.GetInt(userConfig, "device.ims_cellid")
 	} else if sysDefault != nil {
-		ikeAddr = sysDefault.IKE.Addr
-		deviceIMSTAC = sysDefault.Device.IMSTAC
-		deviceIMSCellID = sysDefault.Device.IMSCellID
+		ikeAddr = carrier.GetString(sysDefault, "ike.addr")
+		deviceIMSTAC = carrier.GetInt(sysDefault, "device.ims_tac")
+		deviceIMSCellID = carrier.GetInt(sysDefault, "device.ims_cellid")
 	}
 
 	d := &carrierconfig.Detail{
@@ -266,11 +268,11 @@ func (s *Server) handleSaveCarrierConfig(c *gin.Context) {
 	}
 
 	// 注入 MCC/MNC/Name
-	payload.Config.MCC = mcc
-	payload.Config.MNC = mnc
-	payload.Config.Name = strings.TrimSpace(payload.Name)
+	(*payload.Config)["mcc"] = mcc
+	(*payload.Config)["mnc"] = mnc
+	(*payload.Config)["name"] = strings.TrimSpace(payload.Name)
 	// 用户保存的配置始终标记为 user level
-	payload.Config.TemplateLevel = "user"
+	(*payload.Config)["template_level"] = "user"
 
 	jsonBytes, err := json.Marshal(payload.Config)
 	if err != nil {
@@ -534,9 +536,28 @@ func (s *Server) handlePullCarrierYAML(c *gin.Context) {
 
 	// 保存到 DB（用户配置表，不激活）
 	key := makeKey(mcc, mnc, "")
-	if err := db.SaveCarrierTemplate(key, userProfile); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "保存失败: " + err.Error()})
-		return
+	jsonBytes, _ := json.Marshal(userProfile)
+	tpl, _ := db.GetCarrierTemplateByKey(key)
+	if tpl != nil {
+		tpl.ProfileJSON = string(jsonBytes)
+		tpl.Source = "yaml_pull"
+		tpl.Active = false
+		if err := db.UpdateCarrierTemplate(tpl); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "保存失败: " + err.Error()})
+			return
+		}
+	} else {
+		tpl = &db.CarrierTemplate{
+			Key:         key,
+			Name:        profile.Name,
+			ProfileJSON: string(jsonBytes),
+			Source:      "yaml_pull",
+			Active:      false,
+		}
+		if err := db.CreateCarrierTemplate(tpl); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "保存失败: " + err.Error()})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{

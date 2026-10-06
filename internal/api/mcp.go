@@ -276,7 +276,7 @@ func (s *Server) mcpGetDeviceStatus(args map[string]any) string {
 		ip := w.GetCachedIP()
 		sb.WriteString(fmt.Sprintf("─ %s (%s)\n", w.ID, w.Config.Name))
 		sb.WriteString(fmt.Sprintf("  健康: %v | IP: %s | 接口: %s\n", healthy, ip, w.Config.Interface))
-		sb.WriteString(fmt.Sprintf("  状态: %s\n", status))
+		sb.WriteString(fmt.Sprintf("  状态: %v\n", status))
 		sb.WriteString("\n")
 	}
 	return sb.String()

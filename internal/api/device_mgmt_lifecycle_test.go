@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/voorz/vohive/internal/vowifihost"
 	"encoding/json"
 	"strings"
 	"testing"
@@ -9,7 +10,6 @@ import (
 	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/device"
 	"github.com/voorz/vohive/internal/modem"
-	"github.com/voorz/ims-go/ims"
 )
 
 func TestApplyLifecycleToOfflineOverviewItemKeepsRecoveryVisible(t *testing.T) {
@@ -65,8 +65,8 @@ func TestApplyLifecycleToListItemDerivesRadioRegistered(t *testing.T) {
 }
 
 func TestVoWiFiRuntimeDTOExportsSIMReadyOnly(t *testing.T) {
-	dto := runtimeStateToDTO(runtimehost.State{
-		Phase:      runtimehost.PhaseSIMReady,
+	dto := runtimeStateToDTO(vowifihost.DeviceStartupState{
+		Phase:      "sim_ready",
 		DeviceID:   "dev1",
 		SIMReady:   true,
 		LastReason: "sim_ready",

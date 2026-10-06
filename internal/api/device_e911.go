@@ -53,10 +53,7 @@ func e911ErrorCode(err error) string {
 // @Router       /devices/{device_id}/vowifi/e911/websheet [post]
 // @Security     BearerAuth
 func (s *Server) handleDeviceE911Websheet(c *gin.Context) {
-	coord := &e911.Coordinator{
-		Pool:      s.pool,
-		Websheets: s.websheets,
-	}
+	coord := e911.NewCoordinator(deviceIDParam(c), s.pool, s.websheets)
 	info, err := coord.StartWebsheet(c.Request.Context(), deviceIDParam(c))
 	if err != nil {
 		c.JSON(e911ErrorStatus(err), gin.H{"status": "error", "code": e911ErrorCode(err), "message": err.Error()})

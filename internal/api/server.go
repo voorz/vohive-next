@@ -1289,11 +1289,8 @@ func (s *Server) handleSendSMS(c *gin.Context) {
 	if s.pool.IsVoWiFiActive(deviceID) {
 		// VoWiFi 模式下使用 IMS Core 发送；短信历史由宿主侧 runtime event / failure recorder 入库。
 		outcome, err := s.pool.SendVoWiFiSMSWithOptions(c.Request.Context(), deviceID, req.Phone, req.Message, sendOpts)
-		if outcome.PartsTotal > 0 {
-			partsTotal = outcome.PartsTotal
-		}
-		if strings.TrimSpace(outcome.DeliveryState) != "" {
-			deliveryState = strings.TrimSpace(outcome.DeliveryState)
+		if outcome.Segments > 0 {
+			partsTotal = outcome.Segments
 		}
 		messageID = strings.TrimSpace(outcome.MessageID)
 		if err != nil {
@@ -1362,19 +1359,13 @@ func (s *Server) handleSMSDelivery(c *gin.Context) {
 		c.JSON(http.StatusServiceUnavailable, gin.H{"status": "error", "message": "服务未就绪"})
 		return
 	}
-	services := s.pool.GetAllVoWiFiApps()
-	for _, svc := range services {
-		if svc == nil {
-			continue
-		}
-		status, err := svc.GetSMSDeliveryStatus(messageID)
-		if err != nil {
-			continue
-		}
-		c.JSON(http.StatusOK, gin.H{"status": "ok", "delivery": status})
+	// ims-go 迁移：投递状态从 DB 查询（vowifiDeliveryStore 写入）
+	status, err := db.GetSMSDeliveryStatus(messageID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"status": "error", "message": "未找到对应短信投递记录"})
 		return
 	}
-	c.JSON(http.StatusNotFound, gin.H{"status": "error", "message": "未找到对应短信投递记录"})
+	c.JSON(http.StatusOK, gin.H{"status": "ok", "delivery": status})
 }
 
 // handleVoWiFiEnable 为指定设备启用 VoWiFi

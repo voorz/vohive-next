@@ -209,3 +209,19 @@ func ResolveAKAPreference(p *CarrierProfile) string {
 	}
 	return getString(*p, "aka_preference")
 }
+
+// GetString 从 CarrierProfile 取字符串字段（path 如 "device.imei"）。
+func GetString(p *CarrierProfile, path string) string {
+	if p == nil {
+		return ""
+	}
+	return getString(*p, path)
+}
+
+// GetInt 从 CarrierProfile 取整数字段。
+func GetInt(p *CarrierProfile, path string) int {
+	if p == nil {
+		return 0
+	}
+	return getInt(*p, path)
+}
