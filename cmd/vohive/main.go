@@ -17,11 +17,11 @@ import (
 	"time"
 
 	"github.com/voorz/vohive/internal/api"
-	carrierconfig "github.com/voorz/vohive/internal/carrier"
 	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/db"
 	"github.com/voorz/vohive/internal/device"
 	"github.com/voorz/vohive/internal/esim"
+	carrierconfig "github.com/voorz/vohive/internal/carrier"
 	"github.com/voorz/vohive/internal/notify"
 	"github.com/voorz/vohive/internal/plmnindex"
 	proxyserver "github.com/voorz/vohive/internal/proxy/server"
@@ -29,7 +29,6 @@ import (
 	"github.com/voorz/vohive/internal/sipgw"
 	"github.com/voorz/vohive/internal/upstreamproxy"
 	"github.com/voorz/vohive/internal/voice"
-	carrier "github.com/voorz/vohive/internal/carrier"
 
 	"github.com/voorz/vohive/internal/web"
 	"github.com/voorz/vohive/pkg/logger"
@@ -115,18 +114,6 @@ func main() {
 			logger.Warn(disclaimer)
 		}
 	}()
-
-	loadResult, err := carrier.LoadCarrierOverrides("")
-	if err != nil {
-		carrier.ClearCarrierOverrides()
-		logger.Warn("加载 carrier_overrides 失败，回退内置运营商配置",
-			"path", loadResult.Path,
-			"err", err)
-	} else if loadResult.Missing {
-		//logger.Info("carrier_overrides 文件不存在，使用内置运营商配置", "path", loadResult.Path)
-	} else {
-		logger.Info("carrier_overrides 已加载", "path", loadResult.Path, "entries", loadResult.Count)
-	}
 
 	// 3. 初始化数据库
 	dbPath := "data/vohive.db"
@@ -285,14 +272,10 @@ func main() {
 				_voiceBus = voiceBus
 				pool.SetVoWiFiCallEventPublisher(voiceBus)
 
-				voiceGW.SetClientAdapter(sipRegistrar)
 				pool.SetVoWiFiSIPRegistrar(sipRegistrar)
 
 				// SIP 回调统一由 pool.SetSIPRegistrar 注册：
 				// onInvite/onBye/onCancel 路由逻辑 + voiceBus 事件追踪均在 pool 内处理。
-				// 以下仅注册 pool 不管的 PRACK/ACK 等直接转发到 voiceGW。
-				sipRegistrar.SetOnPrack(voiceGW.HandleClientPrack)
-				sipRegistrar.SetOnAck(voiceGW.HandleClientAck)
 
 				pool.SetSIPRegistrar(sipRegistrar)
 
@@ -311,7 +294,6 @@ func main() {
 			logger.Warn("通知管理器初始化异常", "err", err)
 		} else {
 			pool.SetNotifier(notifyMgr)
-			voiceGW.SetNotifier(notifyMgr)
 		}
 
 	}
@@ -344,9 +326,6 @@ func main() {
 			logger.Warn("通知管理器初始化异常", "err", err)
 		} else {
 			pool.SetNotifier(notifyMgr)
-			if voiceGW != nil {
-				voiceGW.SetNotifier(notifyMgr)
-			}
 		}
 	}
 
@@ -456,12 +435,7 @@ func main() {
 			logger.Error("关闭代理实例时出错", "err", err)
 		}
 
-		// 关闭语音网关与软电话 Registrar
-		if voiceGW != nil {
-			if err := voiceGW.Stop(); err != nil {
-				logger.Error("关闭语音网关时出错", "err", err)
-			}
-		}
+		// 关闭软电话 Registrar（语音暂缓，voiceGW 已移除）
 		if sipRegistrar != nil {
 			if err := sipRegistrar.Stop(); err != nil {
 				logger.Error("关闭 Registrar 时出错", "err", err)
