@@ -29,8 +29,7 @@ import (
 	"github.com/voorz/vohive/internal/sipgw"
 	"github.com/voorz/vohive/internal/upstreamproxy"
 	"github.com/voorz/vohive/internal/voice"
-	"github.com/voorz/vowifi-core/runtimehost/carrier"
-	"github.com/voorz/vowifi-core/runtimehost/voicehost"
+	carrier "github.com/voorz/vohive/internal/carrier"
 
 	"github.com/voorz/vohive/internal/web"
 	"github.com/voorz/vohive/pkg/logger"
@@ -192,17 +191,11 @@ func main() {
 	logger.Info("代理实例管理器已初始化")
 
 	// 7. 初始化语音网关与软电话 Registrar
-	// voiceGW 始终创建，用于管理 VoWiFi Agent（SimulateCall 等）。
+	// 语音暂缓：voiceGW 不再创建（ims-go 语音以后再接）。
 	// SIP Registrar（Linphone 软电话接入）仅在 voice_gateway.sip.listen 非空时启用。
 	var sipRegistrar *sipgw.Registrar
 	var notifyMgr *notify.Manager
-	voiceGW := voicehost.NewGateway()
-	pool.SetVoiceGateway(voiceGW)
-
-	if err := voiceGW.Start(context.Background()); err != nil {
-		logger.Error("语音网关启动失败", "err", err)
-	} else {
-		logger.Info("语音网关已启动")
+	{
 
 		// SIP Registrar（软电话）：开箱即用，默认监听 5060
 		{
@@ -357,7 +350,7 @@ func main() {
 		}
 	}
 
-	apiServer := api.New(cfg, pool, staticFS, proxyMgr, voiceGW, notifyMgr, configPath)
+	apiServer := api.New(cfg, pool, staticFS, proxyMgr, notifyMgr, configPath)
 	apiServer.SetRealtimeTraffic(realtimeTraffic)
 
 	// Linphone 推送通知器
