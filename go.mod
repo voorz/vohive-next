@@ -16,7 +16,7 @@ require (
 	github.com/swaggo/swag v1.16.6
 	github.com/things-go/go-socks5 v0.1.1
 	github.com/voorz/euicc-go v1.1.5
-	github.com/voorz/ims-go v0.0.0-20261006181551-b4f61e6cf5be
+	github.com/voorz/ims-go v0.0.0-20261006213023-8ea54e3ce585
 	github.com/voorz/qqbot v1.0.2
 	github.com/voorz/quectel-qmi-go v0.8.8
 	github.com/voorz/sipgo v1.6.5

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/voorz/ims-go/ims"
+	"github.com/voorz/vohive/pkg/logger"
 )
 
 type RuntimeStore interface {
@@ -71,8 +72,16 @@ func (s *Store) BeginStart(deviceID string) StartClaim {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	slot := s.ensureSlotLocked(deviceID)
+	// 存活检查：instance 非 nil 但已停止的是僵尸实例，视为不存在。
+	// （2026-10-07：僵尸实例导致 BeginStart 误判 Active，enableRuntime 直接返回 nil
+	//  却啥也没启动，前端表现为"点重连后快速走完前置流程但没进 VoWiFi"。）
 	if slot.instance != nil {
-		return StartClaim{Epoch: slot.epoch, Active: true}
+		if slot.instance.IsRunning() {
+			return StartClaim{Epoch: slot.epoch, Active: true}
+		}
+		// 僵尸实例：清理掉，继续正常启动流程
+		slot.instance = nil
+		logger.Warn("检测到 VoWiFi 僵尸实例，已清理", "device", deviceID)
 	}
 	if slot.starting {
 		return StartClaim{Epoch: slot.epoch, Starting: true}
