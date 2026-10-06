@@ -68,13 +68,6 @@ type PreparedSession struct {
 }
 
 // IdentityProfile 扩展字段（MCC/MNC/SPN/GID，用于运营商匹配）。
-
-// RTPRelaySession 是 RTP 中继会话接口（替代 voicehost.RTPRelaySession）。
-// 入站 B2BUA 的完整迁移后续进行，此处先定义最小接口保证编译。
-type RTPRelaySession interface {
-	Close() error
-}
-
 type traceIDKey struct{}
 
 // NewTraceID 生成追踪 ID（替代 runtimehost.NewTraceID）。

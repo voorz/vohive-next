@@ -53,7 +53,7 @@ type RuntimeStartRequest struct {
 	Modem         Modem
 	Dataplane     ims.DataplaneConfig
 	DeliveryStore ims.SMSDeliveryStore
-	EventHandler  ims.EventHandler
+	// EventDispatcher 由 Manager 持有，此处不再经 Request 传递
 	BeforeStart   func(context.Context, SessionConfig) error
 }
 
@@ -201,9 +201,9 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 		return RuntimeStartResult{}, err
 	}
 
-	// 事件订阅（替代 ObserverFunc）
-	if req.EventHandler != nil {
-		client.OnEvent(req.EventHandler)
+	// 事件订阅（替代 ObserverFunc）：按设备创建处理器
+	if m.eventDispatcher != nil {
+		client.OnEvent(m.eventDispatcher.ForDevice(deviceID))
 	}
 
 	// 隧道断开自动恢复（ims-go RecoveryPolicy 内部处理，此处保留 vowifihost 的编排逻辑）
@@ -221,16 +221,4 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 // incomingCallHandler 返回设备的入站呼叫处理器（A3 新契约）。
 func (m *Manager) incomingCallHandler(deviceID string) ims.IncomingCallHandler {
 	return &deviceIncomingCallHandler{manager: m, deviceID: deviceID}
-}
-
-// deviceIncomingCallHandler 实现 ims.IncomingCallHandler。
-type deviceIncomingCallHandler struct {
-	manager  *Manager
-	deviceID string
-}
-
-func (h *deviceIncomingCallHandler) HandleIncomingCall(ctx context.Context, req ims.IncomingCallRequest) ims.IncomingCallResponse {
-	// 委托给 Manager 的入站呼叫处理（逻辑在 inbound_call.go）
-	// 此处为适配层，具体实现后续
-	return ims.IncomingCallResponse{Accept: false, StatusCode: 486, Reason: "Busy Here"}
 }

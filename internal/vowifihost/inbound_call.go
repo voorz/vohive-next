@@ -3,66 +3,68 @@ package vowifihost
 import (
 	"context"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/voorz/sipgo/sip"
-	"github.com/voorz/vowifi-core/runtimehost"
-	"github.com/voorz/vowifi-core/runtimehost/voicehost"
+	"github.com/voorz/ims-go/ims"
 
 	"github.com/voorz/vohive/pkg/logger"
 )
 
-// handleInboundCall forwards an incoming VoWiFi INVITE to Linphone via
-// the sipgw.Registrar. It creates an RTP relay to bridge media between
-// the IMS tunnel and the Linphone client, rewrites the SDP so both
-// sides send RTP to the relay, and returns the final response to the
-// IMS network.
-//
-// Provisional responses (180 Ringing etc.) from Linphone are forwarded
-// to the IMS network via req.Respond before the final response is returned.
-func (m *Manager) handleInboundCall(ctx context.Context, req runtimehost.InboundCallRequest) (runtimehost.InboundCallResponse, error) {
+// deviceIncomingCallHandler 实现 ims.IncomingCallHandler。
+// 将入站 VoWiFi INVITE 转发到 Linphone（B2BUA），桥接媒体。
+type deviceIncomingCallHandler struct {
+	manager  *Manager
+	deviceID string
+}
+
+func (h *deviceIncomingCallHandler) HandleIncomingCall(ctx context.Context, req ims.IncomingCallRequest) ims.IncomingCallResponse {
+	m := h.manager
+	deviceID := h.deviceID
+
 	if m == nil || m.sipRegistrar == nil {
 		logger.Info("VoWiFi 来电（sipgw 未配置，回复 486）",
 			"event", "VOWIFI_INBOUND_CALL_NO_SIPGW",
-			"device", req.DeviceID,
+			"device", deviceID,
 			"call_id", req.CallID,
-			"caller", req.CallerURI)
-		return runtimehost.InboundCallResponse{StatusCode: 486, Reason: "Busy Here"}, nil
+			"caller", req.From)
+		return ims.IncomingCallResponse{Accept: false, StatusCode: 486, Reason: "Busy Here"}
 	}
 
 	// Find the Linphone user registered for this device
-	user := m.sipRegistrar.GetUserByDevice(req.DeviceID)
+	user := m.sipRegistrar.GetUserByDevice(deviceID)
 	if user == nil {
 		logger.Info("VoWiFi 来电（Linphone 未在线，回复 480）",
 			"event", "VOWIFI_INBOUND_CALL_USER_OFFLINE",
-			"device", req.DeviceID,
+			"device", deviceID,
 			"call_id", req.CallID,
-			"caller", req.CallerURI)
+			"caller", req.From)
 		if m.callEventPub != nil {
-			m.callEventPub.OnCallEnded(req.DeviceID, req.CallID)
+			m.callEventPub.OnCallEnded(deviceID, req.CallID)
 		}
-		return runtimehost.InboundCallResponse{StatusCode: 480, Reason: "Temporarily Unavailable"}, nil
+		return ims.IncomingCallResponse{Accept: false, StatusCode: 480, Reason: "Temporarily Unavailable"}
 	}
 
 	// 发布来电事件
 	if m.callEventPub != nil {
-		m.callEventPub.OnInboundInvite(req.DeviceID, req.CallID, req.CallerURI)
+		m.callEventPub.OnInboundInvite(deviceID, req.CallID, req.From)
 	}
 
 	// --- RTP relay media bridge ---
 	// Parse IMS SDP and create a relay that bridges media between
-	// the IMS tunnel and Linphone. Both sides advertise the sipgw
-	// ExternalIP (router LAN IP) so both can reach the relay.
-	var relay *voicehost.RTPRelaySession
+	// the IMS network and Linphone.
+	var relay *rtpRelay
 	relayClosed := false
 	if len(req.RemoteSDP) > 0 {
-		imsSDP, err := voicehost.ParseSDP(req.RemoteSDP)
+		imsEP, err := parseSDPEndpoint(req.RemoteSDP)
 		if err != nil {
 			logger.Warn("VoWiFi 来电 IMS SDP 解析失败，回退直通",
 				"event", "VOWIFI_INBOUND_CALL_SDP_PARSE_FAIL",
-				"device", req.DeviceID,
+				"device", deviceID,
 				"call_id", req.CallID,
 				"error", err.Error())
 		} else {
@@ -70,34 +72,26 @@ func (m *Manager) handleInboundCall(ctx context.Context, req runtimehost.Inbound
 			if externalIP == "" {
 				externalIP = "127.0.0.1"
 			}
-			relayCfg := voicehost.RTPRelayConfig{
-				ClientListenIP:    "0.0.0.0",
-				ClientAdvertiseIP: externalIP,
-				IMSListenIP:       "0.0.0.0",
-				IMSAdvertiseIP:    externalIP,
-			}
-			relay, err = voicehost.NewRTPRelaySessionForIMSRemote(ctx, relayCfg, imsSDP)
+			relay, err = newRTPRelay(externalIP, imsEP)
 			if err != nil {
 				logger.Warn("VoWiFi 来电 RTP relay 创建失败，回退直通",
 					"event", "VOWIFI_INBOUND_CALL_RELAY_FAIL",
-					"device", req.DeviceID,
+					"device", deviceID,
 					"call_id", req.CallID,
 					"error", err.Error())
 				relay = nil
 			} else {
 				logger.Info("VoWiFi 来电 RTP relay 已创建",
 					"event", "VOWIFI_INBOUND_CALL_RELAY_CREATED",
-					"device", req.DeviceID,
-					"call_id", req.CallID,
-					"client_ep", relay.ClientEndpoint().MediaPort,
-					"ims_ep", relay.IMSEndpoint().MediaPort)
+					"device", deviceID,
+					"call_id", req.CallID)
 			}
 		}
 	}
 	// Ensure relay is closed on error or non-200 response
 	defer func() {
 		if relay != nil && !relayClosed {
-			_ = relay.Close()
+			relay.Close()
 		}
 	}()
 
@@ -116,29 +110,28 @@ func (m *Manager) handleInboundCall(ctx context.Context, req runtimehost.Inbound
 	localTag := sip.GenerateTagN(8)
 
 	// From = IMS caller
-	inviteReq.AppendHeader(sip.NewHeader("From", fmt.Sprintf("<%s>;tag=%s", req.CallerURI, localTag)))
+	inviteReq.AppendHeader(sip.NewHeader("From", fmt.Sprintf("<%s>;tag=%s", req.From, localTag)))
 	// To = Linphone user
 	inviteReq.AppendHeader(sip.NewHeader("To", fmt.Sprintf("<sip:%s@%s>", user.Username, user.ContactAddr.IP.String())))
 	inviteReq.AppendHeader(sip.NewHeader("Call-ID", req.CallID))
 	inviteReq.AppendHeader(sip.NewHeader("CSeq", "1 INVITE"))
-	inviteReq.AppendHeader(sip.NewHeader("Contact", fmt.Sprintf("<sip:%s>", req.CallerURI)))
+	inviteReq.AppendHeader(sip.NewHeader("Contact", fmt.Sprintf("<sip:%s>", req.From)))
 	inviteReq.AppendHeader(sip.NewHeader("Content-Type", "application/sdp"))
 
 	// Set INVITE body: relay-rewritten SDP if relay is active,
 	// otherwise passthrough IMS SDP directly.
 	if relay != nil {
-		clientEP := relay.ClientEndpoint()
-		inviteBody := voicehost.RewriteSDPMediaEndpoint(req.RemoteSDP, clientEP)
-		inviteReq.SetBody(inviteBody)
+		inviteBody := rewriteSDPEndpoint(req.RemoteSDP, relay.ClientAdvertiseAddr())
+		inviteReq.SetBody([]byte(inviteBody))
 	} else if len(req.RemoteSDP) > 0 {
-		inviteReq.SetBody(append([]byte(nil), req.RemoteSDP...))
+		inviteReq.SetBody([]byte(req.RemoteSDP))
 	}
 
 	logger.Info("VoWiFi 来电转发到 Linphone",
 		"event", "VOWIFI_INBOUND_CALL_FORWARD",
-		"device", req.DeviceID,
+		"device", deviceID,
 		"call_id", req.CallID,
-		"caller", req.CallerURI,
+		"caller", req.From,
 		"linphone_user", user.Username,
 		"linphone_addr", user.ContactAddr.String(),
 		"relay", relay != nil)
@@ -151,13 +144,13 @@ func (m *Manager) handleInboundCall(ctx context.Context, req runtimehost.Inbound
 	if err != nil {
 		logger.Warn("VoWiFi 来电 INVITE 发送到 Linphone 失败",
 			"event", "VOWIFI_INBOUND_CALL_SEND_FAIL",
-			"device", req.DeviceID,
+			"device", deviceID,
 			"call_id", req.CallID,
 			"error", err.Error())
-		return runtimehost.InboundCallResponse{StatusCode: 503, Reason: "Linphone INVITE failed"}, err
+		return ims.IncomingCallResponse{Accept: false, StatusCode: 503, Reason: "Linphone INVITE failed"}
 	}
 
-	// Wait for final response, forwarding provisional responses to IMS
+	// Wait for final response (ims-go 已自动回 180 Ringing)
 	var finalResp *sip.Response
 	for {
 		select {
@@ -170,33 +163,13 @@ func (m *Manager) handleInboundCall(ctx context.Context, req runtimehost.Inbound
 			sip.CopyHeaders("Via", inviteReq, cancelReq)
 			sip.CopyHeaders("Route", inviteReq, cancelReq)
 			_ = m.sipRegistrar.GetClient().WriteRequest(cancelReq)
-			return runtimehost.InboundCallResponse{StatusCode: 487, Reason: "Request Terminated"}, nil
+			return ims.IncomingCallResponse{Accept: false, StatusCode: 487, Reason: "Request Terminated"}
 		case resp, ok := <-tx.Responses():
 			if !ok {
-				return runtimehost.InboundCallResponse{StatusCode: 503, Reason: "No response from Linphone"}, nil
+				return ims.IncomingCallResponse{Accept: false, StatusCode: 503, Reason: "No response from Linphone"}
 			}
 			if resp.StatusCode >= 100 && resp.StatusCode < 200 {
-				// Provisional response — forward to IMS via Respond callback
-				if req.Respond != nil {
-					reason := strings.TrimSpace(resp.Reason)
-					if reason == "" {
-						reason = "Ringing"
-					}
-					if err := req.Respond(resp.StatusCode, reason, nil); err != nil {
-						logger.Warn("VoWiFi 来电临时响应转发到 IMS 失败",
-							"event", "VOWIFI_INBOUND_CALL_PROVISIONAL_FAIL",
-							"device", req.DeviceID,
-							"call_id", req.CallID,
-							"status", resp.StatusCode,
-							"error", err.Error())
-					} else {
-						logger.Info("VoWiFi 来电临时响应转发到 IMS",
-							"event", "VOWIFI_INBOUND_CALL_PROVISIONAL",
-							"device", req.DeviceID,
-							"call_id", req.CallID,
-							"status", resp.StatusCode)
-					}
-				}
+				// Provisional — ims-go 已回 180，此处仅记录
 				continue
 			}
 			finalResp = resp
@@ -212,39 +185,29 @@ func (m *Manager) handleInboundCall(ctx context.Context, req runtimehost.Inbound
 		reason = "OK"
 	}
 
-	result := runtimehost.InboundCallResponse{
-		StatusCode: finalResp.StatusCode,
-		Reason:     reason,
-	}
-
 	if finalResp.StatusCode >= 200 && finalResp.StatusCode < 300 {
 		// Call answered — set Linphone as relay client remote, store
 		// dialog info and relay for BYE/CANCEL forwarding.
 		if m.callEventPub != nil {
-			m.callEventPub.OnCallConnected(req.DeviceID, req.CallID)
+			m.callEventPub.OnCallConnected(deviceID, req.CallID)
 		}
+		var localSDP string
 		if relay != nil && len(finalResp.Body()) > 0 {
-			linphoneSDP, err := voicehost.ParseSDP(finalResp.Body())
+			linphoneEP, err := parseSDPEndpoint(string(finalResp.Body()))
 			if err != nil {
 				logger.Warn("VoWiFi 来电 Linphone SDP 解析失败",
 					"event", "VOWIFI_INBOUND_CALL_LINPHONE_SDP_FAIL",
-					"device", req.DeviceID,
+					"device", deviceID,
 					"call_id", req.CallID,
 					"error", err.Error())
 			} else {
-				if err := relay.SetClientRemote(linphoneSDP); err != nil {
-					logger.Warn("VoWiFi 来电 relay SetClientRemote 失败",
-						"event", "VOWIFI_INBOUND_CALL_RELAY_SETCLIENT_FAIL",
-						"device", req.DeviceID,
-						"call_id", req.CallID,
-						"error", err.Error())
-				}
+				relay.SetClientRemote(linphoneEP)
 			}
 			// Return relay IMS endpoint SDP to IMS
-			result.SDP = voicehost.BuildSDPAnswer(relay.IMSEndpoint())
+			localSDP = buildSDPAnswer(relay.IMSAdvertiseAddr())
 		} else {
 			// No relay — passthrough Linphone SDP
-			result.SDP = append([]byte(nil), finalResp.Body()...)
+			localSDP = string(finalResp.Body())
 		}
 
 		// Extract dialog parameters from Linphone 200 OK and store
@@ -265,7 +228,7 @@ func (m *Manager) handleInboundCall(ctx context.Context, req runtimehost.Inbound
 
 		dialog := &inboundDialogInfo{
 			CallID:     req.CallID,
-			DeviceID:   req.DeviceID,
+			DeviceID:   deviceID,
 			RemoteTag:  remoteTag,
 			LocalTag:   localTag,
 			ContactURI: remoteContact,
@@ -282,28 +245,26 @@ func (m *Manager) handleInboundCall(ctx context.Context, req runtimehost.Inbound
 
 		logger.Info("VoWiFi 来电 Linphone 接听",
 			"event", "VOWIFI_INBOUND_CALL_ANSWERED",
-			"device", req.DeviceID,
+			"device", deviceID,
 			"call_id", req.CallID,
 			"status", finalResp.StatusCode,
 			"remote_tag", remoteTag,
 			"relay", relay != nil)
-	} else {
-		logger.Info("VoWiFi 来电 Linphone 拒绝",
-			"event", "VOWIFI_INBOUND_CALL_REJECTED",
-			"device", req.DeviceID,
-			"call_id", req.CallID,
-			"status", finalResp.StatusCode,
-			"reason", reason)
-		// relay will be closed by defer
+
+		return ims.IncomingCallResponse{Accept: true, LocalSDP: localSDP}
 	}
 
-	return result, nil
+	logger.Info("VoWiFi 来电 Linphone 拒绝",
+		"event", "VOWIFI_INBOUND_CALL_REJECTED",
+		"device", deviceID,
+		"call_id", req.CallID,
+		"status", finalResp.StatusCode,
+		"reason", reason)
+	// relay will be closed by defer
+	return ims.IncomingCallResponse{Accept: false, StatusCode: finalResp.StatusCode, Reason: reason}
 }
 
 // handleInboundBye forwards an IMS BYE to Linphone, terminating the call.
-// The dialog info is retrieved from the inbound dialogs map (stored during
-// handleInboundCall) and used to build the BYE request to Linphone.
-// The RTP relay is also closed.
 func (m *Manager) handleInboundBye(ctx context.Context, deviceID, callID string) error {
 	// Close relay first to stop media forwarding
 	m.closeInboundRelay(callID)
@@ -364,8 +325,7 @@ func (m *Manager) handleInboundBye(ctx context.Context, deviceID, callID string)
 	return nil
 }
 
-// handleInboundCancel forwards an IMS CANCEL to Linphone, cancelling the
-// ringing call before it's answered. The RTP relay is also closed.
+// handleInboundCancel forwards an IMS CANCEL to Linphone.
 func (m *Manager) handleInboundCancel(ctx context.Context, deviceID, callID string) error {
 	// Close relay first to stop media forwarding
 	m.closeInboundRelay(callID)
@@ -405,9 +365,7 @@ func (m *Manager) handleInboundCancel(ctx context.Context, deviceID, callID stri
 	return nil
 }
 
-// parseLinphoneURI parses a Linphone Contact URI into a sip.Uri. If
-// parsing fails, it falls back to a URI derived from the device's
-// registered user contact address.
+// parseLinphoneURI parses a Linphone Contact URI into a sip.Uri.
 func parseLinphoneURI(contactURI, deviceID string) (sip.Uri, error) {
 	if strings.TrimSpace(contactURI) != "" {
 		var uri sip.Uri
@@ -415,7 +373,181 @@ func parseLinphoneURI(contactURI, deviceID string) (sip.Uri, error) {
 			return uri, nil
 		}
 	}
-	// Fallback: empty URI — caller should set destination separately.
-	// This path is unlikely to succeed but prevents a hard crash.
 	return sip.Uri{}, fmt.Errorf("cannot parse Linphone contact URI for device %s", deviceID)
+}
+
+// --- RTP Relay (minimal, B2BUA use case) ---
+
+// rtpRelay bridges RTP between IMS network and Linphone.
+// Simplified 2-socket model (RTP only, no RTCP) for the B2BUA case.
+type rtpRelay struct {
+	mu         sync.Mutex
+	imsConn    *net.UDPConn // IMS side (recv from IMS, send to Linphone)
+	clientConn *net.UDPConn // Client side (recv from Linphone, send to IMS)
+
+	imsRemote    *net.UDPAddr // IMS RTP endpoint (from SDP)
+	clientRemote *net.UDPAddr // Linphone RTP endpoint (from SDP)
+
+	imsAdvertise    *net.UDPAddr // What we advertise to IMS
+	clientAdvertise *net.UDPAddr // What we advertise to Linphone
+
+	closed    chan struct{}
+	closeOnce sync.Once
+}
+
+func newRTPRelay(advertiseIP string, imsRemote *net.UDPAddr) (*rtpRelay, error) {
+	// IMS side socket
+	imsConn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("0.0.0.0"), Port: 0})
+	if err != nil {
+		return nil, fmt.Errorf("rtp relay ims listen: %w", err)
+	}
+	// Client side socket
+	clientConn, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("0.0.0.0"), Port: 0})
+	if err != nil {
+		imsConn.Close()
+		return nil, fmt.Errorf("rtp relay client listen: %w", err)
+	}
+
+	r := &rtpRelay{
+		imsConn:    imsConn,
+		clientConn: clientConn,
+		imsRemote:  imsRemote,
+		closed:     make(chan struct{}),
+	}
+
+	// Advertise addresses (what we tell each side to send to)
+	advIP := net.ParseIP(advertiseIP)
+	if advIP == nil {
+		advIP = net.ParseIP("127.0.0.1")
+	}
+	r.imsAdvertise = &net.UDPAddr{IP: advIP, Port: imsConn.LocalAddr().(*net.UDPAddr).Port}
+	r.clientAdvertise = &net.UDPAddr{IP: advIP, Port: clientConn.LocalAddr().(*net.UDPAddr).Port}
+
+	// Start forwarding
+	go r.forwardLoop(imsConn, func() *net.UDPAddr {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		return r.clientRemote
+	})
+	go r.forwardLoop(clientConn, func() *net.UDPAddr {
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		return r.imsRemote
+	})
+
+	return r, nil
+}
+
+func (r *rtpRelay) forwardLoop(src *net.UDPConn, dstFn func() *net.UDPAddr) {
+	buf := make([]byte, 2048)
+	for {
+		select {
+		case <-r.closed:
+			return
+		default:
+		}
+		src.SetReadDeadline(time.Now().Add(1 * time.Second))
+		n, _, err := src.ReadFromUDP(buf)
+		if err != nil {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				continue
+			}
+			return
+		}
+		dst := dstFn()
+		if dst == nil {
+			continue
+		}
+		// Use the appropriate conn for sending (src conn can send too)
+		_, _ = src.WriteToUDP(buf[:n], dst)
+	}
+}
+
+func (r *rtpRelay) SetClientRemote(addr *net.UDPAddr) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.clientRemote = addr
+}
+
+func (r *rtpRelay) IMSAdvertiseAddr() *net.UDPAddr {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.imsAdvertise
+}
+
+func (r *rtpRelay) ClientAdvertiseAddr() *net.UDPAddr {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.clientAdvertise
+}
+
+func (r *rtpRelay) Close() error {
+	r.closeOnce.Do(func() {
+		close(r.closed)
+		r.imsConn.Close()
+		r.clientConn.Close()
+	})
+	return nil
+}
+
+// --- SDP utilities (minimal) ---
+
+// parseSDPEndpoint extracts the RTP endpoint (IP:port) from SDP.
+// Looks for c= and m=audio lines.
+func parseSDPEndpoint(sdp string) (*net.UDPAddr, error) {
+	var ip string
+	var port int
+	for _, line := range strings.Split(sdp, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "c=IN IP4 ") {
+			ip = strings.TrimPrefix(line, "c=IN IP4 ")
+			ip = strings.Fields(ip)[0]
+		} else if strings.HasPrefix(line, "m=audio ") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				p, err := strconv.Atoi(fields[1])
+				if err == nil {
+					port = p
+				}
+			}
+		}
+	}
+	if ip == "" || port == 0 {
+		return nil, fmt.Errorf("no audio endpoint in SDP")
+	}
+	return &net.UDPAddr{IP: net.ParseIP(ip), Port: port}, nil
+}
+
+// rewriteSDPEndpoint replaces the c= and m=audio port with the given address.
+func rewriteSDPEndpoint(sdp string, addr *net.UDPAddr) string {
+	var out []string
+	for _, line := range strings.Split(sdp, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "c=IN IP4 ") {
+			out = append(out, "c=IN IP4 "+addr.IP.String())
+		} else if strings.HasPrefix(trimmed, "m=audio ") {
+			fields := strings.Fields(trimmed)
+			if len(fields) >= 2 {
+				fields[1] = strconv.Itoa(addr.Port)
+			}
+			out = append(out, strings.Join(fields, " "))
+		} else {
+			out = append(out, line)
+		}
+	}
+	return strings.Join(out, "\r\n")
+}
+
+// buildSDPAnswer builds a minimal SDP answer with the given endpoint.
+func buildSDPAnswer(addr *net.UDPAddr) string {
+	return fmt.Sprintf("v=0\r\n"+
+		"o=- 0 0 IN IP4 %s\r\n"+
+		"s=VoWiFi\r\n"+
+		"c=IN IP4 %s\r\n"+
+		"t=0 0\r\n"+
+		"m=audio %d RTP/AVP 8 0 101\r\n"+
+		"a=rtpmap:8 PCMA/8000\r\n"+
+		"a=rtpmap:0 PCMU/8000\r\n"+
+		"a=rtpmap:101 telephone-event/8000\r\n",
+		addr.IP.String(), addr.IP.String(), addr.Port)
 }

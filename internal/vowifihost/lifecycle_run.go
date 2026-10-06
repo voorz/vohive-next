@@ -122,7 +122,6 @@ func (m *Manager) enableRuntime(ctx context.Context, req runtimeEnableRequest) (
 		Modem:         modemIface,
 		Dataplane:     ims.DataplaneConfig{Mode: ims.DataplaneUserspace},
 		DeliveryStore: m.deliveryStore,
-		EventHandler:  m.eventHandler,
 		BeforeStart:   m.BeforeStart(deviceID, modemIface, preparedStart.Proxy),
 	})
 	if err != nil {

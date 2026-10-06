@@ -31,7 +31,7 @@ type Manager struct {
 	adapter       Adapter
 	sipRegistrar  *sipgw.Registrar
 	deliveryStore ims.SMSDeliveryStore
-	eventHandler  ims.EventHandler
+	eventDispatcher EventDispatcher
 
 	// ikeRetryCount controls IKE retransmission count (0 = default 5).
 	ikeRetryCount int
@@ -45,7 +45,7 @@ type Manager struct {
 	inboundDialogs   map[string]*inboundDialogInfo
 
 	inboundRelaysMu sync.Mutex
-	inboundRelays   map[string]RTPRelaySession
+	inboundRelays   map[string]*rtpRelay
 
 	// callEventPub 发布通话状态事件（可选，用于 SSE 推送和通话记录入库）
 	callEventPub CallEventPublisher
@@ -147,12 +147,17 @@ func (m *Manager) ClearStartupState(deviceID string) bool {
 	return m.RuntimeStore().ClearStartupState(deviceID)
 }
 
-func (m *Manager) ConfigureRuntimeDependencies(ds ims.SMSDeliveryStore, eh ims.EventHandler) {
+// EventDispatcher 为设备创建事件处理器（捕获 deviceID）。
+type EventDispatcher interface {
+	ForDevice(deviceID string) ims.EventHandler
+}
+
+func (m *Manager) ConfigureRuntimeDependencies(ds ims.SMSDeliveryStore, ed EventDispatcher) {
 	if m == nil {
 		return
 	}
 	m.deliveryStore = ds
-	m.eventHandler = eh
+	m.eventDispatcher = ed
 }
 
 // SetSIPRegistrar injects the sipgw.Registrar so the OnInboundCall
@@ -199,14 +204,14 @@ func (m *Manager) deleteInboundDialog(callID string) {
 
 // storeInboundRelay stores the RTP relay for an active inbound call,
 // keyed by Call-ID. Used to close the relay when the call ends.
-func (m *Manager) storeInboundRelay(callID string, relay RTPRelaySession) {
+func (m *Manager) storeInboundRelay(callID string, relay *rtpRelay) {
 	if m == nil || callID == "" || relay == nil {
 		return
 	}
 	m.inboundRelaysMu.Lock()
 	defer m.inboundRelaysMu.Unlock()
 	if m.inboundRelays == nil {
-		m.inboundRelays = make(map[string]RTPRelaySession)
+		m.inboundRelays = make(map[string]*rtpRelay)
 	}
 	m.inboundRelays[callID] = relay
 }

@@ -202,32 +202,11 @@ func (p *Pool) prepareVoWiFiStartContext(deviceID, traceID, runtimeEPDGOverride 
 		return startCtx, err
 	}
 
-	runtimehost.SetLogger(logger.ZapLogger())
-	prepared, errPrepare := identity.PrepareStart(identity.PrepareStartInput{
-		DeviceID:            deviceID,
-		Profile:             startProfile,
-		RuntimeEPDGOverride: runtimeEPDGOverride,
-		Access:              runtimehost.NewModemAccessAdapter(modemIface),
-	})
-	if errPrepare != nil {
-		logger.Warn("VoWiFi 启动画像准备失败",
-			"trace_id", traceID,
-			"device", deviceID,
-			"err", errPrepare)
-		logVoWiFiFailureSummary(traceID, deviceID, "startup", "identity", errPrepare.Error(), false, 0)
-		return startCtx, errPrepare
-	}
-	startCtx.Prepared = prepared
-	logger.Info("VoWiFi 启动画像已准备",
+	// ims-go 迁移：A4 PrepareStart 由 ims.New() 内部执行，此处不再调用 vowifi-core identity。
+	// 只准备 SIM adapter 和 Profile，carrier/EPDG 解析由 ims-go 完成。
+	logger.Info("VoWiFi 启动画像已准备（ims-go A4 在 ims.New 内部）",
 		"trace_id", traceID,
 		"device", deviceID,
-		"matched_plmn", prepared.EffectiveCarrier.MCC+"/"+prepared.EffectiveCarrier.MNC,
-		"preset_id", prepared.EffectiveCarrier.PresetID,
-		"epdg_source", prepared.EPDGSource,
-		"epdg", prepared.EPDGAddr,
-		"identity_source", prepared.IdentityIMEISource,
-		"requested_source", prepared.IMSIdentity.RequestedSource,
-		"actual_source", prepared.IMSIdentity.ActualSource,
 		"aka_app_preference", prepared.IMSIdentity.AKAAppPreference,
 		"applied", prepared.IMSIdentity.Applied)
 

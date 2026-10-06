@@ -6,7 +6,7 @@ import (
 
 	"github.com/voorz/vohive/internal/db"
 	"github.com/voorz/vohive/internal/smsnotify"
-	"github.com/voorz/vowifi-core/runtimehost/eventhost"
+	"github.com/voorz/ims-go/ims"
 )
 
 const vowifiReceivedSMSDuplicateWindow = 30 * time.Minute
@@ -66,16 +66,16 @@ func (r vowifiSMSHistoryRecorder) eventTime(at time.Time) time.Time {
 	return at
 }
 
-func (r vowifiSMSHistoryRecorder) RecordReceived(e eventhost.SMSReceived) (vowifiSMSRecordResult, error) {
+func (r vowifiSMSHistoryRecorder) RecordReceived(deviceID string, e ims.SMSReceivedData) (vowifiSMSRecordResult, error) {
 	if smsnotify.ShouldSuppressReceivedSMS(e.Content) {
 		return vowifiSMSRecordResult{Suppressed: true}, nil
 	}
-	imsi := r.resolveIMSI(e.DevID, "")
+	imsi := r.resolveIMSI(deviceID, "")
 	if imsi == "" {
 		return vowifiSMSRecordResult{}, nil
 	}
 	localPhone := r.localPhone(imsi)
-	ts := r.eventTime(e.Time)
+	ts := r.eventTime(e.At)
 
 	// VoWiFi 入站 SMS 不做去重：每条解析正确的 SMS 都入库并推送通知。
 	// 去重兜底逻辑已移除，避免运营商短时间内重复下发不同验证码被误杀。
@@ -86,13 +86,14 @@ func (r vowifiSMSHistoryRecorder) RecordReceived(e eventhost.SMSReceived) (vowif
 	return vowifiSMSRecordResult{Stored: true}, nil
 }
 
-func (r vowifiSMSHistoryRecorder) RecordSent(e eventhost.SMSSent) error {
-	imsi := r.resolveIMSI(e.DevID, "")
+func (r vowifiSMSHistoryRecorder) RecordSent(deviceID string, e ims.SMSSentData) error {
+	imsi := r.resolveIMSI(deviceID, "")
 	if imsi == "" {
 		return nil
 	}
 	localPhone := r.localPhone(imsi)
-	return db.SaveSMSWithLocalPhone(imsi, localPhone, localPhone, strings.TrimSpace(e.TargetURI), e.Content, 2, 2, r.eventTime(e.Time))
+	// ims.SMSSentData 无 Content/Time，用 MsgID 占位
+	return db.SaveSMSWithLocalPhone(imsi, localPhone, localPhone, strings.TrimSpace(e.To), e.MsgID, 2, 2, time.Now())
 }
 
 func (r vowifiSMSHistoryRecorder) RecordSendFailure(devID, target, content string, at time.Time) error {
@@ -104,8 +105,8 @@ func (r vowifiSMSHistoryRecorder) RecordSendFailure(devID, target, content strin
 	return db.SaveSMSWithLocalPhone(imsi, localPhone, localPhone, strings.TrimSpace(target), content, 2, 3, r.eventTime(at))
 }
 
-func (r vowifiSMSHistoryRecorder) RecordLocalNumberLearned(e eventhost.LocalNumberLearned) error {
-	imsi := r.resolveIMSI(e.DevID, e.IMSI)
+func (r vowifiSMSHistoryRecorder) RecordLocalNumber(deviceID string, e ims.LocalNumberLearnedData) error {
+	imsi := r.resolveIMSI(deviceID, "")
 	number := strings.TrimSpace(e.Number)
 	if number == "" {
 		return nil
