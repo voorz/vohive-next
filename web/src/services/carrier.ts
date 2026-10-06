@@ -79,6 +79,14 @@ export const carrierService = {
     })
   },
 
+  /** 手动拉取运营商 YAML（不自动激活） */
+  pull(mcc: string, mnc: string) {
+    return callService(async () => {
+      const res = await api.post(`/carrier/${mcc}/${mnc}/pull`)
+      return res.data as { status: string; message: string; plmn: string; profile: CarrierProfile }
+    })
+  },
+
   deactivate(key: string) {
     const { mcc, mnc, brand } = parseKey(key)
     return callService(async () => {

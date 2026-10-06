@@ -718,6 +718,13 @@ ims?: IMSConfig
 e911?: E911Config
 device?: DeviceConfig
 blocked?: boolean
+// B: YAML 外部源新增字段
+derived?: boolean       // 是否为系统自动推导
+derived_note?: string   // 推导说明
+epdg?: string           // ePDG 地址（5 参数覆盖）
+pcscf?: string          // P-CSCF 地址（5 参数覆盖）
+ipsec?: boolean         // IPsec 开关（5 参数覆盖）
+aka_preference?: string // AKA 偏好（5 参数覆盖）
 }
 
 // 运营商列表项 (GET /api/carrier)

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useCarrierStore } from '../stores/carrier'
 import CarrierEditArea from './CarrierEditArea.vue'
@@ -15,7 +15,16 @@ const emit = defineEmits<{
 }>()
 
 const store = useCarrierStore()
-const { detail, selectedCarrier, detailLoading, carriers, selectedKey } = storeToRefs(store)
+const { detail, selectedCarrier, detailLoading, carriers, selectedKey, pullLoading, pullResult } = storeToRefs(store)
+
+// 手动拉取表单
+const pullMcc = ref('')
+const pullMnc = ref('')
+
+async function handlePull() {
+  if (!pullMcc.value.trim() || !pullMnc.value.trim()) return
+  await store.pullCarrierYAML(pullMcc.value.trim(), pullMnc.value.trim())
+}
 
 // 窄屏下拉选择
 function handleSelectChange(value: string) {
@@ -110,6 +119,32 @@ const activationStatus = computed(() => {
     />
 
     <div v-else class="detail-content">
+      <!-- 手动拉取 YAML -->
+      <div class="pull-section">
+        <div class="pull-title">手动拉取运营商配置</div>
+        <div class="pull-form">
+          <el-input v-model="pullMcc" placeholder="MCC" maxlength="3" class="!w-24" />
+          <el-input v-model="pullMnc" placeholder="MNC" maxlength="3" class="!w-24" />
+          <el-button type="primary" size="small" :loading="pullLoading" @click="handlePull">
+            拉取
+          </el-button>
+        </div>
+        <div v-if="pullResult" class="pull-result">
+          <el-alert :title="pullResult.message" type="success" :closable="false" />
+          <div class="pull-note">PLMN: {{ pullResult.plmn }}（未激活，需手动启用）</div>
+        </div>
+      </div>
+
+      <!-- 系统默认（自动推导）提示 -->
+      <div v-if="detail?.system_default?.derived" class="derived-note">
+        <el-alert
+          title="系统默认（自动推导）"
+          :description="detail.system_default.derived_note || '按 3GPP 标准规则推导；非标准 ePDG 域名需手动拉取纠正'"
+          type="info"
+          :closable="false"
+        />
+      </div>
+
       <!-- 编辑区 -->
       <div class="edit-area-wrap">
         <CarrierEditArea />

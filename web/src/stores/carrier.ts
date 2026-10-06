@@ -52,6 +52,10 @@ export const useCarrierStore = defineStore('carrier', () => {
   // 当前正在编辑的用户配置（可变副本）
   const editingConfig = ref<CarrierProfile | null>(null)
 
+  // 手动拉取状态
+  const pullLoading = ref(false)
+  const pullResult = ref<{ plmn: string; profile: CarrierProfile; message: string } | null>(null)
+
   // 编辑区是否有未保存更改
   const dirty = ref(false)
 
@@ -205,6 +209,27 @@ export const useCarrierStore = defineStore('carrier', () => {
     return false
   }
 
+  /** 手动拉取运营商 YAML（不自动激活） */
+  async function pullCarrierYAML(mcc: string, mnc: string) {
+    pullLoading.value = true
+    pullResult.value = null
+    error.value = null
+    const result = await carrierService.pull(mcc, mnc)
+    pullLoading.value = false
+    if (result.ok) {
+      pullResult.value = {
+        plmn: result.data.plmn,
+        profile: result.data.profile,
+        message: result.data.message
+      }
+      // 刷新列表和详情
+      await fetchCarriers()
+      return true
+    }
+    error.value = result.error
+    return false
+  }
+
   async function deleteUserConfig() {
     if (!detail.value) return false
     const result = await carrierService.deleteConfig(selectedKey.value)
@@ -273,7 +298,10 @@ async function removeCarrier(key: string) {
     editingConfig,
     dirty,
     previewConfig,
+    pullLoading,
+    pullResult,
     // actions
+    pullCarrierYAML,
     fetchCarriers,
     selectCarrier,
     fetchDetail,
