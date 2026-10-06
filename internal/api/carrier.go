@@ -523,9 +523,13 @@ func (s *Server) handlePullCarrierYAML(c *gin.Context) {
 		"plmn":     plmn,
 		"name":     profile.Name,
 		"epdg":     profile.EPDG,
-		"pcscf":    profile.PCSCF,
 		"template": "user",
 		"source":   "yaml_pull",
+		// 注意：P-CSCF 必须放在 ims.pcscf_addr（嵌套），与 ResolvePCSCFAddr 读取路径一致。
+		// 之前误用扁平 pcscf 导致拉取的配置永不生效（2026-10-07）。
+		"ims": map[string]interface{}{
+			"pcscf_addr": profile.PCSCF,
+		},
 	}
 	if profile.IPsec != nil {
 		userProfile["ipsec"] = *profile.IPsec
