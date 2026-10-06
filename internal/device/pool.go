@@ -1958,7 +1958,7 @@ func (p *Pool) RebuildWorker(deviceID string) error {
 		return fmt.Errorf("RebuildWorker 重建失败: %w", err)
 	}
 
-	if err := p.waitWorkerReady(deviceID, 3*time.Second); err != nil {
+	if err := p.waitWorkerReady(p.ctx, deviceID, 3*time.Second); err != nil {
 		logger.Warn("RebuildWorker 后等待设备恢复健康超时", "device", deviceID, "err", err)
 	}
 

@@ -34,7 +34,7 @@ func TestWaitUIMIdentityReady_ReadyWithIdentity(t *testing.T) {
 	p.workers["test-mbim"] = w
 	p.mu.Unlock()
 
-	err := p.WaitQMICoreReady("test-mbim", 1*time.Second)
+	err := p.WaitQMICoreReady(context.Background(), "test-mbim", 1*time.Second)
 	if err != nil {
 		t.Fatalf("expected nil error when identity is ready, got %v", err)
 	}
@@ -51,7 +51,7 @@ func TestWaitQMICoreReady_IdentityEmpty(t *testing.T) {
 	p.workers["test-mbim"] = w
 	p.mu.Unlock()
 
-	err := p.WaitQMICoreReady("test-mbim", 100*time.Millisecond)
+	err := p.WaitQMICoreReady(context.Background(), "test-mbim", 100*time.Millisecond)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected timeout (DeadlineExceeded) when identity is empty, got %v", err)
 	}
@@ -69,7 +69,7 @@ func TestWaitQMICoreReady_CardAbsent(t *testing.T) {
 	p.workers["test-mbim"] = w
 	p.mu.Unlock()
 
-	err := p.WaitQMICoreReady("test-mbim", 100*time.Millisecond)
+	err := p.WaitQMICoreReady(context.Background(), "test-mbim", 100*time.Millisecond)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected timeout (DeadlineExceeded) when card is absent, got %v", err)
 	}
@@ -87,7 +87,7 @@ func TestWaitQMICoreReady_TransportFatal(t *testing.T) {
 	p.workers["test-mbim"] = w
 	p.mu.Unlock()
 
-	err := p.WaitQMICoreReady("test-mbim", 100*time.Millisecond)
+	err := p.WaitQMICoreReady(context.Background(), "test-mbim", 100*time.Millisecond)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected timeout (DeadlineExceeded) when transport is fatal, got %v", err)
 	}

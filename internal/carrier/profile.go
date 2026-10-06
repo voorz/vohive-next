@@ -128,6 +128,8 @@ func DeriveSystemDefault(mcc, mnc string) *CarrierProfile {
 		}
 	}
 	epdg := fmt.Sprintf("epdg.epc.mnc%s.mcc%s.pub.3gppnetwork.org", mnc, mcc)
+	// 3GPP TS 23.003: P-CSCF 域名推导规则
+	pcscf := fmt.Sprintf("pcscf.epc.mnc%s.mcc%s.pub.3gppnetwork.org", mnc, mcc)
 	p := CarrierProfile{
 		"plmn":         PlmnKey(mcc, mnc),
 		"name":         "系统默认（自动推导）",
@@ -135,6 +137,9 @@ func DeriveSystemDefault(mcc, mnc string) *CarrierProfile {
 		"template":     "system",
 		"derived":      true,
 		"derived_note": "按 3GPP 标准规则推导；非标准 ePDG 域名需手动拉取纠正",
+		"ims": map[string]interface{}{
+			"pcscf_addr": pcscf,
+		},
 	}
 	return &p
 }

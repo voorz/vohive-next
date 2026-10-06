@@ -677,7 +677,7 @@ func (p *Pool) ReloadSIM(ctx context.Context, deviceID string) error {
 
 	// 异步恢复 VoWiFi
 	go func() {
-		if err := p.waitQMICoreReady(deviceID, 15*time.Second); err != nil {
+		if err := p.waitQMICoreReady(p.ctx, deviceID, 15*time.Second); err != nil {
 			logger.Warn("重载 SIM 后等待 QMI Core 就绪失败", "device", deviceID, "err", err)
 			return
 		}

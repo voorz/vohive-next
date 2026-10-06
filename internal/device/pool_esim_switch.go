@@ -311,7 +311,7 @@ func (p *Pool) bringRadioOnlineAfterSwitch(deviceID string, worker *Worker, snap
 	if attachTimeout <= 0 {
 		return
 	}
-	if err := p.WaitQMICoreReady(deviceID, attachTimeout); err != nil {
+	if err := p.WaitQMICoreReady(p.ctx, deviceID, attachTimeout); err != nil {
 		logger.Warn("eSIM 切卡后等待 NAS attach/身份就绪超时，继续后续收敛",
 			"device", deviceID,
 			"timeout", attachTimeout.String(),

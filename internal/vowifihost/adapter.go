@@ -54,8 +54,8 @@ type Adapter interface {
 	IsSwitching(deviceID string) bool
 	WorkerExists(deviceID string) bool
 	IsVoWiFiDesired(deviceID string) bool
-	WaitQMICoreReady(deviceID string, timeout time.Duration) error
-	WaitWorkerReady(deviceID string, timeout time.Duration) error
+	WaitQMICoreReady(ctx context.Context, deviceID string, timeout time.Duration) error
+	WaitWorkerReady(ctx context.Context, deviceID string, timeout time.Duration) error
 	// EUICCAvailable 返回 eUICC 可用状态的三态指针：
 	// - nil: overview 缓存未加载（尚未扫描），不阻止启动
 	// - &true: eUICC 可用，不阻止启动

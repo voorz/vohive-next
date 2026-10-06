@@ -30,8 +30,11 @@ func waitForCondition(ctx context.Context, interval time.Duration, check func() 
 	}
 }
 
-func (p *Pool) waitWorkerReady(deviceID string, timeout time.Duration) error {
-	waitCtx, cancel := context.WithTimeout(p.ctx, timeout)
+func (p *Pool) waitWorkerReady(ctx context.Context, deviceID string, timeout time.Duration) error {
+	if ctx == nil {
+		ctx = p.ctx
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	return waitForCondition(waitCtx, 200*time.Millisecond, func() bool {
 		w := p.GetWorker(deviceID)
@@ -82,12 +85,15 @@ func (p *Pool) waitRadioRecoveryReady(deviceID string, timeout time.Duration) er
 	return nil
 }
 
-func (p *Pool) waitQMICoreReady(deviceID string, timeout time.Duration) error {
+func (p *Pool) waitQMICoreReady(ctx context.Context, deviceID string, timeout time.Duration) error {
 	w := p.GetWorker(deviceID)
 	if w == nil {
 		return fmt.Errorf("设备 %s 不存在", deviceID)
 	}
-	waitCtx, cancel := context.WithTimeout(p.ctx, timeout)
+	if ctx == nil {
+		ctx = p.ctx
+	}
+	waitCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	// 先等待 QMI core 完全就绪（包括 modem reset 后的恢复），
@@ -117,8 +123,8 @@ func (p *Pool) waitQMICoreReady(deviceID string, timeout time.Duration) error {
 	return nil
 }
 
-func (p *Pool) WaitQMICoreReady(deviceID string, timeout time.Duration) error {
-	return p.waitQMICoreReady(deviceID, timeout)
+func (p *Pool) WaitQMICoreReady(ctx context.Context, deviceID string, timeout time.Duration) error {
+	return p.waitQMICoreReady(ctx, deviceID, timeout)
 }
 
 func (p *Pool) waitQMIControlReady(deviceID string, timeout time.Duration) error {
@@ -150,8 +156,8 @@ func (p *Pool) WaitQMIControlReady(deviceID string, timeout time.Duration) error
 	return p.waitQMIControlReady(deviceID, timeout)
 }
 
-func (p *Pool) WaitWorkerReady(deviceID string, timeout time.Duration) error {
-	return p.waitWorkerReady(deviceID, timeout)
+func (p *Pool) WaitWorkerReady(ctx context.Context, deviceID string, timeout time.Duration) error {
+	return p.waitWorkerReady(ctx, deviceID, timeout)
 }
 
 func (p *Pool) WorkerExists(deviceID string) bool {
@@ -206,10 +212,10 @@ func (p *Pool) IsVoWiFiDesired(deviceID string) bool {
 // enableVoWiFiWhenReady waits for readiness, then submits enable through the lifecycle controller.
 // Do not call this from controller run paths that already hold the per-device lifecycle mutex.
 func (p *Pool) enableVoWiFiWhenReady(deviceID string, timeout time.Duration, reason string) error {
-	if err := p.waitQMICoreReady(deviceID, timeout); err != nil {
+	if err := p.waitQMICoreReady(p.ctx, deviceID, timeout); err != nil {
 		return fmt.Errorf("等待设备 %s 身份恢复超时(%s): %w", deviceID, reason, err)
 	}
-	if err := p.waitWorkerReady(deviceID, timeout); err != nil {
+	if err := p.waitWorkerReady(p.ctx, deviceID, timeout); err != nil {
 		return fmt.Errorf("等待设备 %s 恢复超时(%s): %w", deviceID, reason, err)
 	}
 	return p.EnableVoWiFi(deviceID)
