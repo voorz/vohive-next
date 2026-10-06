@@ -527,16 +527,21 @@ type voWiFiRuntimeDTO struct {
 }
 
 func runtimeStateToDTO(st vowifihost.DeviceStartupState, status modem.DeviceStatus) *voWiFiRuntimeDTO {
-	// ims-go 迁移：DeviceStartupState 为简化版，详细 IMS/SMS 状态由 ims.Client 内部管理。
-	// 前端显示的核心字段（Phase/LastReason/UpdatedAt）保留；历史详细字段暂留零值。
 	return &voWiFiRuntimeDTO{
-		DeviceID:   st.DeviceID,
-		Phase:      st.Phase,
-		ICCID:      strings.TrimSpace(status.ICCID),
-		IMSI:       strings.TrimSpace(status.IMSI),
+		DeviceID:    st.DeviceID,
+		Phase:       st.Phase,
+		ICCID:       strings.TrimSpace(status.ICCID),
+		IMSI:        strings.TrimSpace(status.IMSI),
 		NetworkMode: st.NetworkMode,
 		LastReason:  st.LastReason,
 		UpdatedAt:   st.UpdatedAt,
+		SIMReady:    st.SIMReady,
+		AccessReady: st.AccessReady,
+		TunnelReady: st.TunnelReady,
+		IMSReady:    st.IMSReady,
+		SMSReady:    st.SMSReady,
+		CallReady:   st.CallReady,
+		RegStatus:   st.RegStatus,
 	}
 }
 
