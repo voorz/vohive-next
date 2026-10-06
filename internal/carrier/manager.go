@@ -180,3 +180,32 @@ func IsVoWiFiPolicyBlockedError(err error) bool {
 func NewVoWiFiBlockedMCCError(mcc string) error {
 	return fmt.Errorf("VoWiFiBlocked: MCC %s 被运营商策略阻止", mcc)
 }
+
+// ResolveEPDGAddr 解析 ePDG 地址（5 参数覆盖之一）。
+func ResolveEPDGAddr(p *CarrierProfile) string {
+	if p == nil {
+		return ""
+	}
+	return getString(*p, "epdg")
+}
+
+// ResolveIPsecEnabled 解析 IPsec 开关（5 参数覆盖之一）。
+func ResolveIPsecEnabled(p *CarrierProfile) bool {
+	if p == nil {
+		return true // 默认启用
+	}
+	if v, ok := (*p)["ipsec"]; ok {
+		if b, ok := v.(bool); ok {
+			return b
+		}
+	}
+	return true
+}
+
+// ResolveAKAPreference 解析 AKA 偏好（5 参数覆盖之一）。
+func ResolveAKAPreference(p *CarrierProfile) string {
+	if p == nil {
+		return ""
+	}
+	return getString(*p, "aka_preference")
+}

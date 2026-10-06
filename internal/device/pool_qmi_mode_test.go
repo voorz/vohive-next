@@ -13,7 +13,6 @@ import (
 	"github.com/voorz/vohive/internal/modem"
 	"github.com/voorz/vohive/internal/vowifihost"
 	"github.com/voorz/ims-go/ims"
-	"github.com/voorz/vowifi-core/runtimehost/identity"
 )
 
 type workerStatusBackendStub struct {

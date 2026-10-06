@@ -158,11 +158,8 @@ func (s *Server) handleGetCarrier(c *gin.Context) {
 	}
 	key := makeKey(mcc, mnc, brand)
 
-	// 系统默认
-	var sysDefault *carrier.CarrierProfile
-	if p, err := carrier.LookupWithIdentity(mcc, mnc, "", "", brand); err == nil && p != nil {
-		sysDefault = p
-	}
+	// 系统默认：按 3GPP 规则自动推导（只读，用户决策）
+	sysDefault := carrier.DeriveSystemDefault(mcc, mnc)
 
 	// 从 carrier_index 获取元数据
 	name := ""
@@ -489,4 +486,63 @@ func (s *Server) handleSearchCarrierIndex(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, results)
+}
+
+// handlePullCarrierYAML 手动拉取运营商 YAML（用户决策：手动输入 PLMN 后拉取，不自动启用）。
+// @Summary      手动拉取运营商 YAML
+// @Description  从 GitHub（fallback CDN）拉取指定 PLMN 的运营商 YAML，保存为用户配置（不自动激活）。
+// @Tags         carrier
+// @Param        mcc  path  string  true  "MCC"
+// @Param        mnc  path  string  true  "MNC"
+// @Produce      json
+// @Success      200  {object}  map[string]interface{}  "成功，返回 YAML 内容"
+// @Failure      400  {object}  map[string]interface{}  "参数错误"
+// @Failure      502  {object}  map[string]interface{}  "拉取失败"
+// @Router       /carrier/{mcc}/{mnc}/pull [post]
+// @Security     BearerAuth
+func (s *Server) handlePullCarrierYAML(c *gin.Context) {
+	mcc := strings.TrimSpace(c.Param("mcc"))
+	mnc := strings.TrimSpace(c.Param("mnc"))
+	if mcc == "" || mnc == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": "mcc 和 mnc 不能为空"})
+		return
+	}
+
+	plmn := carrier.PlmnKey(mcc, mnc)
+	fetcher := carrier.NewYAMLFetcher("")
+	profile, err := fetcher.Fetch(plmn)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"status": "error", "message": "拉取失败: " + err.Error()})
+		return
+	}
+
+	// 转换为 CarrierProfile 并保存为用户配置（不自动激活）
+	userProfile := carrier.CarrierProfile{
+		"plmn":     plmn,
+		"name":     profile.Name,
+		"epdg":     profile.EPDG,
+		"pcscf":    profile.PCSCF,
+		"template": "user",
+		"source":   "yaml_pull",
+	}
+	if profile.IPsec != nil {
+		userProfile["ipsec"] = *profile.IPsec
+	}
+	if profile.AKAPref != "" {
+		userProfile["aka_preference"] = profile.AKAPref
+	}
+
+	// 保存到 DB（用户配置表，不激活）
+	key := makeKey(mcc, mnc, "")
+	if err := db.SaveCarrierTemplate(key, userProfile); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": "保存失败: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "ok",
+		"message": "YAML 已拉取并保存为用户配置（未激活，需手动启用）",
+		"plmn":    plmn,
+		"profile": userProfile,
+	})
 }

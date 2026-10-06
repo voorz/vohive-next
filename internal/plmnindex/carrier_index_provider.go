@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/voorz/vohive/internal/db"
-	"github.com/voorz/vowifi-core/runtimehost/carrier"
 )
 
 // carrierIndexProvider implements carrier.CarrierIndexProvider
@@ -31,9 +30,5 @@ func (carrierIndexProvider) GetCarrierIndexRawJSON(plmnKey string) string {
 	return idx.RawJSON
 }
 
-// InitCarrierIndexProvider injects the DB-backed carrier index provider
-// into vowifi-core's carrier package. Must be called once at startup
-// before any carrier.LookupWithIdentity call.
-func InitCarrierIndexProvider() {
-	carrier.SetCarrierIndexProvider(carrierIndexProvider{})
-}
+// InitCarrierIndexProvider 已废弃（本地 carrier 不需要 index provider），保留为空兼容调用方。
+func InitCarrierIndexProvider() {}

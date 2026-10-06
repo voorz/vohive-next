@@ -123,21 +123,35 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 	_ = mnc
 
 	// 从 carrier profile 解析 IMS REGISTER 相关参数（A6）。
+	// 三层：用户激活配置 > 系统默认（3GPP 推导）。
 	var (
 		registerExpiry time.Duration
 		pcscfAddr      string
 	)
 	if mcc != "" && mnc != "" {
-		plmn := mcc + mnc
-		// 尝试从 DB 获取生效配置
+		plmn := carrierconfig.PlmnKey(mcc, mnc)
+		var profile *carrierconfig.CarrierProfile
+
+		// 1. 用户激活配置（DB）
 		resolver := &carrierconfig.DBProfileResolver{}
 		if p, err := resolver.LookupActiveProfile(plmn); err == nil && p != nil {
-			registerExpiry = carrierconfig.ResolveRegisterExpiry(p)
-			pcscfAddr = carrierconfig.ResolvePCSCFAddr(p)
-
-			logger.Info(fmt.Sprintf("[%s] 🧩IMS 运营商模板已匹配", deviceID),
+			profile = p
+			logger.Info(fmt.Sprintf("[%s] 🧩IMS 运营商模板已匹配（用户配置）", deviceID),
 				"trace_id", strings.TrimSpace(req.TraceID),
 				"plmn", plmn)
+		}
+
+		// 2. 系统默认（3GPP 自动推导，只读）
+		if profile == nil {
+			profile = carrierconfig.DeriveSystemDefault(mcc, mnc)
+			logger.Info(fmt.Sprintf("[%s] 🧩IMS 运营商模板使用系统默认（推导）", deviceID),
+				"trace_id", strings.TrimSpace(req.TraceID),
+				"plmn", plmn)
+		}
+
+		if profile != nil {
+			registerExpiry = carrierconfig.ResolveRegisterExpiry(profile)
+			pcscfAddr = carrierconfig.ResolvePCSCFAddr(profile)
 		}
 	}
 

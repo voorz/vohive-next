@@ -18,7 +18,7 @@ import (
 
 	"github.com/voorz/vohive/internal/db"
 	"github.com/voorz/vohive/pkg/logger"
-	"github.com/voorz/vowifi-core/runtimehost/carrier"
+	carrier "github.com/voorz/vohive/internal/carrier"
 )
 
 const (

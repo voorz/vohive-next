@@ -1,6 +1,7 @@
 package notify
 
 import (
+	"github.com/voorz/vohive/internal/vowifihost"
 	"context"
 	"fmt"
 	"strconv"
@@ -8,9 +9,6 @@ import (
 	"time"
 
 	"github.com/voorz/vohive/internal/db"
-	"github.com/voorz/vowifi-core/runtimehost"
-	"github.com/voorz/vowifi-core/runtimehost/messaging"
-	"github.com/voorz/vowifi-core/runtimehost/voicehost"
 )
 
 // ---------- 通用命令 handler（TG 和飞书共用） ----------
@@ -77,7 +75,7 @@ func (m *Manager) handleCmdSendSMS(cmdCtx CommandContext, args []string) string 
 		if isVoWiFi {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
-			ctx = messaging.WithSuppressSendTGSuccess(ctx)
+			ctx = withSuppressSendTGSuccess(ctx)
 			sendErr = m.pool.SendVoWiFiSMS(ctx, deviceID, phone, message)
 			if sendErr != nil {
 				cmdCtx.Reply(fmt.Sprintf("发送短信 / 失败\n设备    %s\n号码    %s\n通道    VoWiFi\n原因    %v", displayName, phone, sendErr))
@@ -106,30 +104,25 @@ func (m *Manager) handleCmdSendSMS(cmdCtx CommandContext, args []string) string 
 	return fmt.Sprintf("发送短信 / 已受理\n设备    %s\n号码    %s\n通道    %s", displayName, phone, channel)
 }
 
-func summarizeVoWiFiReady(st runtimehost.State) string {
-	notReady := make([]string, 0, 5)
-	if !st.SIMReady {
-		notReady = append(notReady, "SIM")
+func summarizeVoWiFiReady(st vowifihost.DeviceStartupState) string {
+	// ims-go 迁移：DeviceStartupState 为简化版，用 Phase 表示状态
+	if st.Phase == "running" {
+		return "运行中"
 	}
-	if !st.AccessReady {
-		notReady = append(notReady, "Access")
+	if st.LastReason != "" {
+		return fmt.Sprintf("阶段 %s：%s", st.Phase, st.LastReason)
 	}
-	if !st.TunnelReady {
-		notReady = append(notReady, "Tunnel")
+	return fmt.Sprintf("阶段 %s", st.Phase)
+}
+
+// withSuppressSendTGSuccess 抑制 TG 成功通知（替代 messaging.WithSuppressSendTGSuccess）
+type suppressKey struct{}
+
+func withSuppressSendTGSuccess(ctx context.Context) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
 	}
-	if !st.IMSReady {
-		notReady = append(notReady, "IMS")
-	}
-	if !st.SMSReady {
-		notReady = append(notReady, "SMS")
-	}
-	if !st.CallReady {
-		notReady = append(notReady, "Call")
-	}
-	if len(notReady) == 0 {
-		return "SIM / Access / Tunnel / IMS / SMS / Call 全部就绪"
-	}
-	return strings.Join(notReady, " / ") + " 未就绪"
+	return context.WithValue(ctx, suppressKey{}, true)
 }
 
 func formatVoWiFiDataplane(mode string) string {
@@ -618,78 +611,3 @@ func (m *Manager) broadcast(text string) {
 	})
 }
 
-// handleCmdCall 处理 /vocall 命令，用于发起无头模拟呼叫
-// 命令格式: /vocall <设备ID> <号码> [保持秒数]
-func (m *Manager) handleCmdCall(cmdCtx CommandContext, args []string) string {
-	if len(args) < 2 || len(args) > 3 {
-		return commandUsageBlock("发起 VoWiFi 呼叫", "/vocall [设备ID] [接收号码] [保持秒数(可选)]", "/vocall ec20_1 888 15")
-	}
-
-	deviceID := args[0]
-	callee := args[1]
-	holdSeconds := voicehost.DefaultSimulateCallHoldSeconds
-	if len(args) == 3 {
-		parsedHold, err := strconv.Atoi(strings.TrimSpace(args[2]))
-		if err != nil || parsedHold <= 0 {
-			return fmt.Sprintf("发起 VoWiFi 呼叫 / 参数错误\n保持秒数  %s\n要求      正整数", args[2])
-		}
-		if parsedHold > voicehost.MaxSimulateCallHoldSeconds {
-			parsedHold = voicehost.MaxSimulateCallHoldSeconds
-		}
-		holdSeconds = parsedHold
-	}
-
-	worker := m.pool.GetWorker(deviceID)
-	if worker == nil {
-		return fmt.Sprintf("发起 VoWiFi 呼叫 / 失败\n设备    %s\n原因    设备未找到", deviceID)
-	}
-
-	voiceGW := m.pool.GetVoiceGateway()
-	if voiceGW == nil || voiceGW.GetAgent(deviceID) == nil {
-		return fmt.Sprintf("发起 VoWiFi 呼叫 / 失败\n设备    %s\n原因    VoWiFi 未就绪", deviceID)
-	}
-
-	displayName := worker.ID
-	if worker.Config.Name != "" {
-		displayName = fmt.Sprintf("%s (%s)", worker.Config.Name, worker.ID)
-	}
-	caller := "未知"
-	if worker.Modem != nil {
-		if imsi := strings.TrimSpace(worker.GetIMSI()); imsi != "" {
-			if phone, err := db.GetSIMCardPhoneNumberByIMSI(imsi); err == nil && strings.TrimSpace(phone) != "" {
-				caller = strings.TrimSpace(phone)
-			}
-		}
-	}
-
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		defer cancel()
-
-		req := voicehost.SimulateCallRequest{
-			Callee:      callee,
-			HoldSeconds: holdSeconds,
-			OnConnected: func() {
-				cmdCtx.Reply(fmt.Sprintf("发起 VoWiFi 呼叫 / 已接通\n设备    %s\n主叫    %s\n被叫    %s\n保持    %d 秒", displayName, caller, callee, holdSeconds))
-			},
-		}
-
-		res, err := voiceGW.SimulateCall(ctx, deviceID, req)
-		if err != nil {
-			cmdCtx.Reply(fmt.Sprintf("发起 VoWiFi 呼叫 / 失败\n设备    %s\n主叫    %s\n被叫    %s\n原因    %v", displayName, caller, callee, err))
-			return
-		}
-
-		if res.Success {
-			durationSeconds := res.DurationMs / 1000
-			if res.DurationMs > 0 && durationSeconds == 0 {
-				durationSeconds = 1
-			}
-			cmdCtx.Reply(fmt.Sprintf("发起 VoWiFi 呼叫 / 完成\n设备    %s\n主叫    %s\n被叫    %s\n时长    %d 秒", displayName, caller, callee, durationSeconds))
-		} else {
-			cmdCtx.Reply(fmt.Sprintf("发起 VoWiFi 呼叫 / 未接通\n设备    %s\n主叫    %s\n被叫    %s\n原因    %s", displayName, caller, callee, res.Reason))
-		}
-	}()
-
-	return fmt.Sprintf("发起 VoWiFi 呼叫 / 已受理\n设备    %s\n主叫    %s\n被叫    %s\n保持    %d 秒", displayName, caller, callee, holdSeconds)
-}

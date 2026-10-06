@@ -478,6 +478,7 @@ func (s *Server) newRouter() *gin.Engine {
 		api.DELETE("/carrier/:mcc/:mnc/config", s.handleDeleteCarrierConfig) // 删除用户配置
 		api.POST("/carrier/:mcc/:mnc/activate", s.handleActivateCarrier)     // 激活用户配置
 		api.POST("/carrier/:mcc/:mnc/deactivate", s.handleDeactivateCarrier) // 禁用用户配置
+		api.POST("/carrier/:mcc/:mnc/pull", s.handlePullCarrierYAML)         // 手动拉取 YAML（不自动启用）
 
 		// ===== 运营商可见列表（新架构：plmn-index → visible） =====
 		api.POST("/carriers/visible/batch", s.handleBatchAddVisible) // 批量添加运营商到可见列表
