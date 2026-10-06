@@ -197,12 +197,10 @@ github.com/vishvananda/netlink v1.3.1-0.20250303224720-0e7078ed04c8/go.mod h1:i6
 github.com/vishvananda/netns v0.0.4/go.mod h1:SpkAiCQRtJ6TvvxPnOSyH3BMl6unz3xZlaprSwhNNJM=
 github.com/vishvananda/netns v0.0.5 h1:DfiHV+j8bA32MFM7bfEunvT8IAqQ/NzSJHtcmW5zdEY=
 github.com/vishvananda/netns v0.0.5/go.mod h1:SpkAiCQRtJ6TvvxPnOSyH3BMl6unz3xZlaprSwhNNJM=
-github.com/voorz/euicc-go v1.1.4 h1:DcvuORK255z7izBjrwXUjAUtiv6dzZ7IAX7Z5wLIaKM=
-github.com/voorz/euicc-go v1.1.4/go.mod h1:IQFrLiPJqQf1uDh6vXExpEdooliRFk0253zoIqkdVfc=
 github.com/voorz/euicc-go v1.1.5 h1:cv/kOpQb4HP1AtkS03oeLZEKW2HJXdrSrMS5uM+KhRY=
 github.com/voorz/euicc-go v1.1.5/go.mod h1:IQFrLiPJqQf1uDh6vXExpEdooliRFk0253zoIqkdVfc=
-github.com/voorz/ims-go v0.0.0-20261006152639-37acf4da308d h1:i8l3Kcao1GNci6uDKQUsT65iT2XreHtm9G6KfPKyJyU=
-github.com/voorz/ims-go v0.0.0-20261006152639-37acf4da308d/go.mod h1:WyYz7pczUPLHRZwTssaKHvRH0GYc1nJRUMuBsvLAoVE=
+github.com/voorz/ims-go v0.0.0-20261006181551-b4f61e6cf5be h1:IMgfnvnSF8lJSUP5ZAzVPY1aHRy1/5pAu4ynHCgacRo=
+github.com/voorz/ims-go v0.0.0-20261006181551-b4f61e6cf5be/go.mod h1:BnzTmQqIu8bIefw9sCQ81gAlz3X/L+oQbti6pPuz11E=
 github.com/voorz/netlink v1.3.4 h1:3yXA1Gawtq8R7+LGwAiXCYHYzlCzZoeSakAJZKGDacg=
 github.com/voorz/netlink v1.3.4/go.mod h1:EsZ2GovSyyayWhU28u0corZ2bChavZq9KuidYRyiyvk=
 github.com/voorz/qqbot v1.0.2 h1:IjdurUnbXbUxskS0dHv4yxCSK1QJGHvN4kELNndyttU=
