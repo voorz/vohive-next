@@ -2,6 +2,7 @@ package vowifihost
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -88,5 +89,48 @@ func TestManagerScheduleDesiredRecoverSkipsRuntimeActivity(t *testing.T) {
 		},
 	}) {
 		t.Fatal("ScheduleDesiredRecover() = true for active runtime, want false")
+	}
+}
+
+func TestScheduleDesiredRecoverPanicRecovery(t *testing.T) {
+	manager := NewManager()
+	callbacks := make(chan error, 1)
+
+	// 模拟 Recover 中 panic
+	manager.SetLifecycleRunForTest(func(ctx context.Context, cmd LifecycleCommand) error {
+		panic("simulated panic in Recover")
+	})
+
+	if !manager.ScheduleDesiredRecover(context.Background(), DesiredRecoverRequest{
+		DeviceID: "dev-panic",
+		Reason:   "test_panic",
+		Now:      time.Now(),
+		OnResult: func(deviceID, reason string, err error) {
+			callbacks <- err
+		},
+	}) {
+		t.Fatal("ScheduleDesiredRecover() = false, want true")
+	}
+
+	// 等待 panic 恢复后的回调
+	select {
+	case err := <-callbacks:
+		if err == nil {
+			t.Fatal("expected error from panic recovery, got nil")
+		}
+		if !strings.Contains(err.Error(), "panic") {
+			t.Fatalf("error should mention panic, got: %v", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for panic recovery callback")
+	}
+
+	// 验证失败状态已记录
+	snap, ok := manager.DesiredRecoverState("dev-panic")
+	if !ok {
+		t.Fatal("expected DesiredRecoverSnapshot after panic")
+	}
+	if snap.LastErr == "" {
+		t.Fatal("expected LastErr to be set after panic")
 	}
 }

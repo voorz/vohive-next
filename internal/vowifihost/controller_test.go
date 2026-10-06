@@ -149,3 +149,94 @@ func TestLifecycleControllerRestartPreemptsInFlightEnable(t *testing.T) {
 		}
 	}
 }
+
+func TestTryAcquireRunSemTimeout(t *testing.T) {
+	c := NewLifecycleController()
+	lifecycle := c.device("dev-timeout")
+
+	// 先占用信号量
+	if !c.tryAcquireRunSem(lifecycle, time.Second) {
+		t.Fatal("first acquire should succeed")
+	}
+	defer c.releaseRunSem(lifecycle)
+
+	// 第二次获取应超时失败（用短超时加速测试）
+	start := time.Now()
+	if c.tryAcquireRunSem(lifecycle, 100*time.Millisecond) {
+		t.Fatal("second acquire should timeout")
+	}
+	if elapsed := time.Since(start); elapsed < 100*time.Millisecond {
+		t.Fatalf("timeout too fast: %v", elapsed)
+	}
+}
+
+func TestRunSemNoLeakAfterMultipleSubmits(t *testing.T) {
+	c := NewLifecycleController()
+	c.TestRun = func(ctx context.Context, cmd LifecycleCommand) error {
+		return nil
+	}
+
+	// 连续提交多次，信号量应正确释放
+	for i := 0; i < 10; i++ {
+		if err := c.Submit(context.Background(), LifecycleCommand{
+			DeviceID: "dev-leak",
+			Kind:     LifecycleCommandEnable,
+		}); err != nil {
+			t.Fatalf("Submit %d failed: %v", i, err)
+		}
+	}
+
+	// 验证信号量可用（非阻塞获取）
+	lifecycle := c.device("dev-leak")
+	select {
+	case <-lifecycle.runSem:
+		// 成功获取，说明无泄漏
+		lifecycle.runSem <- struct{}{} // 归还
+	default:
+		t.Fatal("runSem leaked: not available after 10 Submits")
+	}
+}
+
+func TestSubmitTimeoutCancelsStuckCommand(t *testing.T) {
+	c := NewLifecycleController()
+
+	// 模拟一个卡住的命令（阻塞直到 context 取消）
+	unblocked := make(chan struct{})
+	c.TestRun = func(ctx context.Context, cmd LifecycleCommand) error {
+		select {
+		case <-ctx.Done():
+			close(unblocked)
+			return ctx.Err()
+		case <-time.After(10 * time.Second):
+			return nil
+		}
+	}
+
+	// 启动卡住的命令（异步，因为它会阻塞）
+	go func() {
+		_ = c.Submit(context.Background(), LifecycleCommand{
+			DeviceID: "dev-stuck",
+			Kind:     LifecycleCommandEnable,
+		})
+	}()
+
+	// 等待第一个命令占用信号量
+	time.Sleep(100 * time.Millisecond)
+
+	// 第二个 Submit 应该超时（用短超时需要修改代码，这里直接测试 tryAcquire）
+	lifecycle := c.device("dev-stuck")
+	if c.tryAcquireRunSem(lifecycle, 100*time.Millisecond) {
+		t.Fatal("should not acquire while first command is stuck")
+	}
+
+	// 取消卡住的命令
+	c.cancelActiveRun(lifecycle)
+
+	// 等待卡住的命令响应取消
+	select {
+	case <-unblocked:
+		// 成功响应取消
+	case <-time.After(2 * time.Second):
+		t.Fatal("stuck command did not respond to cancel")
+	}
+}

@@ -145,8 +145,10 @@ func (c *LifecycleController) Submit(ctx context.Context, cmd LifecycleCommand) 
 	// 修复：runSem 获取加超时，避免前一个 lifecycle 命令卡死导致后续命令永久阻塞。
 	// （2026-10-07 生产故障：eSIM 切卡后的 SwitchEnd 在 enableRuntime 中阻塞，
 	//  导致 reconcile 的 Recover 永久卡在 runMu.Lock()，VoWiFi 完全静默。）
+	// 超时后取消卡住的命令（审计 P2），让其有机会响应 context 取消。
 	if !c.tryAcquireRunSem(lifecycle, 30*time.Second) {
-		return fmt.Errorf("vowifi lifecycle 繁忙：设备 %s 的上一个命令 30s 未释放", cmd.DeviceID)
+		c.cancelActiveRun(lifecycle)
+		return fmt.Errorf("vowifi lifecycle 繁忙：设备 %s 的上一个命令 30s 未释放，已尝试取消", cmd.DeviceID)
 	}
 	defer c.releaseRunSem(lifecycle)
 
