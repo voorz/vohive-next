@@ -984,12 +984,16 @@ func (p *Pool) restorePostSwitchConnectivity(deviceID string, worker *Worker, sn
 				"err", restoreGateErr)
 		} else {
 			p.clearDesiredVoWiFiRecoverState(deviceID)
-			if err := p.voWiFiHost().SwitchEnd(context.Background(), deviceID, true); err != nil {
-				p.markESIMSwitchPhase(deviceID, esim.SwitchPhaseDegraded)
-				logger.Error("切卡后恢复 VoWiFi 失败", "device", deviceID, "err", err)
-			} else {
-				return
-			}
+			// 修复：SwitchEnd 异步执行，避免 VoWiFi 启动阻塞卡死切卡流程。
+			// （2026-10-07 生产故障：SwitchEnd 同步调用在 enableRuntime 中阻塞，
+			//  导致切卡 goroutine 永久卡住，且 runSem 被长期占用。）
+			go func() {
+				if err := p.voWiFiHost().SwitchEnd(context.Background(), deviceID, true); err != nil {
+					p.markESIMSwitchPhase(deviceID, esim.SwitchPhaseDegraded)
+					logger.Error("切卡后恢复 VoWiFi 失败", "device", deviceID, "err", err)
+				}
+			}()
+			return
 		}
 	}
 	p.restoreRadioDataForSwitchSnapshot(deviceID, worker, snapshot, "post_switch_finalize", worker.Config.ESIMSwitch.RadioCycle)

@@ -3,6 +3,8 @@ package vowifihost
 import (
 	"context"
 	"errors"
+	"fmt"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -60,6 +62,20 @@ func (m *Manager) ScheduleDesiredRecover(ctx context.Context, req DesiredRecover
 
 	logger.Warn("VoWiFi 目标态恢复开始", "event", "VOWIFI_DESIRED_RECOVER", "device", deviceID, "reason", reason)
 	go func() {
+		// 修复：panic 恢复，避免 goroutine 静默死亡导致无日志、无状态更新。
+		// （2026-10-07 生产故障：Recover 中的 panic 会导致 goroutine 消失，
+		//  前端看到 recover_failed 但 last_error 为空。）
+		defer func() {
+			if r := recover(); r != nil {
+				err := fmt.Errorf("VoWiFi 目标态恢复 panic: %v", r)
+				logger.Error("VoWiFi 目标态恢复发生 panic", "event", "VOWIFI_DESIRED_RECOVER_PANIC",
+					"device", deviceID, "reason", reason, "panic", r, "stack", string(debug.Stack()))
+				m.MarkDesiredRecoverFailed(deviceID, time.Now(), err)
+				if req.OnResult != nil {
+					req.OnResult(deviceID, reason, err)
+				}
+			}
+		}()
 		err := m.Recover(ctx, LifecycleRecoverRequest{
 			DeviceID:     deviceID,
 			Reason:       reason,

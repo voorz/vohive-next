@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/voorz/vohive/pkg/logger"
 )
@@ -65,7 +66,7 @@ type LifecycleController struct {
 }
 
 type deviceLifecycle struct {
-	runMu        sync.Mutex
+	runSem       chan struct{} // 替代 sync.Mutex，支持超时获取
 	generationMu sync.Mutex
 	generation   uint64
 	runCancel    context.CancelFunc
@@ -95,6 +96,32 @@ func (c *LifecycleController) SetRecoverRunForTest(fn func(context.Context, stri
 	c.RecoverRunForTest = fn
 }
 
+// tryAcquireRunSem 尝试获取 runSem，超时返回 false。
+// 用于防止前一个 lifecycle 命令卡死导致后续命令永久阻塞。
+func (c *LifecycleController) tryAcquireRunSem(lifecycle *deviceLifecycle, timeout time.Duration) bool {
+	if lifecycle == nil || lifecycle.runSem == nil {
+		return false
+	}
+	select {
+	case <-lifecycle.runSem:
+		return true
+	case <-time.After(timeout):
+		return false
+	}
+}
+
+// releaseRunSem 释放 runSem。
+func (c *LifecycleController) releaseRunSem(lifecycle *deviceLifecycle) {
+	if lifecycle == nil || lifecycle.runSem == nil {
+		return
+	}
+	select {
+	case lifecycle.runSem <- struct{}{}:
+	default:
+		// 已释放，无需重复
+	}
+}
+
 func (c *LifecycleController) Submit(ctx context.Context, cmd LifecycleCommand) error {
 	if c == nil {
 		return fmt.Errorf("vowifi lifecycle controller is nil")
@@ -115,8 +142,13 @@ func (c *LifecycleController) Submit(ctx context.Context, cmd LifecycleCommand) 
 		return c.submitPreempting(ctx, lifecycle, cmd)
 	}
 
-	lifecycle.runMu.Lock()
-	defer lifecycle.runMu.Unlock()
+	// 修复：runSem 获取加超时，避免前一个 lifecycle 命令卡死导致后续命令永久阻塞。
+	// （2026-10-07 生产故障：eSIM 切卡后的 SwitchEnd 在 enableRuntime 中阻塞，
+	//  导致 reconcile 的 Recover 永久卡在 runMu.Lock()，VoWiFi 完全静默。）
+	if !c.tryAcquireRunSem(lifecycle, 30*time.Second) {
+		return fmt.Errorf("vowifi lifecycle 繁忙：设备 %s 的上一个命令 30s 未释放", cmd.DeviceID)
+	}
+	defer c.releaseRunSem(lifecycle)
 
 	if c.commandGenerationStale(lifecycle, cmd) {
 		currentGeneration := c.currentGeneration(lifecycle)
@@ -281,7 +313,11 @@ func (c *LifecycleController) device(deviceID string) *deviceLifecycle {
 	if lifecycle := c.devices[deviceID]; lifecycle != nil {
 		return lifecycle
 	}
-	lifecycle := &deviceLifecycle{}
+	lifecycle := &deviceLifecycle{
+		runSem: make(chan struct{}, 1),
+	}
+	// 初始化信号量为可用状态
+	lifecycle.runSem <- struct{}{}
 	c.devices[deviceID] = lifecycle
 	return lifecycle
 }
