@@ -127,6 +127,7 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 	var (
 		registerExpiry time.Duration
 		pcscfAddr      string
+		epdgAddr       string
 	)
 	if mcc != "" && mnc != "" {
 		plmn := carrierconfig.PlmnKey(mcc, mnc)
@@ -152,6 +153,7 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 		if profile != nil {
 			registerExpiry = carrierconfig.ResolveRegisterExpiry(profile)
 			pcscfAddr = carrierconfig.ResolvePCSCFAddr(profile)
+			epdgAddr = carrierconfig.ResolveEPDGAddr(profile)
 		}
 	}
 
@@ -165,16 +167,21 @@ func (m *Manager) StartRuntime(ctx context.Context, req RuntimeStartRequest) (Ru
 	if pcscfAddr != "" {
 		pcscfAddrs = append(pcscfAddrs, pcscfAddr)
 	}
+	epdgAddrs := []string{}
+	if epdgAddr != "" {
+		epdgAddrs = append(epdgAddrs, epdgAddr)
+	}
 
 	imsCfg := ims.Config{
 		SIM: ims.SIMConfig{
 			AKAProvider: akaProvider,
 		},
 		SWu: ims.SWuConfig{
-			IMSI:  profile.IMSI,
-			MCC:   mcc,
-			MNC:   mnc,
-			Proxy: req.Prepared.Proxy, // A7：*ims.ProxyConfig
+			EPDGAddrs: epdgAddrs,
+			IMSI:      profile.IMSI,
+			MCC:       mcc,
+			MNC:       mnc,
+			Proxy:     req.Prepared.Proxy, // A7：*ims.ProxyConfig
 		},
 		SIP: ims.SIPConfig{
 			IMPI:            profile.IMPI,
