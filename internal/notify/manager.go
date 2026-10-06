@@ -241,7 +241,6 @@ func (m *Manager) registerCommands() {
 		"sms":    m.handleCmdSMSInbox,
 		"esim":   m.handleCmdEsim,
 		"switch": m.handleCmdSwitch,
-		"vocall": m.handleCmdCall,
 	}
 
 	for _, ch := range m.channels {

@@ -34,8 +34,3 @@ func NewCoordinator(deviceID string, pool *device.Pool, websheets *websheet.Brok
 func (c *Coordinator) StartWebsheet(ctx context.Context, deviceID string) (websheet.Info, error) {
 	return websheet.Info{}, ErrNotSupported
 }
-
-// SetupAvailable 检查 e911 是否可用（暂缓，始终 false）。
-func SetupAvailable(status interface{}) bool {
-	return false
-}
