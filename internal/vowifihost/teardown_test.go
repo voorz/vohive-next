@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/voorz/vowifi-core/runtimehost"
+	"github.com/voorz/ims-go/ims"
 )
 
 func TestManagerStopInstanceForTeardownDeletesAndBroadcasts(t *testing.T) {
 	manager := NewManager()
 	deviceID := "dev-stop"
-	manager.RuntimeStore().SetInstance(deviceID, &runtimehost.Instance{})
+	manager.RuntimeStore().SetInstance(deviceID, &ims.Client{})
 	ch, unsub := manager.SubscribeState(deviceID)
 	defer unsub()
 
@@ -31,7 +31,7 @@ func TestManagerStopInstanceForTeardownDeletesAndBroadcasts(t *testing.T) {
 func TestManagerStopInstanceForTeardownNormalizesDeviceIDBeforeBroadcast(t *testing.T) {
 	manager := NewManager()
 	deviceID := "dev-trim"
-	manager.RuntimeStore().SetInstance(deviceID, &runtimehost.Instance{})
+	manager.RuntimeStore().SetInstance(deviceID, &ims.Client{})
 	ch, unsub := manager.SubscribeState(deviceID)
 	defer unsub()
 
@@ -48,7 +48,7 @@ func TestManagerStopInstanceForTeardownNormalizesDeviceIDBeforeBroadcast(t *test
 func TestManagerTeardownSessionInvalidatesAndRunsSMSHook(t *testing.T) {
 	manager := NewManager()
 	deviceID := "dev-teardown"
-	manager.RuntimeStore().SetInstance(deviceID, &runtimehost.Instance{})
+	manager.RuntimeStore().SetInstance(deviceID, &ims.Client{})
 	before := manager.RuntimeStore().CurrentEpoch(deviceID)
 
 	var restored string

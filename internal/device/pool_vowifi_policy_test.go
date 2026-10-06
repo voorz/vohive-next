@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/voorz/vowifi-core/runtimehost/carrier"
+	carrier "github.com/voorz/vohive/internal/carrier"
 )
 
 func TestShouldRetryVoWiFiAutoStart(t *testing.T) {

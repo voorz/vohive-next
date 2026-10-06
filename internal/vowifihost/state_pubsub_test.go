@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/voorz/vowifi-core/runtimehost"
 )
 
 func TestManagerStateSubscriptionBroadcastAndCleanup(t *testing.T) {
@@ -41,7 +40,7 @@ func TestManagerRecordStartupStateBroadcastsWhenAccepted(t *testing.T) {
 	ch, unsub := manager.SubscribeState(deviceID)
 	defer unsub()
 
-	accepted := manager.RecordStartupState(deviceID, runtimehost.State{
+	accepted := manager.RecordStartupState(deviceID, DeviceStartupState{
 		DeviceID:   deviceID,
 		Phase:      "radio_ready",
 		UpdatedAt:  time.Now(),
@@ -56,7 +55,7 @@ func TestManagerRecordStartupStateBroadcastsWhenAccepted(t *testing.T) {
 		t.Fatal("expected broadcast for accepted startup state")
 	}
 
-	rejected := manager.RecordStartupState(deviceID, runtimehost.State{
+	rejected := manager.RecordStartupState(deviceID, DeviceStartupState{
 		DeviceID:  deviceID,
 		Phase:     "older",
 		UpdatedAt: time.Now().Add(-time.Hour),

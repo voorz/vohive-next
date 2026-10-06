@@ -22,7 +22,7 @@ import (
 	qmicore "github.com/voorz/vohive/internal/qmi"
 	"github.com/voorz/vohive/internal/vowifihost"
 	"github.com/voorz/vohive/pkg/logger"
-	"github.com/voorz/vowifi-core/runtimehost"
+	"github.com/voorz/ims-go/ims"
 )
 
 type esimSwitchRestoreBackendStub struct {
@@ -889,7 +889,7 @@ func TestHandleESIMSwitchBeforeClearsQMIAPDUSessionsForSwitch(t *testing.T) {
 		QMICore: qmiMgr,
 	}
 	p.workers["dev-1"] = w
-	p.voWiFiRuntimeStore().SetInstance("dev-1", &runtimehost.Instance{})
+	p.voWiFiRuntimeStore().SetInstance("dev-1", &ims.Client{})
 
 	p.handleESIMSwitchBefore("dev-1", "")
 
@@ -1218,7 +1218,7 @@ func TestWakeDesiredVoWiFiRecoverFromDeviceEventSkipsWhenRuntimeHostInstanceActi
 		Config:  config.DeviceConfig{ID: "dev-1", VoWiFiEnabled: true},
 		Backend: be,
 	}
-	p.voWiFiRuntimeStore().SetInstance("dev-1", &runtimehost.Instance{})
+	p.voWiFiRuntimeStore().SetInstance("dev-1", &ims.Client{})
 	t.Cleanup(func() { p.voWiFiRuntimeStore().DeleteInstance("dev-1", nil) })
 
 	commands := make(chan vowifihost.LifecycleCommand, 1)

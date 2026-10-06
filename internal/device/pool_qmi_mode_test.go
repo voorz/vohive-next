@@ -12,7 +12,7 @@ import (
 	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/modem"
 	"github.com/voorz/vohive/internal/vowifihost"
-	"github.com/voorz/vowifi-core/runtimehost"
+	"github.com/voorz/ims-go/ims"
 	"github.com/voorz/vowifi-core/runtimehost/identity"
 )
 
@@ -496,7 +496,7 @@ func TestPoolConfirmSIMRemovedStopsVoWiFi(t *testing.T) {
 	backend := &workerStatusBackendStub{simInserted: false}
 	w := &Worker{ID: "dev-1", Backend: backend}
 	p.workers["dev-1"] = w
-	p.voWiFiRuntimeStore().SetInstance("dev-1", &runtimehost.Instance{})
+	p.voWiFiRuntimeStore().SetInstance("dev-1", &ims.Client{})
 	if !p.voWiFiHost().BeginDesiredRecover("dev-1", time.Now().Add(-time.Minute)) {
 		t.Fatal("expected desired recover state setup to begin")
 	}

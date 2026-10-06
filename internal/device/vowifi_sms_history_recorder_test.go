@@ -1,13 +1,13 @@
 package device
 
 import (
+	"github.com/voorz/ims-go/ims"
 	"context"
 	"testing"
 	"time"
 
 	"github.com/voorz/vohive/internal/db"
-	"github.com/voorz/vowifi-core/runtimehost/eventhost"
-)
+	)
 
 func TestVoWiFiSMSHistoryRecorderPersistsSentSMS(t *testing.T) {
 	initDevicePhoneNumberTestDB(t)
@@ -18,13 +18,7 @@ func TestVoWiFiSMSHistoryRecorderPersistsSentSMS(t *testing.T) {
 	p.workers["dev-1"] = &Worker{ID: "dev-1", Backend: &workerPhoneBackendStub{imsi: "imsi-vowifi-1"}}
 
 	at := time.Date(2026, 6, 3, 12, 0, 0, 0, time.UTC)
-	err := vowifiSMSHistoryRecorder{pool: p}.RecordSent(eventhost.SMSSent{
-		DevID:      "dev-1",
-		TargetURI:  "+10010",
-		Content:    "hello",
-		Time:       at,
-		TotalParts: 1,
-	})
+	err := vowifiSMSHistoryRecorder{pool: p}.RecordSent("dev-1", ims.SMSSentData{To: "+10010", MsgID: "test-msg", Success: true})
 	if err != nil {
 		t.Fatalf("RecordSent() error=%v", err)
 	}
@@ -47,12 +41,7 @@ func TestVoWiFiSMSHistoryRecorderPersistsReceivedSMS(t *testing.T) {
 	p.workers["dev-2"] = &Worker{ID: "dev-2", Backend: &workerPhoneBackendStub{imsi: "imsi-vowifi-2"}}
 
 	at := time.Date(2026, 6, 3, 12, 1, 0, 0, time.UTC)
-	_, err := vowifiSMSHistoryRecorder{pool: p}.RecordReceived(eventhost.SMSReceived{
-		DevID:   "dev-2",
-		Sender:  "+10086",
-		Content: "inbound",
-		Time:    at,
-	})
+	_, err := vowifiSMSHistoryRecorder{pool: p}.RecordReceived("dev-2", ims.SMSReceivedData{From: "+10086", Content: "inbound", At: time.Now()})
 	if err != nil {
 		t.Fatalf("RecordReceived() error=%v", err)
 	}
@@ -71,12 +60,7 @@ func TestVoWiFiSMSHistoryRecorderSkipsSuppressedReceivedSMS(t *testing.T) {
 	p := NewPool(nil)
 	p.workers["dev-ota"] = &Worker{ID: "dev-ota", Backend: &workerPhoneBackendStub{imsi: "imsi-ota"}}
 
-	_, err := vowifiSMSHistoryRecorder{pool: p}.RecordReceived(eventhost.SMSReceived{
-		DevID:   "dev-ota",
-		Sender:  "+10086",
-		Content: "[SIM OTA 23.048]\ndecrypt=not_attempted\nsecurity=可能加密\nraw=0011",
-		Time:    time.Now(),
-	})
+	_, err := vowifiSMSHistoryRecorder{pool: p}.RecordReceived("dev-ota", ims.SMSReceivedData{From: "+10086", Content: "[SIM OTA 23.048]\ndecrypt=not_attempted\nsecurity=可能加密\nraw=0011", At: time.Now()})
 	if err != nil {
 		t.Fatalf("RecordReceived() error=%v", err)
 	}
@@ -134,12 +118,7 @@ func TestVoWiFiSMSHistoryRecorderPersistsLocalNumberLearned(t *testing.T) {
 	p := NewPool(nil)
 	p.workers["dev-3"] = &Worker{ID: "dev-3", Backend: &workerPhoneBackendStub{imsi: "imsi-vowifi-3"}}
 
-	err := vowifiSMSHistoryRecorder{pool: p}.RecordLocalNumberLearned(eventhost.LocalNumberLearned{
-		DevID:  "dev-3",
-		IMSI:   "imsi-vowifi-3",
-		Number: "+8613700000000",
-		Source: "register",
-	})
+	err := vowifiSMSHistoryRecorder{pool: p}.RecordLocalNumber("dev-1", ims.LocalNumberLearnedData{Number: "+8613700000000"})
 	if err != nil {
 		t.Fatalf("RecordLocalNumberLearned() error=%v", err)
 	}
@@ -161,9 +140,7 @@ func TestRecordLocalNumberLearnedStagesByICCIDWhenIMSIEmpty(t *testing.T) {
 	p.workers["dev-1"] = w
 
 	rec := vowifiSMSHistoryRecorder{pool: p}
-	err := rec.RecordLocalNumberLearned(eventhost.LocalNumberLearned{
-		DevID: "dev-1", IMSI: "", Number: "+447700900200", Source: "P-Associated-URI",
-	})
+	err := rec.RecordLocalNumber("dev-1", ims.LocalNumberLearnedData{Number: "+447700900200"})
 	if err != nil {
 		t.Fatalf("RecordLocalNumberLearned error=%v", err)
 	}
@@ -181,12 +158,7 @@ func TestVoWiFiRuntimeDispatcherPersistsSMSSentWithoutNotifier(t *testing.T) {
 	p := NewPool(nil)
 	p.workers["dev-dispatch"] = &Worker{ID: "dev-dispatch", Backend: &workerPhoneBackendStub{imsi: "imsi-dispatch"}}
 
-	poolVoWiFiRuntimeDispatcher{pool: p}.Dispatch(context.Background(), eventhost.SMSSent{
-		DevID:     "dev-dispatch",
-		TargetURI: "+10010",
-		Content:   "sent through dispatcher",
-		Time:      time.Now(),
-	})
+	poolVoWiFiRuntimeDispatcher{pool: p}.Dispatch("dev-1", ims.Event{Type: ims.EventSMSSent, Data: ims.SMSSentData{To: "+10010", MsgID: "test"}})
 
 	var count int64
 	if err := db.DB.Model(&db.SMS{}).Where("imsi = ? AND type = ? AND status = ?", "imsi-dispatch", 2, 2).Count(&count).Error; err != nil {
@@ -207,12 +179,7 @@ func TestVoWiFiSMSHistoryRecorderSkipsDuplicateReceivedSMS(t *testing.T) {
 
 	rec := vowifiSMSHistoryRecorder{pool: p}
 	at := time.Date(2026, 6, 29, 23, 58, 55, 0, time.UTC)
-	first, err := rec.RecordReceived(eventhost.SMSReceived{
-		DevID:   "dev-dup",
-		Sender:  "+447751284582",
-		Content: "ij991818短信登录验证码，5分钟内有效，请勿泄露。",
-		Time:    at,
-	})
+	first, err := rec.RecordReceived("dev-dup", ims.SMSReceivedData{From: "+447751284582", Content: "ij991818短信登录验证码，5分钟内有效，请勿泄露。", At: time.Now()})
 	if err != nil {
 		t.Fatalf("first RecordReceived() error=%v", err)
 	}
@@ -220,12 +187,7 @@ func TestVoWiFiSMSHistoryRecorderSkipsDuplicateReceivedSMS(t *testing.T) {
 		t.Fatalf("first result=%+v, want stored only", first)
 	}
 
-	second, err := rec.RecordReceived(eventhost.SMSReceived{
-		DevID:   "dev-dup",
-		Sender:  "+447751284582",
-		Content: "ij991818短信登录验证码，5分钟内有效，请勿泄露。",
-		Time:    at.Add(2 * time.Second),
-	})
+	second, err := rec.RecordReceived("dev-dup", ims.SMSReceivedData{From: "+447751284582", Content: "ij991818短信登录验证码，5分钟内有效，请勿泄露。", At: time.Now()})
 	if err != nil {
 		t.Fatalf("second RecordReceived() error=%v", err)
 	}

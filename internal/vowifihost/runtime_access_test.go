@@ -3,13 +3,13 @@ package vowifihost
 import (
 	"testing"
 
-	"github.com/voorz/vowifi-core/runtimehost"
+	"github.com/voorz/ims-go/ims"
 )
 
 func TestManagerRuntimeAccessorsReadThroughRuntimeStore(t *testing.T) {
 	manager := NewManager()
 	deviceID := "dev-access"
-	inst := &runtimehost.Instance{}
+	inst := &ims.Client{}
 	manager.RuntimeStore().SetInstance(deviceID, inst)
 
 	if manager.Instance(deviceID) != inst {

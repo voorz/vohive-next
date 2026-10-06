@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/voorz/vohive/internal/vowifihost"
-	"github.com/voorz/vowifi-core/runtimehost"
+	"github.com/voorz/ims-go/ims"
 )
 
 func (p *Pool) voWiFiRuntimeStore() vowifihost.RuntimeStore {
@@ -42,7 +42,7 @@ func (p *Pool) claimStartedVoWiFiApp(deviceID string, runtime any, startupEpoch 
 	}
 
 	switch v := runtime.(type) {
-	case *runtimehost.Instance:
+	case *ims.Client:
 		return p.voWiFiHost().ClaimStarted(deviceID, startupEpoch, v)
 	default:
 		return false

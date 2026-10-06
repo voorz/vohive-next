@@ -12,7 +12,7 @@ import (
 	"github.com/voorz/vohive/internal/backend"
 	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/modem"
-	"github.com/voorz/vowifi-core/runtimehost"
+	"github.com/voorz/ims-go/ims"
 )
 
 type vowifiLockBackendStub struct {
@@ -311,7 +311,7 @@ func TestRecordVoWiFiStartupStateKeepsNewestState(t *testing.T) {
 func TestClearVoWiFiStartupStateKeepsActiveAppAuthoritative(t *testing.T) {
 	p := NewPool(&config.Config{})
 	deviceID := "dev-startup-success"
-	activeApp := &runtimehost.Instance{}
+	activeApp := &ims.Client{}
 
 	p.voWiFiRuntimeStore().RecordStartupState(deviceID, runtimehost.State{DeviceID: deviceID, LastReason: "starting", UpdatedAt: time.Now()})
 	p.voWiFiRuntimeStore().SetInstance(deviceID, activeApp)
@@ -370,7 +370,7 @@ func TestStopVoWiFiAppForTeardownBroadcastsState(t *testing.T) {
 	ch, unsub := p.SubscribeVoWiFiState("dev-2")
 	defer unsub()
 
-	p.voWiFiRuntimeStore().SetInstance("dev-2", &runtimehost.Instance{})
+	p.voWiFiRuntimeStore().SetInstance("dev-2", &ims.Client{})
 
 	_ = p.stopVoWiFiAppForTeardown(context.Background(), "dev-2", "test")
 

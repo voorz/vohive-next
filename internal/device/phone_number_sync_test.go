@@ -7,7 +7,7 @@ import (
 
 	"github.com/voorz/vohive/internal/backend"
 	"github.com/voorz/vohive/internal/db"
-	"github.com/voorz/vowifi-core/runtimehost/eventhost"
+	"github.com/voorz/ims-go/ims"
 )
 
 type workerPhoneBackendStub struct {

@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/voorz/vowifi-core/runtimehost"
+	"github.com/voorz/ims-go/ims"
 )
 
 func TestManagerDesiredRecoverableIsFalseWhenRuntimeActiveOrStarting(t *testing.T) {
 	manager := NewManager()
-	manager.RuntimeStore().SetInstance("active", &runtimehost.Instance{})
+	manager.RuntimeStore().SetInstance("active", &ims.Client{})
 	manager.RuntimeStore().BeginStart("starting")
 
 	if manager.DesiredRecoverable("active") {
@@ -74,7 +74,7 @@ func TestManagerScheduleDesiredRecoverRunsRecoverAndCallback(t *testing.T) {
 
 func TestManagerScheduleDesiredRecoverSkipsRuntimeActivity(t *testing.T) {
 	manager := NewManager()
-	manager.RuntimeStore().SetInstance("dev-1", &runtimehost.Instance{})
+	manager.RuntimeStore().SetInstance("dev-1", &ims.Client{})
 	manager.SetLifecycleRunForTest(func(ctx context.Context, cmd LifecycleCommand) error {
 		t.Fatalf("recover should not run for active runtime: %+v", cmd)
 		return nil

@@ -9,7 +9,7 @@ import (
 	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/device"
 	"github.com/voorz/vohive/internal/modem"
-	"github.com/voorz/vowifi-core/runtimehost"
+	"github.com/voorz/ims-go/ims"
 )
 
 func TestApplyLifecycleToOfflineOverviewItemKeepsRecoveryVisible(t *testing.T) {

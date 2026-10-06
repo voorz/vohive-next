@@ -11,8 +11,8 @@ import (
 	"github.com/voorz/vohive/internal/cardpolicy"
 	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/vowifihost"
-	"github.com/voorz/vowifi-core/runtimehost"
-	"github.com/voorz/vowifi-core/runtimehost/carrier"
+	"github.com/voorz/ims-go/ims"
+	carrier "github.com/voorz/vohive/internal/carrier"
 )
 
 func newDesiredVoWiFiTestPool(t *testing.T, deviceID string, enabled bool, imsi string) *Pool {
@@ -159,7 +159,7 @@ func TestInitialDesiredVoWiFiStartsDoNotBlockBehindFirstDevice(t *testing.T) {
 
 func TestDesiredVoWiFiDoesNotRecoverWhenRuntimeHostInstanceActive(t *testing.T) {
 	p := newDesiredVoWiFiTestPool(t, "dev-1", true, "001010000000001")
-	p.voWiFiRuntimeStore().SetInstance("dev-1", &runtimehost.Instance{})
+	p.voWiFiRuntimeStore().SetInstance("dev-1", &ims.Client{})
 	t.Cleanup(func() { p.voWiFiRuntimeStore().DeleteInstance("dev-1", nil) })
 	commands := make(chan vowifihost.LifecycleCommand, 1)
 	p.voWiFiHost().LifecycleControllerForTest().TestRun = func(ctx context.Context, cmd vowifihost.LifecycleCommand) error {
@@ -174,7 +174,7 @@ func TestDesiredVoWiFiDoesNotRecoverWhenRuntimeHostInstanceActive(t *testing.T) 
 
 func TestScheduleDesiredVoWiFiRecoverSkipsWhenRuntimeHostInstanceActive(t *testing.T) {
 	p := newDesiredVoWiFiTestPool(t, "dev-1", true, "001010000000001")
-	p.voWiFiRuntimeStore().SetInstance("dev-1", &runtimehost.Instance{})
+	p.voWiFiRuntimeStore().SetInstance("dev-1", &ims.Client{})
 	t.Cleanup(func() { p.voWiFiRuntimeStore().DeleteInstance("dev-1", nil) })
 
 	if scheduled := p.scheduleDesiredVoWiFiRecover("dev-1", "test", time.Now()); scheduled {

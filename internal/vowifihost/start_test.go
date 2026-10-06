@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/voorz/vowifi-core/runtimehost"
+	"github.com/voorz/ims-go/ims"
 )
 
 func TestManagerBeginAndFailStartOwnsStartupMutationAndBroadcast(t *testing.T) {
@@ -22,7 +22,7 @@ func TestManagerBeginAndFailStartOwnsStartupMutationAndBroadcast(t *testing.T) {
 		t.Fatal("runtime should be marked starting")
 	}
 
-	manager.FailStart(deviceID, claim.Epoch, runtimehost.State{DeviceID: deviceID}, errors.New("start failed"))
+	manager.FailStart(deviceID, claim.Epoch, DeviceStartupState{DeviceID: deviceID}, errors.New("start failed"))
 
 	if manager.RuntimeStore().Starting(deviceID) {
 		t.Fatal("runtime starting flag should be cleared")
@@ -54,7 +54,7 @@ func TestManagerClaimStartedAcceptsCurrentAndRejectsStaleEpoch(t *testing.T) {
 	stale := manager.CurrentEpoch(deviceID)
 	manager.InvalidateRuntime(deviceID, "test")
 
-	if manager.ClaimStarted(deviceID, stale, &runtimehost.Instance{}) {
+	if manager.ClaimStarted(deviceID, stale, &ims.Client{}) {
 		t.Fatal("ClaimStarted() = true for stale epoch, want false")
 	}
 	if manager.RuntimeStore().Active(deviceID) {
@@ -62,7 +62,7 @@ func TestManagerClaimStartedAcceptsCurrentAndRejectsStaleEpoch(t *testing.T) {
 	}
 
 	current := manager.CurrentEpoch(deviceID)
-	inst := &runtimehost.Instance{}
+	inst := &ims.Client{}
 	if !manager.ClaimStarted(deviceID, current, inst) {
 		t.Fatal("ClaimStarted() = false for current epoch, want true")
 	}

@@ -18,7 +18,7 @@ import (
 	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/vowifihost"
 	"github.com/voorz/vohive/pkg/logger"
-	"github.com/voorz/vowifi-core/runtimehost"
+	"github.com/voorz/ims-go/ims"
 )
 
 func newVoWiFiLifecycleControllerForTest(p *Pool) *vowifihost.LifecycleController {
@@ -148,7 +148,7 @@ func TestDuplicateEnableDoesNotInvalidateActiveVoWiFiLifecycleSink(t *testing.T)
 	deviceID := "dev-active-enable"
 	generation := p.voWiFiHost().NextLifecycleGeneration(deviceID)
 
-	p.voWiFiRuntimeStore().SetInstance(deviceID, &runtimehost.Instance{})
+	p.voWiFiRuntimeStore().SetInstance(deviceID, &ims.Client{})
 
 	if err := p.EnableVoWiFi(deviceID); err != nil {
 		t.Fatalf("EnableVoWiFi() duplicate active error = %v", err)
@@ -420,7 +420,7 @@ func TestClaimStartedVoWiFiAppRejectsStaleRuntimeEpoch(t *testing.T) {
 	stale := p.currentVoWiFiRuntimeEpoch(deviceID)
 	current := p.invalidateVoWiFiRuntime(deviceID, "test")
 
-	app := &runtimehost.Instance{}
+	app := &ims.Client{}
 	// 传入过期的 stale epoch 应该返回 false，表明接管失败
 	if claimed := p.claimStartedVoWiFiApp(deviceID, app, stale); claimed {
 		t.Fatal("stale runtime epoch should not claim active VoWiFi app")
@@ -439,7 +439,7 @@ func TestClaimStartedVoWiFiAppAcceptsCurrentRuntimeEpoch(t *testing.T) {
 	deviceID := "dev-current-start"
 	current := p.currentVoWiFiRuntimeEpoch(deviceID)
 
-	app := &runtimehost.Instance{}
+	app := &ims.Client{}
 	// 传入当前的 current epoch 应该接管成功
 	if claimed := p.claimStartedVoWiFiApp(deviceID, app, current); !claimed {
 		t.Fatal("current runtime epoch should claim active VoWiFi app")
