@@ -12,6 +12,7 @@ import (
 	"github.com/voorz/vohive/internal/backend"
 	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/modem"
+	"github.com/voorz/vohive/internal/vowifihost"
 	"github.com/voorz/ims-go/ims"
 )
 
@@ -202,7 +203,7 @@ func TestGetVoWiFiRuntimeStateWithoutAppReturnsFalse(t *testing.T) {
 func TestGetVoWiFiRuntimeStateReturnsStartupStateBeforeAppIsActive(t *testing.T) {
 	p := NewPool(&config.Config{})
 	deviceID := "dev-starting"
-	want := runtimehost.State{
+	want := vowifihost.DeviceStartupState{
 		DeviceID:   deviceID,
 		LastReason: "正在检测 Modem 存活性...",
 	}
@@ -227,7 +228,7 @@ func TestRecordVoWiFiStartupStateCachesAndBroadcastsWhileInactive(t *testing.T) 
 	ch, unsub := p.SubscribeVoWiFiState(deviceID)
 	defer unsub()
 
-	state := runtimehost.State{
+	state := vowifihost.DeviceStartupState{
 		DeviceID:   deviceID,
 		LastReason: "正在读取 SIM 卡信息 (IMSI/PLMN)...",
 	}
@@ -256,8 +257,8 @@ func TestNewVoWiFiSIMReadyStartupStateUsesSIMPhase(t *testing.T) {
 	now := time.Date(2026, 6, 1, 20, 30, 0, 0, time.UTC)
 	got := newVoWiFiSIMReadyStartupState("dev-sim", "userspace", "LTE", now)
 
-	if got.Phase != runtimehost.PhaseSIMReady {
-		t.Fatalf("Phase = %q, want %q", got.Phase, runtimehost.PhaseSIMReady)
+	if got.Phase != "sim_ready" {
+		t.Fatalf("Phase = %q, want %q", got.Phase, "sim_ready")
 	}
 	if !got.SIMReady {
 		t.Fatalf("SIMReady=false, state=%+v", got)
@@ -275,12 +276,12 @@ func TestRecordVoWiFiStartupStateKeepsNewestState(t *testing.T) {
 	deviceID := "dev-startup-newest"
 	ch, unsub := p.SubscribeVoWiFiState(deviceID)
 	defer unsub()
-	earlier := runtimehost.State{
+	earlier := vowifihost.DeviceStartupState{
 		DeviceID:   deviceID,
 		LastReason: "正在读取 SIM 卡信息 (IMSI/PLMN)...",
 		UpdatedAt:  time.Date(2026, 4, 25, 10, 0, 0, 0, time.UTC),
 	}
-	later := runtimehost.State{
+	later := vowifihost.DeviceStartupState{
 		DeviceID:   deviceID,
 		LastReason: "启动前置条件满足",
 		UpdatedAt:  time.Date(2026, 4, 25, 10, 0, 1, 0, time.UTC),
@@ -313,7 +314,7 @@ func TestClearVoWiFiStartupStateKeepsActiveAppAuthoritative(t *testing.T) {
 	deviceID := "dev-startup-success"
 	activeApp := &ims.Client{}
 
-	p.voWiFiRuntimeStore().RecordStartupState(deviceID, runtimehost.State{DeviceID: deviceID, LastReason: "starting", UpdatedAt: time.Now()})
+	p.voWiFiRuntimeStore().RecordStartupState(deviceID, vowifihost.DeviceStartupState{DeviceID: deviceID, LastReason: "starting", UpdatedAt: time.Now()})
 	p.voWiFiRuntimeStore().SetInstance(deviceID, activeApp)
 
 	p.clearVoWiFiStartupState(deviceID)
@@ -333,7 +334,7 @@ func TestClearVoWiFiStartupStateRemovesFailedStartupState(t *testing.T) {
 	p := NewPool(&config.Config{})
 	deviceID := "dev-startup-failure"
 
-	p.voWiFiRuntimeStore().RecordStartupState(deviceID, runtimehost.State{DeviceID: deviceID, LastReason: "ePDG 隧道建立失败", UpdatedAt: time.Now()})
+	p.voWiFiRuntimeStore().RecordStartupState(deviceID, vowifihost.DeviceStartupState{DeviceID: deviceID, LastReason: "ePDG 隧道建立失败", UpdatedAt: time.Now()})
 
 	p.clearVoWiFiStartupState(deviceID)
 
@@ -351,7 +352,7 @@ func TestClearVoWiFiStartupStateAndBroadcastNotifiesSubscribers(t *testing.T) {
 	ch, unsub := p.SubscribeVoWiFiState(deviceID)
 	defer unsub()
 
-	p.voWiFiRuntimeStore().RecordStartupState(deviceID, runtimehost.State{DeviceID: deviceID, LastReason: "ePDG 隧道建立失败", UpdatedAt: time.Now()})
+	p.voWiFiRuntimeStore().RecordStartupState(deviceID, vowifihost.DeviceStartupState{DeviceID: deviceID, LastReason: "ePDG 隧道建立失败", UpdatedAt: time.Now()})
 
 	p.clearVoWiFiStartupStateAndBroadcast(deviceID)
 

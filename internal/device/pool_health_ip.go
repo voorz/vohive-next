@@ -612,19 +612,11 @@ func (p *Pool) refreshIPs(worker *Worker, checkPublic bool) {
 					logger.Info(fmt.Sprintf("[%s] 检测到 IP 变更", worker.ID), "old_ip", oldIP, "new_ip", publicV4, "old_ipv6", oldIPv6, "new_ipv6", publicV6, "private_ip", privateIP, "private_ipv6", privateIPv6)
 
 					if publicV4 != "" && oldIP != "" {
-						if app := p.voWiFiHost().Instance(worker.ID); app != nil {
-							logger.Info(fmt.Sprintf("[%s] 检测到内网抖动，正平滑触发底层 MOBIKE 漫游", worker.ID), "new_ip", publicV4)
-							if err := app.TriggerMOBIKE(oldIP, publicV4); err != nil {
-								logger.Warn(fmt.Sprintf("[%s] MOBIKE 漫游触发失败", worker.ID), "err", err)
-							}
-						}
+						// ims-go 迁移：MOBIKE 由 ims-go 内部自动处理
+						logger.Info(fmt.Sprintf("[%s] 检测到内网抖动（ims-go 自动处理 MOBIKE）", worker.ID), "new_ip", publicV4)
 					} else if publicV6 != "" && oldIPv6 != "" {
-						if app := p.voWiFiHost().Instance(worker.ID); app != nil {
-							logger.Info(fmt.Sprintf("[%s] 检测到 IPv6 内网抖动，正平滑触发底层 MOBIKE 漫游", worker.ID), "new_ipv6", publicV6)
-							if err := app.TriggerMOBIKE(oldIPv6, publicV6); err != nil {
-								logger.Warn(fmt.Sprintf("[%s] MOBIKE 漫游触发失败", worker.ID), "err", err)
-							}
-						}
+						// ims-go 迁移：MOBIKE 由 ims-go 内部自动处理
+						logger.Info(fmt.Sprintf("[%s] 检测到 IPv6 内网抖动（ims-go 自动处理 MOBIKE）", worker.ID), "new_ipv6", publicV6)
 					}
 				}
 

@@ -79,7 +79,7 @@ func (r vowifiSMSHistoryRecorder) RecordReceived(deviceID string, e ims.SMSRecei
 
 	// VoWiFi 入站 SMS 不做去重：每条解析正确的 SMS 都入库并推送通知。
 	// 去重兜底逻辑已移除，避免运营商短时间内重复下发不同验证码被误杀。
-	err := db.SaveSMSWithLocalPhone(imsi, localPhone, strings.TrimSpace(e.Sender), localPhone, e.Content, 1, 0, ts)
+	err := db.SaveSMSWithLocalPhone(imsi, localPhone, strings.TrimSpace(e.From), localPhone, e.Content, 1, 0, ts)
 	if err != nil {
 		return vowifiSMSRecordResult{}, err
 	}
@@ -111,7 +111,7 @@ func (r vowifiSMSHistoryRecorder) RecordLocalNumber(deviceID string, e ims.Local
 	if number == "" {
 		return nil
 	}
-	iccid := r.resolveICCID(e.DevID)
+	iccid := r.resolveICCID(deviceID)
 	if imsi == "" && iccid == "" {
 		return nil
 	}

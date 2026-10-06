@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/voorz/vohive/internal/backend"
+	"github.com/voorz/vohive/internal/vowifihost"
 	"github.com/voorz/vohive/pkg/logger"
 )
 

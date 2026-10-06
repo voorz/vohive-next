@@ -9,7 +9,10 @@ import (
 	"github.com/voorz/vohive/internal/apduarbiter"
 	"github.com/voorz/vohive/internal/backend"
 	"github.com/voorz/vohive/internal/modem"
+	"github.com/voorz/vohive/internal/vowifihost"
 )
+
+var ErrAPDUBusy = errors.New("APDU busy")
 
 func newVoWiFiModemInterface(w *Worker, deviceID string) (vowifihost.Modem, error) {
 	if w == nil {
@@ -93,7 +96,7 @@ func normalizeVoWiFiAPDUError(err error) error {
 		return nil
 	}
 	if errors.Is(err, apduarbiter.ErrAPDUBusy) {
-		return fmt.Errorf("%w: %v", runtimehost.ErrAPDUBusy, err)
+		return fmt.Errorf("%w: %v", ErrAPDUBusy, err)
 	}
 	return err
 }

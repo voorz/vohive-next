@@ -186,7 +186,7 @@ func TestHandleVoWiFiStartupErrorAPDUBusyStaysBelowWarn(t *testing.T) {
 	ch := logger.GlobalBroadcaster.Subscribe()
 	defer logger.GlobalBroadcaster.Unsubscribe(ch)
 
-	err := p.handleVoWiFiStartupError("trace-apdu-busy", "dev-1", "", 0, time.Now(), &Worker{ID: "dev-1"}, runtimehost.State{LastErrorClass: "aka"}, errBusy)
+	err := p.handleVoWiFiStartupError("trace-apdu-busy", "dev-1", "", 0, time.Now(), &Worker{ID: "dev-1"}, vowifihost.DeviceStartupState{LastErrorClass: "aka"}, errBusy)
 	if !errors.Is(err, apduarbiter.ErrAPDUBusy) {
 		t.Fatalf("handleVoWiFiStartupError() error = %v, want ErrAPDUBusy", err)
 	}

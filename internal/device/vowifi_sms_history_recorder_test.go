@@ -2,7 +2,6 @@ package device
 
 import (
 	"github.com/voorz/ims-go/ims"
-	"context"
 	"testing"
 	"time"
 
@@ -17,7 +16,6 @@ func TestVoWiFiSMSHistoryRecorderPersistsSentSMS(t *testing.T) {
 	p := NewPool(nil)
 	p.workers["dev-1"] = &Worker{ID: "dev-1", Backend: &workerPhoneBackendStub{imsi: "imsi-vowifi-1"}}
 
-	at := time.Date(2026, 6, 3, 12, 0, 0, 0, time.UTC)
 	err := vowifiSMSHistoryRecorder{pool: p}.RecordSent("dev-1", ims.SMSSentData{To: "+10010", MsgID: "test-msg", Success: true})
 	if err != nil {
 		t.Fatalf("RecordSent() error=%v", err)
@@ -40,7 +38,6 @@ func TestVoWiFiSMSHistoryRecorderPersistsReceivedSMS(t *testing.T) {
 	p := NewPool(nil)
 	p.workers["dev-2"] = &Worker{ID: "dev-2", Backend: &workerPhoneBackendStub{imsi: "imsi-vowifi-2"}}
 
-	at := time.Date(2026, 6, 3, 12, 1, 0, 0, time.UTC)
 	_, err := vowifiSMSHistoryRecorder{pool: p}.RecordReceived("dev-2", ims.SMSReceivedData{From: "+10086", Content: "inbound", At: time.Now()})
 	if err != nil {
 		t.Fatalf("RecordReceived() error=%v", err)
@@ -178,7 +175,7 @@ func TestVoWiFiSMSHistoryRecorderSkipsDuplicateReceivedSMS(t *testing.T) {
 	p.workers["dev-dup"] = &Worker{ID: "dev-dup", Backend: &workerPhoneBackendStub{imsi: "imsi-vowifi-dup"}}
 
 	rec := vowifiSMSHistoryRecorder{pool: p}
-	at := time.Date(2026, 6, 29, 23, 58, 55, 0, time.UTC)
+
 	first, err := rec.RecordReceived("dev-dup", ims.SMSReceivedData{From: "+447751284582", Content: "ij991818短信登录验证码，5分钟内有效，请勿泄露。", At: time.Now()})
 	if err != nil {
 		t.Fatalf("first RecordReceived() error=%v", err)
@@ -234,15 +231,21 @@ func TestVoWiFiRuntimeDispatcherSkipsDuplicateReceivedNotification(t *testing.T)
 	notifier := &countingVoWiFiNotifier{}
 	p.SetNotifier(notifier)
 
-	ev := eventhost.SMSReceived{
-		DevID:   "dev-dispatch-dup",
-		Sender:  "+447751284582",
-		Content: "ij991818短信登录验证码，5分钟内有效，请勿泄露。",
-		Time:    time.Date(2026, 6, 29, 23, 58, 55, 0, time.UTC),
+	ev := ims.Event{
+		Type: ims.EventSMSReceived,
+		Data: ims.SMSReceivedData{
+			From:    "+447751284582",
+			Content: "ij991818短信登录验证码，5分钟内有效，请勿泄露。",
+			At:      time.Date(2026, 6, 29, 23, 58, 55, 0, time.UTC),
+		},
 	}
-	poolVoWiFiRuntimeDispatcher{pool: p}.Dispatch(context.Background(), ev)
-	ev.Time = ev.Time.Add(73 * time.Second)
-	poolVoWiFiRuntimeDispatcher{pool: p}.Dispatch(context.Background(), ev)
+	poolVoWiFiRuntimeDispatcher{pool: p}.Dispatch("dev-dispatch-dup", ev)
+	ev.Data = ims.SMSReceivedData{
+		From:    "+447751284582",
+		Content: "ij991818短信登录验证码，5分钟内有效，请勿泄露。",
+		At:      time.Date(2026, 6, 29, 23, 58, 55, 0, time.UTC).Add(73 * time.Second),
+	}
+	poolVoWiFiRuntimeDispatcher{pool: p}.Dispatch("dev-dispatch-dup", ev)
 
 	if notifier.smsCount != 1 {
 		t.Fatalf("sms notification count=%d want 1", notifier.smsCount)

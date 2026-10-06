@@ -15,7 +15,7 @@ require (
 	github.com/stretchr/testify v1.11.1
 	github.com/swaggo/swag v1.16.6
 	github.com/things-go/go-socks5 v0.1.1
-	github.com/voorz/euicc-go v1.1.4
+	github.com/voorz/euicc-go v1.1.5
 	github.com/voorz/ims-go v0.0.0-20261006152639-37acf4da308d
 	github.com/voorz/qqbot v1.0.2
 	github.com/voorz/quectel-qmi-go v0.8.8

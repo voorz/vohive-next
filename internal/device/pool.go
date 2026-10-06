@@ -484,30 +484,8 @@ func (p *Pool) SetNotifier(n Notifier) {
 	p.notifier = n
 	p.mu.Unlock()
 
-	instances := p.voWiFiHost().Instances()
-	apps := make([]*ims.Client, 0, len(instances))
-	for _, app := range instances {
-		apps = append(apps, app)
-	}
-
-	for _, app := range apps {
-		if n == nil {
-			app.SetNotifier(nil)
-			app.SetSMSNotifier(nil)
-			continue
-		}
-		notifier := n
-		app.SetNotifier(func(msg string) {
-			notifier.NotifyRaw(msg)
-		})
-		app.SetSMSNotifier(func(deviceID, sender, content string, ts time.Time) {
-			if withSource, ok := notifier.(SMSSourceNotifier); ok {
-				withSource.NotifySMSWithSource(deviceID, sender, content, "VoWiFi", ts)
-				return
-			}
-			notifier.NotifySMS(deviceID, sender, content, ts)
-		})
-	}
+	// ims-go 迁移：通知经 EventHandler → poolVoWiFiRuntimeDispatcher → p.notifier 分发，
+	// 不再需要在 Client 上逐个设置 Notifier。
 }
 
 // IsESIMSwitching reports whether the specified device is in an eSIM switch flow.
@@ -2389,14 +2367,11 @@ func (w *Worker) RotateWithNotify() (oldIP, newIP string, err error) {
 					_ = db.UpdateDeviceIPsV6(imei, publicV4, publicV6, internalIP, internalIPv6)
 				}
 
-				if app := w.Pool.voWiFiHost().Instance(w.ID); app != nil {
-					logger.Info(fmt.Sprintf("[%s] 指令级 IP 轮换完毕，正平滑触发底层 MOBIKE 漫游", w.ID), "new_ip", newIP)
-					if err := app.TriggerMOBIKE(oldIP, newIP); err != nil {
-						logger.Warn(fmt.Sprintf("[%s] MOBIKE 漫游触发失败", w.ID), "err", err)
-					}
-				}
+			// ims-go 迁移：MOBIKE 由 ims-go 内部网络监测自动处理，不再手动触发。
+			// 此处仅记录 IP 轮换日志。
+			logger.Info(fmt.Sprintf("[%s] 指令级 IP 轮换完毕（ims-go 自动处理 MOBIKE）", w.ID), "new_ip", newIP)
 
-				return oldIP, newIP, nil
+			return oldIP, newIP, nil
 			}
 			logger.Debug(fmt.Sprintf("[%s] 探测外网 IP 中...", w.ID), "try", j+1)
 			time.Sleep(200 * time.Millisecond)

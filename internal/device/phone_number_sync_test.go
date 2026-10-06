@@ -156,13 +156,10 @@ func TestVoWiFiLocalNumberEventWritesHigherPriorityPhoneNumber(t *testing.T) {
 
 	p := NewPool(nil)
 	p.workers["dev-phone"] = &Worker{ID: "dev-phone", Backend: &workerPhoneBackendStub{imsi: "imsi-vowifi-1"}}
-	if err := (vowifiSMSHistoryRecorder{pool: p}).RecordLocalNumberLearned(eventhost.LocalNumberLearned{
-		DevID:  "dev-phone",
-		IMSI:   "imsi-vowifi-1",
+	if err := (vowifiSMSHistoryRecorder{pool: p}).RecordLocalNumber("dev-phone", ims.LocalNumberLearnedData{
 		Number: "+8613600136000",
-		Source: "register",
 	}); err != nil {
-		t.Fatalf("RecordLocalNumberLearned() error=%v", err)
+		t.Fatalf("RecordLocalNumber() error=%v", err)
 	}
 
 	sub := loadDeviceTestSIMSubscriptionByIMSI(t, "imsi-vowifi-1")

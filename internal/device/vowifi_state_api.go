@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/voorz/ims-go/ims"
+
+	"github.com/voorz/vohive/internal/vowifihost"
 	"github.com/voorz/vohive/pkg/smscodec"
 )
 
@@ -41,14 +44,14 @@ func (p *Pool) SendVoWiFiSMSWithOptions(ctx context.Context, deviceID, to, text 
 	if inst == nil {
 		return ims.SMSResult{}, fmt.Errorf("设备 %s 的 VoWiFi 未启动", deviceID)
 	}
-	svc := inst.Service()
-	if svc == nil {
-		return ims.SMSResult{}, fmt.Errorf("设备 %s 的 VoWiFi IMS 服务未就绪", deviceID)
-	}
 
-	// 标准化路径：委托 ims.SMSModule.SendSMSWithOptions 处理 TPDU 编码 + RP-DATA 包装 + 事件分发
-	msgOpts := ims.SMSRequest{Encoding: string(opts.Encoding)}
-	return svc.SendSMSWithOptions(ctx, to, text, msgOpts)
+	// ims-go 迁移：直接经 Client.SendSMS 发送
+	msgReq := ims.SMSRequest{To: to, Text: text, Encoding: string(opts.Encoding)}
+	result, err := inst.SendSMS(ctx, msgReq)
+	if err != nil {
+		return ims.SMSResult{}, err
+	}
+	return *result, nil
 }
 
 func (p *Pool) IsVoWiFiActive(deviceID string) bool {
@@ -58,11 +61,7 @@ func (p *Pool) IsVoWiFiActive(deviceID string) bool {
 // SendVoWiFiUSSD 通过 VoWiFi 发送 USSD 请求（首轮）。
 func (p *Pool) SendVoWiFiUSSD(ctx context.Context, deviceID, command string) (*ims.USSDResult, error) {
 	if inst := p.voWiFiHost().Instance(deviceID); inst != nil {
-		svc := inst.Service()
-		if svc == nil {
-			return nil, fmt.Errorf("设备 %s 的 VoWiFi IMS 服务未就绪", deviceID)
-		}
-		return svc.SendUSSD(ctx, command)
+		return inst.SendUSSD(ctx, command)
 	}
 	return nil, fmt.Errorf("设备 %s 的 VoWiFi 未启动", deviceID)
 }
@@ -70,11 +69,8 @@ func (p *Pool) SendVoWiFiUSSD(ctx context.Context, deviceID, command string) (*i
 // ContinueVoWiFiUSSD 在已有 VoWiFi USSD 会话中发送后续输入。
 func (p *Pool) ContinueVoWiFiUSSD(ctx context.Context, deviceID, sessionID, input string) (*ims.USSDResult, error) {
 	if inst := p.voWiFiHost().Instance(deviceID); inst != nil {
-		svc := inst.Service()
-		if svc == nil {
-			return nil, fmt.Errorf("设备 %s 的 VoWiFi IMS 服务未就绪", deviceID)
-		}
-		return svc.ContinueUSSD(ctx, sessionID, input)
+		// ims-go 内部跟踪 USSD 会话，无需 sessionID
+		return inst.ContinueUSSD(ctx, input)
 	}
 	return nil, fmt.Errorf("设备 %s 的 VoWiFi 未启动", deviceID)
 }
@@ -82,11 +78,8 @@ func (p *Pool) ContinueVoWiFiUSSD(ctx context.Context, deviceID, sessionID, inpu
 // CancelVoWiFiUSSD 取消 VoWiFi USSD 会话。
 func (p *Pool) CancelVoWiFiUSSD(ctx context.Context, deviceID, sessionID string) error {
 	if inst := p.voWiFiHost().Instance(deviceID); inst != nil {
-		svc := inst.Service()
-		if svc == nil {
-			return fmt.Errorf("设备 %s 的 VoWiFi IMS 服务未就绪", deviceID)
-		}
-		return svc.CancelUSSD(ctx, sessionID)
+		// ims-go 内部跟踪 USSD 会话，无需 sessionID
+		return inst.CancelUSSD(ctx)
 	}
 	return fmt.Errorf("设备 %s 的 VoWiFi 未启动", deviceID)
 }
@@ -96,7 +89,8 @@ func (p *Pool) GetVoWiFiStatus() (enabled bool, deviceID string, status string) 
 		if inst == nil {
 			return true, devID, "VoWiFi: STOPPED"
 		}
-		return true, devID, inst.Status()
+		st := inst.Status()
+		return true, devID, string(st.State)
 	}
 	return false, "", "未初始化"
 }
@@ -104,14 +98,19 @@ func (p *Pool) GetVoWiFiStatus() (enabled bool, deviceID string, status string) 
 func (p *Pool) GetVoWiFiStatusAll() map[string]string {
 	result := make(map[string]string)
 	for devID, inst := range p.voWiFiHost().Instances() {
-		result[devID] = inst.Status()
+		result[devID] = string(inst.Status().State)
 	}
 	return result
 }
 
 func (p *Pool) GetVoWiFiObs(deviceID string) map[string]interface{} {
 	if inst := p.voWiFiHost().Instance(deviceID); inst != nil {
-		return inst.Obs()
+		// ims-go 迁移：返回基本状态（详细指标经事件系统）
+		st := inst.Status()
+		return map[string]interface{}{
+			"state": string(st.State),
+			"device_id": deviceID,
+		}
 	}
 	return nil
 }

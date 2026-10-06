@@ -9,7 +9,6 @@ import (
 	"github.com/voorz/vohive/internal/backend"
 	"github.com/voorz/vohive/internal/vowifihost"
 	"github.com/voorz/vohive/pkg/logger"
-	"github.com/voorz/vohive/internal/vowifihost"
 	carrier "github.com/voorz/vohive/internal/carrier"
 )
 
@@ -46,7 +45,7 @@ func (p *Pool) handleVoWiFiStartupError(traceID, deviceID, runtimeEPDGOverride s
 	if !retryable {
 		nextRetry = 0
 	}
-	logVoWiFiFailureSummary(traceID, deviceID, "startup", state.LastErrorClass, err.Error(), retryable, nextRetry)
+	logVoWiFiFailureSummary(traceID, deviceID, "startup", "startup", err.Error(), retryable, nextRetry)
 	p.restoreNetworkAfterVoWiFiStartupFailure(traceID, deviceID, w)
 	logger.Debug("EnableVoWiFi 结束（失败）", "trace_id", traceID, "device", deviceID, "cost_ms", time.Since(enableStart).Milliseconds())
 	return err

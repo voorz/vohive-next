@@ -10,11 +10,33 @@ import (
 // DeviceStartupState 是设备启动状态（本地定义，替代 vowifi-core DeviceStartupState）。
 // 用于跟踪每个设备的启动阶段，供前端展示和内部协调。
 type DeviceStartupState struct {
-	DeviceID    string
-	Phase       string
-	LastReason  string
-	UpdatedAt   time.Time
-	NetworkMode string
+	DeviceID      string
+	Phase         string
+	LastReason    string
+	LastError     string
+	LastErrorClass string
+	UpdatedAt     time.Time
+	NetworkMode   string
+	DataplaneMode string
+	// Ready 标志（IMS/SMS 状态展示）
+	SIMReady    bool
+	AccessReady bool
+	TunnelReady bool
+	IMSReady    bool
+	SMSReady    bool
+	CallReady   bool
+	// 注册状态
+	RegStatus     int
+	RegStatusText string
+	IMSI          string
+	PhoneNumber   string
+	// 实时进度
+	Generation     uint64
+	Stage          string
+	StageLabel     string
+	StageStartedAt time.Time
+	AttemptIndex   int
+	MaxAttempts    int
 }
 
 type PreparedStart struct {

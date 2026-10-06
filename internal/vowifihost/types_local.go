@@ -22,6 +22,7 @@ type Modem interface {
 	IsSimInserted() bool
 	QuerySIMInserted() (bool, error)
 	GetRegStatus() (int, string)
+	GetNetworkMode() string
 	ExecuteATSilent(cmd string, timeout time.Duration) (string, error)
 	OpenLogicalChannel(aid string) (int, error)
 	ResolveLogicalChannelAID(app string, fallbackAID string) (string, string, error)
@@ -42,12 +43,13 @@ type ProxyConfig = ims.ProxyConfig
 // SessionConfig 是会话配置（替代 SessionConfig）。
 // 迁移到 ims.Config 的过渡类型，字段按需映射。
 type SessionConfig struct {
-	DeviceID  string
-	IMSI      string
-	MCC       string
-	MNC       string
-	PCSCFAddr string
-	Proxy     *ProxyConfig
+	DeviceID      string
+	IMSI          string
+	MCC           string
+	MNC           string
+	PCSCFAddr     string
+	Proxy         *ProxyConfig
+	DataplaneMode string
 }
 
 // IdentityProfile 是身份配置（替代 vowifi-core IdentityProfile）。
@@ -60,6 +62,8 @@ type IdentityProfile struct {
 	SPN  string
 	GID1 string
 	GID2 string
+	IMEI string
+	SMSC string
 }
 
 // PreparedSession 是准备好的会话（替代 vowifi-core PreparedSession）。

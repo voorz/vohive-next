@@ -89,24 +89,16 @@ func (p *Pool) SetSIPRegistrar(r *sipgw.Registrar) {
 		w, ok := p.workers[deviceID]
 			p.mu.RUnlock()
 
-		// 路由判断：按设备状态选择通话通道
-		// 1. VoWiFi 在线 → 走 VoWiFi IMS VoiceGateway
-		// 2. 有 CSCallMgr → 走 CS 域语音桥接
-		// 3. 都没有 → 503
-		if voiceGW != nil && voiceGW.GetAgent(deviceID) != nil {
-			logger.Info(fmt.Sprintf("[%s] 外呼 INVITE: 走 VoWiFi IMS VoiceGateway", deviceID))
-			voiceGW.HandleClientInvite(deviceID, req, tx)
-			return
-		}
-
+		// 路由判断：语音暂缓，只走 CS 域语音桥接
+		// 1. 有 CSCallMgr → 走 CS 域语音桥接
+		// 2. 没有 → 503
 		if ok && w.CSCallMgr != nil {
 			logger.Info(fmt.Sprintf("[%s] 外呼 INVITE: 走 CS 域语音桥接", deviceID))
 			w.CSCallMgr.HandleOutboundInvite(deviceID, req, tx)
 			return
 		}
 
-		logger.Warn(fmt.Sprintf("[%s] 外呼 INVITE: 无可用语音通道 (VoWiFi=%v, CSCall=%v)",
-			deviceID, voiceGW != nil && voiceGW.GetAgent(deviceID) != nil, ok && w.CSCallMgr != nil))
+		logger.Warn(fmt.Sprintf("[%s] 外呼 INVITE: 无可用语音通道", deviceID))
 		tx.Respond(sip.NewResponseFromRequest(req, 503, "No voice channel available", nil))
 	})
 
@@ -130,10 +122,6 @@ func (p *Pool) SetSIPRegistrar(r *sipgw.Registrar) {
 			w.CSCallMgr.HandleClientBye(callID)
 			return
 		}
-		if voiceGW != nil && voiceGW.GetAgent(deviceID) != nil {
-			voiceGW.HandleClientBye(deviceID, req, tx)
-			return
-		}
 	})
 
 	r.SetOnCancel(func(deviceID string, req *sip.Request, tx sip.ServerTransaction) {
@@ -155,10 +143,6 @@ func (p *Pool) SetSIPRegistrar(r *sipgw.Registrar) {
 		if ok && w.CSCallMgr != nil && w.CSCallMgr.HasCall(callID) {
 			w.CSCallMgr.HandleClientCancel(callID)
 			tx.Respond(sip.NewResponseFromRequest(req, 200, "OK", nil))
-			return
-		}
-		if voiceGW != nil && voiceGW.GetAgent(deviceID) != nil {
-			voiceGW.HandleClientCancel(deviceID, req, tx)
 			return
 		}
 	})

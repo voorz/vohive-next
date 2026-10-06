@@ -10,6 +10,7 @@ import (
 
 	"github.com/voorz/vohive/internal/config"
 	"github.com/voorz/vohive/internal/esim"
+	"github.com/voorz/vohive/internal/vowifihost"
 	"github.com/voorz/vohive/pkg/logger"
 )
 

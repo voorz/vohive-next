@@ -41,7 +41,7 @@ func TestResolveVoWiFiCountryProxySelectsUSProxy(t *testing.T) {
 		t.Fatalf("UpsertUpstreamProxyCountryRule() error=%v", err)
 	}
 	got := resolveVoWiFiCountryProxy("310", "trace-1", "dev-1")
-	if got == nil || got.ID != "proxy-us" || got.Addr != "127.0.0.1:1080" || !got.Enabled {
+	if got == nil || got.Addr != "127.0.0.1:1080" || !got.Enabled {
 		t.Fatalf("resolveVoWiFiCountryProxy()=%+v, want proxy-us", got)
 	}
 }

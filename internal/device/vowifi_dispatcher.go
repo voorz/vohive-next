@@ -70,12 +70,4 @@ func (d poolVoWiFiRuntimeDispatcher) Dispatch(deviceID string, e ims.Event) {
 		}
 	}
 
-	if e.Type == ims.EventLog {
-		if msg, ok := e.Data.(string); ok {
-			if strings.TrimSpace(msg) == "" || isCompatVoWiFiIncomingSMSLog(msg) {
-				return
-			}
-			notifier.NotifyRaw(msg)
-		}
-	}
 }

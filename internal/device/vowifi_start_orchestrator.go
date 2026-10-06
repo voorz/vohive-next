@@ -204,9 +204,7 @@ func (p *Pool) prepareVoWiFiStartContext(deviceID, traceID, runtimeEPDGOverride 
 	// 只准备 SIM adapter 和 Profile，carrier/EPDG 解析由 ims-go 完成。
 	logger.Info("VoWiFi 启动画像已准备（ims-go A4 在 ims.New 内部）",
 		"trace_id", traceID,
-		"device", deviceID,
-		"aka_app_preference", prepared.IMSIdentity.AKAAppPreference,
-		"applied", prepared.IMSIdentity.Applied)
+		"device", deviceID)
 
 	if nc := w.NetworkController(); nc != nil {
 		w.restoreNetworkAfterVoWiFi = w.Config.NetworkEnabled
@@ -245,9 +243,10 @@ func (p *Pool) prepareVoWiFiStartContext(deviceID, traceID, runtimeEPDGOverride 
 				// packet to be silently dropped (manifests as a ~95s
 				// hang before reconnection succeeds).
 				// Delay is configurable per carrier profile (default 5s).
-				rfOffDelay := prepared.EffectiveCarrier.RFOffDelay
+				// ims-go 迁移：暂用默认值 5s（carrier profile 集成后续）
+				rfOffDelay := 5 * time.Second
 				if p.cfg != nil && p.cfg.VoWiFi.Behavior.OverrideRFOff && p.cfg.VoWiFi.Behavior.RFOffDelay > 0 {
-					rfOffDelay = p.cfg.VoWiFi.Behavior.RFOffDelay
+					rfOffDelay = time.Duration(p.cfg.VoWiFi.Behavior.RFOffDelay) * time.Second
 				}
 				if rfOffDelay <= 0 {
 					rfOffDelay = 5
@@ -262,7 +261,7 @@ func (p *Pool) prepareVoWiFiStartContext(deviceID, traceID, runtimeEPDGOverride 
 	startCtx.Proxy = resolveVoWiFiCountryProxy(startProfile.MCC, traceID, deviceID)
 
 	startCtx.NetworkMode = modemIface.GetNetworkMode()
-	startCtx.StartupState = newVoWiFiSIMReadyStartupState(deviceID, ims.DataplaneUserspace, startCtx.NetworkMode, time.Now())
+	startCtx.StartupState = newVoWiFiSIMReadyStartupState(deviceID, string(ims.DataplaneUserspace), startCtx.NetworkMode, time.Now())
 	p.recordVoWiFiStartupState(deviceID, startCtx.StartupState)
 	return startCtx, nil
 }
@@ -295,7 +294,6 @@ func resolveVoWiFiCountryProxy(homeMCC, traceID, deviceID string) *ims.ProxyConf
 		"upstream_proxy_id", proxy.ID,
 		"proxy_route", "country_rule")
 	return &ims.ProxyConfig{
-		ID:       proxy.ID,
 		Addr:     proxy.Addr,
 		Username: proxy.Username,
 		Password: proxy.Password,

@@ -753,9 +753,8 @@ func TestBuildVoWiFiStartProfileUsesLiveIMSIAndBackendHomeMCCMNC(t *testing.T) {
 	if profile.IMSI != "530240209434655" {
 		t.Fatalf("profile.IMSI=%q want live IMSI", profile.IMSI)
 	}
-	norm := identity.NormalizeProfile(identity.Profile{MCC: profile.MCC, MNC: profile.MNC})
-	if norm.MCC != "530" || norm.MNC != "24" {
-		t.Fatalf("profile MCC/MNC=%s/%s want 530/24", norm.MCC, norm.MNC)
+	if profile.MCC != "530" || profile.MNC != "24" {
+		t.Fatalf("profile MCC/MNC=%s/%s want 530/24", profile.MCC, profile.MNC)
 	}
 }
 
