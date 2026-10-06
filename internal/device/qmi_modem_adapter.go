@@ -70,8 +70,8 @@ func (a *qmiModemAdapter) TransmitAPDU(channel int, hexAPDU string) (string, err
 	return resp, normalizeVoWiFiAPDUError(err)
 }
 
-func (a *qmiModemAdapter) GetISIMIdentity() (identity.Identity, error) {
-	return identity.Identity{}, fmt.Errorf("qmi modem adapter: ISIM identity read not implemented")
+func (a *qmiModemAdapter) GetISIMIdentity() (vowifihost.IdentityProfile, error) {
+	return vowifihost.IdentityProfile{}, fmt.Errorf("qmi modem adapter: ISIM identity read not implemented")
 }
 
 // ============================================================================

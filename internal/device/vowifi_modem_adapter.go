@@ -13,7 +13,7 @@ import (
 	"github.com/voorz/vowifi-core/runtimehost/identity"
 )
 
-func newVoWiFiModemInterface(w *Worker, deviceID string) (runtimehost.Modem, error) {
+func newVoWiFiModemInterface(w *Worker, deviceID string) (vowifihost.Modem, error) {
 	if w == nil {
 		return nil, fmt.Errorf("设备 %s 不存在", deviceID)
 	}
@@ -42,7 +42,7 @@ func newVoWiFiModemInterface(w *Worker, deviceID string) (runtimehost.Modem, err
 	return nil, fmt.Errorf("设备 %s 的 Modem/Backend 均未初始化，无法启动 VoWiFi", deviceID)
 }
 
-func BuildVoWiFiRuntimeModem(w *Worker, deviceID string) (runtimehost.Modem, error) {
+func BuildVoWiFiRuntimeModem(w *Worker, deviceID string) (vowifihost.Modem, error) {
 	return newVoWiFiModemInterface(w, deviceID)
 }
 
@@ -76,8 +76,8 @@ func (a *modemAdapter) TransmitAPDU(channel int, hexAPDU string) (string, error)
 	resp, err := a.m.TransmitAPDU(channel, hexAPDU)
 	return resp, normalizeVoWiFiAPDUError(err)
 }
-func (a *modemAdapter) GetISIMIdentity() (identity.Identity, error) {
-	return identity.Identity{}, fmt.Errorf("ISIM not available, using USIM fallback")
+func (a *modemAdapter) GetISIMIdentity() (vowifihost.IdentityProfile, error) {
+	return vowifihost.IdentityProfile{}, fmt.Errorf("ISIM not available, using USIM fallback")
 }
 func (a *modemAdapter) GetNetworkMode() string {
 	mode := a.m.GetFullStatus().NetworkMode

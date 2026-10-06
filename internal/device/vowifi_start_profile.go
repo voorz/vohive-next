@@ -12,38 +12,38 @@ import (
 	"github.com/voorz/vowifi-core/runtimehost/identity"
 )
 
-func (p *Pool) buildVoWiFiStartProfile(worker *Worker, traceID string) (identity.Profile, error) {
+func (p *Pool) buildVoWiFiStartProfile(worker *Worker, traceID string) (vowifihost.IdentityProfile, error) {
 	if worker == nil {
-		return identity.Profile{}, fmt.Errorf("worker_nil")
+		return vowifihost.IdentityProfile{}, fmt.Errorf("worker_nil")
 	}
 	// PC/SC 设备：通过 PC/SC 读卡器读取 SIM 身份，不依赖 Backend
 	if isPCSCDevice(worker) {
 		return p.buildPCSCVoWiFiStartProfile(worker, traceID)
 	}
 	if worker.Backend == nil {
-		return identity.Profile{}, fmt.Errorf("backend_not_available")
+		return vowifihost.IdentityProfile{}, fmt.Errorf("backend_not_available")
 	}
 
 	reader, ok := worker.Backend.(liveSIMIdentityReader)
 	if !ok {
-		return identity.Profile{}, fmt.Errorf("live_identity_not_supported")
+		return vowifihost.IdentityProfile{}, fmt.Errorf("live_identity_not_supported")
 	}
 
 	liveCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	imsi, err := reader.GetIMSILive(liveCtx)
 	if err != nil {
-		return identity.Profile{}, fmt.Errorf("实时读取 IMSI 失败: %w", err)
+		return vowifihost.IdentityProfile{}, fmt.Errorf("实时读取 IMSI 失败: %w", err)
 	}
 	imsi = strings.TrimSpace(imsi)
 	if imsi == "" {
-		return identity.Profile{}, fmt.Errorf("实时 IMSI 为空")
+		return vowifihost.IdentityProfile{}, fmt.Errorf("实时 IMSI 为空")
 	}
 
 	status := worker.ProjectDeviceStatus()
 	mcc, mnc, plmnSource := resolveVoWiFiProfileMCCMNC(liveCtx, worker, status, imsi, traceID)
 	if mcc == "" || mnc == "" {
-		return identity.Profile{}, fmt.Errorf("缺少 SIM 归属 MCC/MNC，无法构建 VoWiFi 启动画像: %s", imsi)
+		return vowifihost.IdentityProfile{}, fmt.Errorf("缺少 SIM 归属 MCC/MNC，无法构建 VoWiFi 启动画像: %s", imsi)
 	}
 
 	imei := strings.TrimSpace(status.IMEI)
@@ -78,8 +78,8 @@ func (p *Pool) buildVoWiFiStartProfile(worker *Worker, traceID string) (identity
 	return buildVoWiFiRawProfile(imsi, mcc, mnc, imei, smsc, status.NativeSPN, status.GID1, status.GID2), nil
 }
 
-func buildVoWiFiRawProfile(imsi, mcc, mnc, imei, smsc, spn, gid1, gid2 string) identity.Profile {
-	return identity.Profile{
+func buildVoWiFiRawProfile(imsi, mcc, mnc, imei, smsc, spn, gid1, gid2 string) vowifihost.IdentityProfile {
+	return vowifihost.IdentityProfile{
 		IMSI: strings.TrimSpace(imsi),
 		MCC:  strings.TrimSpace(mcc),
 		MNC:  strings.TrimSpace(mnc),
@@ -92,23 +92,23 @@ func buildVoWiFiRawProfile(imsi, mcc, mnc, imei, smsc, spn, gid1, gid2 string) i
 }
 
 // buildPCSCVoWiFiStartProfile 通过 PC/SC 读卡器读取 SIM 身份构建 VoWiFi 启动画像。
-func (p *Pool) buildPCSCVoWiFiStartProfile(worker *Worker, traceID string) (identity.Profile, error) {
+func (p *Pool) buildPCSCVoWiFiStartProfile(worker *Worker, traceID string) (vowifihost.IdentityProfile, error) {
 	adapter, err := newPCSCModemAdapter(worker.ID, worker.Config.PCSCUSBPath, worker.Config.PCSCSerial, worker.pcscAccessMu)
 	if err != nil {
-		return identity.Profile{}, fmt.Errorf("创建 PC/SC 适配器失败: %w", err)
+		return vowifihost.IdentityProfile{}, fmt.Errorf("创建 PC/SC 适配器失败: %w", err)
 	}
 	defer adapter.Stop()
 
 	imsi, iccid, mcc, mnc, err := adapter.ReadSIMIdentity()
 	if err != nil {
-		return identity.Profile{}, fmt.Errorf("PC/SC 读取 SIM 身份失败: %w", err)
+		return vowifihost.IdentityProfile{}, fmt.Errorf("PC/SC 读取 SIM 身份失败: %w", err)
 	}
 	imsi = strings.TrimSpace(imsi)
 	if imsi == "" {
-		return identity.Profile{}, fmt.Errorf("PC/SC 读取 IMSI 为空")
+		return vowifihost.IdentityProfile{}, fmt.Errorf("PC/SC 读取 IMSI 为空")
 	}
 	if mcc == "" || mnc == "" {
-		return identity.Profile{}, fmt.Errorf("PC/SC 解析 MCC/MNC 失败: %s", imsi)
+		return vowifihost.IdentityProfile{}, fmt.Errorf("PC/SC 解析 MCC/MNC 失败: %s", imsi)
 	}
 
 	// 读取 GID1/GID2 用于精准运营商匹配（读取失败不阻断流程）
@@ -191,8 +191,8 @@ func vowifiProfileMCCMNC(status modem.DeviceStatus) (mcc, mnc, source string) {
 	return "", "", ""
 }
 
-func newVoWiFiSIMReadyStartupState(deviceID, dataplaneMode, networkMode string, now time.Time) runtimehost.State {
-	return runtimehost.State{
+func newVoWiFiSIMReadyStartupState(deviceID, dataplaneMode, networkMode string, now time.Time) vowifihost.DeviceStartupState {
+	return vowifihost.DeviceStartupState{
 		Phase:         runtimehost.PhaseSIMReady,
 		DeviceID:      deviceID,
 		DataplaneMode: dataplaneMode,
@@ -203,6 +203,6 @@ func newVoWiFiSIMReadyStartupState(deviceID, dataplaneMode, networkMode string, 
 	}
 }
 
-func (p *Pool) BuildVoWiFiStartProfile(worker *Worker) (identity.Profile, error) {
+func (p *Pool) BuildVoWiFiStartProfile(worker *Worker) (vowifihost.IdentityProfile, error) {
 	return p.buildVoWiFiStartProfile(worker, "")
 }

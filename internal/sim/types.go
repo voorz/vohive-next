@@ -3,7 +3,7 @@ package sim
 import (
 	"errors"
 
-	swusim "github.com/voorz/vowifi-core/engine/sim"
+	"github.com/voorz/ims-go/ims"
 )
 
 const (
@@ -17,7 +17,7 @@ const (
 var ErrAPDUBusy = errors.New("apdu busy")
 
 // AKAResult 复用 swu-go 的统一 AKA 结果类型，避免在公共边界重复定义。
-type AKAResult = swusim.AKAResult
+type AKAResult = ims.AKAResult
 
 // AKAProvider 复用 swu-go 的统一 AKAProvider 契约。
-type AKAProvider = swusim.AKAProvider
+type AKAProvider = ims.AKAProvider

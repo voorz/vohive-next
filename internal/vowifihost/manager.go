@@ -6,10 +6,7 @@ import (
 	"time"
 
 	"github.com/voorz/vohive/internal/sipgw"
-	"github.com/voorz/vowifi-core/runtimehost"
-	"github.com/voorz/vowifi-core/runtimehost/eventhost"
-	"github.com/voorz/vowifi-core/runtimehost/messaging"
-	"github.com/voorz/vowifi-core/runtimehost/voicehost"
+	"github.com/voorz/ims-go/ims"
 )
 
 // inboundDialogInfo stores the Linphone-side dialog parameters for an
@@ -32,10 +29,9 @@ type Manager struct {
 	lifecycle     *LifecycleController
 	runtimeStart  runtimeStartFunc
 	adapter       Adapter
-	voiceGateway  *voicehost.Gateway
 	sipRegistrar  *sipgw.Registrar
-	deliveryStore messaging.DeliveryStore
-	dispatcher    eventhost.Dispatcher
+	deliveryStore ims.SMSDeliveryStore
+	eventHandler  ims.EventHandler
 
 	// ikeRetryCount controls IKE retransmission count (0 = default 5).
 	ikeRetryCount int
@@ -49,7 +45,7 @@ type Manager struct {
 	inboundDialogs   map[string]*inboundDialogInfo
 
 	inboundRelaysMu sync.Mutex
-	inboundRelays   map[string]*voicehost.RTPRelaySession
+	inboundRelays   map[string]RTPRelaySession
 
 	// callEventPub 发布通话状态事件（可选，用于 SSE 推送和通话记录入库）
 	callEventPub CallEventPublisher
@@ -139,7 +135,7 @@ func (m *Manager) SubscriberCount(deviceID string) int {
 	return m.stateNotifications().SubscriberCount(deviceID)
 }
 
-func (m *Manager) RecordStartupState(deviceID string, state runtimehost.State) bool {
+func (m *Manager) RecordStartupState(deviceID string, state DeviceStartupState) bool {
 	if !m.RuntimeStore().RecordStartupState(deviceID, state) {
 		return false
 	}
@@ -151,13 +147,12 @@ func (m *Manager) ClearStartupState(deviceID string) bool {
 	return m.RuntimeStore().ClearStartupState(deviceID)
 }
 
-func (m *Manager) ConfigureRuntimeDependencies(vg *voicehost.Gateway, ds messaging.DeliveryStore, ed eventhost.Dispatcher) {
+func (m *Manager) ConfigureRuntimeDependencies(ds ims.SMSDeliveryStore, eh ims.EventHandler) {
 	if m == nil {
 		return
 	}
-	m.voiceGateway = vg
 	m.deliveryStore = ds
-	m.dispatcher = ed
+	m.eventHandler = eh
 }
 
 // SetSIPRegistrar injects the sipgw.Registrar so the OnInboundCall
@@ -204,14 +199,14 @@ func (m *Manager) deleteInboundDialog(callID string) {
 
 // storeInboundRelay stores the RTP relay for an active inbound call,
 // keyed by Call-ID. Used to close the relay when the call ends.
-func (m *Manager) storeInboundRelay(callID string, relay *voicehost.RTPRelaySession) {
+func (m *Manager) storeInboundRelay(callID string, relay RTPRelaySession) {
 	if m == nil || callID == "" || relay == nil {
 		return
 	}
 	m.inboundRelaysMu.Lock()
 	defer m.inboundRelaysMu.Unlock()
 	if m.inboundRelays == nil {
-		m.inboundRelays = make(map[string]*voicehost.RTPRelaySession)
+		m.inboundRelays = make(map[string]RTPRelaySession)
 	}
 	m.inboundRelays[callID] = relay
 }

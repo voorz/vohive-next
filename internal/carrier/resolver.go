@@ -4,28 +4,25 @@ import (
 	"encoding/json"
 
 	"github.com/voorz/vohive/internal/db"
-	corevcarrier "github.com/voorz/vowifi-core/runtimehost/carrier"
 )
 
-// DBProfileResolver implements corevcarrier.ProfileResolver by querying the database.
+// DBProfileResolver 从数据库查询运营商配置。
 type DBProfileResolver struct{}
 
-// LookupActiveProfile returns the active carrier profile for the given key from DB.
-// Returns nil if no active profile exists.
-func (r *DBProfileResolver) LookupActiveProfile(key string) (*corevcarrier.CarrierProfile, error) {
+// LookupActiveProfile 从 DB 返回指定 key 的生效运营商配置。
+// 无生效配置时返回 nil。
+func (r *DBProfileResolver) LookupActiveProfile(key string) (*CarrierProfile, error) {
 	tpl, err := db.GetActiveCarrierTemplate(key)
 	if err != nil || tpl == nil || tpl.ProfileJSON == "" {
 		return nil, nil
 	}
-	var p corevcarrier.CarrierProfile
+	var p CarrierProfile
 	if err := json.Unmarshal([]byte(tpl.ProfileJSON), &p); err != nil {
 		return nil, nil
 	}
 	return &p, nil
 }
 
-// InitProfileResolver injects the DB-backed resolver into vowifi-core.
-// Must be called once at startup before any LookupWithSPN call.
-func InitProfileResolver() {
-	corevcarrier.SetProfileResolver(&DBProfileResolver{})
-}
+// InitProfileResolver 初始化 DB-backed resolver。
+// vowifi-core 移除后不再需要注入，此函数保留为空（兼容调用方）。
+func InitProfileResolver() {}

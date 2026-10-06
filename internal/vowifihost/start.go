@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/voorz/vohive/pkg/logger"
-	"github.com/voorz/vowifi-core/runtimehost"
+	"github.com/voorz/ims-go/ims"
 )
 
 func (m *Manager) BeginStart(deviceID string) StartClaim {
@@ -18,7 +18,7 @@ func (m *Manager) BeginStart(deviceID string) StartClaim {
 	return m.RuntimeStore().BeginStart(deviceID)
 }
 
-func (m *Manager) FailStart(deviceID string, epoch uint64, state runtimehost.State, err error) {
+func (m *Manager) FailStart(deviceID string, epoch uint64, state DeviceStartupState, err error) {
 	if m == nil {
 		return
 	}
@@ -45,7 +45,7 @@ func (m *Manager) ShouldRun(deviceID string, epoch uint64) bool {
 	return m.CurrentEpoch(deviceID) == epoch
 }
 
-func (m *Manager) ClaimStarted(deviceID string, epoch uint64, inst *runtimehost.Instance) bool {
+func (m *Manager) ClaimStarted(deviceID string, epoch uint64, inst *ims.Client) bool {
 	if m == nil || inst == nil {
 		return false
 	}
@@ -64,7 +64,7 @@ func (m *Manager) ClaimStarted(deviceID string, epoch uint64, inst *runtimehost.
 	return m.RuntimeStore().ClaimStarted(deviceID, epoch, inst)
 }
 
-func (m *Manager) IsCurrentInstance(deviceID string, inst *runtimehost.Instance) bool {
+func (m *Manager) IsCurrentInstance(deviceID string, inst *ims.Client) bool {
 	if m == nil || inst == nil {
 		return false
 	}

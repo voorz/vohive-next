@@ -9,11 +9,11 @@ import (
 	"github.com/voorz/vowifi-core/runtimehost/messaging"
 )
 
-func (p *Pool) GetVoWiFiApp() *runtimehost.Instance {
+func (p *Pool) GetVoWiFiApp() *ims.Client {
 	return p.GetVoWiFiAppForDevice()
 }
 
-func (p *Pool) GetVoWiFiAppForDevice(deviceID ...string) *runtimehost.Instance {
+func (p *Pool) GetVoWiFiAppForDevice(deviceID ...string) *ims.Client {
 	if len(deviceID) > 0 && deviceID[0] != "" {
 		return p.voWiFiHost().Instance(deviceID[0])
 	} else {
@@ -25,7 +25,7 @@ func (p *Pool) GetVoWiFiAppForDevice(deviceID ...string) *runtimehost.Instance {
 	return nil
 }
 
-func (p *Pool) GetAllVoWiFiApps() map[string]*runtimehost.Instance {
+func (p *Pool) GetAllVoWiFiApps() map[string]*ims.Client {
 	return p.voWiFiHost().Instances()
 }
 
@@ -34,22 +34,22 @@ func (p *Pool) SendVoWiFiSMS(ctx context.Context, deviceID, to, text string) err
 	return err
 }
 
-func (p *Pool) SendVoWiFiSMSWithResult(ctx context.Context, deviceID, to, text string) (messaging.SendOutcome, error) {
+func (p *Pool) SendVoWiFiSMSWithResult(ctx context.Context, deviceID, to, text string) (ims.SMSResult, error) {
 	return p.SendVoWiFiSMSWithOptions(ctx, deviceID, to, text, smscodec.SubmitOptions{})
 }
 
-func (p *Pool) SendVoWiFiSMSWithOptions(ctx context.Context, deviceID, to, text string, opts smscodec.SubmitOptions) (messaging.SendOutcome, error) {
+func (p *Pool) SendVoWiFiSMSWithOptions(ctx context.Context, deviceID, to, text string, opts smscodec.SubmitOptions) (ims.SMSResult, error) {
 	inst := p.voWiFiHost().Instance(deviceID)
 	if inst == nil {
-		return messaging.SendOutcome{}, fmt.Errorf("设备 %s 的 VoWiFi 未启动", deviceID)
+		return ims.SMSResult{}, fmt.Errorf("设备 %s 的 VoWiFi 未启动", deviceID)
 	}
 	svc := inst.Service()
 	if svc == nil {
-		return messaging.SendOutcome{}, fmt.Errorf("设备 %s 的 VoWiFi IMS 服务未就绪", deviceID)
+		return ims.SMSResult{}, fmt.Errorf("设备 %s 的 VoWiFi IMS 服务未就绪", deviceID)
 	}
 
-	// 标准化路径：委托 messaging.Service.SendSMSWithOptions 处理 TPDU 编码 + RP-DATA 包装 + 事件分发
-	msgOpts := messaging.SendOptions{Encoding: string(opts.Encoding)}
+	// 标准化路径：委托 ims.SMSModule.SendSMSWithOptions 处理 TPDU 编码 + RP-DATA 包装 + 事件分发
+	msgOpts := ims.SMSRequest{Encoding: string(opts.Encoding)}
 	return svc.SendSMSWithOptions(ctx, to, text, msgOpts)
 }
 
@@ -58,7 +58,7 @@ func (p *Pool) IsVoWiFiActive(deviceID string) bool {
 }
 
 // SendVoWiFiUSSD 通过 VoWiFi 发送 USSD 请求（首轮）。
-func (p *Pool) SendVoWiFiUSSD(ctx context.Context, deviceID, command string) (*messaging.USSDResult, error) {
+func (p *Pool) SendVoWiFiUSSD(ctx context.Context, deviceID, command string) (*ims.USSDResult, error) {
 	if inst := p.voWiFiHost().Instance(deviceID); inst != nil {
 		svc := inst.Service()
 		if svc == nil {
@@ -70,7 +70,7 @@ func (p *Pool) SendVoWiFiUSSD(ctx context.Context, deviceID, command string) (*m
 }
 
 // ContinueVoWiFiUSSD 在已有 VoWiFi USSD 会话中发送后续输入。
-func (p *Pool) ContinueVoWiFiUSSD(ctx context.Context, deviceID, sessionID, input string) (*messaging.USSDResult, error) {
+func (p *Pool) ContinueVoWiFiUSSD(ctx context.Context, deviceID, sessionID, input string) (*ims.USSDResult, error) {
 	if inst := p.voWiFiHost().Instance(deviceID); inst != nil {
 		svc := inst.Service()
 		if svc == nil {
@@ -118,7 +118,7 @@ func (p *Pool) GetVoWiFiObs(deviceID string) map[string]interface{} {
 	return nil
 }
 
-func (p *Pool) GetVoWiFiRuntimeState(deviceID string) (runtimehost.State, bool) {
+func (p *Pool) GetVoWiFiRuntimeState(deviceID string) (vowifihost.DeviceStartupState, bool) {
 	return p.voWiFiHost().State(deviceID)
 }
 
@@ -126,7 +126,7 @@ func (p *Pool) SubscribeVoWiFiState(deviceID string) (<-chan struct{}, func()) {
 	return p.voWiFiHost().SubscribeState(deviceID)
 }
 
-func (p *Pool) recordVoWiFiStartupState(deviceID string, state runtimehost.State) {
+func (p *Pool) recordVoWiFiStartupState(deviceID string, state vowifihost.DeviceStartupState) {
 	p.voWiFiHost().RecordStartupState(deviceID, state)
 }
 

@@ -8,7 +8,7 @@ import (
 
 	"github.com/voorz/vohive/internal/backend"
 	"github.com/voorz/vohive/pkg/mbim"
-	swusim "github.com/voorz/vowifi-core/engine/sim"
+	"github.com/voorz/ims-go/ims"
 )
 
 type factoryWorkerStub struct {
@@ -77,7 +77,7 @@ func TestBuildAKAProviderUsesMBIMAKAWhenBackendModeIsMBIM(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CalculateAKA() error = %v", err)
 	}
-	want := swusim.AKAResult{
+	want := ims.AKAResult{
 		RES:  []byte{0x01, 0x02},
 		CK:   []byte{0x03, 0x04},
 		IK:   []byte{0x05, 0x06},
@@ -132,7 +132,7 @@ func TestBuildAKAProviderUsesRuntimeModemAKAWhenAvailable(t *testing.T) {
 	if _, err := provider.CalculateAKA(bytes16(0x10), bytes16(0x20)); err != nil {
 		t.Fatalf("CalculateAKA() error = %v", err)
 	}
-	isimProvider, ok := provider.(swusim.ISIMAKAProvider)
+	isimProvider, ok := provider.(ims.ISIMAKAProvider)
 	if !ok {
 		t.Fatal("BuildAKAProvider() should preserve ISIM AKA support")
 	}
@@ -158,7 +158,7 @@ func TestBackendAKAProviderSyncFailureReturnsErrSyncFailureWithAUTS(t *testing.T
 	}
 	p := backendAKAProvider{backend: stub}
 	got, err := p.CalculateAKA(bytes16(0x10), bytes16(0x20))
-	if !errors.Is(err, swusim.ErrSyncFailure) {
+	if !errors.Is(err, ims.ErrSyncFailure) {
 		t.Fatalf("err = %v, want ErrSyncFailure", err)
 	}
 	if !reflect.DeepEqual(got.AUTS, wantAUTS) {

@@ -21,7 +21,7 @@ import (
 
 type voWiFiStartContext struct {
 	worker *Worker
-	modem  runtimehost.Modem
+	modem  vowifihost.Modem
 	vowifihost.PreparedStart
 	startedAt time.Time
 }
@@ -29,7 +29,7 @@ type voWiFiStartContext struct {
 type workerAKAProviderInput struct {
 	worker   *Worker
 	deviceID string
-	modem    runtimehost.Modem
+	modem    vowifihost.Modem
 }
 
 func (w workerAKAProviderInput) BackendMode() string {
@@ -104,7 +104,7 @@ func (p *Pool) PrepareStart(deviceID, traceID, runtimeEPDGOverride string) (vowi
 	return prepared, nil
 }
 
-func (p *Pool) BeforeStart(deviceID string, modemIface runtimehost.Modem, proxyCfg *runtimehost.ProxyConfig) func(context.Context, runtimehost.SessionConfig) error {
+func (p *Pool) BeforeStart(deviceID string, modemIface vowifihost.Modem, proxyCfg *ims.ProxyConfig) func(context.Context, vowifihost.SessionConfig) error {
 	return p.beforeVoWiFiStart(deviceID, modemIface, proxyCfg)
 }
 
@@ -290,7 +290,7 @@ func (p *Pool) prepareVoWiFiStartContext(deviceID, traceID, runtimeEPDGOverride 
 	return startCtx, nil
 }
 
-func resolveVoWiFiCountryProxy(homeMCC, traceID, deviceID string) *runtimehost.ProxyConfig {
+func resolveVoWiFiCountryProxy(homeMCC, traceID, deviceID string) *ims.ProxyConfig {
 	proxy, countryCode, err := db.GetHomeMCCUpstreamProxy(homeMCC)
 	if err != nil {
 		logger.Warn("VoWiFi 启动前读取国家前置代理配置失败",
@@ -317,7 +317,7 @@ func resolveVoWiFiCountryProxy(homeMCC, traceID, deviceID string) *runtimehost.P
 		"proxy_country_code", countryCode,
 		"upstream_proxy_id", proxy.ID,
 		"proxy_route", "country_rule")
-	return &runtimehost.ProxyConfig{
+	return &ims.ProxyConfig{
 		ID:       proxy.ID,
 		Addr:     proxy.Addr,
 		Username: proxy.Username,
@@ -326,8 +326,8 @@ func resolveVoWiFiCountryProxy(homeMCC, traceID, deviceID string) *runtimehost.P
 	}
 }
 
-func (p *Pool) beforeVoWiFiStart(deviceID string, modemIface runtimehost.Modem, proxyCfg *runtimehost.ProxyConfig) func(context.Context, runtimehost.SessionConfig) error {
-	return func(startCtx context.Context, cfg runtimehost.SessionConfig) error {
+func (p *Pool) beforeVoWiFiStart(deviceID string, modemIface vowifihost.Modem, proxyCfg *ims.ProxyConfig) func(context.Context, vowifihost.SessionConfig) error {
+	return func(startCtx context.Context, cfg vowifihost.SessionConfig) error {
 		startupState := newVoWiFiSIMReadyStartupState(deviceID, cfg.DataplaneMode, modemIface.GetNetworkMode(), time.Now())
 		startupState.RegStatus, startupState.RegStatusText = modemIface.GetRegStatus()
 		p.recordVoWiFiStartupState(deviceID, startupState)

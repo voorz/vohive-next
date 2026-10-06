@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/voorz/vohive/pkg/logger"
-	"github.com/voorz/vowifi-core/runtimehost"
 )
 
 const defaultDesiredRecoverReason = "desired_reconcile"
@@ -85,7 +84,7 @@ func (m *Manager) ScheduleDesiredRecover(ctx context.Context, req DesiredRecover
 			// (runtimehost.Start is async). Set a cooldown to prevent tight
 			// recover loops when the tunnel immediately fails.
 			m.SetDesiredRecoverCooldown(deviceID, 10*time.Second)
-			m.RecordStartupState(deviceID, runtimehost.State{
+			m.RecordStartupState(deviceID, DeviceStartupState{
 				DeviceID:   deviceID,
 				Phase:      "recover_pending",
 				LastReason: "VoWiFi 启动中，等待隧道确认",

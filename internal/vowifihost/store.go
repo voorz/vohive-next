@@ -5,24 +5,24 @@ import (
 	"sync"
 	"time"
 
-	"github.com/voorz/vowifi-core/runtimehost"
+	"github.com/voorz/ims-go/ims"
 )
 
 type RuntimeStore interface {
 	BeginStart(deviceID string) StartClaim
-	ClaimStarted(deviceID string, epoch uint64, inst *runtimehost.Instance) bool
-	FailStart(deviceID string, epoch uint64, state runtimehost.State, err error)
-	RecordStartupState(deviceID string, state runtimehost.State) bool
+	ClaimStarted(deviceID string, epoch uint64, inst *ims.Client) bool
+	FailStart(deviceID string, epoch uint64, state DeviceStartupState, err error)
+	RecordStartupState(deviceID string, state DeviceStartupState) bool
 	ClearStartupState(deviceID string) bool
 	Invalidate(deviceID string) (uint64, bool)
 	CurrentEpoch(deviceID string) uint64
 	Active(deviceID string) bool
 	Starting(deviceID string) bool
-	Instance(deviceID string) *runtimehost.Instance
-	SetInstance(deviceID string, inst *runtimehost.Instance)
-	DeleteInstance(deviceID string, inst *runtimehost.Instance) bool
-	State(deviceID string) (runtimehost.State, bool)
-	Instances() map[string]*runtimehost.Instance
+	Instance(deviceID string) *ims.Client
+	SetInstance(deviceID string, inst *ims.Client)
+	DeleteInstance(deviceID string, inst *ims.Client) bool
+	State(deviceID string) (DeviceStartupState, bool)
+	Instances() map[string]*ims.Client
 	InstanceIDs() []string
 }
 
@@ -32,10 +32,10 @@ type Store struct {
 }
 
 type runtimeSlot struct {
-	instance  *runtimehost.Instance
+	instance  *ims.Client
 	starting  bool
 	epoch     uint64
-	state     runtimehost.State
+	state     DeviceStartupState
 	lastErr   string
 	updatedAt time.Time
 }
@@ -83,7 +83,7 @@ func (s *Store) BeginStart(deviceID string) StartClaim {
 	return StartClaim{Epoch: slot.epoch, Accepted: true}
 }
 
-func (s *Store) ClaimStarted(deviceID string, epoch uint64, inst *runtimehost.Instance) bool {
+func (s *Store) ClaimStarted(deviceID string, epoch uint64, inst *ims.Client) bool {
 	deviceID = strings.TrimSpace(deviceID)
 	if s == nil || deviceID == "" || inst == nil {
 		return false
@@ -99,13 +99,13 @@ func (s *Store) ClaimStarted(deviceID string, epoch uint64, inst *runtimehost.In
 	}
 	slot.instance = inst
 	slot.starting = false
-	slot.state = runtimehost.State{}
+	slot.state = DeviceStartupState{}
 	slot.lastErr = ""
 	slot.updatedAt = time.Now()
 	return true
 }
 
-func (s *Store) FailStart(deviceID string, epoch uint64, state runtimehost.State, err error) {
+func (s *Store) FailStart(deviceID string, epoch uint64, state DeviceStartupState, err error) {
 	deviceID = strings.TrimSpace(deviceID)
 	if s == nil || deviceID == "" {
 		return
@@ -127,7 +127,7 @@ func (s *Store) FailStart(deviceID string, epoch uint64, state runtimehost.State
 	slot.updatedAt = time.Now()
 }
 
-func (s *Store) RecordStartupState(deviceID string, state runtimehost.State) bool {
+func (s *Store) RecordStartupState(deviceID string, state DeviceStartupState) bool {
 	deviceID = strings.TrimSpace(deviceID)
 	if s == nil || deviceID == "" {
 		return false
@@ -160,7 +160,7 @@ func (s *Store) ClearStartupState(deviceID string) bool {
 	if slot == nil || slot.state.UpdatedAt.IsZero() {
 		return false
 	}
-	slot.state = runtimehost.State{}
+	slot.state = DeviceStartupState{}
 	slot.updatedAt = time.Now()
 	if slot.instance == nil && !slot.starting && slot.lastErr == "" {
 		delete(s.slots, deviceID)
@@ -179,7 +179,7 @@ func (s *Store) Invalidate(deviceID string) (uint64, bool) {
 	slot.epoch++
 	slot.starting = false
 	hadState := !slot.state.UpdatedAt.IsZero()
-	slot.state = runtimehost.State{}
+	slot.state = DeviceStartupState{}
 	slot.lastErr = ""
 	slot.updatedAt = time.Now()
 	return slot.epoch, hadState
@@ -215,7 +215,7 @@ func (s *Store) Starting(deviceID string) bool {
 	return false
 }
 
-func (s *Store) Instance(deviceID string) *runtimehost.Instance {
+func (s *Store) Instance(deviceID string) *ims.Client {
 	deviceID = strings.TrimSpace(deviceID)
 	if s == nil || deviceID == "" {
 		return nil
@@ -228,7 +228,7 @@ func (s *Store) Instance(deviceID string) *runtimehost.Instance {
 	return nil
 }
 
-func (s *Store) SetInstance(deviceID string, inst *runtimehost.Instance) {
+func (s *Store) SetInstance(deviceID string, inst *ims.Client) {
 	deviceID = strings.TrimSpace(deviceID)
 	if s == nil || deviceID == "" {
 		return
@@ -238,12 +238,12 @@ func (s *Store) SetInstance(deviceID string, inst *runtimehost.Instance) {
 	slot := s.ensureSlotLocked(deviceID)
 	slot.instance = inst
 	slot.starting = false
-	slot.state = runtimehost.State{}
+	slot.state = DeviceStartupState{}
 	slot.lastErr = ""
 	slot.updatedAt = time.Now()
 }
 
-func (s *Store) DeleteInstance(deviceID string, inst *runtimehost.Instance) bool {
+func (s *Store) DeleteInstance(deviceID string, inst *ims.Client) bool {
 	deviceID = strings.TrimSpace(deviceID)
 	if s == nil || deviceID == "" {
 		return false
@@ -259,7 +259,7 @@ func (s *Store) DeleteInstance(deviceID string, inst *runtimehost.Instance) bool
 	}
 	slot.instance = nil
 	slot.starting = false
-	slot.state = runtimehost.State{}
+	slot.state = DeviceStartupState{}
 	slot.lastErr = ""
 	slot.updatedAt = time.Now()
 	if slot.epoch == 0 {
@@ -268,32 +268,33 @@ func (s *Store) DeleteInstance(deviceID string, inst *runtimehost.Instance) bool
 	return true
 }
 
-func (s *Store) State(deviceID string) (runtimehost.State, bool) {
+func (s *Store) State(deviceID string) (DeviceStartupState, bool) {
 	deviceID = strings.TrimSpace(deviceID)
 	if s == nil || deviceID == "" {
-		return runtimehost.State{}, false
+		return DeviceStartupState{}, false
 	}
 	s.mu.RLock()
 	slot := s.slots[deviceID]
 	if slot == nil {
 		s.mu.RUnlock()
-		return runtimehost.State{}, false
+		return DeviceStartupState{}, false
 	}
-	inst := slot.instance
 	state := slot.state
 	hasState := !state.UpdatedAt.IsZero() || state.Phase != "" || slot.starting
 	s.mu.RUnlock()
-	if inst != nil {
-		return inst.State(), true
-	}
+	// ims-go 迁移：Client 状态由 vowifihost 的 DeviceStartupState 跟踪，不再从 Instance 获取。
+	// 如果有活跃实例但无 tracked state，返回运行中占位。
 	if hasState {
 		return state, true
 	}
-	return runtimehost.State{}, false
+	if slot.instance != nil {
+		return DeviceStartupState{DeviceID: deviceID, Phase: "running", UpdatedAt: time.Now()}, true
+	}
+	return DeviceStartupState{}, false
 }
 
-func (s *Store) Instances() map[string]*runtimehost.Instance {
-	out := make(map[string]*runtimehost.Instance)
+func (s *Store) Instances() map[string]*ims.Client {
+	out := make(map[string]*ims.Client)
 	if s == nil {
 		return out
 	}

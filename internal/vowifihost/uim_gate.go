@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"github.com/voorz/vohive/pkg/logger"
-	"github.com/voorz/vowifi-core/runtimehost"
 )
 
 // broadcastUIMGateCountdown 在 UIM 门控期间每秒广播状态更新，
@@ -45,7 +44,7 @@ func (m *Manager) broadcastUIMGateCountdown(deviceID string) {
 				return
 			}
 			// 更新 UpdatedAt 并广播，让前端获取最新 retry_in_seconds
-			m.RecordStartupState(deviceID, runtimehost.State{
+			m.RecordStartupState(deviceID, DeviceStartupState{
 				DeviceID:   deviceID,
 				Phase:      "uim_unavailable",
 				LastReason: "USIM 逻辑通道状态异常",

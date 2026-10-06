@@ -8,8 +8,7 @@ import (
 	"time"
 
 	"github.com/voorz/vohive/pkg/logger"
-	"github.com/voorz/vowifi-core/engine/swu"
-	"github.com/voorz/vowifi-core/runtimehost"
+	"github.com/voorz/ims-go/ims"
 )
 
 const lifecycleReadyTimeout = 15 * time.Second
@@ -81,9 +80,9 @@ func (m *Manager) enableRuntime(ctx context.Context, req runtimeEnableRequest) (
 		return fmt.Errorf("设备 %s 正在切卡，暂不允许启动 VoWiFi", deviceID)
 	}
 
-	traceID := runtimehost.NewTraceID()
+	traceID := NewTraceID()
 	baseCtx := hostContext(ctx, adapter)
-	startCtx := runtimehost.WithTraceID(baseCtx, traceID)
+	startCtx := WithTraceID(baseCtx, traceID)
 	startedAt := time.Now()
 
 	startClaim := m.BeginStart(deviceID)
@@ -100,7 +99,7 @@ func (m *Manager) enableRuntime(ctx context.Context, req runtimeEnableRequest) (
 	startFinalized := false
 	defer func() {
 		if !startFinalized {
-			m.FailStart(deviceID, startupEpoch, runtimehost.State{}, retErr)
+			m.FailStart(deviceID, startupEpoch, DeviceStartupState{}, retErr)
 		}
 	}()
 
@@ -121,10 +120,9 @@ func (m *Manager) enableRuntime(ctx context.Context, req runtimeEnableRequest) (
 		Epoch:         startupEpoch,
 		Prepared:      preparedStart,
 		Modem:         modemIface,
-		VoiceGateway:  m.voiceGateway,
-		Dataplane:     runtimehost.DataplanePolicy{Mode: swu.DataplaneModeUserspace},
+		Dataplane:     ims.DataplaneConfig{Mode: ims.DataplaneUserspace},
 		DeliveryStore: m.deliveryStore,
-		Dispatch:      m.dispatcher,
+		EventHandler:  m.eventHandler,
 		BeforeStart:   m.BeforeStart(deviceID, modemIface, preparedStart.Proxy),
 	})
 	if err != nil {
@@ -261,7 +259,7 @@ func (m *Manager) enableWhenReady(ctx context.Context, deviceID string, timeout 
 		logger.Debug("VoWiFi ready-enable received zero generation; runtime fallback may allocate one", "device", strings.TrimSpace(deviceID), "reason", strings.TrimSpace(reason))
 	}
 	// 上报等待 QMI Core 就绪状态，让前端显示实时进度
-	m.RecordStartupState(deviceID, runtimehost.State{
+	m.RecordStartupState(deviceID, DeviceStartupState{
 		DeviceID:   deviceID,
 		Phase:      "waiting_core_ready",
 		LastReason: "等待 QMI Core 就绪...",
@@ -271,7 +269,7 @@ func (m *Manager) enableWhenReady(ctx context.Context, deviceID string, timeout 
 		return fmt.Errorf("等待设备 %s QMI Core 恢复超时(%s): %w", deviceID, reason, err)
 	}
 	// 上报等待 Worker 就绪状态
-	m.RecordStartupState(deviceID, runtimehost.State{
+	m.RecordStartupState(deviceID, DeviceStartupState{
 		DeviceID:   deviceID,
 		Phase:      "waiting_worker_ready",
 		LastReason: "等待设备就绪...",
@@ -282,7 +280,7 @@ func (m *Manager) enableWhenReady(ctx context.Context, deviceID string, timeout 
 	}
 	// UIM 门控：检查 eUICC 可用状态，如果 UIM 不可用则阻止进入注定失败的 IKEv2 流程
 	if avail := adapter.EUICCAvailable(deviceID); avail != nil && !*avail {
-		m.RecordStartupState(deviceID, runtimehost.State{
+		m.RecordStartupState(deviceID, DeviceStartupState{
 			DeviceID:   deviceID,
 			Phase:      "uim_unavailable",
 			LastReason: "USIM 逻辑通道状态异常",

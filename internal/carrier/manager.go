@@ -2,17 +2,20 @@
 // for carrier configuration management.
 //
 // The package defines request/response types used by the API layer
-// and provides Resolve* helpers that convert carrier.CarrierProfile
-// to runtime types (voiceclient.RegisterProfile, etc.).
+// and provides Resolve* helpers that convert carrier profiles
+// to runtime types.
+//
+// CarrierProfile 是运营商配置的 JSON 表示（map 别名，保持与 DB/前端的 JSON 兼容）。
+// 迁移后不再依赖 vowifi-core 的 CarrierProfile 结构体。
 package carrier
 
 import (
 	"strings"
 	"time"
-
-	corevcarrier "github.com/voorz/vowifi-core/runtimehost/carrier"
-	"github.com/voorz/vowifi-core/runtimehost/voiceclient"
 )
+
+// CarrierProfile 是运营商配置（JSON map 别名）。
+type CarrierProfile = map[string]interface{}
 
 // ListItem 对应前端 CarrierListItem 类型。
 type ListItem struct {
@@ -30,59 +33,109 @@ type ListItem struct {
 
 // Detail 对应前端 CarrierDetail 类型。
 type Detail struct {
-	Key             string                       `json:"key"`
-	MCC             string                       `json:"mcc"`
-	MNC             string                       `json:"mnc"`
-	Name            string                       `json:"name"`
-	IKEAddr         string                       `json:"ike_addr"`
-	DeviceIMSTAC    int                          `json:"device_ims_tac"`
-	DeviceIMSCellID int                          `json:"device_ims_cell_id"`
-	SystemDefault   *corevcarrier.CarrierProfile `json:"system_default"`
-	UserConfig      *corevcarrier.CarrierProfile `json:"user_config"`
-	Active          bool                         `json:"active"`
+	Key             string          `json:"key"`
+	MCC             string          `json:"mcc"`
+	MNC             string          `json:"mnc"`
+	Name            string          `json:"name"`
+	IKEAddr         string          `json:"ike_addr"`
+	DeviceIMSTAC    int             `json:"device_ims_tac"`
+	DeviceIMSCellID int             `json:"device_ims_cell_id"`
+	SystemDefault   *CarrierProfile `json:"system_default"`
+	UserConfig      *CarrierProfile `json:"user_config"`
+	Active          bool            `json:"active"`
 }
 
 // SavePayload 对应前端 CarrierSavePayload 类型。
 type SavePayload struct {
-	Name            string                       `json:"name"`
-	IKEAddr         string                       `json:"ike_addr"`
-	DeviceIMSTAC    int                          `json:"device_ims_tac"`
-	DeviceIMSCellID int                          `json:"device_ims_cell_id"`
-	Config          *corevcarrier.CarrierProfile `json:"config"`
-	Active          bool                         `json:"active"`
+	Name            string          `json:"name"`
+	IKEAddr         string          `json:"ike_addr"`
+	DeviceIMSTAC    int             `json:"device_ims_tac"`
+	DeviceIMSCellID int             `json:"device_ims_cell_id"`
+	Config          *CarrierProfile `json:"config"`
+	Active          bool            `json:"active"`
 }
 
 // LoadActiveOverrides 已移除：运营商配置现在纯 DB 查询，不需要启动时加载到内存。
 
-// ResolveRegisterProfile 从 CarrierProfile 解析出 voiceclient.RegisterProfile。
-func ResolveRegisterProfile(p *corevcarrier.CarrierProfile) voiceclient.RegisterProfile {
+// getNested 从 map 中取嵌套字段（path 如 "device.imei"）。
+func getNested(p CarrierProfile, path string) interface{} {
 	if p == nil {
-		return voiceclient.RegisterProfile{}
+		return nil
 	}
-	return voiceclient.CarrierProfileToRegisterProfile(corevcarrier.ProfileToIMSFields(p))
+	var cur interface{} = map[string]interface{}(p)
+	for _, k := range strings.Split(path, ".") {
+		m, ok := cur.(map[string]interface{})
+		if !ok {
+			return nil
+		}
+		cur, ok = m[k]
+		if !ok {
+			return nil
+		}
+	}
+	return cur
 }
 
+func getString(p CarrierProfile, path string) string {
+	if v, ok := getNested(p, path).(string); ok {
+		return strings.TrimSpace(v)
+	}
+	return ""
+}
+
+func getInt(p CarrierProfile, path string) int {
+	switch v := getNested(p, path).(type) {
+	case float64:
+		return int(v)
+	case int:
+		return v
+	}
+	return 0
+}
+
+// ResolveRegisterProfile 已移除：RegisterProfile 概念合并到 ims-go 的 SIPConfig + 变体矩阵。
+// 调用方改用 ims.SIPConfig（见 vowifihost/runtime_start.go 迁移）。
+
 // ResolveSIPInstanceURN 从 CarrierProfile 解析出 SIP Instance URN。
-// 使用 FormatGSMAIMEIURN 进行 GSMA 标准格式化 (TAC-SNR-SVN)。
-func ResolveSIPInstanceURN(p *corevcarrier.CarrierProfile) string {
-	if p == nil || p.Device.IMEI == "" {
+// GSMA 标准格式化：urn:gsma:imei:<tac>-<snr>-<svn>
+func ResolveSIPInstanceURN(p *CarrierProfile) string {
+	if p == nil {
 		return ""
 	}
-	return voiceclient.FormatGSMAIMEIURN(strings.TrimSpace(p.Device.IMEI))
+	imei := getString(*p, "device.imei")
+	if imei == "" {
+		return ""
+	}
+	imei = strings.TrimSpace(imei)
+	// 简单格式化：取前 15 位数字
+	digits := ""
+	for _, c := range imei {
+		if c >= '0' && c <= '9' {
+			digits += string(c)
+		}
+	}
+	if len(digits) < 14 {
+		return ""
+	}
+	return "urn:gsma:imei:" + digits[:8] + "-" + digits[8:14] + "-" + digits[14:]
 }
 
 // ResolveRegisterExpiry 从 CarrierProfile 解析出 REGISTER Expires。
-func ResolveRegisterExpiry(p *corevcarrier.CarrierProfile) time.Duration {
-	if p == nil || p.IMS.Expires <= 0 {
+func ResolveRegisterExpiry(p *CarrierProfile) time.Duration {
+	if p == nil {
 		return 0
 	}
-	return time.Duration(p.IMS.Expires) * time.Second
+	exp := getInt(*p, "ims.expires")
+	if exp <= 0 {
+		return 0
+	}
+	return time.Duration(exp) * time.Second
 }
 
 // ResolvePCSCFAddr 从 CarrierProfile 解析出 P-CSCF 地址。
-func ResolvePCSCFAddr(p *corevcarrier.CarrierProfile) string {
+func ResolvePCSCFAddr(p *CarrierProfile) string {
 	if p == nil {
 		return ""
 	}
-	return strings.TrimSpace(p.IMS.PCSCFAddr)
+	return getString(*p, "ims.pcscf_addr")
 }

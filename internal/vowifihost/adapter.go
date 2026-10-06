@@ -5,19 +5,26 @@ import (
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/voorz/vowifi-core/runtimehost"
-	"github.com/voorz/vowifi-core/runtimehost/identity"
 )
 
+// DeviceStartupState 是设备启动状态（本地定义，替代 vowifi-core DeviceStartupState）。
+// 用于跟踪每个设备的启动阶段，供前端展示和内部协调。
+type DeviceStartupState struct {
+	DeviceID    string
+	Phase       string
+	LastReason  string
+	UpdatedAt   time.Time
+	NetworkMode string
+}
+
 type PreparedStart struct {
-	Profile      identity.Profile
-	Prepared     identity.PreparedSession
-	Modem        runtimehost.Modem
-	SIM          runtimehost.SIMAdapter // optional override; when nil, derived from Modem APDU
-	Proxy        *runtimehost.ProxyConfig
+	Profile      IdentityProfile
+	Prepared     PreparedSession
+	Modem        Modem
+	SIM          SIMAdapter // optional override; when nil, derived from Modem APDU
+	Proxy        *ProxyConfig
 	NetworkMode  string
-	StartupState runtimehost.State
+	StartupState DeviceStartupState
 }
 
 type Adapter interface {
@@ -33,7 +40,7 @@ type Adapter interface {
 	// - &false: eUICC 不可用（UIM 状态不佳），阻止 VoWiFi 启动
 	EUICCAvailable(deviceID string) *bool
 	PrepareStart(deviceID, traceID, runtimeEPDGOverride string) (PreparedStart, error)
-	BeforeStart(deviceID string, modem runtimehost.Modem, proxy *runtimehost.ProxyConfig) func(context.Context, runtimehost.SessionConfig) error
+	BeforeStart(deviceID string, modem Modem, proxy *ProxyConfig) func(context.Context, SessionConfig) error
 	HandleStartupError(req StartupErrorRequest) error
 	MarkRuntimeStarted(req RuntimeStartedRequest)
 	RestoreSMSMode(deviceID string)
@@ -46,7 +53,7 @@ type StartupErrorRequest struct {
 	RuntimeEPDGOverride string
 	Generation          uint64
 	StartedAt           time.Time
-	State               runtimehost.State
+	State               DeviceStartupState
 	Err                 error
 }
 
@@ -76,7 +83,7 @@ func (m *Manager) PrepareStart(deviceID, traceID, runtimeEPDGOverride string) (P
 	return adapter.PrepareStart(deviceID, strings.TrimSpace(traceID), strings.TrimSpace(runtimeEPDGOverride))
 }
 
-func (m *Manager) BeforeStart(deviceID string, modem runtimehost.Modem, proxy *runtimehost.ProxyConfig) func(context.Context, runtimehost.SessionConfig) error {
+func (m *Manager) BeforeStart(deviceID string, modem Modem, proxy *ProxyConfig) func(context.Context, SessionConfig) error {
 	adapter := m.hostAdapter()
 	if adapter == nil {
 		return nil

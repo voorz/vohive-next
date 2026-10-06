@@ -488,7 +488,7 @@ func (p *Pool) SetNotifier(n Notifier) {
 	p.mu.Unlock()
 
 	instances := p.voWiFiHost().Instances()
-	apps := make([]*runtimehost.Instance, 0, len(instances))
+	apps := make([]*ims.Client, 0, len(instances))
 	for _, app := range instances {
 		apps = append(apps, app)
 	}

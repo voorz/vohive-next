@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/voorz/vohive/pkg/logger"
-	swusim "github.com/voorz/vowifi-core/engine/sim"
+	"github.com/voorz/ims-go/ims"
 )
 
 // BuildUSIMAuthAPDU 构造 USIM AKA 鉴权 APDU（RAND/AUTN），用于逻辑通道下发。
@@ -91,7 +91,7 @@ func ParseUSIMAuthResponse(deviceID string, resp []byte) (AKAResult, error) {
 			"device", deviceID,
 			"auts_len", len(auts),
 			"auts", maskHexBytes(auts))
-		return AKAResult{AUTS: auts}, swusim.ErrSyncFailure
+		return AKAResult{AUTS: auts}, ims.ErrSyncFailure
 
 	case 0xDD:
 		return AKAResult{}, errors.New("AKA MAC 校验失败")

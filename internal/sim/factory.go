@@ -8,7 +8,7 @@ import (
 	"github.com/voorz/vohive/internal/backend"
 	"github.com/voorz/vohive/pkg/logger"
 	"github.com/voorz/vohive/pkg/mbim"
-	swusim "github.com/voorz/vowifi-core/engine/sim"
+	"github.com/voorz/ims-go/ims"
 )
 
 // BackendAKAProvider is the backend surface needed to compute AKA without APDU.
@@ -30,21 +30,21 @@ type backendAKAProvider struct {
 	backend BackendAKAProvider
 }
 
-func (p backendAKAProvider) CalculateAKA(rand16, autn16 []byte) (swusim.AKAResult, error) {
+func (p backendAKAProvider) CalculateAKA(rand16, autn16 []byte) (ims.AKAResult, error) {
 	res, ik, ck, auts, err := p.backend.CalculateAKA(context.Background(), rand16, autn16)
 	if err != nil {
 		// MBIM AUTH_SYNC_FAILURE: err is set but auts may carry the resync token.
 		// Return it as ErrSyncFailure so the EAP-AKA engine can send AT_AUTS.
 		var se *mbim.StatusError
 		if errors.As(err, &se) && se.Status == 35 { // 35 is MBIM_STATUS_AUTH_SYNC_FAILURE
-			return swusim.AKAResult{AUTS: append([]byte(nil), auts...)}, swusim.ErrSyncFailure
+			return ims.AKAResult{AUTS: append([]byte(nil), auts...)}, ims.ErrSyncFailure
 		}
 		if len(auts) > 0 {
-			return swusim.AKAResult{AUTS: append([]byte(nil), auts...)}, swusim.ErrSyncFailure
+			return ims.AKAResult{AUTS: append([]byte(nil), auts...)}, ims.ErrSyncFailure
 		}
-		return swusim.AKAResult{}, err
+		return ims.AKAResult{}, err
 	}
-	return swusim.AKAResult{
+	return ims.AKAResult{
 		RES:  append([]byte(nil), res...),
 		CK:   append([]byte(nil), ck...),
 		IK:   append([]byte(nil), ik...),
@@ -56,11 +56,11 @@ func (p backendAKAProvider) CalculateAKA(rand16, autn16 []byte) (swusim.AKAResul
 // channel cannot be opened (e.g. EM7430 USIM 12-byte AID → SelectFailed), it
 // automatically falls back to the MBIM Auth service.
 type channelOrAuthAKAProvider struct {
-	channel swusim.AKAProvider
-	auth    swusim.AKAProvider
+	channel ims.AKAProvider
+	auth    ims.AKAProvider
 }
 
-func (p *channelOrAuthAKAProvider) CalculateAKA(rand16, autn16 []byte) (swusim.AKAResult, error) {
+func (p *channelOrAuthAKAProvider) CalculateAKA(rand16, autn16 []byte) (ims.AKAResult, error) {
 	res, err := p.channel.CalculateAKA(rand16, autn16)
 	if err == nil {
 		return res, nil
@@ -69,7 +69,7 @@ func (p *channelOrAuthAKAProvider) CalculateAKA(rand16, autn16 []byte) (swusim.A
 		logger.Warn("[sim] 逻辑通道开通道失败，降级到 MBIM Auth AKA", "err", err)
 		return p.auth.CalculateAKA(rand16, autn16)
 	}
-	return swusim.AKAResult{}, err
+	return ims.AKAResult{}, err
 }
 
 // isUICCChannelOpenError reports whether err indicates the UICC channel could
@@ -90,14 +90,14 @@ func isUICCChannelOpenError(err error) bool {
 }
 
 // BuildAKAProvider returns the unified runtime AKA provider for the worker/backend.
-func BuildAKAProvider(w AKAProviderWorker) swusim.AKAProvider {
+func BuildAKAProvider(w AKAProviderWorker) ims.AKAProvider {
 	if w == nil {
 		return nil
 	}
 	if strings.EqualFold(strings.TrimSpace(w.BackendMode()), backend.BackendMBIM) {
 		caps, _ := w.MBIMCapability()
 
-		var mbimAuth swusim.AKAProvider
+		var mbimAuth ims.AKAProvider
 		if caps != nil && caps.AuthAKAUsable() {
 			if provider, ok := w.MBIMAKAProvider(); ok && provider != nil {
 				mbimAuth = backendAKAProvider{backend: provider}

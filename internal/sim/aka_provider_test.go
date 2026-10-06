@@ -6,18 +6,18 @@ import (
 	"testing"
 	"time"
 
-	swusim "github.com/voorz/vowifi-core/engine/sim"
+	"github.com/voorz/ims-go/ims"
 )
 
-var _ swusim.AKAProvider = (*ATAKAProvider)(nil)
+var _ ims.AKAProvider = (*ATAKAProvider)(nil)
 
 type akaWithPreferenceProviderStub struct {
-	result             swusim.AKAResult
+	result             ims.AKAResult
 	err                error
 	lastPreferenceUsed string
 }
 
-func (s *akaWithPreferenceProviderStub) CalculateAKAWithPreference(rand16, autn16 []byte, preference string) (swusim.AKAResult, error) {
+func (s *akaWithPreferenceProviderStub) CalculateAKAWithPreference(rand16, autn16 []byte, preference string) (ims.AKAResult, error) {
 	s.lastPreferenceUsed = preference
 	return s.result, s.err
 }
@@ -187,7 +187,7 @@ func TestATAKAProviderISIMStrictDoesNotFallbackToUSIM(t *testing.T) {
 
 func TestWrapPreferredAKAProviderReturnsSWUAKAProvider(t *testing.T) {
 	stub := &akaWithPreferenceProviderStub{
-		result: swusim.AKAResult{
+		result: ims.AKAResult{
 			RES:  []byte{0x01, 0x02},
 			CK:   []byte{0x03, 0x04},
 			IK:   []byte{0x05, 0x06},
@@ -196,7 +196,7 @@ func TestWrapPreferredAKAProviderReturnsSWUAKAProvider(t *testing.T) {
 	}
 
 	wrapped := WrapPreferredAKAProvider(stub, AKAAppPreferenceISIMStrict)
-	var provider swusim.AKAProvider = wrapped
+	var provider ims.AKAProvider = wrapped
 
 	got, err := provider.CalculateAKA(bytes16(0x10), bytes16(0x20))
 	if err != nil {

@@ -3,7 +3,6 @@ package vowifihost
 import (
 	"context"
 	"strings"
-	"time"
 
 	"github.com/voorz/vohive/pkg/logger"
 )
@@ -35,13 +34,7 @@ func (m *Manager) StopInstanceForTeardown(ctx context.Context, deviceID, reason 
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	stopCtx := ctx
-	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
-		var cancel context.CancelFunc
-		stopCtx, cancel = context.WithTimeout(ctx, 10*time.Second)
-		defer cancel()
-	}
-	if err := inst.Stop(stopCtx); err != nil {
+	if err := inst.Stop(); err != nil {
 		logger.Warn("VoWiFi teardown 失败", "device", deviceID, "reason", reason, "err", err)
 	}
 	m.RuntimeStore().DeleteInstance(deviceID, inst)

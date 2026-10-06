@@ -26,7 +26,7 @@ var (
 	efMF    = []byte{0x3F, 0x00}
 )
 
-// pcscModemAdapter 通过 PC/SC 读卡器实现 runtimehost.Modem 接口。
+// pcscModemAdapter 通过 PC/SC 读卡器实现 vowifihost.Modem 接口。
 // 用于 PC/SC 设备的 VoWiFi 启动流程，使 AKA 认证可通过 PC/SC 通道执行。
 type pcscModemAdapter struct {
 	deviceID  string
@@ -37,7 +37,7 @@ type pcscModemAdapter struct {
 	accessMu  *sync.Mutex // 可选：与 eSIM 管理器共享的读卡器访问锁
 }
 
-var _ runtimehost.Modem = (*pcscModemAdapter)(nil)
+var _ vowifihost.Modem = (*pcscModemAdapter)(nil)
 
 func newPCSCModemAdapter(deviceID, usbPath, sn string, mu *sync.Mutex) (*pcscModemAdapter, error) {
 	readerName := esim.ResolveReaderByUSBPath(usbPath, sn)
@@ -241,8 +241,8 @@ func (a *pcscModemAdapter) TransmitAPDU(channel int, hexAPDU string) (string, er
 	return hex.EncodeToString(resp), nil
 }
 
-func (a *pcscModemAdapter) GetISIMIdentity() (identity.Identity, error) {
-	return identity.Identity{}, fmt.Errorf("ISIM not available, using USIM fallback")
+func (a *pcscModemAdapter) GetISIMIdentity() (vowifihost.IdentityProfile, error) {
+	return vowifihost.IdentityProfile{}, fmt.Errorf("ISIM not available, using USIM fallback")
 }
 
 func (a *pcscModemAdapter) GetNetworkMode() string {

@@ -51,9 +51,9 @@ func TestManagerStartRuntimeBuildsRequestAndClaimsInstance(t *testing.T) {
 		TraceID:  "trace-1",
 		Epoch:    claim.Epoch,
 		Prepared: PreparedStart{
-			Profile: identity.Profile{IMSI: "001010000000001"},
-			Prepared: identity.PreparedSession{
-				Profile: identity.Profile{IMSI: "001010000000001"},
+			Profile: IdentityProfile{IMSI: "001010000000001"},
+			Prepared: PreparedSession{
+				Profile: IdentityProfile{IMSI: "001010000000001"},
 			},
 			NetworkMode: "LTE",
 		},
@@ -97,8 +97,8 @@ func TestManagerStartRuntimeStopsStaleStartedInstance(t *testing.T) {
 		TraceID:  "trace-stale",
 		Epoch:    claim.Epoch,
 		Prepared: PreparedStart{
-			Profile:     identity.Profile{IMSI: "001010000000001"},
-			Prepared:    identity.PreparedSession{Profile: identity.Profile{IMSI: "001010000000001"}},
+			Profile:     IdentityProfile{IMSI: "001010000000001"},
+			Prepared:    PreparedSession{Profile: IdentityProfile{IMSI: "001010000000001"}},
 			NetworkMode: "LTE",
 		},
 		Modem: runtimeStartTestModem{},

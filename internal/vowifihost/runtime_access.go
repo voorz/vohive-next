@@ -3,10 +3,10 @@ package vowifihost
 import (
 	"strings"
 
-	"github.com/voorz/vowifi-core/runtimehost"
+	"github.com/voorz/ims-go/ims"
 )
 
-func (m *Manager) Instance(deviceID string) *runtimehost.Instance {
+func (m *Manager) Instance(deviceID string) *ims.Client {
 	if m == nil {
 		return nil
 	}
@@ -17,7 +17,7 @@ func (m *Manager) Instance(deviceID string) *runtimehost.Instance {
 	return m.RuntimeStore().Instance(deviceID)
 }
 
-func (m *Manager) Instances() map[string]*runtimehost.Instance {
+func (m *Manager) Instances() map[string]*ims.Client {
 	if m == nil {
 		return nil
 	}
@@ -53,13 +53,13 @@ func (m *Manager) Starting(deviceID string) bool {
 	return m.RuntimeStore().Starting(deviceID)
 }
 
-func (m *Manager) State(deviceID string) (runtimehost.State, bool) {
+func (m *Manager) State(deviceID string) (DeviceStartupState, bool) {
 	if m == nil {
-		return runtimehost.State{}, false
+		return DeviceStartupState{}, false
 	}
 	deviceID = strings.TrimSpace(deviceID)
 	if deviceID == "" {
-		return runtimehost.State{}, false
+		return DeviceStartupState{}, false
 	}
 	return m.RuntimeStore().State(deviceID)
 }

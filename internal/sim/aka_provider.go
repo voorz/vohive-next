@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/voorz/vohive/pkg/logger"
-	swusim "github.com/voorz/vowifi-core/engine/sim"
+	"github.com/voorz/ims-go/ims"
 )
 
 // ATModem 定义 simauth 所需的 Modem 能力接口。
@@ -76,12 +76,12 @@ func (d *ATAKAProvider) LastAKAProfile() AKAPathProfile {
 
 // CalculateAKA 执行 AKA 计算，默认使用 USIM。
 // 如需 ISIM 优先或自动回退，请显式调用 CalculateAKAWithPreference。
-func (d *ATAKAProvider) CalculateAKA(rand16, autn16 []byte) (swusim.AKAResult, error) {
+func (d *ATAKAProvider) CalculateAKA(rand16, autn16 []byte) (ims.AKAResult, error) {
 	return d.CalculateAKAWithPreference(rand16, autn16, AKAAppPreferenceUSIM)
 }
 
 // CalculateISIMAKA 执行严格 ISIM AKA 计算，不回退到 USIM。
-func (d *ATAKAProvider) CalculateISIMAKA(rand16, autn16 []byte) (swusim.AKAResult, error) {
+func (d *ATAKAProvider) CalculateISIMAKA(rand16, autn16 []byte) (ims.AKAResult, error) {
 	return d.CalculateAKAWithPreference(rand16, autn16, AKAAppPreferenceISIMStrict)
 }
 
@@ -90,7 +90,7 @@ func (d *ATAKAProvider) CalculateISIMAKA(rand16, autn16 []byte) (swusim.AKAResul
 // - "isim":    优先 ISIM，失败后 USIM
 // - "isim_strict": 仅使用 ISIM，失败不回退
 // - "usim":    仅使用 USIM
-func (d *ATAKAProvider) CalculateAKAWithPreference(rand16, autn16 []byte, preference string) (swusim.AKAResult, error) {
+func (d *ATAKAProvider) CalculateAKAWithPreference(rand16, autn16 []byte, preference string) (ims.AKAResult, error) {
 	logger.Debug("AKA 计算开始",
 		d.withDevice(
 			"rand", maskHexBytes(rand16),
@@ -110,7 +110,7 @@ func (d *ATAKAProvider) CalculateAKAWithPreference(rand16, autn16 []byte, prefer
 	if pref == AKAAppPreferenceUSIM {
 		res, err := d.calculateAKAOnUSIM(rand16, autn16)
 		if err != nil {
-			if errors.Is(err, swusim.ErrSyncFailure) {
+			if errors.Is(err, ims.ErrSyncFailure) {
 				return res, err
 			}
 			logger.Error("AKA 计算失败：USIM 模式失败", d.withDevice("err", err)...)
@@ -133,7 +133,7 @@ func (d *ATAKAProvider) CalculateAKAWithPreference(rand16, autn16 []byte, prefer
 		return res, nil
 	} else {
 		if pref == AKAAppPreferenceISIMStrict {
-			if errors.Is(err, swusim.ErrSyncFailure) {
+			if errors.Is(err, ims.ErrSyncFailure) {
 				return res, err
 			}
 			return AKAResult{}, err
@@ -143,7 +143,7 @@ func (d *ATAKAProvider) CalculateAKAWithPreference(rand16, autn16 []byte, prefer
 
 	res, err := d.calculateAKAOnUSIM(rand16, autn16)
 	if err != nil {
-		if errors.Is(err, swusim.ErrSyncFailure) {
+		if errors.Is(err, ims.ErrSyncFailure) {
 			return res, err
 		}
 		return AKAResult{}, err
@@ -243,7 +243,7 @@ func (d *ATAKAProvider) calculateAKAOnUSIM(rand16, autn16 []byte) (AKAResult, er
 		return res, nil
 	}
 	// sync failure 是确定性的（SQN 不匹配），换 APDU 格式无用，直接返回让上层走 AUTS 重同步
-	if errors.Is(err, swusim.ErrSyncFailure) {
+	if errors.Is(err, ims.ErrSyncFailure) {
 		return res, err
 	}
 	logger.Warn("USIM 逻辑通道首选 APDU 失败，尝试带 Le 变体", d.withDevice("err", err)...)
@@ -286,7 +286,7 @@ func (d *ATAKAProvider) calculateAKAOnISIMLogicalChannel(rand16, autn16 []byte) 
 		return res, nil
 	}
 	// sync failure 是确定性的（SQN 不匹配），换 APDU 格式无用，直接返回让上层走 AUTS 重同步
-	if errors.Is(err, swusim.ErrSyncFailure) {
+	if errors.Is(err, ims.ErrSyncFailure) {
 		return res, err
 	}
 	logger.Warn("ISIM 逻辑通道首选 APDU 失败，尝试带 Le 变体", d.withDevice("err", err)...)
@@ -370,7 +370,7 @@ func (d *ATAKAProvider) sendAPDUOnLogicalChannel(channel int, apdu []byte) (body
 
 // AKAWithPreferenceProvider 定义了允许指定卡应用偏好（如 USIM/ISIM）的 AKA 计算扩展接口。
 type AKAWithPreferenceProvider interface {
-	CalculateAKAWithPreference(rand16, autn16 []byte, preference string) (swusim.AKAResult, error)
+	CalculateAKAWithPreference(rand16, autn16 []byte, preference string) (ims.AKAResult, error)
 }
 
 // preferredAKAAdapter 将 AKAWithPreferenceProvider 与特定偏好绑定，包装为 AKAProvider。
@@ -380,7 +380,7 @@ type preferredAKAAdapter struct {
 }
 
 // WrapPreferredAKAProvider 将包含偏好参数的 AKA 提供者包装为统一的 AKAProvider 接口。
-func WrapPreferredAKAProvider(p AKAWithPreferenceProvider, preference string) swusim.AKAProvider {
+func WrapPreferredAKAProvider(p AKAWithPreferenceProvider, preference string) ims.AKAProvider {
 	if p == nil {
 		return nil
 	}
@@ -388,6 +388,6 @@ func WrapPreferredAKAProvider(p AKAWithPreferenceProvider, preference string) sw
 }
 
 // CalculateAKA 代理调用底层的带偏好设置的 AKA 计算方法。
-func (a preferredAKAAdapter) CalculateAKA(rand16, autn16 []byte) (swusim.AKAResult, error) {
+func (a preferredAKAAdapter) CalculateAKA(rand16, autn16 []byte) (ims.AKAResult, error) {
 	return a.p.CalculateAKAWithPreference(rand16, autn16, a.preference)
 }
