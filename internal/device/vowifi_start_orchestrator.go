@@ -249,11 +249,16 @@ func (p *Pool) prepareVoWiFiStartContext(deviceID, traceID, runtimeEPDGOverride 
 					rfOffDelay = time.Duration(p.cfg.VoWiFi.Behavior.RFOffDelay) * time.Second
 				}
 				if rfOffDelay <= 0 {
-					rfOffDelay = 5
+					rfOffDelay = 5 * time.Second
 				}
 				logger.Info("飞行模式后等待网络栈稳定",
 					"trace_id", traceID, "device", deviceID, "rf_off_delay_s", rfOffDelay)
-				time.Sleep(time.Duration(rfOffDelay) * time.Second)
+				// 可取消的等待：响应 Pool 关闭，避免 time.Sleep 阻塞无法中断
+				select {
+				case <-p.ctx.Done():
+					return startCtx, fmt.Errorf("等待网络栈稳定时被取消: %w", p.ctx.Err())
+				case <-time.After(rfOffDelay):
+				}
 			}
 		}
 	}
