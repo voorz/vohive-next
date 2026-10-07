@@ -49,6 +49,11 @@ func (d poolVoWiFiRuntimeDispatcher) Dispatch(deviceID string, e ims.Event) {
 				logger.Warn("VoWiFi 上层持久化本机号码失败", "device", deviceID, "phone", data.Number, "err", err)
 			}
 		}
+	// Phase 3：运行时状态变更事件 → 触发前端实时推送（对标 vowifi-core Observer → BroadcastState）。
+	case ims.EventTunnelUp, ims.EventTunnelDown, ims.EventRegistered, ims.EventRegistrationFailed,
+		ims.EventSMSReady, ims.EventCallReady, ims.EventStateChanged:
+		// 状态已由 ims-go Client 内部更新，此处只需通知前端拉取最新快照。
+		d.pool.voWiFiHost().BroadcastState(deviceID)
 	}
 
 	notifier := d.pool.getNotifier()

@@ -24,6 +24,8 @@ import (
 	"github.com/voorz/vohive/pkg/logger"
 	"github.com/voorz/vohive/internal/vowifihost"
 
+	"github.com/voorz/ims-go/ims"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -526,6 +528,29 @@ type voWiFiRuntimeDTO struct {
 	RetryInSeconds int `json:"retry_in_seconds,omitempty"`
 }
 
+// imsRuntimeStateToDTO 将 ims-go 的 RuntimeState 转换为前端 DTO（Phase 3）。
+// 对标 vowifi-core 的 inst.State() → BroadcastState 透传路径。
+func imsRuntimeStateToDTO(deviceID string, rs ims.RuntimeState) *voWiFiRuntimeDTO {
+	return &voWiFiRuntimeDTO{
+		DeviceID:       deviceID,
+		Phase:          "running", // Client 运行中即为 running 阶段
+		SIMReady:       rs.SIMReady,
+		AccessReady:    rs.AccessReady,
+		TunnelReady:    rs.TunnelReady,
+		IMSReady:       rs.IMSReady,
+		SMSReady:       rs.SMSReady,
+		CallReady:      rs.CallReady,
+		LastErrorClass: rs.LastErrorClass,
+		LastError:      rs.LastError,
+		LastReason:     rs.LastReason,
+		UpdatedAt:      rs.UpdatedAt,
+		Generation:     rs.Generation,
+		Stage:          rs.Stage,
+		StageLabel:     rs.StageLabel,
+		StageStartedAt: rs.StageStartedAt,
+	}
+}
+
 func runtimeStateToDTO(st vowifihost.DeviceStartupState, status modem.DeviceStatus) *voWiFiRuntimeDTO {
 	return &voWiFiRuntimeDTO{
 		DeviceID:    st.DeviceID,
@@ -546,6 +571,12 @@ func runtimeStateToDTO(st vowifihost.DeviceStartupState, status modem.DeviceStat
 }
 
 func (s *Server) getVoWiFiRuntimeDTO(deviceID string) *voWiFiRuntimeDTO {
+	// Phase 3：优先使用 ims-go Client 的实时 RuntimeState（对标 vowifi-core 的 inst.State() 透传）。
+	// 只有 Client 不存在或未运行时，才回落到 Store 的 DeviceStartupState（启动前阶段）。
+	if inst := s.pool.GetVoWiFiAppForDevice(deviceID); inst != nil && inst.IsRunning() {
+		rs := inst.State()
+		return imsRuntimeStateToDTO(deviceID, rs)
+	}
 	st, ok := s.pool.GetVoWiFiRuntimeState(deviceID)
 	if !ok {
 		// RuntimeStore 没有状态，但可能处于恢复退避中。
