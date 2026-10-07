@@ -147,6 +147,15 @@ func (m *Manager) ClearStartupState(deviceID string) bool {
 	return m.RuntimeStore().ClearStartupState(deviceID)
 }
 
+// UpdateReadiness 原子更新设备的就绪布尔值并广播（运行时状态实时上报）。
+func (m *Manager) UpdateReadiness(deviceID string, update func(*DeviceStartupState)) bool {
+	if !m.RuntimeStore().UpdateReadiness(deviceID, update) {
+		return false
+	}
+	m.BroadcastState(deviceID)
+	return true
+}
+
 // EventDispatcher 为设备创建事件处理器（捕获 deviceID）。
 type EventDispatcher interface {
 	ForDevice(deviceID string) ims.EventHandler

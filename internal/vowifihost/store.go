@@ -14,6 +14,7 @@ type RuntimeStore interface {
 	ClaimStarted(deviceID string, epoch uint64, inst *ims.Client) bool
 	FailStart(deviceID string, epoch uint64, state DeviceStartupState, err error)
 	RecordStartupState(deviceID string, state DeviceStartupState) bool
+	UpdateReadiness(deviceID string, update func(*DeviceStartupState)) bool
 	ClearStartupState(deviceID string) bool
 	Invalidate(deviceID string) (uint64, bool)
 	CurrentEpoch(deviceID string) uint64
@@ -158,6 +159,25 @@ func (s *Store) RecordStartupState(deviceID string, state DeviceStartupState) bo
 	return true
 }
 
+// UpdateReadiness 原子更新设备的就绪布尔值（运行时状态上报）。
+// 与 RecordStartupState 不同：允许在实例已活跃后更新（用于 ims-go 事件驱动的实时状态同步）。
+func (s *Store) UpdateReadiness(deviceID string, update func(*DeviceStartupState)) bool {
+	deviceID = strings.TrimSpace(deviceID)
+	if s == nil || deviceID == "" || update == nil {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	slot := s.slots[deviceID]
+	if slot == nil {
+		return false
+	}
+	update(&slot.state)
+	slot.state.UpdatedAt = time.Now()
+	slot.updatedAt = slot.state.UpdatedAt
+	return true
+}
+
 func (s *Store) ClearStartupState(deviceID string) bool {
 	deviceID = strings.TrimSpace(deviceID)
 	if s == nil || deviceID == "" {
@@ -169,7 +189,20 @@ func (s *Store) ClearStartupState(deviceID string) bool {
 	if slot == nil || slot.state.UpdatedAt.IsZero() {
 		return false
 	}
-	slot.state = DeviceStartupState{}
+	// 保留 6 个就绪布尔值（运行时状态），只将会话阶段标记为 running。
+	// 之前直接清零导致前端 6 步骤全灭。
+	preserved := slot.state
+	slot.state = DeviceStartupState{
+		DeviceID:    deviceID,
+		Phase:       "running",
+		SIMReady:    preserved.SIMReady,
+		AccessReady: preserved.AccessReady,
+		TunnelReady: preserved.TunnelReady,
+		IMSReady:    preserved.IMSReady,
+		SMSReady:    preserved.SMSReady,
+		CallReady:   preserved.CallReady,
+		UpdatedAt:   time.Now(),
+	}
 	slot.updatedAt = time.Now()
 	if slot.instance == nil && !slot.starting && slot.lastErr == "" {
 		delete(s.slots, deviceID)
